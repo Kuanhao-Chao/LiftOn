@@ -334,6 +334,10 @@ def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
+def write_lifton_chains(fw_chain, transcript_id, chains):
+    chain_ls = ";".join(chains)
+    fw_chain.write(f"{transcript_id}\t{chain_ls}\n")
+
 def segments_overlap_length(segment1, segment2):
     # Check if the segments have valid endpoints
     # print("Checking two segments overlapping.!")

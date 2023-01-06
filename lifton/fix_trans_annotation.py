@@ -44,7 +44,7 @@ def push_cds_idx(c_idx, lifton_aln, ref_aa_count):
     return c_idx, ref_aa_count
 
 
-def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai):
+def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, chains):
     # print(">> process_m_l_children!! ")
     # print("\tl_c_idx: ", l_c_idx)
     # print("\tm_c_idx: ", m_c_idx)
@@ -68,9 +68,11 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
     if (m_matches/m_length <= l_matches/l_length):
         # print("\t# => Liftoff is doing better")
         cds_ls = lifton_entry.create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, False)
+        chains.append("Liftoff")
     elif (m_matches/m_length > l_matches/l_length):
         # print("\t# => miniprot is doing better")
         cds_ls = lifton_entry.create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, True)
+        chains.append("miniprot")
     return cds_ls
 
 
@@ -86,6 +88,8 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
     cds_list = []
     ref_aa_liftoff_count = 0
     ref_aa_miniprot_count = 0
+
+    chains = []
 
     while m_c_idx != (len(m_children)-1) or l_c_idx != (len(l_children)-1):
         if (m_c_idx == len(m_children)-1) and (l_c_idx < (len(l_children)-1)):
@@ -121,7 +125,7 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
                 # 1. protein references are the same
                 # 2. CDS ends at the same position.
                 if l_c_idx > 0 and m_c_idx > 0 and m_c.end == l_c.end:
-                    cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+                    cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, chains)
                     cds_list += cdss
                     m_c_idx_last = m_c_idx
                     l_c_idx_last = l_c_idx
@@ -152,7 +156,7 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
                 # print(">> Finally comparison now!")
                 # print(">> miniprot")
                 if l_c_idx > 0 and m_c_idx > 0 and m_c.end == l_c.end:
-                    cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+                    cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, chains)
                     cds_list += cdss
                     m_c_idx_last = m_c_idx
                     l_c_idx_last = l_c_idx
@@ -162,7 +166,7 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
         
     l_c_idx += 1
     m_c_idx += 1
-    cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+    cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, chains)
     cds_list += cdss
 
-    return cds_list
+    return cds_list, chains
