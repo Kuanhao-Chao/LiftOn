@@ -16,6 +16,8 @@ def extract_features_to_fix(ref_chroms, liftover_type, args):
         os.mkdir(args.dir)
     l_feature_db, m_feature_db = create_feature_db_connections(args)
 
+    return  l_feature_db, m_feature_db
+
     l_feature_hierarchy, l_parent_order = seperate_parents_and_children(l_feature_db, ["gene"])
     m_feature_hierarchy, m_parent_order = seperate_parents_and_children(m_feature_db, ["gene"])
     # get_gene_sequences(feature_hierarchy.parents, ref_chroms, args, liftover_type)
