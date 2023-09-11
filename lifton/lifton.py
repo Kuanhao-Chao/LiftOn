@@ -11,19 +11,43 @@ def get_id_fraction(reference, target):
             matches += 1
     return matches, max(len(reference), len(target))
 
-def parasail_align(db, db_entry, fai, fai_protein, aa_trans_id):
+def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # Get the children of the entry
-    cds_children = [child for child in db.children(db_entry, featuretype='CDS')]
+    # cds_children = [child for child in db.children(db_entry, featuretype='CDS')]
+    # print("Before cds_children: ", cds_children)
+    cds_children = []
+    for child in db.children(db_entry, featuretype='CDS'):
+        if len(cds_children) == 0:
+            cds_children.append(child)
+            continue
+        idx_insert = 0
+        for idx_c in range(len(cds_children)):
+            itr_c = cds_children[idx_c]
+            if child.start > itr_c.end:
+                idx_insert += 1
+        
+        cds_children.insert(idx_insert, child)
 
+    # print("After cds_children: ", cds_children)
     # Iterate through the children and print their attributes
     trans_seq = ""
-    for cds in cds_children:
-        # print(cds.sequence)
+    for cds_idx, cds in enumerate(cds_children):
+
+        # Include the stop coding for the last CDS(+) / first CDS(-) for miniprot 
+        if tool == "miniprot" and cds_idx == 0 and cds.strand == '-':
+            cds.start = cds.start -3
+        if tool == "miniprot" and cds_idx == len(cds_children)-1 and cds.strand == '+':
+            cds.end = cds.end + 3
+
         p_seq = cds.sequence(fai)
         p_seq = Seq(p_seq)
-        # print('(Before) >' + cds.id + '\n' + p_seq)
+
+        # Chaining the CDS features
         if cds.strand == '-':
+            # if tool == "liftoff":
             trans_seq = p_seq + trans_seq
+            # elif tool == "miniprot":
+            #     trans_seq = trans_seq + p_seq
         elif cds.strand == '+':
             trans_seq = trans_seq + p_seq
         # print('>' + cds.id + '\n' + p_seq)
@@ -36,15 +60,19 @@ def parasail_align(db, db_entry, fai, fai_protein, aa_trans_id):
     gap_open = 11
     gap_extend = 1
 
-    reference_seq = str(protein_seq)
-    liftoff_seq = str(ref_protein_seq)
-    liftoff_parasail_res = parasail.nw_trace_scan_sat(reference_seq, liftoff_seq, gap_open, gap_extend, matrix)
-    liftoff_matches, liftoff_length = get_id_fraction(liftoff_parasail_res.traceback.ref, liftoff_parasail_res.traceback.query)
-    liftoff_identity = liftoff_matches/liftoff_length
-    
-    print("liftoff_identity: ", liftoff_identity)
-    return liftoff_identity
+    reference_seq = str(ref_protein_seq) + "*"
+    extracted_seq = str(protein_seq)
+    # print("db_entry: ", db_entry)
+    # print("\treference_seq: ", reference_seq)
+    # print("\textracted_seq: ", extracted_seq)
 
+    extracted_parasail_res = parasail.nw_trace_scan_sat(reference_seq, extracted_seq, gap_open, gap_extend, matrix)
+    extracted_matches, extracted_length = get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
+    extracted_identity = extracted_matches/extracted_length
+    return extracted_identity
+
+def fix_transcript_annotation():
+    pass
 
 def parse_args(arglist):
     print("arglist: ", arglist)
@@ -155,20 +183,48 @@ def run_all_liftoff_steps(args):
     l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, liftover_type, args)
     print("l_feature_db: ", l_feature_db)
     
-    for aa_trans_id in fai_protein.keys():
 
+
+    for feature in m_feature_db.features_of_type("mRNA"):
+        # Print all attributes and their values for the feature
+        # print(feature)
+
+        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
+        # miniprot_identity = float(feature.attributes["Identity"][0])
+
+        miniprot_trans_id = feature.attributes["ID"][0]
+        m_entry = m_feature_db[miniprot_trans_id]
+
+        # print(m_entry)
+        miniprot_identity = 0.0
+        miniprot_identity = parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+        
+        # for attr_name, attr_value in feature.attributes.items():
+        #     print(f"{attr_name}: {attr_value}")
+
+        liftoff_identity = 0.0
         try:
             l_entry = l_feature_db[aa_trans_id]
-            liftoff_identity = parasail_align(l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+            liftoff_identity = parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
         except:
             print("An exception occurred")
 
 
-        try:
-            m_entry = m_feature_db[aa_trans_id]
-            miniprot_identity = parasail_align(m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
-        except:
-            print("An exception occurred")
+        if miniprot_identity > liftoff_identity:
+            print(aa_trans_id)
+            print(m_entry)
+            print(l_entry)
+            fix_transcript_annotation()
+            print("miniprot_identity: ", miniprot_identity)
+            print("liftoff_identity: ", liftoff_identity)
+            print("\n\n")
+
+
+    #     try:
+    #         m_entry = m_feature_db[aa_trans_id]
+    #         miniprot_identity = parasail_align(m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+    #     except:
+    #         print("An exception occurred")
 
 
         # if aa_trans_id in l_feature_db:
