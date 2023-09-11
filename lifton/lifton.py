@@ -11,6 +11,18 @@ def get_id_fraction(reference, target):
             matches += 1
     return matches, max(len(reference), len(target))
 
+def segments_overlap(segment1, segment2):
+    # Check if the segments have valid endpoints
+    if len(segment1) != 2 or len(segment2) != 2:
+        raise ValueError("Segments must have exactly 2 endpoints")
+    
+    # Sort the segments by their left endpoints
+    segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
+
+    # Check if the right endpoint of the first segment is greater than or equal to the left endpoint of the second segment
+    return segment1[1] >= segment2[0]
+
+
 def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # Get the children of the entry
     # cds_children = [child for child in db.children(db_entry, featuretype='CDS')]
@@ -65,14 +77,40 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # print("db_entry: ", db_entry)
     # print("\treference_seq: ", reference_seq)
     # print("\textracted_seq: ", extracted_seq)
+    
+    # (Query, Reference)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
 
-    extracted_parasail_res = parasail.nw_trace_scan_sat(reference_seq, extracted_seq, gap_open, gap_extend, matrix)
+    # Extract the alignment information
+    alignment_score = extracted_parasail_res.score
+    alignment_query = extracted_parasail_res.traceback.query
+    alignment_comp = extracted_parasail_res.traceback.comp
+    alignment_ref = extracted_parasail_res.traceback.ref
+
+    cigar = extracted_parasail_res.cigar
+    # alignment_start_query = extracted_parasail_res.traceback.query_begin
+    # alignment_end_query = extracted_parasail_res.traceback.query_end
+    # alignment_start_comp = extracted_parasail_res.traceback.comp_begin
+    # alignment_end_comp = extracted_parasail_res.traceback.comp_end
+
+    # print("extracted_seq: ", extracted_seq)
+    # # Print the additional alignment results
+    # print("\t>> alignment_score: ", alignment_score)
+    # print("\t>> alignment_query: ", alignment_query)
+    # print("\t>> alignment_comp: ", alignment_comp)
+    # # print("\t>> cigar.seq   : ", cigar.seq)
+    # # # use decode attribute to return a decoded cigar string
+    # # print("\t>> cigar.decode: ", cigar.decode)
+    # print("\t alignment_ref : ", alignment_ref)
+    
     extracted_matches, extracted_length = get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
     extracted_identity = extracted_matches/extracted_length
-    return extracted_identity
 
-def fix_transcript_annotation():
-    pass
+    return extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref
+
+def fix_transcript_annotation(m_children, m_aln_query, m_aln_comp, m_aln_ref, l_children, l_aln_query, l_aln_comp, l_aln_ref):
+    print("number of children: ", len(m_children))
+    print("number of children: ", len(l_children))
 
 def parse_args(arglist):
     print("arglist: ", arglist)
@@ -197,7 +235,7 @@ def run_all_liftoff_steps(args):
 
         # print(m_entry)
         miniprot_identity = 0.0
-        miniprot_identity = parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+        miniprot_identity, m_children, m_aln_query, m_aln_comp, m_aln_ref = parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
         
         # for attr_name, attr_value in feature.attributes.items():
         #     print(f"{attr_name}: {attr_value}")
@@ -205,19 +243,28 @@ def run_all_liftoff_steps(args):
         liftoff_identity = 0.0
         try:
             l_entry = l_feature_db[aa_trans_id]
-            liftoff_identity = parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+            liftoff_identity, l_children, l_aln_query, l_aln_comp, l_aln_ref = parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
         except:
             print("An exception occurred")
 
 
-        if miniprot_identity > liftoff_identity:
-            print(aa_trans_id)
-            print(m_entry)
-            print(l_entry)
-            fix_transcript_annotation()
-            print("miniprot_identity: ", miniprot_identity)
-            print("liftoff_identity: ", liftoff_identity)
-            print("\n\n")
+        if miniprot_identity > liftoff_identity and liftoff_identity > 0:
+
+            overlap = segments_overlap((m_entry.start, m_entry.end), (l_entry.start, l_entry.end))
+            print("m_entry.seqid: ", m_entry.seqid)
+            if (overlap and m_entry.seqid == l_entry.seqid):
+
+                fix_transcript_annotation(m_children, m_aln_query, m_aln_comp, m_aln_ref, l_children, l_aln_query, l_aln_comp, l_aln_ref)
+
+
+                print(aa_trans_id)
+                print(m_entry)
+                print(l_entry)
+                # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_children))
+                # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_children))
+                print("\n\n")
+        elif liftoff_identity == 0:
+            pass
 
 
     #     try:
