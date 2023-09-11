@@ -1,6 +1,50 @@
 from lifton import extract_features
 import argparse
-# from pyfaidx import Fasta, Faidx
+from pyfaidx import Fasta, Faidx
+from Bio.Seq import Seq
+import parasail
+
+def get_id_fraction(reference, target):
+    matches = 0
+    for i, letter in enumerate(reference):
+        if letter == target[i]:
+            matches += 1
+    return matches, max(len(reference), len(target))
+
+def parasail_align(db, db_entry, fai, fai_protein, aa_trans_id):
+    # Get the children of the entry
+    cds_children = [child for child in db.children(db_entry, featuretype='CDS')]
+
+    # Iterate through the children and print their attributes
+    trans_seq = ""
+    for cds in cds_children:
+        # print(cds.sequence)
+        p_seq = cds.sequence(fai)
+        p_seq = Seq(p_seq)
+        # print('(Before) >' + cds.id + '\n' + p_seq)
+        if cds.strand == '-':
+            trans_seq = p_seq + trans_seq
+        elif cds.strand == '+':
+            trans_seq = trans_seq + p_seq
+        # print('>' + cds.id + '\n' + p_seq)
+    # print(cds.strand+' trans_seq: ' + trans_seq)
+    
+    protein_seq = str(trans_seq.translate())
+    ref_protein_seq = str(fai_protein[aa_trans_id])
+
+    matrix = parasail.Matrix("blosum62")
+    gap_open = 11
+    gap_extend = 1
+
+    reference_seq = str(protein_seq)
+    liftoff_seq = str(ref_protein_seq)
+    liftoff_parasail_res = parasail.nw_trace_scan_sat(reference_seq, liftoff_seq, gap_open, gap_extend, matrix)
+    liftoff_matches, liftoff_length = get_id_fraction(liftoff_parasail_res.traceback.ref, liftoff_parasail_res.traceback.query)
+    liftoff_identity = liftoff_matches/liftoff_length
+    
+    print("liftoff_identity: ", liftoff_identity)
+    return liftoff_identity
+
 
 def parse_args(arglist):
     print("arglist: ", arglist)
@@ -101,15 +145,82 @@ def run_all_liftoff_steps(args):
 
     liftover_type = "chrm_by_chrm"
     ref_chroms = []
+    
+    fai = Fasta(args.target)
+    print("fai: ", fai.keys())
 
-    l_feature_hierarchy, l_feature_db, l_ref_parent_order, m_feature_hierarchy, m_feature_db, m_ref_parent_order = extract_features.extract_features_to_fix(ref_chroms, liftover_type, args)
+    fai_protein = Fasta(args.proteins)
+    print("fai: ", fai_protein["rna-NM_001370185.1-2"])
 
-    print("l_feature_hierarchy: ", l_feature_hierarchy)
+    l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, liftover_type, args)
     print("l_feature_db: ", l_feature_db)
-    print("l_ref_parent_order: ", len(l_ref_parent_order))
-    print("m_feature_hierarchy: ", m_feature_hierarchy)
-    print("m_feature_db: ", m_feature_db)
-    print("m_ref_parent_order: ", len(m_ref_parent_order))
+    
+    for aa_trans_id in fai_protein.keys():
+
+        try:
+            l_entry = l_feature_db[aa_trans_id]
+            liftoff_identity = parasail_align(l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+        except:
+            print("An exception occurred")
+
+
+        try:
+            m_entry = m_feature_db[aa_trans_id]
+            miniprot_identity = parasail_align(m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+        except:
+            print("An exception occurred")
+
+
+        # if aa_trans_id in l_feature_db:
+        #     print(aa_trans_id)
+        # else:
+        #     print(f"Feature not found for {aa_trans_id}")
+
+        # if aa_trans_id in l_feature_db:
+        #     print(aa_trans_id) 
+            # Example 1: Extract sequence by feature ID
+            # l_entry = l_feature_db[aa_trans_id]
+            # print(l_entry)
+
+    # chrom_seq = reference_fasta_idx[current_chrom][:].seq
+
+    # if liftover_type == "unplaced":
+    #     open(args.dir + "/unplaced_genes.fa", 'w')
+    # for chrom in ref_chroms:
+    #     fasta_out = get_fasta_out(chrom, args.reference, liftover_type, args.dir)
+    #     sorted_parents = sorted(list(parent_dict.values()), key=lambda x: x.seqid)
+
+    #     if len(sorted_parents) == 0:
+    #         sys.exit(
+    #             "GFF does not contain any gene features. Use -f to provide a list of other feature types to lift over.")
+    #     write_gene_sequences_to_file(chrom, args.reference, fai, sorted_parents, fasta_out, args)
+    #     fasta_out.close()
+
+
+    # l_feature_hierarchy, l_feature_db, l_ref_parent_order, m_feature_hierarchy, m_feature_db, m_ref_parent_order = extract_features.extract_features_to_fix(ref_chroms, liftover_type, args)
+
+        # self.parents = parents
+        # self.intermediates = intermediates
+        # self.children = children
+
+    
+    
+
+    # m_entry = m_feature_db["MP000005"]
+    # print(m_entry)
+
+
+    # # print("l_feature_hierarchy: ", l_feature_hierarchy.parents)
+    # # print("l_feature_hierarchy: ", l_feature_hierarchy.intermediates)
+    
+    # # print("l_feature_hierarchy: ", l_feature_hierarchy)
+    # print("l_feature_db: ", l_feature_db)
+    # # print("l_ref_parent_order: ", len(l_ref_parent_order))
+    # # print("m_feature_hierarchy: ", m_feature_hierarchy)
+    # print("m_feature_db: ", m_feature_db)
+    # # print("m_ref_parent_order: ", len(m_ref_parent_order))
+
+
 
 def main(arglist=None):
     args = parse_args(arglist)
