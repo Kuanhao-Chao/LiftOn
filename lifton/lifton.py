@@ -108,9 +108,59 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
 
     return extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref
 
+
+
+
+
+def grouping_m_l_children():
+    pass
+
+
 def fix_transcript_annotation(m_children, m_aln_query, m_aln_comp, m_aln_ref, l_children, l_aln_query, l_aln_comp, l_aln_ref):
-    print("number of children: ", len(m_children))
-    print("number of children: ", len(l_children))
+    print("number of children, m: ", len(m_children))
+    print("number of children, l: ", len(l_children))
+
+    m_len_sum = 0
+    
+
+
+    m_c_idx = 0
+    l_c_idx = 0
+    while m_c_idx != (len(m_children)-1) or l_c_idx != (len(l_children)-1):
+        m_c = m_children[m_c_idx]
+        l_c = l_children[l_c_idx]
+
+        if m_c.end > l_c.end:
+            l_c_idx += 1
+        elif m_c.end < l_c.end:
+            m_c_idx += 1
+        elif m_c.end == l_c.end:
+            l_c_idx += 1
+            m_c_idx += 1
+            print("\tGroup!")
+        print("l_c_idx: ", l_c_idx)
+        print("m_c_idx: ", m_c_idx)
+    print("\tGroup!")
+
+    # for child in m_children:
+    #     child_len = child.end - child.start + 1
+    #     m_len_sum += child_len
+    #     print("start: ", child.start, ";  start: ", child.end, ";  len: ", child_len, ";  len_sum: ", m_len_sum, ";  aa_len: ", m_len_sum/3)
+    # print("m_aln_query: ", len(m_aln_query))
+    
+    # print("number of children: ", len(l_children))
+    # l_len_sum = 0
+    # for child in l_children:
+    #     child_len = child.end - child.start + 1
+    #     l_len_sum += child_len
+    #     print("start: ", child.start, ";  start: ", child.end, ";  len: ", child_len, ";  len_sum: ", l_len_sum, ";  aa_len: ", l_len_sum/3)
+    # print("l_aln_query: ", len(l_aln_query))
+
+
+
+
+
+
 
 def parse_args(arglist):
     print("arglist: ", arglist)
@@ -251,7 +301,6 @@ def run_all_liftoff_steps(args):
         if miniprot_identity > liftoff_identity and liftoff_identity > 0:
 
             overlap = segments_overlap((m_entry.start, m_entry.end), (l_entry.start, l_entry.end))
-            print("m_entry.seqid: ", m_entry.seqid)
             if (overlap and m_entry.seqid == l_entry.seqid):
 
                 fix_transcript_annotation(m_children, m_aln_query, m_aln_comp, m_aln_ref, l_children, l_aln_query, l_aln_comp, l_aln_ref)
@@ -260,8 +309,8 @@ def run_all_liftoff_steps(args):
                 print(aa_trans_id)
                 print(m_entry)
                 print(l_entry)
-                # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_children))
-                # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_children))
+                print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_children))
+                print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_children))
                 print("\n\n")
         elif liftoff_identity == 0:
             pass
