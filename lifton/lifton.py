@@ -2,11 +2,11 @@ from lifton import extract_features
 import argparse
 from pyfaidx import Fasta, Faidx
 
-from lifton import align, adjust_cds_boundaries, fix_trans_annotation
-
+from lifton import align, adjust_cds_boundaries, fix_trans_annotation, lifton_class
 
 def segments_overlap(segment1, segment2):
     # Check if the segments have valid endpoints
+    print("Checking two segments overlapping.!")
     if len(segment1) != 2 or len(segment2) != 2:
         raise ValueError("Segments must have exactly 2 endpoints")
     
@@ -140,7 +140,9 @@ def run_all_liftoff_steps(args):
 
         # print(m_entry)
         miniprot_identity = 0.0
-        miniprot_identity, m_children, m_aln_query, m_aln_comp, m_aln_ref, m_cdss_aln_boundary, m_protein, ref_protein = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+        # miniprot_identity, m_children, m_aln_query, m_aln_comp, m_aln_ref, m_cdss_aln_boundary, m_protein, ref_protein         
+        m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+        miniprot_identity = m_lifton_aln.identity
         
         # for attr_name, attr_value in feature.attributes.items():
         #     print(f"{attr_name}: {attr_value}")
@@ -148,7 +150,10 @@ def run_all_liftoff_steps(args):
         liftoff_identity = 0.0
         try:
             l_entry = l_feature_db[aa_trans_id]
-            liftoff_identity, l_children, l_aln_query, l_aln_comp, l_aln_ref, l_cdss_aln_boundary, l_protein, ref_protein = align.parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+            # liftoff_identity, l_children, l_aln_query, l_aln_comp, l_aln_ref, l_cdss_aln_boundary, l_protein, ref_protein = 
+            l_lifton_aln = align.parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+            liftoff_identity = l_lifton_aln.identity
+
         except:
             print("An exception occurred")
 
@@ -158,14 +163,14 @@ def run_all_liftoff_steps(args):
             overlap = segments_overlap((m_entry.start, m_entry.end), (l_entry.start, l_entry.end))
             if (overlap and m_entry.seqid == l_entry.seqid):
 
-                fix_trans_annotation.fix_transcript_annotation(m_children, m_aln_query, m_aln_comp, m_aln_ref, m_protein, l_children, l_aln_query, l_aln_comp, l_aln_ref, l_protein, fai)
+                fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai)
 
 
                 print(aa_trans_id)
                 print(m_entry)
                 print(l_entry)
-                print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_children))
-                print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_children))
+                print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
+                print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
                 print("\n\n")
         elif liftoff_identity == 0:
             pass
