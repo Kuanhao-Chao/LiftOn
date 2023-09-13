@@ -121,62 +121,99 @@ def run_all_liftoff_steps(args):
     print("fai: ", fai.keys())
 
     fai_protein = Fasta(args.proteins)
-    print("fai: ", fai_protein["rna-NM_001370185.1-2"])
+    # print("fai: ", fai_protein["rna-NM_001370185.1-2"])
 
     l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, liftover_type, args)
     print("l_feature_db: ", l_feature_db)
     
     fw = open("lifton.gff3", "w")
 
-    for feature in m_feature_db.features_of_type("mRNA"):
-        # Print all attributes and their values for the feature
-        # print(feature)
 
-        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
-        # miniprot_identity = float(feature.attributes["Identity"][0])
 
-        miniprot_trans_id = feature.attributes["ID"][0]
-        m_entry = m_feature_db[miniprot_trans_id]
-
-        # print(m_entry)
-        miniprot_identity = 0.0
-        # miniprot_identity, m_children, m_aln_query, m_aln_comp, m_aln_ref, m_cdss_aln_boundary, m_protein, ref_protein         
-        m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
-        miniprot_identity = m_lifton_aln.identity
-        
-        # for attr_name, attr_value in feature.attributes.items():
-        #     print(f"{attr_name}: {attr_value}")
-
-        liftoff_identity = 0.0
+    for aa_trans_id in fai_protein.keys():
+        l_entry = None
+        m_entry = None
         try:
             l_entry = l_feature_db[aa_trans_id]
-            # liftoff_identity, l_children, l_aln_query, l_aln_comp, l_aln_ref, l_cdss_aln_boundary, l_protein, ref_protein = 
             l_lifton_aln = align.parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
-            liftoff_identity = l_lifton_aln.identity
-
+            print("l_lifton_aln: ", l_lifton_aln)
         except:
-            print("An exception occurred")
-
-
-        if miniprot_identity > liftoff_identity and liftoff_identity > 0:
-
-            overlap = segments_overlap((m_entry.start, m_entry.end), (l_entry.start, l_entry.end))
-            if (overlap and m_entry.seqid == l_entry.seqid):
-                print("aa_trans_id: ", aa_trans_id)
-
-                fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
-
-
-                print(aa_trans_id)
-                print(m_entry)
-                print(l_entry)
-                print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
-                print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
-                print("\n\n")
-        elif liftoff_identity == 0:
+            # print("An exception occurred")
             pass
 
+
+        try:
+            m_entry = m_feature_db[aa_trans_id]
+            m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+            print("m_lifton_aln: ", m_lifton_aln)
+        except:
+            # print("An exception occurred")
+            pass
+
+        if l_entry is not None and m_entry is not None:   
+            print("Entry exist in both Liftoff & miniprot")
+        elif l_entry is None and m_entry is not None:   
+            print("Only miniprot exists")
+        elif l_entry is not None and m_entry is None:   
+            print("Only Liftoff exists")
+
+
+
+    # # Iterating miniprot
+    # for feature in m_feature_db.features_of_type("mRNA"):
+    #     # Print all attributes and their values for the feature
+    #     # print(feature)
+
+    #     aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
+    #     # miniprot_identity = float(feature.attributes["Identity"][0])
+
+    #     miniprot_trans_id = feature.attributes["ID"][0]
+    #     m_entry = m_feature_db[miniprot_trans_id]
+
+    #     # print(m_entry)
+    #     miniprot_identity = 0.0
+    #     # miniprot_identity, m_children, m_aln_query, m_aln_comp, m_aln_ref, m_cdss_aln_boundary, m_protein, ref_protein         
+    #     m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+    #     miniprot_identity = m_lifton_aln.identity
+        
+    #     # for attr_name, attr_value in feature.attributes.items():
+    #     #     print(f"{attr_name}: {attr_value}")
+
+    #     liftoff_identity = 0.0
+    #     try:
+    #         l_entry = l_feature_db[aa_trans_id]
+    #         # liftoff_identity, l_children, l_aln_query, l_aln_comp, l_aln_ref, l_cdss_aln_boundary, l_protein, ref_protein = 
+    #         l_lifton_aln = align.parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+    #         liftoff_identity = l_lifton_aln.identity
+
+    #     except:
+    #         print("An exception occurred")
+
+    #     # if miniprot_identity > liftoff_identity and liftoff_identity > 0:
+
+    #     if liftoff_identity >= 0:
+    #         overlap = segments_overlap((m_entry.start, m_entry.end), (l_entry.start, l_entry.end))
+    #         if (overlap and m_entry.seqid == l_entry.seqid):
+    #             print("aa_trans_id: ", aa_trans_id)
+
+    #             fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
+
+
+    #             print(aa_trans_id)
+    #             print(m_entry)
+    #             print(l_entry)
+    #             print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
+    #             print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
+    #             print("\n\n")
+    #     elif liftoff_identity == 0:
+    #         pass
+
     fw.close()
+
+
+
+
+
 
     #     try:
     #         m_entry = m_feature_db[aa_trans_id]
