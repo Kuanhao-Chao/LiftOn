@@ -1,4 +1,4 @@
-from lifton import get_id_fraction, lifton_class
+from lifton import get_id_fraction, lifton_class, lifton_entry, write_lifton_entry
 import math
 
 def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
@@ -14,7 +14,7 @@ def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
     return aa_start, aa_end
 
 
-def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai):
+def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw):
     # print("l_c_idx: ", l_c_idx)
     # print("m_c_idx: ", m_c_idx)
     # print("l_c_idx_last: ", l_c_idx_last)
@@ -25,31 +25,22 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
 
     m_aa_start, m_aa_end = get_protein_boundary(m_lifton_aln.cdss_protein_aln_boundaries, m_c_idx_last, m_c_idx)
     l_aa_start, l_aa_end = get_protein_boundary(l_lifton_aln.cdss_protein_aln_boundaries, l_c_idx_last, l_c_idx)
-
-
-        # self.identity = extracted_identity
-        # self.cds_children = cds_children
-        # self.query = alignment_query
-        # self.comp = alignment_comp
-        # self.ref = alignment_ref
-        # self.cdss_protein_boundaries = cdss_protein_boundary
-        # self.cdss_protein_aln_boundaries = cdss_protein_aln_boundary
-        # self.query_seq = extracted_seq
-        # self.ref_seq = reference_seq
     
     m_matches, m_length = get_id_fraction.get_id_fraction(m_lifton_aln.ref_aln, m_lifton_aln.query_aln, math.floor(m_aa_start), math.ceil(m_aa_end))
     l_matches, l_length = get_id_fraction.get_id_fraction(l_lifton_aln.ref_aln, l_lifton_aln.query_aln, math.floor(l_aa_start), math.ceil(l_aa_end))
 
-    print(f"\tm_matches: {m_matches};  m_length: {m_length};  m_lifton_aln: {m_lifton_aln.}")
+    print(f"\tm_matches: {m_matches};  m_length: {m_length}")
     print(f"\tl_matches: {l_matches};  l_length: {l_length}")
 
     if (m_matches/m_length <= l_matches/l_length):
         print("\t# => Liftoff is doing better")
+        lifton_entry.create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw, False)
     elif (m_matches/m_length > l_matches/l_length):
         print("\t# => miniprot is doing better")
+        lifton_entry.create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw, True)
 
 
-def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
+def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
 
     m_children = m_lifton_aln.cds_children
     l_children = l_lifton_aln.cds_children
@@ -62,6 +53,12 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
     l_c_idx = 0
     m_c_idx_last = m_c_idx
     l_c_idx_last = l_c_idx
+
+    print("New protein")
+    l_lifton_aln.db_entry.source = "Lifton"
+    # print(l_lifton_aln.db_entry)
+    write_lifton_entry.write_lifton_entry(fw, l_lifton_aln.db_entry)
+
     while m_c_idx != (len(m_children)-1) or l_c_idx != (len(l_children)-1):
         if (m_c_idx == len(m_children)-1) and (l_c_idx < (len(l_children)-1)):
             l_c_idx += 1
@@ -85,7 +82,7 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
                 l_c_idx += 1
                 m_c_idx += 1
 
-                process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+                process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw)
 
                 m_c_idx_last = m_c_idx
                 l_c_idx_last = l_c_idx
@@ -105,7 +102,7 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
                 l_c_idx += 1
                 m_c_idx += 1
 
-                process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+                process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw)
 
                 m_c_idx_last = m_c_idx
                 l_c_idx_last = l_c_idx
@@ -114,7 +111,7 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
         
     l_c_idx += 1
     m_c_idx += 1
-    process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+    process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw)
     # print("\tGroup!")
 
 

@@ -126,7 +126,7 @@ def run_all_liftoff_steps(args):
     l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, liftover_type, args)
     print("l_feature_db: ", l_feature_db)
     
-
+    fw = open("lifton.gff3", "w")
 
     for feature in m_feature_db.features_of_type("mRNA"):
         # Print all attributes and their values for the feature
@@ -164,7 +164,7 @@ def run_all_liftoff_steps(args):
             if (overlap and m_entry.seqid == l_entry.seqid):
                 print("aa_trans_id: ", aa_trans_id)
 
-                fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai)
+                fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
 
 
                 print(aa_trans_id)
@@ -176,6 +176,7 @@ def run_all_liftoff_steps(args):
         elif liftoff_identity == 0:
             pass
 
+    fw.close()
 
     #     try:
     #         m_entry = m_feature_db[aa_trans_id]
