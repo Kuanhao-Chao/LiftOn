@@ -10,15 +10,15 @@ def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
     #     print(f"m_cdss_aln_boundary[{mi}]:  {m_cdss_aln_boundary[mi]}")
     aa_start = cdss_aln_boundary[c_idx_last][0]
     aa_end = cdss_aln_boundary[c_idx-1][1]
-    print(f"### protein chunk boundaries: {aa_start} - {aa_end}")
+    # print(f"### protein chunk boundaries: {aa_start} - {aa_end}")
     return aa_start, aa_end
 
 
 def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai):
-    print("l_c_idx: ", l_c_idx)
-    print("m_c_idx: ", m_c_idx)
-    print("l_c_idx_last: ", l_c_idx_last)
-    print("m_c_idx_last: ", m_c_idx_last)
+    # print("l_c_idx: ", l_c_idx)
+    # print("m_c_idx: ", m_c_idx)
+    # print("l_c_idx_last: ", l_c_idx_last)
+    # print("m_c_idx_last: ", m_c_idx_last)
 
     # print("## m_cdss_aln_boundary: ", m_cdss_aln_boundary)
     # print("## l_cdss_aln_boundary: ", l_cdss_aln_boundary)
@@ -40,21 +40,21 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
     m_matches, m_length = get_id_fraction.get_id_fraction(m_lifton_aln.ref_aln, m_lifton_aln.query_aln, math.floor(m_aa_start), math.ceil(m_aa_end))
     l_matches, l_length = get_id_fraction.get_id_fraction(l_lifton_aln.ref_aln, l_lifton_aln.query_aln, math.floor(l_aa_start), math.ceil(l_aa_end))
 
-    print(f"m_matches: {m_matches};  m_length: {m_length}")
-    print(f"l_matches: {l_matches};  l_length: {l_length}")
+    print(f"\tm_matches: {m_matches};  m_length: {m_length};  m_lifton_aln: {m_lifton_aln.}")
+    print(f"\tl_matches: {l_matches};  l_length: {l_length}")
 
     if (m_matches/m_length <= l_matches/l_length):
-        print("Liftoff is doing better")
+        print("\t# => Liftoff is doing better")
     elif (m_matches/m_length > l_matches/l_length):
-        print("miniprot is doing better")
+        print("\t# => miniprot is doing better")
 
 
 def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
 
     m_children = m_lifton_aln.cds_children
     l_children = l_lifton_aln.cds_children
-    print("number of children, m: ", len(m_children))
-    print("number of children, l: ", len(l_children))
+    # print("number of children, m: ", len(m_children))
+    # print("number of children, l: ", len(l_children))
 
     m_len_sum = 0
     
@@ -70,29 +70,52 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai):
             m_c_idx += 1
             continue
 
-        # print(">>> m_c_idx: ", m_c_idx)
-        # print(">>> l_c_idx: ", l_c_idx)
-        m_c = m_children[m_c_idx]
-        l_c = l_children[l_c_idx]
+        # print("m_lifton_aln.db_entry.strand: ", m_lifton_aln.db_entry.strand)
+        if m_lifton_aln.db_entry.strand == "+":
+            # print(">>> m_c_idx: ", m_c_idx)
+            # print(">>> l_c_idx: ", l_c_idx)
+            m_c = m_children[m_c_idx]
+            l_c = l_children[l_c_idx]
 
-        if m_c.end > l_c.end:
-            l_c_idx += 1
-        elif m_c.end < l_c.end:
-            m_c_idx += 1
-        elif m_c.end == l_c.end:
-            l_c_idx += 1
-            m_c_idx += 1
+            if m_c.end > l_c.end:
+                l_c_idx += 1
+            elif m_c.end < l_c.end:
+                m_c_idx += 1
+            elif m_c.end == l_c.end:
+                l_c_idx += 1
+                m_c_idx += 1
 
-            process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+                process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
 
-            m_c_idx_last = m_c_idx
-            l_c_idx_last = l_c_idx
-            print("\tGroup!")
+                m_c_idx_last = m_c_idx
+                l_c_idx_last = l_c_idx
+                # print("\tGroup!")
+
+
+        elif m_lifton_aln.db_entry.strand == "-":
+
+            m_c = m_children[len(m_children) - m_c_idx - 1]
+            l_c = l_children[len(l_children) - l_c_idx - 1]
+
+            if m_c.start < l_c.start:
+                l_c_idx += 1
+            elif m_c.start > l_c.start:
+                m_c_idx += 1
+            elif m_c.start == l_c.start:
+                l_c_idx += 1
+                m_c_idx += 1
+
+                process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
+
+                m_c_idx_last = m_c_idx
+                l_c_idx_last = l_c_idx
+                # print("\tGroup!")
+
         
     l_c_idx += 1
     m_c_idx += 1
     process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai)
-    print("\tGroup!")
+    # print("\tGroup!")
 
 
     # for child in m_children:
