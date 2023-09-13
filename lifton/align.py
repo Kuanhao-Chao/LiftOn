@@ -106,10 +106,11 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # for i in cigar.seq:
     #     print("\t\t>> cigar.i   : ", i)
     # use decode attribute to return a decoded cigar string
-    print("\t>> cigar.decode: ", cigar.decode.decode())
+    
+    # print("\t>> cigar.decode: ", cigar.decode.decode())
     decoded_cigar = cigar.decode.decode()
     cigar_ls = list(Cigar(decoded_cigar).items())
-    print("\t>> cigar_ls: ", cigar_ls)
+    # print("\t>> cigar_ls: ", cigar_ls)
 
     
     ################################
@@ -126,14 +127,14 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
         cigar_accum_len += length
         # print("cigar_accum_len: ", cigar_accum_len)
 
-    print("cdss_protein_boundary    : ", cdss_protein_boundary)
-    print("cdss_protein_aln_boundary: ", cdss_protein_aln_boundary)
-    print("\t>> alignment_query: ", len(alignment_query))
-    print("\t>> alignment_comp: ", len(alignment_comp))
-    print("\t>> alignment_ref : ", len(alignment_ref))
+    # print("cdss_protein_boundary    : ", cdss_protein_boundary)
+    # print("cdss_protein_aln_boundary: ", cdss_protein_aln_boundary)
+    # print("\t>> alignment_query: ", len(alignment_query))
+    # print("\t>> alignment_comp: ", len(alignment_comp))
+    # print("\t>> alignment_ref : ", len(alignment_ref))
     
     extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
     extracted_identity = extracted_matches/extracted_length
 
-    lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq)
+    lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry)
     return lifton_aln

@@ -6,7 +6,7 @@ from lifton import align, adjust_cds_boundaries, fix_trans_annotation, lifton_cl
 
 def segments_overlap(segment1, segment2):
     # Check if the segments have valid endpoints
-    print("Checking two segments overlapping.!")
+    # print("Checking two segments overlapping.!")
     if len(segment1) != 2 or len(segment2) != 2:
         raise ValueError("Segments must have exactly 2 endpoints")
     
@@ -162,6 +162,7 @@ def run_all_liftoff_steps(args):
 
             overlap = segments_overlap((m_entry.start, m_entry.end), (l_entry.start, l_entry.end))
             if (overlap and m_entry.seqid == l_entry.seqid):
+                print("aa_trans_id: ", aa_trans_id)
 
                 fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai)
 
