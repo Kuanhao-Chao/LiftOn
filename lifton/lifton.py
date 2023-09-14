@@ -129,6 +129,44 @@ def run_all_liftoff_steps(args):
     fw = open("lifton.gff3", "w")
 
 
+    m_id_dict = {}
+    for feature in m_feature_db.features_of_type("mRNA"):
+        # Print all attributes and their values for the feature
+        miniprot_id = feature["ID"][0]
+
+        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
+        # print("aa_trans_id: ", aa_trans_id)
+        if aa_trans_id in m_id_dict.keys():
+            m_id_dict[aa_trans_id].append(miniprot_id)
+        else:
+            m_id_dict[aa_trans_id] = [miniprot_id]
+
+    # for key, vals in m_id_dict.items():
+    #     print("key : ", key)
+    #     print("vals: ", vals)
+
+    gene_of_interest_id = "gene-RINT1"
+    gene_of_interest = l_feature_db[gene_of_interest_id]
+
+
+    # for feature in l_feature_db.features_of_type('gene'):
+
+    #     overlaps = l_feature_db.region(region=("chr1", 110000, 120000), featuretype="exon")
+    #     for overlap_feature in overlaps:
+    #         print(overlap_feature)
+    #         # print(f"Gene {feature.id} overlaps with exon {overlap_feature.id}")
+
+    #     # # Check for overlap
+    #     # if gene_of_interest.overlaps(feature):
+    #     #     print(f'Gene {gene_of_interest_id} overlaps with gene {feature.id}')
+    #     #     # You can perform any specific action here if there's an overlap
+
+    #     # print(f'Feature ID: {feature.id}')
+    #     # print(f'Chromosome: {feature.chrom}')
+    #     # print(f'Start: {feature.start}')
+    #     # print(f'End: {feature.end}')
+    #     # print(f'Strand: {feature.strand}')
+
 
     for aa_trans_id in fai_protein.keys():
         l_entry = None
@@ -143,9 +181,13 @@ def run_all_liftoff_steps(args):
 
 
         try:
-            m_entry = m_feature_db[aa_trans_id]
-            m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
-            print("m_lifton_aln: ", m_lifton_aln)
+            m_ids = m_id_dict[aa_trans_id]
+            print("aa_trans_id: ", aa_trans_id)
+            for m_id in m_ids:
+                print("\tm_id: ", m_id)
+                m_entry = m_feature_db[m_id]
+                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+                print("\tm_lifton_aln: ", m_lifton_aln)
         except:
             # print("An exception occurred")
             pass
@@ -156,6 +198,11 @@ def run_all_liftoff_steps(args):
             print("Only miniprot exists")
         elif l_entry is not None and m_entry is None:   
             print("Only Liftoff exists")
+
+
+
+
+
 
 
 
