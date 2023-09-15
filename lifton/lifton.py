@@ -149,21 +149,104 @@ def run_all_liftoff_steps(args):
     # gene_of_interest = l_feature_db[gene_of_interest_id]
 
 
+    ################################
+    # Iterating Liftoff transcript
+    ################################
     for gene in l_feature_db.features_of_type('gene'):
 
         lifton_gene = lifton_class.Lifton_GENE(gene)
-
         transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
 
         for transcript in list(transcripts):
             lifton_gene.add_transcript(transcript)
-            
-            print(transcript)
+            transcript_id = transcript["ID"][0]
+            # print(transcript)
             exons = l_feature_db.children(transcript, featuretype='exon')  # Replace 'exon' with the desired child feature type
             for exon in list(exons):
-                print(exon)
-        print("\n\n")
-        # lifton_gene = lifton_class.Lifton_gene(feature)
+                lifton_gene.add_exon(transcript_id, exon)
+                # print(exon)
+
+            cdss = l_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+            # print(">> ### >> cdss: list(cdss): ", len(list(cdss)))
+            # print("list(cdss): ", len(list(cdss)))
+
+            cds_num = 0
+            for cds in list(cdss):
+                lifton_gene.add_cds(transcript_id, cds)
+                cds_num += 1
+                # print(exon)
+
+            ################################
+            # Skipping those that do not have proper protein sequences.
+            ################################
+            if (cds_num == 0) or (transcript_id not in fai_protein.keys()):
+                
+                continue
+
+            aa_trans_id = transcript_id
+            # print("### >> cdss: ", cdss)
+            # print("list(cdss): ", len(list(cdss)))
+            # if len(list(cdss)) == 0:
+            #     continue
+
+            ################################
+            # liftoff transcript alignment
+            ################################
+            l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, aa_trans_id)
+
+
+            ################################
+            # miniprot transcript alignment
+            ################################
+            try:
+                m_ids = m_id_dict[aa_trans_id]
+                # print("aa_trans_id: ", aa_trans_id)
+                for m_id in m_ids:
+                    # print("\tm_id: ", m_id)
+                    m_entry = m_feature_db[m_id]
+                    m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+                    # print("\tm_lifton_aln: ", m_lifton_aln)
+                    overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+                    if (overlap and m_entry.seqid == transcript.seqid):
+
+                        fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
+
+
+                        # print(aa_trans_id)
+                        # print(m_entry)
+                        # print(l_entry)
+                        # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
+                        # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
+                        # print("\n\n")
+
+            except:
+                # print("An exception occurred")
+                pass
+
+
+            # if l_entry is not None and m_entry is not None:   
+            #     print("Entry exist in both Liftoff & miniprot")
+            # elif l_entry is None and m_entry is not None:   
+            #     print("Only miniprot exists")
+            # elif l_entry is not None and m_entry is None:   
+            #     print("Only Liftoff exists")
+
+
+        # lifton_gene.print_gene()
+
+
+        # try:
+        #     m_ids = m_id_dict[aa_trans_id]
+        #     print("aa_trans_id: ", aa_trans_id)
+        #     for m_id in m_ids:
+        #         print("\tm_id: ", m_id)
+        #         m_entry = m_feature_db[m_id]
+        #         m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+        #         print("\tm_lifton_aln: ", m_lifton_aln)
+        # except:
+        #     # print("An exception occurred")
+        #     pass
+
 
     #     overlaps = l_feature_db.region(region=("chr1", 110000, 120000), featuretype="exon")
     #     for overlap_feature in overlaps:

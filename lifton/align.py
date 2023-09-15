@@ -26,6 +26,7 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # Step 1: Sort CDS by its start
     ################################
     cds_children = []
+    print("db_entry: ", db_entry)
     for child in db.children(db_entry, featuretype='CDS'):
         if len(cds_children) == 0:
             cds_children.append(child)
@@ -44,6 +45,7 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     trans_seq = ""
     cdss_lens = []
     for cds_idx, cds in enumerate(cds_children):
+        # print(">> cds: ", cds)
 
         # Include the stop coding for the last CDS(+) / first CDS(-) for miniprot 
         if tool == "miniprot" and cds_idx == 0 and cds.strand == '-':
@@ -66,8 +68,8 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 3: Translate the DNA sequence & get the reference protein sequence.
     ################################
-    protein_seq = str(trans_seq.translate())
     ref_protein_seq = str(fai_protein[aa_trans_id])
+    protein_seq = str(trans_seq.translate())
 
     ################################
     # Step 4: Get the corresponding protein boundaries for each CDS

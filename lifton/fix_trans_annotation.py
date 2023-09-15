@@ -54,7 +54,7 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
     m_c_idx_last = m_c_idx
     l_c_idx_last = l_c_idx
 
-    print("New protein")
+    # print("New protein")
     l_lifton_aln.db_entry.source = "Lifton"
     # print(l_lifton_aln.db_entry)
     write_lifton_entry.write_lifton_entry(fw, l_lifton_aln.db_entry)
