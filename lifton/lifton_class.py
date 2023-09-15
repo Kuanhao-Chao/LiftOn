@@ -19,48 +19,78 @@ class Lifton_GENE:
         self.transcripts = {}
         
     def add_transcript(self, gffutil_entry_trans):
+        # print(">> gffutil_entry_trans[ID]: ", gffutil_entry_trans["ID"])
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
-        
-        print(">> gffutil_entry_trans[ID]: ", gffutil_entry_trans["ID"])
         self.transcripts[gffutil_entry_trans["ID"][0]] = Lifton_trans
 
-    def add_transcript_exon(self, trans_id, gffutil_entry_exon):
+    def add_exon(self, trans_id, gffutil_entry_exon):
         self.transcripts[trans_id].add_exon(gffutil_entry_exon)
 
-    def add_transcript_cds(self, trans_id, gffutil_entry_cds):
-        pass
+    def add_cds(self, trans_id, gffutil_entry_cds):
+        self.transcripts[trans_id].add_cds(gffutil_entry_cds)
 
     def write_entry(self, fw):
-        print(self.entry)
-        # fw.write(str(self.entry) + "\n")
-
-    def update_boundaries(self):
-        self.entry.start = 0
-        self.entry.end = 1
-        # pass
         # print(self.entry)
-        # fw.write(str(self.entry) + "\n")
+        fw.write(str(self.entry) + "\n")
 
-    def print(self):
-        print(f'Feature ID: {self.entry.id}')
-        print(f'Chromosome: {self.entry.chrom}')
-        print(f'Start: {self.entry.start}')
-        print(f'End: {self.entry.end}')
-        print(f'Strand: {self.entry.strand}')
+    def update_boundaries(self):        
+        for key, trans in self.transcripts.items():
+            self.entry.start = trans.start if trans.start < self.entry.start else self.entry.start
+            self.entry.end = trans.end if trans.end > self.entry.end else self.entry.end
 
+
+    def print_gene(self):
+        print(self.entry)
+        for key, trans in self.transcripts.items():
+            trans.print_transcript()
+        print("\n\n")
 
 
 class Lifton_TRANS:
     def __init__(self, gffutil_entry_trans):
         self.entry = gffutil_entry_trans
         self.exons = []
+        self.exon_dic = {}
 
     def add_exon(self, gffutil_entry_exon):
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         self.exons.append(Lifton_exon)
+        self.exon_dic[gffutil_entry_exon.start] = Lifton_exon
+        self.exon_dic[gffutil_entry_exon.end] = Lifton_exon
 
     def add_cds(self, gffutil_entry_cds):
-        self.exons[0].add_cds(gffutil_entry_cds)
+        # self.exons[0].add_cds(gffutil_entry_cds)
+        Lifton_exon_retrieval = None
+        
+        if gffutil_entry_cds.start in self.exon_dic.keys():
+            Lifton_exon_retrieval = self.exon_dic[gffutil_entry_cds.start]
+        elif gffutil_entry_cds.end in self.exon_dic.keys():
+            Lifton_exon_retrieval = self.exon_dic[gffutil_entry_cds.end]
+
+        if Lifton_exon_retrieval is not None:
+            Lifton_exon_retrieval.add_cds(gffutil_entry_cds)
+
+    def write_entry(self, fw):
+        fw.write(str(self.entry) + "\n")
+        
+        # Write out the exons first
+        for exon in self.exons:
+            exon.write_entry(fw)
+        # Write out the CDSs first
+        for exon in self.exons:
+            if exon.cds is not None:
+                exon.cds.write_entry(fw)
+
+    def update_boundaries(self):
+        self.entry.start = self.exons[0].entry.start
+        self.entry.end = self.exons[-1].entry.end
+
+    def print_transcript(self):
+        print(f"\t{self.entry}")
+        for exon in self.exons:
+            exon.print_exon()
+
+
 
 
 class Lifton_EXON:
@@ -72,8 +102,23 @@ class Lifton_EXON:
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
         self.cds = Lifton_cds
 
+    def write_entry(self, fw):
+        # print(self.entry)
+        fw.write(str(self.entry) + "\n")
+
+    def print_exon(self):
+        print(f"\t\t{self.entry}")
+        if self.cds != None:
+            self.cds.print_cds()
 
 
 class Lifton_CDS:
     def __init__(self, gffutil_entry_cds):
         self.entry = gffutil_entry_cds
+
+    def write_entry(self, fw):
+        # print(self.entry)
+        fw.write(str(self.entry) + "\n")
+
+    def print_cds(self):
+        print(f"\t\t{self.entry}")
