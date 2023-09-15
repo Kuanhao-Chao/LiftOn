@@ -145,11 +145,25 @@ def run_all_liftoff_steps(args):
     #     print("key : ", key)
     #     print("vals: ", vals)
 
-    gene_of_interest_id = "gene-RINT1"
-    gene_of_interest = l_feature_db[gene_of_interest_id]
+    # gene_of_interest_id = "gene-RINT1"
+    # gene_of_interest = l_feature_db[gene_of_interest_id]
 
 
-    # for feature in l_feature_db.features_of_type('gene'):
+    for gene in l_feature_db.features_of_type('gene'):
+
+        lifton_gene = lifton_class.Lifton_GENE(gene)
+
+        transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
+
+        for transcript in list(transcripts):
+            lifton_gene.add_transcript(transcript)
+            
+            print(transcript)
+            exons = l_feature_db.children(transcript, featuretype='exon')  # Replace 'exon' with the desired child feature type
+            for exon in list(exons):
+                print(exon)
+        print("\n\n")
+        # lifton_gene = lifton_class.Lifton_gene(feature)
 
     #     overlaps = l_feature_db.region(region=("chr1", 110000, 120000), featuretype="exon")
     #     for overlap_feature in overlaps:
@@ -161,43 +175,41 @@ def run_all_liftoff_steps(args):
     #     #     print(f'Gene {gene_of_interest_id} overlaps with gene {feature.id}')
     #     #     # You can perform any specific action here if there's an overlap
 
-    #     # print(f'Feature ID: {feature.id}')
-    #     # print(f'Chromosome: {feature.chrom}')
-    #     # print(f'Start: {feature.start}')
-    #     # print(f'End: {feature.end}')
-    #     # print(f'Strand: {feature.strand}')
+        # lifton_gene.update_boundaries()
+        # lifton_gene.write_entry(1)
+        # lifton_gene.print()
 
 
-    for aa_trans_id in fai_protein.keys():
-        l_entry = None
-        m_entry = None
-        try:
-            l_entry = l_feature_db[aa_trans_id]
-            l_lifton_aln = align.parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
-            print("l_lifton_aln: ", l_lifton_aln)
-        except:
-            # print("An exception occurred")
-            pass
+    # for aa_trans_id in fai_protein.keys():
+    #     l_entry = None
+    #     m_entry = None
+    #     try:
+    #         l_entry = l_feature_db[aa_trans_id]
+    #         l_lifton_aln = align.parasail_align("liftoff", l_feature_db, l_entry, fai, fai_protein, aa_trans_id)
+    #         print("l_lifton_aln: ", l_lifton_aln)
+    #     except:
+    #         # print("An exception occurred")
+    #         pass
 
 
-        try:
-            m_ids = m_id_dict[aa_trans_id]
-            print("aa_trans_id: ", aa_trans_id)
-            for m_id in m_ids:
-                print("\tm_id: ", m_id)
-                m_entry = m_feature_db[m_id]
-                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
-                print("\tm_lifton_aln: ", m_lifton_aln)
-        except:
-            # print("An exception occurred")
-            pass
+    #     try:
+    #         m_ids = m_id_dict[aa_trans_id]
+    #         print("aa_trans_id: ", aa_trans_id)
+    #         for m_id in m_ids:
+    #             print("\tm_id: ", m_id)
+    #             m_entry = m_feature_db[m_id]
+    #             m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
+    #             print("\tm_lifton_aln: ", m_lifton_aln)
+    #     except:
+    #         # print("An exception occurred")
+    #         pass
 
-        if l_entry is not None and m_entry is not None:   
-            print("Entry exist in both Liftoff & miniprot")
-        elif l_entry is None and m_entry is not None:   
-            print("Only miniprot exists")
-        elif l_entry is not None and m_entry is None:   
-            print("Only Liftoff exists")
+    #     if l_entry is not None and m_entry is not None:   
+    #         print("Entry exist in both Liftoff & miniprot")
+    #     elif l_entry is None and m_entry is not None:   
+    #         print("Only miniprot exists")
+    #     elif l_entry is not None and m_entry is None:   
+    #         print("Only Liftoff exists")
 
 
 
