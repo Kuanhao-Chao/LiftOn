@@ -16,7 +16,15 @@ def extract_features_to_fix(ref_chroms, liftover_type, args):
         os.mkdir(args.dir)
     l_feature_db, m_feature_db = create_feature_db_connections(args)
 
+    # merged_db_path = "merged.gff_db"
+    # merged_db = gffutils.create_db(
+    #     l_feature_db.all_features() + m_feature_db.all_features(),
+    #     merged_db_path,
+    #     keep_order=True  # This keeps the order of features in the GFF file
+    # )
+
     return  l_feature_db, m_feature_db
+# , merged_db
 
     l_feature_hierarchy, l_parent_order = seperate_parents_and_children(l_feature_db, ["gene"])
     m_feature_hierarchy, m_parent_order = seperate_parents_and_children(m_feature_db, ["gene"])
@@ -30,7 +38,6 @@ def create_feature_db_connections(args):
     disable_genes = True
     liftoff_feature_db = build_database(args.liftoffdb, args.liftoff, disable_transcripts, disable_genes)
     miniprot_feature_db = build_database(args.miniprotdb, args.miniprot, disable_transcripts, disable_genes)
-
     return liftoff_feature_db, miniprot_feature_db
 
 
@@ -40,7 +47,8 @@ def build_database(db, gff_file, disable_transcripts, disable_genes,):
         try:
             feature_db = gffutils.create_db(gff_file, gff_file + "_db", merge_strategy="create_unique", force=True,
                                             disable_infer_transcripts=disable_transcripts,
-                                            disable_infer_genes=disable_genes, verbose=True)
+                                            disable_infer_genes=disable_genes, verbose=True, keep_order=True, 
+                                            sort_attribute_values=True)
         except:
             find_problem_line(gff_file)
     else:
