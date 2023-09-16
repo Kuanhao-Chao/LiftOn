@@ -17,11 +17,13 @@ class Lifton_GENE:
     def __init__(self, gffutil_entry_gene):
         self.entry = gffutil_entry_gene
         self.transcripts = {}
+        gffutil_entry_gene.source = "Lifton"
         
     def add_transcript(self, gffutil_entry_trans):
         # print(">> gffutil_entry_trans[ID]: ", gffutil_entry_trans["ID"])
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
         self.transcripts[gffutil_entry_trans["ID"][0]] = Lifton_trans
+        return Lifton_trans
 
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.transcripts[trans_id].add_exon(gffutil_entry_exon)
@@ -38,7 +40,6 @@ class Lifton_GENE:
             self.entry.start = trans.start if trans.start < self.entry.start else self.entry.start
             self.entry.end = trans.end if trans.end > self.entry.end else self.entry.end
 
-
     def print_gene(self):
         print(self.entry)
         for key, trans in self.transcripts.items():
@@ -51,6 +52,7 @@ class Lifton_TRANS:
         self.entry = gffutil_entry_trans
         self.exons = []
         self.exon_dic = {}
+        gffutil_entry_trans.source = "Lifton"
 
     def add_exon(self, gffutil_entry_exon):
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
@@ -97,6 +99,7 @@ class Lifton_EXON:
     def __init__(self, gffutil_entry_exon):
         self.entry = gffutil_entry_exon
         self.cds = None
+        gffutil_entry_exon.source = "Lifton"
 
     def add_cds(self, gffutil_entry_cds):
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
@@ -115,6 +118,7 @@ class Lifton_EXON:
 class Lifton_CDS:
     def __init__(self, gffutil_entry_cds):
         self.entry = gffutil_entry_cds
+        gffutil_entry_cds.source = "Lifton"
 
     def write_entry(self, fw):
         # print(self.entry)
