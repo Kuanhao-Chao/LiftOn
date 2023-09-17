@@ -26,7 +26,7 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # Step 1: Sort CDS by its start
     ################################
     cds_children = []
-    print("db_entry: ", db_entry)
+    # print("db_entry: ", db_entry)
     for child in db.children(db_entry, featuretype='CDS'):
         if len(cds_children) == 0:
             cds_children.append(child)
