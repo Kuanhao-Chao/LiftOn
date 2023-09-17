@@ -135,20 +135,20 @@ def run_all_liftoff_steps(args):
 
 
 
-    # fw = open("lifton.gff3", "w")
+    fw = open("lifton.gff3", "w")
+    # fw_protein = open("lifton_protein.gff3", "w")
 
+    m_id_dict = {}
+    for feature in m_feature_db.features_of_type("mRNA"):
+        # Print all attributes and their values for the feature
+        miniprot_id = feature["ID"][0]
 
-    # m_id_dict = {}
-    # for feature in m_feature_db.features_of_type("mRNA"):
-    #     # Print all attributes and their values for the feature
-    #     miniprot_id = feature["ID"][0]
-
-    #     aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
-    #     # print("aa_trans_id: ", aa_trans_id)
-    #     if aa_trans_id in m_id_dict.keys():
-    #         m_id_dict[aa_trans_id].append(miniprot_id)
-    #     else:
-    #         m_id_dict[aa_trans_id] = [miniprot_id]
+        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
+        # print("aa_trans_id: ", aa_trans_id)
+        if aa_trans_id in m_id_dict.keys():
+            m_id_dict[aa_trans_id].append(miniprot_id)
+        else:
+            m_id_dict[aa_trans_id] = [miniprot_id]
 
     # for key, vals in m_id_dict.items():
     #     print("key : ", key)
@@ -161,96 +161,112 @@ def run_all_liftoff_steps(args):
     ################################
     # Iterating Liftoff transcript
     ################################
-    # Iterate through the features in the database and collect unique feature types
-    print("l_feature_db.features_of_type('mRNA')", l_feature_db.all_features())
-    for feature in l_feature_db.all_features(strand="+"):
-    # for feature in l_feature_db.features_of_type("mRNA"):
-        print("feature ", feature)
+    # # Iterate through the features in the database and collect unique feature types
+    # print("l_feature_db.features_of_type('mRNA')", l_feature_db.all_features())
+    # for feature in l_feature_db.all_features(strand="+"):
+    # # for feature in l_feature_db.features_of_type("mRNA"):
+    #     print("feature ", feature)
 
 
-    print(" m_feature_db.features_of_type('mRNA'):",  m_feature_db.all_features())
+    # print(" m_feature_db.features_of_type('mRNA'):",  m_feature_db.all_features())
     # for feature in m_feature_db.features_of_type("mRNA"):
     #     print("feature ", feature)
 
 
 
-    # for gene in l_feature_db.features_of_type('gene'):
+    for gene in l_feature_db.features_of_type('gene'):
+        lifton_gene = lifton_class.Lifton_GENE(gene)
+        
+        # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
+        transcripts = l_feature_db.children(gene, level=1)  # Replace 'exon' with the desired 
 
-    #     lifton_gene = lifton_class.Lifton_GENE(gene)
+        # lifton_gene.write_entry(fw)
+        # lifton_gene.write_entry(fw_protein)
 
+        for transcript in list(transcripts):
+            # print("transcript: ", transcript)
+            liftoff_transcript = lifton_gene.add_transcript(transcript)
+            transcript_id = transcript["ID"][0]
+    
+            exons = l_feature_db.children(transcript, featuretype='exon')  # Replace 'exon' with the desired child feature type
+            for exon in list(exons):
+                lifton_gene.add_exon(transcript_id, exon)
+                # print(exon)
 
-    #     transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
+            cdss = l_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+            # print(">> ### >> cdss: list(cdss): ", len(list(cdss)))
+            # print("list(cdss): ", len(list(cdss)))
 
-    #     lifton_gene.write_entry(fw)
+            cds_num = 0
+            for cds in list(cdss):
+                lifton_gene.add_cds(transcript_id, cds)
+                cds_num += 1
+                # print(cds)
 
-    #     for transcript in list(transcripts):
-    #         liftoff_transcript = lifton_gene.add_transcript(transcript)
-    #         transcript_id = transcript["ID"][0]
-    #         # print(transcript)
-    #         exons = l_feature_db.children(transcript, featuretype='exon')  # Replace 'exon' with the desired child feature type
-    #         for exon in list(exons):
-    #             lifton_gene.add_exon(transcript_id, exon)
-    #             # print(exon)
+            if (cds_num == 0) or (transcript_id not in fai_protein.keys()):
+                # or (transcript_id not in m_id_dict.keys()):
+                ################################
+                # Write out those that do not have proper protein sequences.
+                ################################
+                # liftoff_transcript.write_entry(fw)
+                continue
 
-    #         cdss = l_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
-    #         # print(">> ### >> cdss: list(cdss): ", len(list(cdss)))
-    #         # print("list(cdss): ", len(list(cdss)))
+            else:
+                ################################
+                # Protein sequences are in both Liftoff and miniprot
+                #   Fix the protein sequences
+                ################################
+                # liftoff_transcript.write_entry(fw_protein)
 
-    #         cds_num = 0
-    #         for cds in list(cdss):
-    #             lifton_gene.add_cds(transcript_id, cds)
-    #             cds_num += 1
-    #             # print(exon)
+            # aa_trans_id = transcript_id
+            # # print("### >> cdss: ", cdss)
+            # # print("list(cdss): ", len(list(cdss)))
+            # # if len(list(cdss)) == 0:
+            # #     continue
 
-    #         # ################################
-    #         # # Skipping those that do not have proper protein sequences.
-    #         # ################################
-    #         # if (cds_num == 0) or (transcript_id not in fai_protein.keys()):
-    #         #     liftoff_transcript.write_entry(fw)
-    #         #     continue
-
-
-
-
-    #         # aa_trans_id = transcript_id
-    #         # # print("### >> cdss: ", cdss)
-    #         # # print("list(cdss): ", len(list(cdss)))
-    #         # # if len(list(cdss)) == 0:
-    #         # #     continue
-
-    #         # ################################
-    #         # # liftoff transcript alignment
-    #         # ################################
-    #         # l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, aa_trans_id)
-
-
-    #         # ################################
-    #         # # miniprot transcript alignment
-    #         # ################################
-    #         # try:
-    #         #     m_ids = m_id_dict[aa_trans_id]
-    #         #     # print("aa_trans_id: ", aa_trans_id)
-    #         #     for m_id in m_ids:
-    #         #         # print("\tm_id: ", m_id)
-    #         #         m_entry = m_feature_db[m_id]
-    #         #         m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, aa_trans_id)
-    #         #         # print("\tm_lifton_aln: ", m_lifton_aln)
-    #         #         overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
-    #         #         if (overlap and m_entry.seqid == transcript.seqid):
-
-    #         #             fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
+                ################################
+                # liftoff transcript alignment
+                ################################
+                l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
 
 
-    #         #             # print(aa_trans_id)
-    #         #             # print(m_entry)
-    #         #             # print(l_entry)
-    #         #             # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
-    #         #             # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
-    #         #             # print("\n\n")
+                ################################
+                # miniprot transcript alignment
+                ################################
+                try:
+                    m_ids = m_id_dict[transcript_id]
+                    print("transcript_id: ", transcript_id)
+                    for m_id in m_ids:
+                        # print("\tm_id: ", m_id)
+                        m_entry = m_feature_db[m_id]
+                        m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
+                        # print("\tm_lifton_aln: ", m_lifton_aln)
+                        overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+                        if (overlap and m_entry.seqid == transcript.seqid):
 
-    #         # except:
-    #         #     # print("An exception occurred")
-    #         #     pass
+                            # liftoff_transcript
+                            cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
+
+                            # print("\tcds_list: ", len(cds_list))
+
+                            lifton_gene.update_cds_list(transcript_id, cds_list)
+
+                            # print(transcript_id)
+                            # print(m_entry)
+                            # print(l_entry)
+                            # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
+                            # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
+                            # print("\n\n")
+
+                except:
+                    # print("An exception occurred")
+                    pass
+
+
+
+
+
+
 
 
 
@@ -383,6 +399,7 @@ def run_all_liftoff_steps(args):
     #         pass
 
     fw.close()
+    # fw_protein.close()
 
 
 

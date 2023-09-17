@@ -51,9 +51,12 @@ while l_idx < genes_l_len or m_idx < trans_m_len:
         l_idx += 1
 
 
-def overlapping(s_1, e_1, s_2, e_2):
+# def overlapping(s_1, e_1, s_2, e_2):
 
-    if 
+#     if e_1 <= s_2:
+#         pass
+#     elif 
+
 
 # for l_i, l_feature in enumerate(feature_db_l.all_features()):
 #     print(l_i)

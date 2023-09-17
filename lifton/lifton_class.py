@@ -30,6 +30,11 @@ class Lifton_GENE:
 
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
+                            
+                            
+    def update_cds_list(self, trans_id, cds_list):
+        # print("Inside 'self.transcripts[trans_id]': ", self.transcripts[trans_id])
+        self.transcripts[trans_id].update_cds_list(cds_list)
 
     def write_entry(self, fw):
         # print(self.entry)
@@ -71,6 +76,22 @@ class Lifton_TRANS:
 
         if Lifton_exon_retrieval is not None:
             Lifton_exon_retrieval.add_cds(gffutil_entry_cds)
+
+    def update_cds_list(self, cds_list):
+        print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
+
+        idx_exon_ovp_first_cds = 0
+        idx_exon_ovp_last_cds = 0
+
+        first_cds = cds_list[0]
+        last_cds = cds_list[-1]
+
+        for exon in self.exons:
+            if exon overlaps first_cds:
+                idx_exon_ovp_first_cds
+            else:
+                idx_exon_ovp_first_cds += 1
+
 
     def write_entry(self, fw):
         fw.write(str(self.entry) + "\n")
