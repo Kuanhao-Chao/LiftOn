@@ -123,7 +123,7 @@ def run_all_liftoff_steps(args):
 
 
     fw = open("lifton.gff3", "w")
-    fw_protein = open("lifton_protein.gff3", "w")
+    # fw_protein = open("lifton_protein.gff3", "w")
 
     m_id_dict = {}
     for feature in m_feature_db.features_of_type("mRNA"):
@@ -161,14 +161,14 @@ def run_all_liftoff_steps(args):
 
 
 
-    for gene in l_feature_db.features_of_type('gene'):
+    for gene in l_feature_db.features_of_type('gene', limit=("chr1", 0, 250000000)):
         lifton_gene = lifton_class.Lifton_GENE(gene)
         
         # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
         transcripts = l_feature_db.children(gene, level=1)  # Replace 'exon' with the desired 
 
         lifton_gene.write_entry(fw)
-        lifton_gene.write_entry(fw_protein)
+        # lifton_gene.write_entry(fw_protein)
 
         for transcript in list(transcripts):
             # print("transcript: ", transcript)
@@ -203,31 +203,32 @@ def run_all_liftoff_steps(args):
                 #   Fix the protein sequences
                 ################################
                 # liftoff_transcript.write_entry(fw_protein)
-
-            # aa_trans_id = transcript_id
-            # print("### >> cdss: ", cdss)
-            # print("list(cdss): ", len(list(cdss)))
-                # if len(list(cdss)) == 0:
-                #     continue
-
                 ################################
                 # liftoff transcript alignment
                 ################################
                 l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
 
+                print("After liftoff alignment")
 
                 ################################
                 # miniprot transcript alignment
                 ################################
                 try:
+                    print("Inside miniprot alignment")
                     m_ids = m_id_dict[transcript_id]
                     print("transcript_id: ", transcript_id)
+                    
                     for m_id in m_ids:
                         # print("\tm_id: ", m_id)
                         m_entry = m_feature_db[m_id]
                         m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
                         # print("\tm_lifton_aln: ", m_lifton_aln)
                         overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+
+                        print((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+
+                        print("overlap: ", overlap, ";  share transcript seqid: ", m_entry.seqid == transcript.seqid)
+
                         if (overlap and m_entry.seqid == transcript.seqid):
 
                             # liftoff_transcript
@@ -237,7 +238,7 @@ def run_all_liftoff_steps(args):
                             lifton_gene.update_cds_list(transcript_id, cds_list)
                             print("\tnew cds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
 
-                            lifton_gene.transcripts[transcript_id].write_entry(fw_protein)
+                            lifton_gene.transcripts[transcript_id].write_entry(fw)
 
                             # print(transcript_id)
                             # print(m_entry)
@@ -245,10 +246,13 @@ def run_all_liftoff_steps(args):
                             # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
                             # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
                             # print("\n\n")
+                        else:
+                            liftoff_transcript.write_entry(fw)
 
                 except:
                     # print("An exception occurred")
-                    pass
+                    print("Exception write")
+                    liftoff_transcript.write_entry(fw)
 
 
 
@@ -387,7 +391,7 @@ def run_all_liftoff_steps(args):
     #         pass
 
     fw.close()
-    fw_protein.close()
+    # fw_protein.close()
 
 
 
