@@ -233,9 +233,8 @@ def run_all_liftoff_steps(args):
                             # liftoff_transcript
                             cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
 
-                            print("\tcds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
+                            # print("\tcds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
                             lifton_gene.update_cds_list(transcript_id, cds_list)
-                            print("\t lifton_gene: ", lifton_gene.transcripts[transcript_id])
                             print("\tnew cds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
 
                             lifton_gene.transcripts[transcript_id].write_entry(fw_protein)
