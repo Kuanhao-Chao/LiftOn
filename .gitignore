@@ -1,4 +1,5 @@
 lifton_protein.gff3
+results/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
