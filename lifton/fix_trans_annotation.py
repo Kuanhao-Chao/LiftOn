@@ -15,10 +15,10 @@ def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
 
 
 def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw):
-    print("l_c_idx: ", l_c_idx)
-    print("m_c_idx: ", m_c_idx)
-    print("l_c_idx_last: ", l_c_idx_last)
-    print("m_c_idx_last: ", m_c_idx_last)
+    # print("l_c_idx: ", l_c_idx)
+    # print("m_c_idx: ", m_c_idx)
+    # print("l_c_idx_last: ", l_c_idx_last)
+    # print("m_c_idx_last: ", m_c_idx_last)
 
     # print("## m_cdss_aln_boundary: ", m_cdss_aln_boundary)
     # print("## l_cdss_aln_boundary: ", l_cdss_aln_boundary)
