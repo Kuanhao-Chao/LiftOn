@@ -48,19 +48,19 @@ class Lifton_GENE:
             trans.write_entry(fw)
 
     def update_boundaries(self):        
-        print("\tself.transcripts length: ", len(self.transcripts))
+        # print("\tself.transcripts length: ", len(self.transcripts))
         for key, trans in self.transcripts.items():
-            print("\t## key: ", key)
+            # print("\t## key: ", key)
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
 
-        print(f"update_boundaries:  {self.entry.start}-{self.entry.end}")
+        # print(f"update_boundaries:  {self.entry.start}-{self.entry.end}")
 
     def print_gene(self):
-        print(self.entry)
+        # print(self.entry)
         for key, trans in self.transcripts.items():
             trans.print_transcript()
-        print("\n\n")
+        # print("\n\n")
 
 
 class Lifton_TRANS:
@@ -90,8 +90,8 @@ class Lifton_TRANS:
                 exon.add_cds(gffutil_entry_cds)
 
     def update_cds_list(self, cds_list):
-        print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
-        print(f"\t>> self.exons (len: {len(self.exons)}) ")
+        # print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
+        # print(f"\t>> self.exons (len: {len(self.exons)}) ")
 
         idx_exon_itr = 0
         new_exons = []
@@ -201,9 +201,9 @@ class Lifton_TRANS:
             #      => finding the first overlapping CDS and exons
             #      => processing all exons / CDS ahead of the first overlapping
             ################################################
-            print("\n\n")
+            # print("\n\n")
             while not lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
+                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
                 if exon.entry.start >= cds.entry.end:
                     # |ccccc| |eeeee|
                     # print("|ccccc| |eeeee|:")
@@ -273,9 +273,9 @@ class Lifton_TRANS:
             cds = cds_list[cds_idx]
             exon = self.exons[exon_idx]
 
-            print(">>>>>>>>>>>START!!!")
-            exon.print_exon()
-            cds.print_cds()
+            # print(">>>>>>>>>>>START!!!")
+            # exon.print_exon()
+            # cds.print_cds()
             
             while exon_idx < len(self.exons):
                 exon = self.exons[exon_idx]
@@ -288,9 +288,9 @@ class Lifton_TRANS:
                     if new_exon.entry.start is not cds.entry.start:
                         new_exon.entry.start = cds.entry.start
 
-                    print(">>>>>>>>>>>")
-                    new_exon.print_exon()
-                    cds.print_cds()
+                    # print(">>>>>>>>>>>")
+                    # new_exon.print_exon()
+                    # cds.print_cds()
 
                     new_exon.add_lifton_cds(cds)
                     new_exons.append(new_exon)
@@ -303,11 +303,11 @@ class Lifton_TRANS:
                         # print("exon.print_exon(): ", exon.print_exon())
                         # exon.print_exon()
 
-                        print("#############")
-                        new_exon.print_exon()
+                        # print("#############")
+                        # new_exon.print_exon()
                         new_exon.add_lifton_cds(None)
                         new_exons.append(new_exon)
-                new_exon.print_exon()
+                # new_exon.print_exon()
                 exon_idx += 1
 
 
@@ -387,12 +387,12 @@ class Lifton_TRANS:
 
             #     idx_exon_itr += 1
 
-        print(f"\t>> new_exons (len: {len(new_exons)}) ")
+        # print(f"\t>> new_exons (len: {len(new_exons)}) ")
 
 
-        print(f"All exons ({len(new_exons)}): ")
-        for exon in new_exons:
-            exon.print_exon()
+        # print(f"All exons ({len(new_exons)}): ")
+        # for exon in new_exons:
+        #     exon.print_exon()
 
 
         # for n_exon in new_exons:
@@ -419,7 +419,7 @@ class Lifton_TRANS:
     def update_boundaries(self):
         self.entry.start = self.exons[0].entry.start
         self.entry.end = self.exons[-1].entry.end
-        print(f"update_boundaries, exon length: {len(self.exons)};  {self.entry.start} - {self.entry.end}")
+        # print(f"update_boundaries, exon length: {len(self.exons)};  {self.entry.start} - {self.entry.end}")
 
     def print_transcript(self):
         print(f"\t{self.entry}")

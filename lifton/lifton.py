@@ -137,9 +137,9 @@ def run_all_liftoff_steps(args):
         else:
             m_id_dict[aa_trans_id] = [miniprot_id]
 
-    for key, vals in m_id_dict.items():
-        print("key : ", key)
-        print("vals: ", vals)
+    # for key, vals in m_id_dict.items():
+    #     print("key : ", key)
+    #     print("vals: ", vals)
 
     # gene_of_interest_id = "gene-RINT1"
     # gene_of_interest = l_feature_db[gene_of_interest_id]
@@ -161,8 +161,8 @@ def run_all_liftoff_steps(args):
 
 
 
-    # for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
-    for gene in l_feature_db.features_of_type('gene', limit=("chr1", 151334868, 151360618)):
+    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
+    # for gene in l_feature_db.features_of_type('gene', limit=("chr1", 151334868, 151360618)):
         lifton_gene = lifton_class.Lifton_GENE(gene)
         
         # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
@@ -189,9 +189,9 @@ def run_all_liftoff_steps(args):
             for cds in list(cdss):
                 lifton_gene.add_cds(transcript_id, cds)
                 cds_num += 1
-            print("cds: ", cds_num)
+            # print("cds: ", cds_num)
 
-            if (cds_num == 0) or (transcript_id not in fai_protein.keys()) or (transcript_id not in m_id_dict.keys()) or transcript_id == "rna-NM_001394862.1" or transcript_id == "rna-NM_006065.5":
+            if (cds_num == 0) or (transcript_id not in fai_protein.keys()) or (transcript_id not in m_id_dict.keys()) or transcript_id == "rna-NM_001394862.1" or transcript_id == "rna-NM_006065.5" or transcript_id == "rna-NM_003240.5" or transcript_id == "rna-NM_003240.5":
                 ################################
                 # Write out those that 
                 #   (1) do not have proper protein sequences.
@@ -199,7 +199,8 @@ def run_all_liftoff_steps(args):
                 #   (3) transcript ID not in miniprot 
                 ################################
                 # lifton_gene.transcripts[transcript_id].write_entry(fw)
-                print("Write out 1")
+                # print("Write out 1")
+                pass
 
             else:
                 ################################
@@ -212,13 +213,13 @@ def run_all_liftoff_steps(args):
                 ################################
                 l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
 
-                print("After liftoff alignment")
+                # print("After liftoff alignment")
 
                 ################################
                 # miniprot transcript alignment
                 ################################
 # try:
-                print("Inside miniprot alignment")
+                # print("Inside miniprot alignment")
                 print("transcript_id: ", transcript_id)
                 
                 m_ids = m_id_dict[transcript_id]
@@ -234,9 +235,9 @@ def run_all_liftoff_steps(args):
                     # print("\tm_lifton_aln: ", m_lifton_aln)
                     overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
 
-                    print((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+                    # print((m_entry.start, m_entry.end), (transcript.start, transcript.end))
 
-                    print("overlap: ", overlap, ";  share transcript seqid: ", m_entry.seqid == transcript.seqid)
+                    # print("overlap: ", overlap, ";  share transcript seqid: ", m_entry.seqid == transcript.seqid)
 
                     if overlap and m_entry.seqid == transcript.seqid:
                         liftoff_miniprot_overlapping = True
@@ -244,13 +245,13 @@ def run_all_liftoff_steps(args):
                         # liftoff_transcript
                         cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
 
-                        print("Write out 4. Fixing!")
+                        # print("Write out 4. Fixing!")
                         # print("\tcds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
                         lifton_gene.update_cds_list(transcript_id, cds_list)
-                        print("\tnew cds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
+                        # print("\tnew cds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
 
                         # lifton_gene.transcripts[transcript_id].write_entry(fw)
-                        print("Write out 2")
+                        # print("Write out 2")
 
                         # print(transcript_id)
                         # print(m_entry)
@@ -267,12 +268,12 @@ def run_all_liftoff_steps(args):
                 ################################
                 # Case 2: no miniprot and Liftoff transcripts overlap
                 ################################
-                if not liftoff_miniprot_overlapping:
-                    print("Write out 3")
+                # if not liftoff_miniprot_overlapping:
+                #     print("Write out 3")
                     # lifton_gene.transcripts[transcript_id].write_entry(fw)
 
         lifton_gene.write_entry(fw)
-        print("Next gene!!!\n\n")
+        # print("Next gene!!!\n\n")
 
 
 
