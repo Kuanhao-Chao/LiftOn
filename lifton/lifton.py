@@ -161,14 +161,14 @@ def run_all_liftoff_steps(args):
 
 
 
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
-    # for gene in l_feature_db.features_of_type('gene', limit=("chr5", 0, 1000000)):
+    # for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
+    for gene in l_feature_db.features_of_type('gene', limit=("chr1", 151334868, 151360618)):
         lifton_gene = lifton_class.Lifton_GENE(gene)
         
         # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
         transcripts = l_feature_db.children(gene, level=1)  # Replace 'exon' with the desired 
 
-        lifton_gene.write_entry(fw)
+        # lifton_gene.write_entry(fw)
         # lifton_gene.write_entry(fw_protein)
 
         for transcript in list(transcripts):
@@ -191,16 +191,15 @@ def run_all_liftoff_steps(args):
                 cds_num += 1
             print("cds: ", cds_num)
 
-            if (cds_num == 0) or (transcript_id not in fai_protein.keys()) or (transcript_id not in m_id_dict.keys()):
+            if (cds_num == 0) or (transcript_id not in fai_protein.keys()) or (transcript_id not in m_id_dict.keys()) or transcript_id == "rna-NM_001394862.1" or transcript_id == "rna-NM_006065.5":
                 ################################
                 # Write out those that 
                 #   (1) do not have proper protein sequences.
                 #   (2) transcript_id not in proteins
                 #   (3) transcript ID not in miniprot 
                 ################################
-                lifton_gene.transcripts[transcript_id].write_entry(fw)
+                # lifton_gene.transcripts[transcript_id].write_entry(fw)
                 print("Write out 1")
-                continue
 
             else:
                 ################################
@@ -250,7 +249,7 @@ def run_all_liftoff_steps(args):
                         lifton_gene.update_cds_list(transcript_id, cds_list)
                         print("\tnew cds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
 
-                        lifton_gene.transcripts[transcript_id].write_entry(fw)
+                        # lifton_gene.transcripts[transcript_id].write_entry(fw)
                         print("Write out 2")
 
                         # print(transcript_id)
@@ -270,8 +269,9 @@ def run_all_liftoff_steps(args):
                 ################################
                 if not liftoff_miniprot_overlapping:
                     print("Write out 3")
-                    lifton_gene.transcripts[transcript_id].write_entry(fw)
+                    # lifton_gene.transcripts[transcript_id].write_entry(fw)
 
+        lifton_gene.write_entry(fw)
         print("Next gene!!!\n\n")
 
 
