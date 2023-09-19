@@ -162,6 +162,7 @@ def run_all_liftoff_steps(args):
 
 
     for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
+    # for gene in l_feature_db.features_of_type('gene', limit=("chr5", 0, 1000000)):
         lifton_gene = lifton_class.Lifton_GENE(gene)
         
         # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type

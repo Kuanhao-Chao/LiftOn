@@ -51,7 +51,7 @@ else:
 
 
 
-output_dir = f"/ccb/salz2/kh.chao/Lifton/results/CHM13_MANE/"
+output_dir = f"/ccb/salz2/kh.chao/Lifton/results/CHM13_MANE/liftoff_lifton_cmp/"
 
 os.makedirs(output_dir, exist_ok=True)
 
@@ -94,13 +94,13 @@ fw_miss_both = open(fwname_miss_both, "w")
 for id, sequence in MANE_sequences.items():
 
     in_liftoff = id in liftoff_sequences.keys()
-    in_miniprot = id in lifton_sequences.keys()
+    in_lifton = id in lifton_sequences.keys()
     
     # print([i for i in lifton_ids[id] if i in lifton_sequences.keys()])
     # in_lifton_ls = [i for i in lifton_ids[id] if i in lifton_sequences.keys()]
-    # in_miniprot = len(in_lifton_ls) > 0
+    # in_lifton = len(in_lifton_ls) > 0
 
-    if in_liftoff and in_miniprot:
+    if in_liftoff and in_lifton:
         fw_both.write(id + "\n")
         both_cnt += 1
 
@@ -130,12 +130,12 @@ for id, sequence in MANE_sequences.items():
         # #break
         fw.write(f"{id}\t{liftoff_identity}\t{max_lifton_identity}\n")
 
-    elif in_liftoff and not in_miniprot:
+    elif in_liftoff and not in_lifton:
         fw_liftoff_only.write(id + "\n")
         liftoff_only_cnt += 1
-    elif not in_liftoff and in_miniprot:
+    elif not in_liftoff and in_lifton:
         fw_lifton_only.write(id + "\n")
         lifton_only_cnt += 1
-    elif not in_liftoff and not in_miniprot:
+    elif not in_liftoff and not in_lifton:
         fw_miss_both.write(id + "\n")
         miss_both_cnt += 1
