@@ -68,7 +68,8 @@ class Lifton_TRANS:
 
     def add_exon(self, gffutil_entry_exon):
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
-        self.exons.append(Lifton_exon)
+        lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
+        # self.exons.append(Lifton_exon)
         # self.exon_dic[gffutil_entry_exon.start] = Lifton_exon
         # self.exon_dic[gffutil_entry_exon.end] = Lifton_exon
 
@@ -148,8 +149,15 @@ class Lifton_TRANS:
             first_cds = cds_list[0]
             last_cds = cds_list[-1]
 
-            # print("len(self.exons): ", len(self.exons))
+            # print("last_cds: ")
+            # last_cds.print_cds()
 
+            # print("All exons: ")
+            # for exon in self.exons:
+            #     exon.print_exon()
+
+            # print("len(self.exons): ", len(self.exons))
+            # Handle the first CDS
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
                 idx_exon_itr += 1
@@ -183,7 +191,8 @@ class Lifton_TRANS:
                     break
 
 
-            print("idx_exon_itr: ", idx_exon_itr)
+            # Handle the CDSs in the middle
+            # print("idx_exon_itr: ", idx_exon_itr)
             for inner_cds in cds_list[1:len(cds_list)-1]:
                 # 1. Create a new exon
                 # 2. Create a new CDS
@@ -194,12 +203,15 @@ class Lifton_TRANS:
                 new_exons.append(new_inner_exon)
 
 
-            print("idx_exon_itr: ", idx_exon_itr)
+            # Handle the last CDSs
+            # print("idx_exon_itr: ", idx_exon_itr)
             while idx_exon_itr < len(self.exons):
-                print("idx_exon_itr: ", idx_exon_itr)
+                # print("idx_exon_itr: ", idx_exon_itr)
                 exon = self.exons[idx_exon_itr]
+                # exon.print_exon()
                 
                 if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (last_cds.entry.start, last_cds.entry.end)):
+                    # print("\tCase 1")
                     # 1. Create a new exon
                     # 2. Create a new CDS
                     if exon.entry.end <= last_cds.entry.end:
@@ -214,9 +226,11 @@ class Lifton_TRANS:
 
                 elif exon.entry.end <= last_cds.entry.start:
                     # just skip. CDSs have been already created.
+                    # print("\tCase 2")
                     pass
                 elif exon.entry.start >= last_cds.entry.end:
                     # create exon only
+                    # print("\tCase 3")
                     exon.add_lifton_cds(None)
                     new_exons.append(exon)
 
