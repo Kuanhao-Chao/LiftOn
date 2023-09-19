@@ -145,97 +145,222 @@ class Lifton_TRANS:
                 new_exons.append(exon)
 
 
+        ########################
+        # Case 3: multiple CDSs and exons
+        ########################
         elif len(cds_list) > 1 and len(self.exons) > 1:
-            first_cds = cds_list[0]
-            last_cds = cds_list[-1]
+
+            cds_idx = 0
+            exon_idx = 0
+            cds = cds_list[cds_idx]
+            exon = self.exons[exon_idx]
+
+            # cds.print_cds()
+            # exon.print_exon()
+
+            # last_exon = self.exons[-1]
+            # last_cds = cds_list[-1]
 
             # print("last_cds: ")
             # last_cds.print_cds()
 
-            # print("All exons: ")
+            # print(f"All cdss ({len(cds_list)}): ")
+            # for cds in cds_list:
+            #     cds.print_cds()
+
+
+            # print(f"All exons ({len(self.exons)}): ")
             # for exon in self.exons:
             #     exon.print_exon()
 
-            # print("len(self.exons): ", len(self.exons))
-            # Handle the first CDS
-            while idx_exon_itr < len(self.exons):
-                exon = self.exons[idx_exon_itr]
-                idx_exon_itr += 1
-                # print("> exon: ", exon)
-                # print("> first_cds: ", first_cds)
-                # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {first_cds.entry.start}-{first_cds.entry.end}")
+
+
+            # while cds_idx < len(cds_list) or exon_idx < len(self.exons):
+            #     if cds_idx == len(cds_list):
+            #         exon_idx += 1
+            #     elif exon_idx == len(self.exons):
+            #         cds_idx += 1
                 
-                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (first_cds.entry.start, first_cds.entry.end)):
-                    # print("## Overlap!!!")
-                    # 1. Create a new exon
-                    # 2. Create a new CDS
+            #     exon = self.exons[exon_idx]
+            #     cds = cds_list[cds_idx]
 
-                    # new_exon = copy.deepcopy(exon)
-                    # new_cds = copy.deepcopy(first_cds)
+            #     if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
+            #         pass
+            #     else:
 
-                    if exon.entry.start <= first_cds.entry.start:
-                        exon.entry.end = first_cds.entry.end
-                    elif exon.entry.start > first_cds.entry.start:
-                        exon.entry.start = first_cds.entry.start
-                        exon.entry.end = first_cds.entry.end
+            ################################################
+            # Step 1: CDSs or exons are smaller & no overlapping 
+            #      => finding the first overlapping CDS and exons
+            #      => processing all exons / CDS ahead of the first overlapping
+            ################################################
+            while not lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
+                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
+                if exon.entry.start >= cds.entry.end:
+                    # |ccccc| |eeeee|
+                    # print("|ccccc| |eeeee|:")
+                    # Step 1: create a new exon using CDS boundary
+                    new_exon = copy.deepcopy(exon)
+                    new_exon.update_exon_info(cds.entry.start, cds.entry.end)
+                    # print(">> New exon!!")
+                    # new_exon.print_exon()
                     
-                    exon.add_lifton_cds(first_cds)
-                    new_exons.append(exon)
+                    # Step 2: add the CDS into the exon
+                    new_exon.add_lifton_cds(cds)
+                    new_exons.append(new_exon)
 
-                    break
-                
-                elif exon.entry.end <= first_cds.entry.start:
-                    exon.add_lifton_cds(None)
-                    new_exons.append(exon)
-                elif exon.entry.start >= last_cds.entry.end:
-                    break
+                    # Step 3: push the first CDS to the next CDS
+                    cds_idx += 1
+                    cds = cds_list[cds_idx]
+                elif exon.entry.end <= cds.entry.start:
+                    # |eeeee| |ccccc|
+                    # print("|eeeee| |ccccc|:")
+                    # Step 1: create a new exon using exon boundary
+                    new_exon = copy.deepcopy(exon)
+                    new_exon.update_exon_info(exon.entry.start, exon.entry.end)
+                    # print(">> New exon!!")
+                    # new_exon.print_exon()
+                    new_exons.append(new_exon)
 
+                    # Step 2: push the first exon to the next exon
+                    exon_idx += 1
+                    exon = self.exons[exon_idx]
 
+            ################################################
+            # Step 2: parse the first overlapping exon & CDS
+            ################################################
+            if exon.entry.start > cds.entry.start:
+                exon.entry.start = cds.entry.start
+            if exon.entry.end is not cds.entry.end:
+                exon.entry.end = cds.entry.end
+            
+            exon.add_lifton_cds(cds)
+            new_exons.append(exon)
+
+            ################################################
+            # Step 3: parse the inner exons and CDSs
+            ################################################
             # Handle the CDSs in the middle
             # print("idx_exon_itr: ", idx_exon_itr)
-            for inner_cds in cds_list[1:len(cds_list)-1]:
-                # 1. Create a new exon
-                # 2. Create a new CDS
-                new_inner_exon = copy.deepcopy(exon)
-                new_inner_exon.entry.start = inner_cds.entry.start
-                new_inner_exon.entry.end = inner_cds.entry.end
-                new_inner_exon.add_lifton_cds(inner_cds)
-                new_exons.append(new_inner_exon)
+            while cds_idx < len(cds_list)-1:
+                cds = cds_list[cds_idx]
+                # Step 1. Create a new exon
+                # Step 2. Add the CDS in the new exon
+                new_exon = copy.deepcopy(exon)
+                new_exon.update_exon_info(cds.entry.start, cds.entry.end)
+                # print(">> New exon!!")
+                # new_exon.print_exon()
+
+                new_exon.add_lifton_cds(cds)
+                new_exons.append(new_exon)
+                cds_idx += 1
 
 
-            # Handle the last CDSs
-            # print("idx_exon_itr: ", idx_exon_itr)
-            while idx_exon_itr < len(self.exons):
-                # print("idx_exon_itr: ", idx_exon_itr)
-                exon = self.exons[idx_exon_itr]
-                # exon.print_exon()
-                
-                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (last_cds.entry.start, last_cds.entry.end)):
-                    # print("\tCase 1")
-                    # 1. Create a new exon
-                    # 2. Create a new CDS
-                    if exon.entry.end <= last_cds.entry.end:
-                        exon.entry.start = last_cds.entry.start
-                        exon.entry.end = last_cds.entry.end
-
-                    elif exon.entry.end > last_cds.entry.end:
-                        exon.entry.start = last_cds.entry.start
+            ################################################
+            # Step 4: parse the last CDS & its overlapping exon
+            ################################################
+            cds = cds_list[cds_idx]
+            exon = self.exons[exon_idx]
+            
+            while exon_idx < len(self.exons):
+                exon = self.exons[exon_idx]
+                # Step 1. Create a new exon, and add cds into the exon
+                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
                     
-                    exon.add_lifton_cds(last_cds)
+                    if exon.entry.end < cds.entry.end:
+                        exon.entry.end = cds.entry.end
+                    if exon.entry.start is not cds.entry.start:
+                        exon.entry.start = cds.entry.start
+
+                    exon.add_lifton_cds(cds)
                     new_exons.append(exon)
 
-                elif exon.entry.end <= last_cds.entry.start:
-                    # just skip. CDSs have been already created.
-                    # print("\tCase 2")
-                    pass
-                elif exon.entry.start >= last_cds.entry.end:
-                    # create exon only
-                    # print("\tCase 3")
-                    exon.add_lifton_cds(None)
-                    new_exons.append(exon)
+                else:
+                    # Step 2. No overlapping. If the exon is further then 
+                    # |ccccc| |eeeee|
+                    if exon.entry.start >= cds.entry.end:
+                        # exon = Lifton_EXON(exon, exon.entry.start, exon.entry.end)
+                        # print("exon.print_exon(): ", exon.print_exon())
+                        # exon.print_exon()
+                        exon.add_lifton_cds(None)
+                        new_exons.append(exon)
+                exon_idx += 1
 
 
-                idx_exon_itr += 1
+            # ################################################
+            # # Step 5: parse all remaining exons without CDS if there's any
+            # ################################################
+
+
+            # # # print("len(self.exons): ", len(self.exons))
+            # # # Handle the first CDS            
+            # # while idx_exon_itr < len(self.exons):
+            # #     exon = self.exons[idx_exon_itr]
+            # #     idx_exon_itr += 1
+            # #     # print("> exon: ", exon)
+            # #     # print("> first_cds: ", first_cds)
+            # #     # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {first_cds.entry.start}-{first_cds.entry.end}")
+                
+            # #     if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (first_cds.entry.start, first_cds.entry.end)):
+            # #         # print("## Overlap!!!")
+            # #         # 1. Create a new exon
+            # #         # 2. Create a new CDS
+
+            # #         # new_exon = copy.deepcopy(exon)
+            # #         # new_cds = copy.deepcopy(first_cds)
+
+            # #         if exon.entry.start <= first_cds.entry.start:
+            # #             exon.entry.end = first_cds.entry.end
+            # #         elif exon.entry.start > first_cds.entry.start:
+            # #             exon.entry.start = first_cds.entry.start
+            # #             exon.entry.end = first_cds.entry.end
+                    
+            # #         exon.add_lifton_cds(first_cds)
+            # #         new_exons.append(exon)
+
+            # #         break
+                
+            # #     elif exon.entry.end <= first_cds.entry.start:
+            # #         exon.add_lifton_cds(None)
+            # #         new_exons.append(exon)
+            # #     elif exon.entry.start >= last_cds.entry.end:
+            # #         break
+
+
+
+
+            # # Handle the last CDSs
+            # # print("idx_exon_itr: ", idx_exon_itr)
+            # while idx_exon_itr < len(self.exons):
+            #     # print("idx_exon_itr: ", idx_exon_itr)
+            #     exon = self.exons[idx_exon_itr]
+            #     # exon.print_exon()
+                
+            #     if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (last_cds.entry.start, last_cds.entry.end)):
+            #         # print("\tCase 1")
+            #         # 1. Create a new exon
+            #         # 2. Create a new CDS
+            #         if exon.entry.end <= last_cds.entry.end:
+            #             exon.entry.start = last_cds.entry.start
+            #             exon.entry.end = last_cds.entry.end
+
+            #         elif exon.entry.end > last_cds.entry.end:
+            #             exon.entry.start = last_cds.entry.start
+                    
+            #         exon.add_lifton_cds(last_cds)
+            #         new_exons.append(exon)
+
+            #     elif exon.entry.end <= last_cds.entry.start:
+            #         # just skip. CDSs have been already created.
+            #         # print("\tCase 2")
+            #         pass
+            #     elif exon.entry.start >= last_cds.entry.end:
+            #         # create exon only
+            #         # print("\tCase 3")
+            #         exon.add_lifton_cds(None)
+            #         new_exons.append(exon)
+
+
+            #     idx_exon_itr += 1
 
         print(f"\t>> new_exons (len: {len(new_exons)}) ")
 
@@ -276,6 +401,13 @@ class Lifton_EXON:
         self.entry = gffutil_entry_exon
         self.cds = None
         gffutil_entry_exon.source = "Lifton"
+
+    def update_exon_info(self, start, end):
+        self.cds = None
+        self.entry.source = "Lifton"
+        self.entry.start = start
+        self.entry.end = end
+        # print(f"start: {self.entry.start} - end: {self.entry.end}")
 
     def add_cds(self, gffutil_entry_cds):
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
