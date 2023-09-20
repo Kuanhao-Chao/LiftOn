@@ -90,8 +90,8 @@ class Lifton_TRANS:
                 exon.add_cds(gffutil_entry_cds)
 
     def update_cds_list(self, cds_list):
-        # print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
-        # print(f"\t>> self.exons (len: {len(self.exons)}) ")
+        print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
+        print(f"\t>> self.exons (len: {len(self.exons)}) ")
 
         idx_exon_itr = 0
         new_exons = []
@@ -202,9 +202,21 @@ class Lifton_TRANS:
             #      => processing all exons / CDS ahead of the first overlapping
             ################################################
             # print("\n\n")
+
+            init_head_order = None
+            if exon.entry.start >= cds.entry.end:
+                init_head_order = 0
+            elif exon.entry.end <= cds.entry.start:
+                init_head_order = 1
+                
             while not lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
                 # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
                 if exon.entry.start >= cds.entry.end:
+
+                    # print("Order: ", 0)
+                    if init_head_order != 0:
+                        break
+
                     # |ccccc| |eeeee|
                     # print("|ccccc| |eeeee|:")
                     # Step 1: create a new exon using CDS boundary
@@ -221,6 +233,11 @@ class Lifton_TRANS:
                     cds_idx += 1
                     cds = cds_list[cds_idx]
                 elif exon.entry.end <= cds.entry.start:
+
+                    # print("Order: ", 1)
+                    if init_head_order != 1:
+                        break
+
                     # |eeeee| |ccccc|
                     # print("|eeeee| |ccccc|:")
                     # Step 1: create a new exon using exon boundary
