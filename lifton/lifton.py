@@ -154,7 +154,7 @@ def run_all_liftoff_steps(args):
 
 
     for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
-    # for gene in l_feature_db.features_of_type('gene', limit=("NC_000067.7", 57416545, 57424581)):
+    # for gene in l_feature_db.features_of_type('gene', limit=("NC_000069.7", 142270709, 142273588)):
         lifton_gene = lifton_class.Lifton_GENE(gene)
         
         # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
@@ -215,6 +215,7 @@ def run_all_liftoff_steps(args):
 # try:
                 # print("Inside miniprot alignment")
                 print("transcript_id: ", transcript_id)
+                print(gene)
                 
                 m_ids = m_id_dict[transcript_id]
                 liftoff_miniprot_overlapping = False
