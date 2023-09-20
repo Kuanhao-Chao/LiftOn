@@ -240,19 +240,21 @@ class Lifton_TRANS:
             # print(">> parse the first overlapping exon & CDS")
             # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
 
+            new_exon = copy.deepcopy(exon)
             if exon.entry.start > cds.entry.start:
-                exon.entry.start = cds.entry.start
+                new_exon.entry.start = cds.entry.start
             if exon.entry.end is not cds.entry.end:
-                exon.entry.end = cds.entry.end
+                new_exon.entry.end = cds.entry.end
             
-            exon.add_lifton_cds(cds)
-            new_exons.append(exon)
+            new_exon.add_lifton_cds(cds)
+            new_exons.append(new_exon)
+            cds_idx += 1
 
             ################################################
             # Step 3: parse the inner exons and CDSs
             ################################################
             # Handle the CDSs in the middle
-            # print("idx_exon_itr: ", idx_exon_itr)
+
             while cds_idx < len(cds_list)-1:
                 cds = cds_list[cds_idx]
                 # Step 1. Create a new exon
@@ -267,6 +269,8 @@ class Lifton_TRANS:
                 cds_idx += 1
 
 
+            if cds_idx == len(cds_list):
+                cds_idx -= 1
             ################################################
             # Step 4: parse the last CDS & its overlapping exon
             ################################################
@@ -274,7 +278,9 @@ class Lifton_TRANS:
             exon = self.exons[exon_idx]
 
             # print(">>>>>>>>>>>START!!!")
+            # print("exon_idx: ", exon_idx)
             # exon.print_exon()
+            # print("cds_idx: ", cds_idx)
             # cds.print_cds()
             
             while exon_idx < len(self.exons):
@@ -288,7 +294,7 @@ class Lifton_TRANS:
                     if new_exon.entry.start is not cds.entry.start:
                         new_exon.entry.start = cds.entry.start
 
-                    # print(">>>>>>>>>>>")
+                    # print(">>>>>>>>>>> segments_overlap")
                     # new_exon.print_exon()
                     # cds.print_cds()
 
@@ -298,6 +304,7 @@ class Lifton_TRANS:
                 else:
                     # Step 2. No overlapping. If the exon is further then 
                     # |ccccc| |eeeee|
+                    # print(">>>>>>>>>>> segments do not overlap")
                     if new_exon.entry.start >= cds.entry.end:
                         # exon = Lifton_EXON(exon, exon.entry.start, exon.entry.end)
                         # print("exon.print_exon(): ", exon.print_exon())
