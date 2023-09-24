@@ -231,7 +231,6 @@ def run_all_liftoff_steps(args):
                     overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
 
                     # print((m_entry.start, m_entry.end), (transcript.start, transcript.end))
-
                     # print("overlap: ", overlap, ";  share transcript seqid: ", m_entry.seqid == transcript.seqid)
 
                     if overlap and m_entry.seqid == transcript.seqid:
