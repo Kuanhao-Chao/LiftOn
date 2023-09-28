@@ -1,6 +1,8 @@
 from lifton import extract_features
 import argparse
 from pyfaidx import Fasta, Faidx
+from intervaltree import Interval, IntervalTree
+import copy
 
 from lifton import align, adjust_cds_boundaries, fix_trans_annotation, lifton_class, lifton_utils
 
@@ -118,6 +120,7 @@ def run_all_liftoff_steps(args):
     # fw_protein = open("lifton_protein.gff3", "w")
 
     m_id_dict = {}
+    aa_id_2_m_id_dict = {}
     for feature in m_feature_db.features_of_type("mRNA"):
         # Print all attributes and their values for the feature
         miniprot_id = feature["ID"][0]
@@ -128,6 +131,7 @@ def run_all_liftoff_steps(args):
             m_id_dict[aa_trans_id].append(miniprot_id)
         else:
             m_id_dict[aa_trans_id] = [miniprot_id]
+        aa_id_2_m_id_dict[miniprot_id] = aa_trans_id
 
     # for key, vals in m_id_dict.items():
     #     print("key : ", key)
@@ -150,11 +154,24 @@ def run_all_liftoff_steps(args):
     # print(" m_feature_db.features_of_type('mRNA'):",  m_feature_db.all_features())
     # for feature in m_feature_db.features_of_type("mRNA"):
     #     print("feature ", feature)
+    
+    tree_dict = {}
+    chr_num_ls = [*range(1, 23)] 
+    chr_num_ls += ['X', 'Y']
+    for i in chr_num_ls:
+        tree = IntervalTree()
+        tree_dict["chr" + str(i)] = tree
+
+    print(tree_dict)
 
 
 
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
+    aa_trans_dict = {}
+    for gene in l_feature_db.features_of_type('gene', limit=("chr1", 0, 250000000)):
     # for gene in l_feature_db.features_of_type('gene', limit=("NC_000069.7", 142270709, 142273588)):
+        chromosome = gene.seqid
+        gene_id = gene.attributes["ID"][0]
+
         lifton_gene = lifton_class.Lifton_GENE(gene)
         
         # transcripts = l_feature_db.children(gene, featuretype='mRNA')  # Replace 'exon' with the desired child feature type
@@ -212,7 +229,7 @@ def run_all_liftoff_steps(args):
                 ################################
                 # miniprot transcript alignment
                 ################################
-# try:
+
                 # print("Inside miniprot alignment")
                 print("transcript_id: ", transcript_id)
                 print(gene)
@@ -226,6 +243,9 @@ def run_all_liftoff_steps(args):
                 for m_id in m_ids:
                     # print("\tm_id: ", m_id)
                     m_entry = m_feature_db[m_id]
+                    if m_entry.seqid != chromosome:
+                        continue
+                    
                     m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
                     # print("\tm_lifton_aln: ", m_lifton_aln)
                     overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
@@ -254,6 +274,9 @@ def run_all_liftoff_steps(args):
                         # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
                         # print("\n\n")
 
+
+
+            
                 # except:
                 #     # print("An exception occurred")
                 #     print("Exception write")
@@ -266,8 +289,81 @@ def run_all_liftoff_steps(args):
                 #     print("Write out 3")
                     # lifton_gene.transcripts[transcript_id].write_entry(fw)
 
+            aa_trans_dict[transcript_id] = lifton_gene.transcripts[transcript_id]
+
         lifton_gene.write_entry(fw)
+        gene_interval = Interval(lifton_gene.entry.start, lifton_gene.entry.end, gene_id)
+        # print("gene_interval: ", gene_interval)
+        tree_dict[chromosome].add(gene_interval)
         # print("Next gene!!!\n\n")
+
+
+    print("aa_trans_dict len: ", len(aa_trans_dict))
+    # print("aa_trans_dict: ", aa_trans_dict)
+    
+    for mtrans in m_feature_db.features_of_type('mRNA', limit=("chr1", 0, 250000000)):
+        chromosome = mtrans.seqid
+
+        mtrans_id = mtrans.attributes["ID"][0]
+
+        mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
+
+        # print(">> chromosome: ", chromosome)
+        # print(">> mtrans_interval: ", mtrans_interval)
+        # print(">> tree_dict[chromosome]: ", tree_dict[chromosome])
+
+        ovps = tree_dict[chromosome].overlap(mtrans_interval)
+
+        if len(ovps) == 0:
+            print("ovps: ", len(ovps))
+            print(mtrans_interval)
+            print(aa_id_2_m_id_dict[mtrans_id])
+            
+
+            # Find the extra copy for know gene
+            if aa_id_2_m_id_dict[mtrans_id] in aa_trans_dict.keys():
+                print("\tTransid found!!!")
+
+                # # Query & write from know aa_trans
+                # aa_trans_extra = aa_trans_dict[aa_id_2_m_id_dict[mtrans_id]]
+                # # aa_trans_extra.update()
+                # aa_trans_extra.write_entry(fw)
+
+                # Write from Queried miniprot transcripts
+                Lifton_trans = lifton_class.Lifton_TRANS(mtrans)
+                cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+                # print("cdss len: ", len(cdss))
+                for cds in list(cdss):
+                    Lifton_trans.add_exon(cds)
+                    cds_copy = copy.deepcopy(cds)
+                    Lifton_trans.add_cds(cds_copy)
+                Lifton_trans.write_entry(fw)
+
+
+
+            else:
+                print("\tTransid not found!")
+                Lifton_trans = lifton_class.Lifton_TRANS(mtrans)
+                cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+                # print("cdss len: ", len(cdss))
+                for cds in list(cdss):
+                    Lifton_trans.add_exon(cds)
+                    cds_copy = copy.deepcopy(cds)
+                    Lifton_trans.add_cds(cds_copy)
+                
+                
+                #     cds_num += 1
+                # print("cds_num: ", cds_num)
+                # print("mtrans: ", Lifton_trans.entry)
+                # print("exons: ", len(Lifton_trans.exons))
+                # print("exon_dic: ", len(Lifton_trans.exon_dic))
+
+                Lifton_trans.write_entry(fw)
+                
+
+            # print("aa_trans_extra: ", aa_trans_extra)
+
+
 
 def main(arglist=None):
     args = parse_args(arglist)
