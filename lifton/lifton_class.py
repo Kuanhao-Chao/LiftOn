@@ -18,9 +18,9 @@ class Lifton_Alignment:
 
 class Lifton_GENE:
     def __init__(self, gffutil_entry_gene):
+        gffutil_entry_gene.source = "Lifton"
         self.entry = gffutil_entry_gene
         self.transcripts = {}
-        gffutil_entry_gene.source = "Lifton"
         
     def add_transcript(self, gffutil_entry_trans):
         # print(">> gffutil_entry_trans[ID]: ", gffutil_entry_trans["ID"])
@@ -65,12 +65,13 @@ class Lifton_GENE:
 
 class Lifton_TRANS:
     def __init__(self, gffutil_entry_trans):
+        gffutil_entry_trans.source = "Lifton"
         self.entry = gffutil_entry_trans
         self.exons = []
         self.exon_dic = {}
-        gffutil_entry_trans.source = "Lifton"
 
     def add_exon(self, gffutil_entry_exon):
+        # print("!!@>> Run add_exon function! ")
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
         # self.exons.append(Lifton_exon)
@@ -78,6 +79,7 @@ class Lifton_TRANS:
         # self.exon_dic[gffutil_entry_exon.end] = Lifton_exon
 
     def add_cds(self, gffutil_entry_cds):
+        # print("!!@>> Run add_cds function! ")
         # # self.exons[0].add_cds(gffutil_entry_cds)
         # Lifton_exon_retrieval = None
         # if gffutil_entry_cds.start in self.exon_dic.keys():
@@ -435,7 +437,7 @@ class Lifton_TRANS:
         # Write out the exons first
         for exon in self.exons:
             exon.write_entry(fw)
-        # Write out the CDSs first
+        # Write out the CDSs second
         for exon in self.exons:
             if exon.cds is not None:
                 exon.cds.write_entry(fw)
@@ -455,9 +457,12 @@ class Lifton_TRANS:
 
 class Lifton_EXON:
     def __init__(self, gffutil_entry_exon):
+        gffutil_entry_exon.source = "Lifton"
+        gffutil_entry_exon.featuretype = "exon"
         self.entry = gffutil_entry_exon
         self.cds = None
-        gffutil_entry_exon.source = "Lifton"
+
+        # print("self.entry: ", self.entry.featuretype)
 
     def update_exon_info(self, start, end):
         self.cds = None
@@ -485,8 +490,9 @@ class Lifton_EXON:
 
 class Lifton_CDS:
     def __init__(self, gffutil_entry_cds):
-        self.entry = gffutil_entry_cds
         gffutil_entry_cds.source = "Lifton"
+        gffutil_entry_cds.featuretype = "CDS"
+        self.entry = gffutil_entry_cds
 
     def write_entry(self, fw):
         # print(self.entry)
