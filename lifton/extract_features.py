@@ -10,27 +10,12 @@ import ujson as json
 
 
 
-def extract_features_to_fix(ref_chroms, liftover_type, args):
+def extract_features_to_fix(ref_chroms, args):
     print("extracting features")
     if os.path.exists(args.dir) is False:
         os.mkdir(args.dir)
     l_feature_db, m_feature_db = create_feature_db_connections(args)
-
-    # merged_db_path = "merged.gff_db"
-    # merged_db = gffutils.create_db(
-    #     l_feature_db.all_features() + m_feature_db.all_features(),
-    #     merged_db_path,
-    #     keep_order=True  # This keeps the order of features in the GFF file
-    # )
-
     return  l_feature_db, m_feature_db
-# , merged_db
-
-    l_feature_hierarchy, l_parent_order = seperate_parents_and_children(l_feature_db, ["gene"])
-    m_feature_hierarchy, m_parent_order = seperate_parents_and_children(m_feature_db, ["gene"])
-    # get_gene_sequences(feature_hierarchy.parents, ref_chroms, args, liftover_type)
-    return l_feature_hierarchy, l_feature_db, l_parent_order, m_feature_hierarchy, m_feature_db, m_parent_order
-
 
 def create_feature_db_connections(args):
     gffutils.constants.ignore_url_escape_characters = True
