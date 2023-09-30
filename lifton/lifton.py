@@ -146,7 +146,7 @@ def run_all_liftoff_steps(args):
     ################################
     # Step 3: Adding gene intervals into intervaltree
     ################################
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
+    for gene in l_feature_db.features_of_type('gene'):
         gene_interval = Interval(gene.start, gene.end, gene.attributes["ID"][0])
         chromosome = gene.seqid
         tree_dict[chromosome].add(gene_interval)
@@ -158,7 +158,7 @@ def run_all_liftoff_steps(args):
     # Step 3: Iterating gene entries & fixing CDS lists
     ################################
     # aa_trans_dict = {}
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 250000000)):
+    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr20", 1608908, 1638649)):
     # for gene in l_feature_db.features_of_type('gene', limit=("chr1", 144405905, 144553176)):
     # for gene in l_feature_db.features_of_type('gene', limit=("NC_000069.7", 142270709, 142273588)):
         chromosome = gene.seqid
