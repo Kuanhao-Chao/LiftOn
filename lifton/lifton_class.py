@@ -151,6 +151,7 @@ class Lifton_TRANS:
                 else:
                     exon.entry.end = cds.entry.end
                     exon.entry.start = cds.entry.start
+                exon.add_lifton_cds(cds)
                 new_exons.append(exon)
 
 
