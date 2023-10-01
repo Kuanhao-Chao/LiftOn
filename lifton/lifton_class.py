@@ -90,6 +90,12 @@ class Lifton_TRANS:
             if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
                 exon.add_cds(gffutil_entry_cds)
 
+    def update_gffutil_entry_trans(self, gffutil_entry_trans):
+        print("gffutil_entry_trans: ", gffutil_entry_trans.attributes)
+
+        for key, atr in gffutil_entry_trans.attributes.items():
+            self.entry.attributes[key] = atr
+
     def update_cds_list(self, cds_list):
         print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
         print(f"\t>> self.exons (len: {len(self.exons)}) ")
