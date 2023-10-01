@@ -29,3 +29,7 @@ def custom_bisect_insert(sorted_list, element_to_insert):
             high = mid
 
     sorted_list.insert(low, element_to_insert)
+
+def get_ID_base(id):
+    id_base = id.split('_')[0]
+    return id_base

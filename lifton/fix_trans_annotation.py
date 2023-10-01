@@ -12,6 +12,7 @@ def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
     aa_start = cdss_aln_boundary[c_idx_last][0]
     aa_end = cdss_aln_boundary[c_idx-1][1]
     print(f"\t### protein chunk boundaries: {aa_start} - {aa_end}")
+    
     return aa_start, aa_end
 
 def get_protein_reference_length_single(lifton_aln, c_idx):
@@ -128,17 +129,17 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
             m_c = m_children[m_c_idx]
             l_c = l_children[l_c_idx]
 
+            print(f"miniprot : {m_c.start} - {m_c.end}")
+            print(f"liftoff  : {l_c.start} - {l_c.end}")
+
             if ref_aa_liftoff_count < ref_aa_miniprot_count:
-                # l_c_idx += 1
                 l_c_idx, ref_aa_liftoff_count = push_cds_idx(l_c_idx, l_lifton_aln, ref_aa_liftoff_count)
             elif ref_aa_liftoff_count > ref_aa_miniprot_count:
-                # m_c_idx += 1
                 m_c_idx, ref_aa_miniprot_count = push_cds_idx(m_c_idx, m_lifton_aln, ref_aa_miniprot_count)
             elif ref_aa_liftoff_count == ref_aa_miniprot_count:
-                # l_c_idx += 1
-                # m_c_idx += 1
-                
-                if l_c_idx > 0 and m_c_idx > 0:
+                # 1. protein references are the same
+                # 2. CDS ends at the same position.
+                if l_c_idx > 0 and m_c_idx > 0 and m_c.end == l_c.end:
                     cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw)
                     cds_list += cdss
                     m_c_idx_last = m_c_idx
@@ -156,21 +157,17 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
             # print(">> m_c: ", m_c, ";   l_c: ", l_c)
             
             if ref_aa_liftoff_count < ref_aa_miniprot_count:
-                # l_c_idx += 1
                 # print(">> Liftoff")
                 l_c_idx, ref_aa_liftoff_count = push_cds_idx(l_c_idx, l_lifton_aln, ref_aa_liftoff_count)
             elif ref_aa_liftoff_count > ref_aa_miniprot_count:
-                # m_c_idx += 1
                 # print(">> miniprot")
                 m_c_idx, ref_aa_miniprot_count = push_cds_idx(m_c_idx, m_lifton_aln, ref_aa_miniprot_count)
             elif ref_aa_liftoff_count == ref_aa_miniprot_count:
-                # l_c_idx += 1
-                # m_c_idx += 1
+                # 1. protein references are the same
+                # 2. CDS ends at the same position.
                 print(">> Finally comparison now!")
                 # print(">> miniprot")
-
-
-                if l_c_idx > 0 and m_c_idx > 0:
+                if l_c_idx > 0 and m_c_idx > 0 and m_c.end == l_c.end:
                     cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw)
                     cds_list += cdss
                     m_c_idx_last = m_c_idx
