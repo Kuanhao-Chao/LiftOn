@@ -141,7 +141,7 @@ def run_all_liftoff_steps(args):
         tree = IntervalTree()
         tree_dict["chr" + str(i)] = tree
 
-    print(tree_dict)
+    # print(tree_dict)
 
     ################################
     # Step 3: Adding gene intervals into intervaltree
@@ -167,11 +167,13 @@ def run_all_liftoff_steps(args):
     LIFTOFF_ONLY_GENE_COUNT = 0
     LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
 
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 14728734)):
+    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr6", 35729821, 35746565)):
         LIFTOFF_TOTAL_GENE_COUNT += 1
         chromosome = gene.seqid
         gene_id = gene.attributes["ID"][0]
         gene_id_base = lifton_utils.get_ID_base(gene_id)
+        # print("&& gene_id      : ", gene_id)
+        # print("&& gene_id_base : ", gene_id_base)
 
         ################################
         # Step 4.1: Creating gene copy number dictionary
@@ -185,7 +187,8 @@ def run_all_liftoff_steps(args):
         # Step 4.2: Creating LiftOn gene & gene_info
         ################################
         lifton_gene = lifton_class.Lifton_GENE(gene)
-        lifton_gene_info = lifton_class.Lifton_GENE_info(gene, gene_id_base)
+        gene_info = copy.deepcopy(gene)
+        lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info, gene_id_base)
         gene_info_dict[gene_id_base] = lifton_gene_info
         
         ################################
@@ -194,11 +197,16 @@ def run_all_liftoff_steps(args):
         # Assumption that all 1st level are transcripts
         transcripts = l_feature_db.children(gene, level=1)
         for transcript in list(transcripts):
+            
             lifton_gene.add_transcript(transcript)
             transcript_id = transcript["ID"][0]
             transcript_id_base = lifton_utils.get_trans_ID_base(transcript_id)
 
-            lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript, transcript_id_base, gene_id_base)
+            # print("&& transcript_id      : ", transcript_id)
+            # print("&& transcript_id_base : ", transcript_id_base)
+
+            transcript_info = copy.deepcopy(transcript)
+            lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info, transcript_id_base, gene_id_base)
 
             trans_2_gene_dict[transcript_id_base] = gene_id_base
             trans_info_dict[transcript_id_base] = lifton_trans_info
@@ -241,7 +249,6 @@ def run_all_liftoff_steps(args):
                 ################################
                 # Step 4.6.3: miniprot transcript alignment
                 ################################
-                print("transcript_id: ", transcript_id)
                 m_ids = m_id_dict[transcript_id]
 
                 for m_id in m_ids:
@@ -268,14 +275,15 @@ def run_all_liftoff_steps(args):
                         ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
                         ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
                         if len(ovps_liftoff) == 1 and len(ovps_miniprot) > 1:
-                            print("Liftoff & miniprot disagree too much => skip")
-                            print(transcript)
+                            # print("Liftoff & miniprot disagree too much => skip")
+                            # print(transcript)
                             continue                            
 
                         cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
                         lifton_gene.update_cds_list(transcript_id, cds_list)
             else:
                 LIFTOFF_ONLY_GENE_COUNT += 1
+                # print("==> Liftoff only")
             #     ################################
             #     # Keep the transcript as it is.
             #     #   (1) do not have proper protein sequences.
@@ -288,6 +296,9 @@ def run_all_liftoff_steps(args):
         # Step 4.7: Writing out LiftOn entries
         ###########################
         lifton_gene.write_entry(fw)
+        # print("Final!!")
+        # lifton_gene.print_gene()
+
 
         ###########################
         # Step 4.8: Adding LiftOn intervals
@@ -304,6 +315,9 @@ def run_all_liftoff_steps(args):
     # for key, val in gene_copy_num_dict.items():
     #     if val > 0:
     #         print(key, val)
+
+
+
 
     ################################
     # Step 5: Finding extra copies
@@ -322,10 +336,6 @@ def run_all_liftoff_steps(args):
 
         if len(ovps) == 0:
 
-            print("ovps: ", len(ovps))
-            print(mtrans_interval)
-            print(aa_id_2_m_id_dict[mtrans_id])
-            
             extra_cp_trans_id = aa_id_2_m_id_dict[mtrans_id]
 
             gene_entry_base = copy.deepcopy(mtrans)

@@ -120,7 +120,6 @@ class Lifton_GENE:
         return Lifton_trans.entry.attributes["ID"][0]
 
     def add_transcript(self, gffutil_entry_trans):
-        # print(">> gffutil_entry_trans[ID]: ", gffutil_entry_trans["ID"])
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
         self.transcripts[gffutil_entry_trans["ID"][0]] = Lifton_trans
 
@@ -152,7 +151,7 @@ class Lifton_GENE:
         # print(f"update_boundaries:  {self.entry.start}-{self.entry.end}")
 
     def print_gene(self):
-        # print(self.entry)
+        print(self.entry)
         for key, trans in self.transcripts.items():
             trans.print_transcript()
         # print("\n\n")
@@ -212,15 +211,12 @@ class Lifton_TRANS:
                 exon.add_cds(gffutil_entry_cds)
 
     def update_gffutil_entry_trans(self, gffutil_entry_trans):
-        print("gffutil_entry_trans: ", gffutil_entry_trans.attributes)
-
         for key, atr in gffutil_entry_trans.attributes.items():
             self.entry.attributes[key] = atr
 
     def update_cds_list(self, cds_list):
-        print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
-        print(f"\t>> self.exons (len: {len(self.exons)}) ")
-
+        # print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
+        # print(f"\t>> self.exons (len: {len(self.exons)}) ")
         idx_exon_itr = 0
         new_exons = []
 
@@ -339,7 +335,7 @@ class Lifton_TRANS:
                 init_head_order = 1
                 
             while not lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
+                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
                 if exon.entry.start >= cds.entry.end:
 
                     # print("Order: ", 0)
@@ -632,7 +628,6 @@ class Lifton_CDS:
 
     def write_entry(self, fw):
         # print(self.entry)
-        print("self.entry: ", self.entry)
         fw.write(str(self.entry) + "\n")
 
     def print_cds(self):

@@ -11,7 +11,7 @@ def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
 
     aa_start = cdss_aln_boundary[c_idx_last][0]
     aa_end = cdss_aln_boundary[c_idx-1][1]
-    print(f"\t### protein chunk boundaries: {aa_start} - {aa_end}")
+    # print(f"\t### protein chunk boundaries: {aa_start} - {aa_end}")
     
     return aa_start, aa_end
 
@@ -26,7 +26,7 @@ def get_protein_reference_length_single(lifton_aln, c_idx):
     # aa_start = lifton_aln.cdss_protein_aln_boundaries[c_idx][0]
     aa_start = 0
     aa_end = lifton_aln.cdss_protein_aln_boundaries[c_idx][1]
-    print(f"\t### protein chunk boundaries: {aa_start} - {aa_end}")
+    # print(f"\t### protein chunk boundaries: {aa_start} - {aa_end}")
 
     # aa_start = math.floor(aa_start)
     aa_end = math.ceil(aa_end)
@@ -40,7 +40,7 @@ def get_protein_reference_length_single(lifton_aln, c_idx):
     return ref_count
 
 def push_cds_idx(c_idx, lifton_aln, ref_aa_count):
-    print("\t>> c_idx: ", c_idx)
+    # print("\t>> c_idx: ", c_idx)
     ref_aa_count = get_protein_reference_length_single(lifton_aln, c_idx)
     c_idx += 1
     # ref_aa_count += ref_aa_lcl_count
@@ -48,11 +48,11 @@ def push_cds_idx(c_idx, lifton_aln, ref_aa_count):
 
 
 def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw):
-    print(">> process_m_l_children!! ")
-    print("\tl_c_idx: ", l_c_idx)
-    print("\tm_c_idx: ", m_c_idx)
-    print("\tl_c_idx_last: ", l_c_idx_last)
-    print("\tm_c_idx_last: ", m_c_idx_last)
+    # print(">> process_m_l_children!! ")
+    # print("\tl_c_idx: ", l_c_idx)
+    # print("\tm_c_idx: ", m_c_idx)
+    # print("\tl_c_idx_last: ", l_c_idx_last)
+    # print("\tm_c_idx_last: ", m_c_idx_last)
 
     # print("## m_cdss_aln_boundary: ", m_cdss_aln_boundary)
     # print("## l_cdss_aln_boundary: ", l_cdss_aln_boundary)
@@ -63,17 +63,17 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
     m_matches, m_length = get_id_fraction.get_id_fraction(m_lifton_aln.ref_aln, m_lifton_aln.query_aln, math.floor(m_aa_start), math.ceil(m_aa_end))
     l_matches, l_length = get_id_fraction.get_id_fraction(l_lifton_aln.ref_aln, l_lifton_aln.query_aln, math.floor(l_aa_start), math.ceil(l_aa_end))
 
-    print(f"\tm_matches: {m_matches};  m_length: {m_length}")
-    print(f"\tl_matches: {l_matches};  l_length: {l_length}")
+    # print(f"\tm_matches: {m_matches};  m_length: {m_length}")
+    # print(f"\tl_matches: {l_matches};  l_length: {l_length}")
 
     if (m_matches/m_length <= l_matches/l_length):
-        print("\t# => Liftoff is doing better")
+        # print("\t# => Liftoff is doing better")
         cds_ls = lifton_entry.create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw, False)
     elif (m_matches/m_length > l_matches/l_length):
-        print("\t# => miniprot is doing better")
+        # print("\t# => miniprot is doing better")
         cds_ls = lifton_entry.create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw, True)
 
-    print(">> New iteration!\n\n ")
+    # print(">> New iteration!\n\n ")
 
     return cds_ls
 
@@ -83,8 +83,8 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
     m_children = m_lifton_aln.cds_children
     l_children = l_lifton_aln.cds_children
 
-    print("number of children, m: ", len(m_children))
-    print("number of children, l: ", len(l_children))
+    # print("number of children, m: ", len(m_children))
+    # print("number of children, l: ", len(l_children))
 
     m_len_sum = 0
     
@@ -129,8 +129,8 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
             m_c = m_children[m_c_idx]
             l_c = l_children[l_c_idx]
 
-            print(f"miniprot : {m_c.start} - {m_c.end}")
-            print(f"liftoff  : {l_c.start} - {l_c.end}")
+            # print(f"miniprot : {m_c.start} - {m_c.end}")
+            # print(f"liftoff  : {l_c.start} - {l_c.end}")
 
             if ref_aa_liftoff_count < ref_aa_miniprot_count:
                 l_c_idx, ref_aa_liftoff_count = push_cds_idx(l_c_idx, l_lifton_aln, ref_aa_liftoff_count)
@@ -165,7 +165,7 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
             elif ref_aa_liftoff_count == ref_aa_miniprot_count:
                 # 1. protein references are the same
                 # 2. CDS ends at the same position.
-                print(">> Finally comparison now!")
+                # print(">> Finally comparison now!")
                 # print(">> miniprot")
                 if l_c_idx > 0 and m_c_idx > 0 and m_c.end == l_c.end:
                     cdss = process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw)
