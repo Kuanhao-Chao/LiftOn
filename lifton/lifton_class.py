@@ -114,9 +114,9 @@ class Lifton_GENE:
         Lifton_trans.entry.featuretype = "mRNA"
         Lifton_trans.entry.start = start
         Lifton_trans.entry.end = end
-        Lifton_trans.attributes = {}
-        Lifton_trans.attributes["ID"] = [trans_id]
-        self.transcripts[Lifton_trans.entry.attributes["ID"][0]] = Lifton_trans
+        Lifton_trans.entry.attributes = {}
+        Lifton_trans.entry.attributes["ID"] = [trans_id]
+        self.transcripts[trans_id] = Lifton_trans
         return Lifton_trans.entry.attributes["ID"][0]
 
     def add_transcript(self, gffutil_entry_trans):
@@ -126,9 +126,6 @@ class Lifton_GENE:
 
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.transcripts[trans_id].add_exon(gffutil_entry_exon)
-
-    def add_exon_extra_cp(self, trans_id, gffutil_entry_exon):
-        self.transcripts[trans_id].add_exon_extra_cp(gffutil_entry_exon)
 
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
@@ -610,6 +607,10 @@ class Lifton_EXON:
         self.cds = Lifton_cds
 
     def add_lifton_cds(self, Lifton_cds):
+        if Lifton_cds is not None:
+            attributes = {}
+            attributes['Parent'] = self.entry.attributes['Parent']
+            Lifton_cds.entry.attributes = attributes
         self.cds = Lifton_cds
 
     def write_entry(self, fw):
@@ -631,6 +632,7 @@ class Lifton_CDS:
 
     def write_entry(self, fw):
         # print(self.entry)
+        print("self.entry: ", self.entry)
         fw.write(str(self.entry) + "\n")
 
     def print_cds(self):
