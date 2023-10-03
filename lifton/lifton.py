@@ -163,29 +163,36 @@ def run_all_liftoff_steps(args):
     trans_info_dict = {}
     trans_2_gene_dict = {}
 
+    LIFTOFF_TOTAL_GENE_COUNT = 0
+    LIFTOFF_ONLY_GENE_COUNT = 0
+    LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
+
     for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 14728734)):
+        LIFTOFF_TOTAL_GENE_COUNT += 1
         chromosome = gene.seqid
         gene_id = gene.attributes["ID"][0]
         gene_id_base = lifton_utils.get_ID_base(gene_id)
 
+        ################################
+        # Step 4.1: Creating gene copy number dictionary
+        ################################
         if gene_id_base in gene_copy_num_dict.keys():
             gene_copy_num_dict[gene_id_base] += 1
         else:
             gene_copy_num_dict[gene_id_base] = 0
 
+        ################################
+        # Step 4.2: Creating LiftOn gene & gene_info
+        ################################
         lifton_gene = lifton_class.Lifton_GENE(gene)
         lifton_gene_info = lifton_class.Lifton_GENE_info(gene, gene_id_base)
         gene_info_dict[gene_id_base] = lifton_gene_info
         
+        ################################
+        # Step 4.3: Adding LiftOn transcripts
+        ################################
         # Assumption that all 1st level are transcripts
         transcripts = l_feature_db.children(gene, level=1)
-        # ###########################
-        # # Adding transcripts
-        # ###########################
-
-        trans_copy_num_dict = {}
-
-        # gene_copy_num_dict[gene_id_base]
         for transcript in list(transcripts):
             lifton_gene.add_transcript(transcript)
             transcript_id = transcript["ID"][0]
@@ -196,133 +203,100 @@ def run_all_liftoff_steps(args):
             trans_2_gene_dict[transcript_id_base] = gene_id_base
             trans_info_dict[transcript_id_base] = lifton_trans_info
 
-            # print("transcript_id_base: ", transcript_id_base)
+        
+            ###########################
+            # Step 4.4: Adding exons
+            ###########################
+            exons = l_feature_db.children(transcript, featuretype='exon')  # Replace 'exon' with the desired child feature type
+            for exon in list(exons):
+                lifton_gene.add_exon(transcript_id, exon)
 
-            # if transcript_id_base in gene_copy_num_dict[gene_id_base][1].keys():
-            #     gene_copy_num_dict[gene_id_base][1][transcript_id_base] += 1
-            # else:
-            #     gene_copy_num_dict[gene_id_base][1][transcript_id_base] = 0
-            # if transcript_id_base in trans_copy_num_dict.keys():
-            #     trans_copy_num_dict[transcript_id_base] += 1
-            # else:
-            #     trans_copy_num_dict[transcript_id_base] = 0
-
-
-
-
-        #     exons = l_feature_db.children(transcript, featuretype='exon')  # Replace 'exon' with the desired child feature type
-
-        #     ###########################
-        #     # Adding exons
-        #     ###########################
-        #     for exon in list(exons):
-        #         lifton_gene.add_exon(transcript_id, exon)
-
-        #     cdss = l_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
             
-        #     ###########################
-        #     # Adding CDS
-        #     ###########################
-        #     cds_num = 0
-        #     for cds in list(cdss):
-        #         cds_num += 1
-        #         lifton_gene.add_cds(transcript_id, cds)
+            ###########################
+            # Step 4.5: Adding CDS
+            ###########################
+            cdss = l_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+            cds_num = 0
+            for cds in list(cdss):
+                cds_num += 1
+                lifton_gene.add_cds(transcript_id, cds)
 
 
-        #     #############################################
-        #     # Case 1: There are no CDS in the transcript
-        #     #############################################
-        #     if (cds_num > 0) and (transcript_id in m_id_dict.keys()) and (transcript_id in fai_protein.keys()):
-        #         ################################
-        #         # Protein sequences are in both Liftoff and miniprot
-        #         #   Fix the protein sequences
-        #         ################################
+            #############################################
+            # Step 4.6: Processing transcript
+            #   1. There are CDS features
+            #   2. transcript ID is in both miniprot & Liftoff & protein FASTA file
+            #############################################
+            if (cds_num > 0) and (transcript_id in m_id_dict.keys()) and (transcript_id in fai_protein.keys()):
+                ################################
+                # Step 4.6.1: Protein sequences are in both Liftoff and miniprot
+                #   Fix the protein sequences
+                ################################
                 
-        #         ################################
-        #         # liftoff transcript alignment
-        #         ################################
-        #         l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
+                ################################
+                # Step 4.6.2: liftoff transcript alignment
+                ################################
+                l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
 
+                ################################
+                # Step 4.6.3: miniprot transcript alignment
+                ################################
+                print("transcript_id: ", transcript_id)
+                m_ids = m_id_dict[transcript_id]
 
-        #         ################################
-        #         # miniprot transcript alignment
-        #         ################################
-        #         print("transcript_id: ", transcript_id)
-        #         m_ids = m_id_dict[transcript_id]
-        #         liftoff_miniprot_overlapping = False
-
-        #         for m_id in m_ids:
-        #             # print("\tm_id: ", m_id)
-        #             m_entry = m_feature_db[m_id]
-        #             if m_entry.seqid != chromosome:
-        #                 continue
+                for m_id in m_ids:
+                    m_entry = m_feature_db[m_id]
+                    if m_entry.seqid != chromosome:
+                        continue
                     
-        #             m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
-        #             overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+                    m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
+                    overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
 
 
-        #             ############################################
-        #             # miniprot and Liftoff transcript overlap
-        #             #   => fix & update CDS list
-        #             ############################################
-        #             if overlap and m_entry.seqid == transcript.seqid:
+                    ############################################
+                    # miniprot and Liftoff transcript overlap
+                    #   => fix & update CDS list
+                    ############################################
+                    if overlap and m_entry.seqid == transcript.seqid:
+                        LIFTOFF_MINIPROT_FIXED_GENE_COUNT += 1
+                        # Check reference overlapping status
+                        # 1. Check it the transcript overlapping with the next gene
+                        # Check the miniprot protein overlapping status
+                        # The case I should not process the transcript 
+                        # 1. The Liftoff does not overlap with other gene
+                        # 2. The miniprot protein overlap the other gene
+                        ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
+                        ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
+                        if len(ovps_liftoff) == 1 and len(ovps_miniprot) > 1:
+                            print("Liftoff & miniprot disagree too much => skip")
+                            print(transcript)
+                            continue                            
 
-        #                 # Check reference overlapping status
-        #                 # 1. Check it the transcript overlapping with the next gene
-                        
-        #                 # Check the miniprot protein overlapping status
+                        cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
+                        lifton_gene.update_cds_list(transcript_id, cds_list)
+            else:
+                LIFTOFF_ONLY_GENE_COUNT += 1
+            #     ################################
+            #     # Keep the transcript as it is.
+            #     #   (1) do not have proper protein sequences.
+            #     #   (2) transcript_id not in proteins
+            #     #   (3) transcript ID not in miniprot 
+            #     ################################
+            #     pass
 
-        #                 # The case I should not process the transcript 
-        #                 # 1. The Liftoff does not overlap with other gene
-        #                 # 2. The miniprot protein overlap the other gene
-        #                 ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
-        #                 ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
-        #                 if len(ovps_liftoff) == 1 and len(ovps_miniprot) > 1:
-        #                     print("Liftoff & miniprot disagree too much => skip")
-        #                     print(transcript)
-        #                     continue                            
+        ###########################
+        # Step 4.7: Writing out LiftOn entries
+        ###########################
+        lifton_gene.write_entry(fw)
 
-                        
-        #                 liftoff_miniprot_overlapping = True
-
-        #                 cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
-        #                 lifton_gene.update_cds_list(transcript_id, cds_list)
-
-        #                 # if transcript.seqid == "rna-NM_001397211.1":
-        #                 #     print("\tnew cds_list: ", len(lifton_gene.transcripts[transcript_id].exons))
-        #                 #     # lifton_gene.transcripts[transcript_id].write_entry(fw)
-        #                 #     print("Write out 2")
-        #                 #     print(transcript_id)
-        #                 #     print(m_entry)
-        #                 #     # print(l_entry)
-        #                 #     # print("miniprot_identity: ", miniprot_identity, "; number of children: ", len(m_lifton_aln.cds_children))
-        #                 #     # print("liftoff_identity: ", liftoff_identity, "; number of children: ", len(l_lifton_aln.cds_children))
-        #                 #     print("\n\n")
-
-        #         ################################
-        #         # Case 2: no miniprot and Liftoff transcripts overlap
-        #         ################################
-        #         # if not liftoff_miniprot_overlapping:
-        #         #     print("Write out 3")
-        #             # lifton_gene.transcripts[transcript_id].write_entry(fw)
-        #     # else:
-        #     #     ################################
-        #     #     # Keep the transcript as it is.
-        #     #     #   (1) do not have proper protein sequences.
-        #     #     #   (2) transcript_id not in proteins
-        #     #     #   (3) transcript ID not in miniprot 
-        #     #     ################################
-        #     #     pass
-
-
-        # lifton_gene.write_entry(fw)
+        ###########################
+        # Step 4.8: Adding LiftOn intervals
+        ###########################
         gene_interval = Interval(lifton_gene.entry.start, lifton_gene.entry.end, gene_id)
         tree_dict[chromosome].add(gene_interval)
 
 
     # print("gene_copy_num_dict: ", gene_copy_num_dict)
-    
-    
     # print("trans_2_gene_dict: ", trans_2_gene_dict)
     # print("gene_info_dict : ", gene_info_dict)
     # print("trans_info_dict: ", trans_info_dict)
@@ -334,21 +308,20 @@ def run_all_liftoff_steps(args):
     ################################
     # Step 5: Finding extra copies
     ################################
-    for mtrans in m_feature_db.features_of_type('mRNA', limit=("chr1", 0, 250000000)):
+    EXTRA_COPY_MINIPROT_COUNT = 0
+    NEW_LOCUS_MINIPROT_COUNT = 0
+    for mtrans in m_feature_db.features_of_type('mRNA'):#, limit=("chr1", 0, 250000000)):
         chromosome = mtrans.seqid
-
         mtrans_id = mtrans.attributes["ID"][0]
-
         mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
-
-        # print(">> chromosome: ", chromosome)
-        # print(">> mtrans_id : ", mtrans_id)
-        # print(">> mtrans_interval: ", mtrans_interval)
-        # print(">> tree_dict[chromosome]: ", tree_dict[chromosome])
-
         ovps = tree_dict[chromosome].overlap(mtrans_interval)
 
+        # Add new transcript loci into interval tree
+        gene_interval = Interval(mtrans.start, mtrans.end, mtrans.attributes["ID"])
+        tree_dict[chromosome].add(gene_interval)
+
         if len(ovps) == 0:
+
             print("ovps: ", len(ovps))
             print(mtrans_interval)
             print(aa_id_2_m_id_dict[mtrans_id])
@@ -357,58 +330,26 @@ def run_all_liftoff_steps(args):
 
             gene_entry_base = copy.deepcopy(mtrans)
             trans_entry_base = copy.deepcopy(mtrans)
-                
             # Find the extra copy for know gene
             if extra_cp_trans_id in trans_info_dict.keys():
+                EXTRA_COPY_MINIPROT_COUNT += 1
                 extra_cp_gene_id = trans_2_gene_dict[extra_cp_trans_id] 
-                print("Gene ID  : ", extra_cp_gene_id)
-                print("Trans ID : ", extra_cp_trans_id)
-                print("\tTransid found!!!")
-                # print(trans_info_dict[extra_cp_trans_id])
-
-                # #######################################
-                # # Step 5.1: Create the gene entry
-                # #######################################
-                # gene_attrs = gene_info_dict[extra_cp_gene_id]
-                # # print("gene_attrs : ", gene_attrs)
-                # Lifton_gene_ecp = lifton_class.Lifton_GENE(gene_entry_base)
-                # new_extra_cp_gene_id = Lifton_gene_ecp.update_gene_info(extra_cp_gene_id, chromosome, mtrans.start, mtrans.end, gene_attrs, gene_copy_num_dict)
-
-
-                # #######################################
-                # # Step 5.2: Create the transcript entry
-                # #######################################
-                # trans_attrs = trans_info_dict[extra_cp_trans_id]
-                # # print("trans_attrs: ", trans_attrs)
-                # new_extra_cp_trans_id = Lifton_gene_ecp.create_new_transcript(extra_cp_gene_id, extra_cp_trans_id, trans_entry_base, chromosome, mtrans.start, mtrans.end, trans_attrs, gene_copy_num_dict)
-
-                # #######################################
-                # # Step 5.3: Create the exon entry
-                # #######################################
-
-                # #######################################
-                # # Step 5.4: Create the CDS entry
-                # #######################################
-                # cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
-                # # print("cdss len: ", len(cdss))
-                # for cds in list(cdss):
-
-                #     # entry.attributes["ID"]
-                #     Lifton_gene_ecp.add_exon(new_extra_cp_trans_id, cds)
-                #     cds_copy = copy.deepcopy(cds)
-                #     Lifton_gene_ecp.add_cds(new_extra_cp_trans_id, cds_copy)
-                # Lifton_gene_ecp.write_entry(fw)
-
-            else:
-                print("\tTransid not found!")
 
                 #######################################
                 # Step 5.1: Create the gene entry
                 #######################################
+                gene_attrs = gene_info_dict[extra_cp_gene_id]
+                # print("gene_attrs : ", gene_attrs)
+                Lifton_gene_ecp = lifton_class.Lifton_GENE(gene_entry_base)
+                new_extra_cp_gene_id = Lifton_gene_ecp.update_gene_info(extra_cp_gene_id, chromosome, mtrans.start, mtrans.end, gene_attrs, gene_copy_num_dict)
+
 
                 #######################################
                 # Step 5.2: Create the transcript entry
                 #######################################
+                trans_attrs = trans_info_dict[extra_cp_trans_id]
+                # print("trans_attrs: ", trans_attrs)
+                new_extra_cp_trans_id = Lifton_gene_ecp.create_new_transcript(extra_cp_gene_id, extra_cp_trans_id, trans_entry_base, chromosome, mtrans.start, mtrans.end, trans_attrs, gene_copy_num_dict)
 
                 #######################################
                 # Step 5.3: Create the exon entry
@@ -417,31 +358,55 @@ def run_all_liftoff_steps(args):
                 #######################################
                 # Step 5.4: Create the CDS entry
                 #######################################
+                cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+                # print("cdss len: ", len(cdss))
+                for cds in list(cdss):
+
+                    # entry.attributes["ID"]
+                    Lifton_gene_ecp.add_exon(new_extra_cp_trans_id, cds)
+                    cds_copy = copy.deepcopy(cds)
+                    Lifton_gene_ecp.add_cds(new_extra_cp_trans_id, cds_copy)
+                Lifton_gene_ecp.write_entry(fw)
+
+            else:
+                NEW_LOCUS_MINIPROT_COUNT += 1
+                #######################################
+                # Step 5.1: Create the gene entry
+                #######################################
+                extra_cp_gene_id = f"gene-LiftOn-{NEW_LOCUS_MINIPROT_COUNT}"
+
                 Lifton_gene_ecp = lifton_class.Lifton_GENE(gene_entry_base)
                 new_extra_cp_gene_id = Lifton_gene_ecp.update_gene_info_novel(extra_cp_gene_id, chromosome, mtrans.start, mtrans.end)
 
-                Lifton_gene_ecp.create_new_transcript_novel(extra_cp_gene_id, extra_cp_trans_id, trans_entry_base, chromosome, mtrans.start, mtrans.end)
-                # Lifton_trans = lifton_class.Lifton_TRANS(mtrans)
+                # print("new_extra_cp_gene_id: ", new_extra_cp_gene_id)
 
+
+                #######################################
+                # Step 5.2: Create the transcript entry
+                #######################################
+                new_extra_cp_trans_id = Lifton_gene_ecp.create_new_transcript_novel(extra_cp_gene_id, extra_cp_trans_id, trans_entry_base, chromosome, mtrans.start, mtrans.end)
+
+                #######################################
+                # Step 5.3: Create the exon entry
+                #######################################
+                #######################################
+                # Step 5.4: Create the CDS entry
+                #######################################
                 cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
                 # print("cdss len: ", len(cdss))
                 for cds in list(cdss):
                     Lifton_gene_ecp.add_exon(extra_cp_trans_id, cds)
                     cds_copy = copy.deepcopy(cds)
                     Lifton_gene_ecp.add_cds(extra_cp_trans_id, cds_copy)
-                
-                
+
                 Lifton_gene_ecp.write_entry(fw)
-                
 
-            # print("aa_trans_extra: ", aa_trans_extra)
+    print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
+    print("Liftoff only gene loci\t\t\t: ", LIFTOFF_ONLY_GENE_COUNT)
+    print("Liftoff & miniprot matched gene loci\t: ", LIFTOFF_MINIPROT_FIXED_GENE_COUNT)
 
-        # else:
-        #     print("### Overlapped!!")
-
-
-
-
+    print("miniprot found extra copy gene loci\t: ", EXTRA_COPY_MINIPROT_COUNT)
+    print("miniprot found new loci\t\t\t: ", NEW_LOCUS_MINIPROT_COUNT)
 
 def main(arglist=None):
     args = parse_args(arglist)
