@@ -66,7 +66,7 @@ bibtex_default_style = 'unsrt'
 # a list of builtin themes.
 
 # html_theme = "sphinx_rtd_theme"
-# html_theme = 'furo'
+html_theme = 'furo'
 # html_theme = 'scrolls'
 
 
