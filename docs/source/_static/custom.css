@@ -1,0 +1,55 @@
+.toggle .header {
+    display: block;
+    clear: both;
+}
+
+.toggle .header:after {
+    content: "  ▶  Press to expand the code block";
+    font-style: italic;
+    font-weight: bold;
+    font-size:13px;
+    margin-left:10px;
+    margin-top:-30px !important;
+}
+
+.toggle .header.open:after {
+    content: "  ▼  Press to close the code block";
+    font-style: italic;
+    font-weight: bold;
+    font-size:13px;
+    margin-left:10px;
+    margin-top:-30px !important;
+}
+
+.admonition {
+    font-size: 16px;   
+}
+
+.summary-title{
+    font-size: 18px;   
+}
+
+.card-text {
+    font-size: 17px;
+}
+
+.howtoclass {
+    font-size: 25px;   
+}
+
+.octicon {
+    font-size: 25px;   
+}
+
+.std-numref {
+    font-weight: bold;   
+}
+
+.caption-number {
+    font-weight: bold;   
+}
+
+/* 
+.bottom-of-page {
+    visibility: visible;
+} */

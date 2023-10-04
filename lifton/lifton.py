@@ -167,12 +167,12 @@ def run_all_liftoff_steps(args):
     LIFTOFF_ONLY_GENE_COUNT = 0
     LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
 
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr6", 35729821, 35746565)):
+    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr4", 122344, 135031)):
         LIFTOFF_TOTAL_GENE_COUNT += 1
         chromosome = gene.seqid
         gene_id = gene.attributes["ID"][0]
         gene_id_base = lifton_utils.get_ID_base(gene_id)
-        # print("&& gene_id      : ", gene_id)
+        print("&& gene_id      : ", gene_id)
         # print("&& gene_id_base : ", gene_id_base)
 
         ################################
@@ -202,7 +202,7 @@ def run_all_liftoff_steps(args):
             transcript_id = transcript["ID"][0]
             transcript_id_base = lifton_utils.get_trans_ID_base(transcript_id)
 
-            # print("&& transcript_id      : ", transcript_id)
+            print("\t&& transcript_id      : ", transcript_id)
             # print("&& transcript_id_base : ", transcript_id_base)
 
             transcript_info = copy.deepcopy(transcript)
