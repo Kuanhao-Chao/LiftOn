@@ -1,0 +1,23 @@
+def id_mapping(m_feature_db):
+    m_id_dict = {}
+    aa_id_2_m_id_dict = {}
+    for feature in m_feature_db.features_of_type("mRNA"):
+        # Print all attributes and their values for the feature
+        miniprot_id = feature["ID"][0]
+
+        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
+        # print("aa_trans_id: ", aa_trans_id)
+        if aa_trans_id in m_id_dict.keys():
+            m_id_dict[aa_trans_id].append(miniprot_id)
+        else:
+            m_id_dict[aa_trans_id] = [miniprot_id]
+        aa_id_2_m_id_dict[miniprot_id] = aa_trans_id
+
+    ###################################
+    # Printing the miniprot dictionary
+    ###################################
+    # for key, vals in m_id_dict.items():
+    #     print("key : ", key)
+    #     print("vals: ", vals)
+
+    return m_id_dict, aa_id_2_m_id_dict

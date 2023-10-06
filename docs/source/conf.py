@@ -117,18 +117,18 @@ html_theme_options = {
 #       "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/brands.min.css",
 # ]
 
-html_sidebars = {
-    "**": [
-        "sidebar/initial.html",
-        "sidebar/scroll-start.html",
-        "sidebar/brand.html",
-        "sidebar/search.html",
-        "sidebar/navigation.html",
-        "sidebar/ethical-ads.html",
-        "sidebar/scroll-end.html",
-        "sidebar/sidebarlogo.html",
-    ]
-}
+# html_sidebars = {
+#     "**": [
+#         "sidebar/initial.html",
+#         "sidebar/scroll-start.html",
+#         "sidebar/brand.html",
+#         "sidebar/search.html",
+#         "sidebar/navigation.html",
+#         "sidebar/ethical-ads.html",
+#         "sidebar/scroll-end.html",
+#         "sidebar/sidebarlogo.html",
+#     ]
+# }
 
 html_context = {
    "default_mode": "light"
