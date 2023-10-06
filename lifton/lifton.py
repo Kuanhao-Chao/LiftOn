@@ -1,4 +1,4 @@
-from lifton import extract_features
+from lifton import extract_features, mapping
 import argparse
 from pyfaidx import Fasta, Faidx
 from intervaltree import Interval, IntervalTree
@@ -10,16 +10,6 @@ def parse_args(arglist):
     print("arglist: ", arglist)
     parser = argparse.ArgumentParser(description='Lift features from one genome assembly to another')
     parser.add_argument('target', help='target fasta genome to lift genes to')
-
-    # refrgrp = parser.add_argument_group('Required input (annotation)')
-    # mxgrp = refrgrp.add_mutually_exclusive_group(required=True)
-    # mxgrp.add_argument(
-    #     '-g', metavar='GFF', help='annotation file to lift over in GFF or GTF format'
-    # )
-    # mxgrp.add_argument(
-    #     '-db', metavar='DB', help='name of feature database; if not specified, the -g '
-    #                               'argument must be provided and a database will be built automatically'
-    # )
 
     outgrp = parser.add_argument_group('Output')
     outgrp.add_argument(
@@ -91,41 +81,11 @@ def run_all_liftoff_steps(args):
     fw = open(args.output, "w")
     # fw_protein = open("lifton_protein.gff3", "w")
 
-    
+
     ################################
     # Step 1: Creating miniprot 2 Liftoff ID mapping
     ################################
-    m_id_dict = {}
-    aa_id_2_m_id_dict = {}
-    for feature in m_feature_db.features_of_type("mRNA"):
-        # Print all attributes and their values for the feature
-        miniprot_id = feature["ID"][0]
-
-        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
-        # print("aa_trans_id: ", aa_trans_id)
-        if aa_trans_id in m_id_dict.keys():
-            m_id_dict[aa_trans_id].append(miniprot_id)
-        else:
-            m_id_dict[aa_trans_id] = [miniprot_id]
-        aa_id_2_m_id_dict[miniprot_id] = aa_trans_id
-
-    ###################################
-    # Printing the miniprot dictionary
-    ###################################
-    # for key, vals in m_id_dict.items():
-    #     print("key : ", key)
-    #     print("vals: ", vals)
-
-
-    ################################
-    # Iterating Liftoff transcript
-    ################################
-    # # Iterate through the features in the database and collect unique feature types
-    # print("l_feature_db.features_of_type('mRNA')", l_feature_db.all_features())
-    # for feature in l_feature_db.all_features(strand="+"):
-    # # for feature in l_feature_db.features_of_type("mRNA"):
-    #     print("feature ", feature)
-
+    m_id_dict, aa_id_2_m_id_dict = mapping.id_mapping(m_feature_db)
 
     # print(" m_feature_db.features_of_type('mRNA'):",  m_feature_db.all_features())
     # for feature in m_feature_db.features_of_type("mRNA"):
@@ -150,6 +110,7 @@ def run_all_liftoff_steps(args):
         gene_interval = Interval(gene.start, gene.end, gene.attributes["ID"][0])
         chromosome = gene.seqid
         tree_dict[chromosome].add(gene_interval)
+
 
 
 
