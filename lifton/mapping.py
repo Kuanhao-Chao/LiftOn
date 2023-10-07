@@ -20,4 +20,9 @@ def id_mapping(m_feature_db):
     #     print("key : ", key)
     #     print("vals: ", vals)
 
+
+    # print(" m_feature_db.features_of_type('mRNA'):",  m_feature_db.all_features())
+    # for feature in m_feature_db.features_of_type("mRNA"):
+    #     print("feature ", feature)
+    
     return m_id_dict, aa_id_2_m_id_dict
