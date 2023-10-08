@@ -16,8 +16,8 @@ class Lifton_Alignment:
 
 
 class Lifton_GENE_info:
-    def __init__(self, entry, gene_id_base):
-        self.attributes = entry.attributes
+    def __init__(self, attrs, gene_id_base):
+        self.attributes = attrs
 
         #########################
         # These info are for extra copies
@@ -42,8 +42,8 @@ class Lifton_GENE_info:
 
     
 class Lifton_TRANS_info:
-    def __init__(self, entry, trans_id_base, gene_id_base):
-        self.attributes = entry.attributes
+    def __init__(self, attrs, trans_id_base, gene_id_base):
+        self.attributes = attrs
 
         #########################
         # These info are for extra copies
@@ -59,12 +59,22 @@ class Lifton_TRANS_info:
         #     print(key, val)
         # print("====================\n")
 
-    def update_trans_info_copy_number(self, gene_id_base, trans_id_base, gene_copy_num_dict):
-        # print("Before self.attributes['ID']: ", self.attributes['ID'])
-        self.attributes['ID'] = [trans_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
-        self.attributes['Parent'] = [gene_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
-        self.attributes['transcript_id'] = [trans_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
-        self.attributes['extra_copy_number'] = [str(gene_copy_num_dict[gene_id_base])]
+    def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, copy_num_dict):
+        print(">> gene_id_base  : ", gene_id_base)
+        print(">> trans_id_base : ", trans_id_base)
+
+        if not novel: 
+            copy_num = str(copy_num_dict[gene_id_base])
+        else:
+            if trans_id_base in copy_num_dict.keys():
+                copy_num = str(copy_num_dict[trans_id_base])
+            else:
+                copy_num = str(0)
+
+        self.attributes['ID'] = [trans_id_base + '_' + copy_num]
+        self.attributes['Parent'] = [gene_id_base + '_' + copy_num]
+        self.attributes['transcript_id'] = [trans_id_base + '_' + copy_num]
+        self.attributes['extra_copy_number'] = [copy_num]
 
 
 class Lifton_GENE:
@@ -88,36 +98,36 @@ class Lifton_GENE:
         self.entry.attributes = gene_attrs.attributes
         return self.entry.attributes["ID"][0]
 
-    def update_gene_info_novel(self, gene_id, chromosome, start, end):
-        self.entry.seqid = chromosome
-        self.entry.featuretype = "gene"
-        self.entry.start = start
-        self.entry.end = end
-        self.entry.attributes = {}
-        self.entry.attributes["ID"] = [gene_id]
-        return self.entry.attributes["ID"][0]
+    # def update_gene_info_novel(self, gene_id, chromosome, start, end):
+    #     self.entry.seqid = chromosome
+    #     self.entry.featuretype = "gene"
+    #     self.entry.start = start
+    #     self.entry.end = end
+    #     self.entry.attributes = {}
+    #     self.entry.attributes["ID"] = [gene_id]
+    #     return self.entry.attributes["ID"][0]
 
-    def create_new_transcript(self, gene_id, trans_id, trans_entry, chromosome, start, end, trans_attrs, gene_copy_num_dict):
+    def create_new_transcript(self, novel, gene_id, trans_id, trans_entry, chromosome, start, end, trans_attrs, gene_copy_num_dict):
         Lifton_trans = Lifton_TRANS(trans_entry)
         Lifton_trans.entry.seqid = chromosome
         Lifton_trans.entry.featuretype = "mRNA"
         Lifton_trans.entry.start = start
         Lifton_trans.entry.end = end
-        trans_attrs.update_trans_info_copy_number(gene_id, trans_id, gene_copy_num_dict)
+        trans_attrs.update_trans_info_copy_number(novel, gene_id, trans_id, gene_copy_num_dict)
         Lifton_trans.entry.attributes = trans_attrs.attributes
         self.transcripts[Lifton_trans.entry.attributes["ID"][0]] = Lifton_trans
         return Lifton_trans.entry.attributes["ID"][0]
     
-    def create_new_transcript_novel(self, gene_id, trans_id, trans_entry, chromosome, start, end):
-        Lifton_trans = Lifton_TRANS(trans_entry)
-        Lifton_trans.entry.seqid = chromosome
-        Lifton_trans.entry.featuretype = "mRNA"
-        Lifton_trans.entry.start = start
-        Lifton_trans.entry.end = end
-        Lifton_trans.entry.attributes = {}
-        Lifton_trans.entry.attributes["ID"] = [trans_id]
-        self.transcripts[trans_id] = Lifton_trans
-        return Lifton_trans.entry.attributes["ID"][0]
+    # def create_new_transcript_novel(self, gene_id, trans_id, trans_entry, chromosome, start, end, trans_copy_num_dict):
+    #     Lifton_trans = Lifton_TRANS(trans_entry)
+    #     Lifton_trans.entry.seqid = chromosome
+    #     Lifton_trans.entry.featuretype = "mRNA"
+    #     Lifton_trans.entry.start = start
+    #     Lifton_trans.entry.end = end
+    #     Lifton_trans.entry.attributes = {}
+    #     Lifton_trans.entry.attributes["ID"] = [trans_id]
+    #     self.transcripts[trans_id] = Lifton_trans
+    #     return Lifton_trans.entry.attributes["ID"][0]
 
     def add_transcript(self, gffutil_entry_trans):
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
