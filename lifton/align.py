@@ -31,10 +31,13 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
         if len(cds_children) == 0:
             cds_children.append(child)
             continue
+        
         idx_insert = 0
         for idx_c in range(len(cds_children)):
             itr_c = cds_children[idx_c]
-            if child.start > itr_c.end:
+
+            # Equal sign is important! => it fixes those 0 intron cases.
+            if child.start >= itr_c.end:
                 idx_insert += 1
         
         cds_children.insert(idx_insert, child)
