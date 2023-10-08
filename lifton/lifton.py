@@ -70,12 +70,8 @@ def parse_args(arglist):
 def run_all_liftoff_steps(args):
     ref_chroms = []
     fai = Fasta(args.target)
-    print("fai: ", fai.keys())
-    print(args.output)
-    print(args.dir)
 
     fai_protein = Fasta(args.proteins)
-
     l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, args)
 
     fw = open(args.output, "w")
@@ -90,9 +86,8 @@ def run_all_liftoff_steps(args):
     ################################
     tree_dict = intervals.initialize_interval_tree(l_feature_db)
 
-    ################################
-    # Step 3: Iterating gene entries & fixing CDS lists
-    ################################
+
+    # Dictionary for extra copy
     gene_copy_num_dict = {}
     gene_info_dict = {}
     trans_info_dict = {}
@@ -102,7 +97,10 @@ def run_all_liftoff_steps(args):
     LIFTOFF_ONLY_GENE_COUNT = 0
     LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
 
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr4", 0, 200000000)):
+    ################################
+    # Step 3: Iterating gene entries & fixing CDS lists
+    ################################
+    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr7", 93892249, 96905573)):
         LIFTOFF_TOTAL_GENE_COUNT += 1
         chromosome = gene.seqid
         gene_id = gene.attributes["ID"][0]
@@ -132,12 +130,11 @@ def run_all_liftoff_steps(args):
         # Assumption that all 1st level are transcripts
         transcripts = l_feature_db.children(gene, level=1)
         for transcript in list(transcripts):
-            
             lifton_gene.add_transcript(transcript)
             transcript_id = transcript["ID"][0]
             transcript_id_base = lifton_utils.get_trans_ID_base(transcript_id)
 
-            print("\t&& transcript_id      : ", transcript_id)
+            print("\ttranscript_id      : ", transcript_id)
             # print("&& transcript_id_base : ", transcript_id_base)
 
             transcript_info = copy.deepcopy(transcript)
@@ -168,52 +165,44 @@ def run_all_liftoff_steps(args):
             #   1. There are CDS features
             #   2. transcript ID is in both miniprot & Liftoff & protein FASTA file
             #############################################
-            if (cds_num > 0) and (transcript_id in m_id_dict.keys()) and (transcript_id in fai_protein.keys()):
+            if (cds_num > 0) and (transcript_id in m_id_dict.keys()) and (transcript_id in fai_protein.keys()):                
                 ################################
-                # Step 3.6.1: Protein sequences are in both Liftoff and miniprot
-                #   Fix the protein sequences
-                ################################
-                
-                ################################
-                # Step 3.6.2: liftoff transcript alignment
+                # Step 3.6.1: liftoff transcript alignment
                 ################################
                 l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
-
-                ################################
-                # Step 3.6.3: miniprot transcript alignment
-                ################################
                 m_ids = m_id_dict[transcript_id]
-
                 for m_id in m_ids:
                     m_entry = m_feature_db[m_id]
-                    if m_entry.seqid != chromosome:
-                        continue
-                    
-                    m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
                     overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
 
+                    if not overlap or m_entry.seqid != transcript.seqid:
+                        continue
+                    
+                    ################################
+                    # Step 3.6.2: Protein sequences are in both Liftoff and miniprot & overlap
+                    #   Fix & update CDS list
+                    ################################
+                    ################################
+                    # Step 3.6.3: miniprot transcript alignment
+                    ################################
+                    m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
 
-                    ############################################
-                    # miniprot and Liftoff transcript overlap
-                    #   => fix & update CDS list
-                    ############################################
-                    if overlap and m_entry.seqid == transcript.seqid:
-                        LIFTOFF_MINIPROT_FIXED_GENE_COUNT += 1
-                        # Check reference overlapping status
-                        # 1. Check it the transcript overlapping with the next gene
-                        # Check the miniprot protein overlapping status
-                        # The case I should not process the transcript 
-                        # 1. The Liftoff does not overlap with other gene
-                        # 2. The miniprot protein overlap the other gene
-                        ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
-                        ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
-                        if len(ovps_liftoff) == 1 and len(ovps_miniprot) > 1:
-                            # print("Liftoff & miniprot disagree too much => skip")
-                            # print(transcript)
-                            continue                            
+                    # Check reference overlapping status
+                    # 1. Check it the transcript overlapping with the next gene
+                    # Check the miniprot protein overlapping status
+                    # The case I should not process the transcript 
+                    # 1. The Liftoff does not overlap with other gene
+                    # 2. The miniprot protein overlap the other gene
+                    ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
+                    ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
+                    if len(ovps_liftoff) == 1 and len(ovps_miniprot) > 1:
+                        # print("Liftoff & miniprot disagree too much => skip")
+                        # print(transcript)
+                        continue                            
 
-                        cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
-                        lifton_gene.update_cds_list(transcript_id, cds_list)
+                    LIFTOFF_MINIPROT_FIXED_GENE_COUNT += 1
+                    cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
+                    lifton_gene.update_cds_list(transcript_id, cds_list)
             else:
                 LIFTOFF_ONLY_GENE_COUNT += 1
 
@@ -236,7 +225,7 @@ def run_all_liftoff_steps(args):
     ################################
     EXTRA_COPY_MINIPROT_COUNT = 0 
     NEW_LOCUS_MINIPROT_COUNT = 0
-    # EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, fw)
+    EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, fw)
 
 
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)

@@ -54,11 +54,14 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
     # print("\tl_c_idx_last: ", l_c_idx_last)
     # print("\tm_c_idx_last: ", m_c_idx_last)
 
-    # print("## m_cdss_aln_boundary: ", m_cdss_aln_boundary)
-    # print("## l_cdss_aln_boundary: ", l_cdss_aln_boundary)
+    # print("## m_cdss_aln_boundary: ", m_lifton_aln.cdss_protein_aln_boundaries)
+    # print("## l_cdss_aln_boundary: ", l_lifton_aln.cdss_protein_aln_boundaries)
 
     m_aa_start, m_aa_end = get_protein_boundary(m_lifton_aln.cdss_protein_aln_boundaries, m_c_idx_last, m_c_idx)
     l_aa_start, l_aa_end = get_protein_boundary(l_lifton_aln.cdss_protein_aln_boundaries, l_c_idx_last, l_c_idx)
+
+    # print(f"\tminiprot: {m_aa_start} - {m_aa_end}")
+    # print(f"\tliftoff : {l_aa_start} - {l_aa_end}")
 
     m_matches, m_length = get_id_fraction.get_id_fraction(m_lifton_aln.ref_aln, m_lifton_aln.query_aln, math.floor(m_aa_start), math.ceil(m_aa_end))
     l_matches, l_length = get_id_fraction.get_id_fraction(l_lifton_aln.ref_aln, l_lifton_aln.query_aln, math.floor(l_aa_start), math.ceil(l_aa_end))
@@ -154,7 +157,8 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
             m_c = m_children[len(m_children) - m_c_idx - 1]
             l_c = l_children[len(l_children) - l_c_idx - 1]
 
-            # print(">> m_c: ", m_c, ";   l_c: ", l_c)
+            # print(f"miniprot : {m_c.start} - {m_c.end}")
+            # print(f"liftoff  : {l_c.start} - {l_c.end}")
             
             if ref_aa_liftoff_count < ref_aa_miniprot_count:
                 # print(">> Liftoff")

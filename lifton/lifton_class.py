@@ -215,8 +215,8 @@ class Lifton_TRANS:
             self.entry.attributes[key] = atr
 
     def update_cds_list(self, cds_list):
-        print(f"\t>> update_cds_list (len: {len(cds_list)}) ")
-        print(f"\t>> self.exons (len: {len(self.exons)}) ")
+        print(f"\t\t>> update_cds_list (len: {len(cds_list)}) ")
+        # print(f"\t>> self.exons (len: {len(self.exons)}) ")
         idx_exon_itr = 0
         new_exons = []
 
