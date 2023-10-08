@@ -89,6 +89,7 @@ def run_all_liftoff_steps(args):
 
     # Dictionary for extra copy
     gene_copy_num_dict = {}
+    trans_copy_num_dict = {}
     gene_info_dict = {}
     trans_info_dict = {}
     trans_2_gene_dict = {}
@@ -97,10 +98,16 @@ def run_all_liftoff_steps(args):
     LIFTOFF_ONLY_GENE_COUNT = 0
     LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
 
+    # featuretypes = l_feature_db.featuretypes()
+    # for featuretype in featuretypes:
+    #     print(featuretype)
+
     ################################
     # Step 3: Iterating gene entries & fixing CDS lists
     ################################
-    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr7", 93892249, 96905573)):
+    # For missing transcripts.
+    gene_copy_num_dict["gene-LiftOn"] = 0
+    for gene in l_feature_db.features_of_type('gene', limit=("chr1", 0, 10905573)):
         LIFTOFF_TOTAL_GENE_COUNT += 1
         chromosome = gene.seqid
         gene_id = gene.attributes["ID"][0]
@@ -121,7 +128,7 @@ def run_all_liftoff_steps(args):
         ################################
         lifton_gene = lifton_class.Lifton_GENE(gene)
         gene_info = copy.deepcopy(gene)
-        lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info, gene_id_base)
+        lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id_base)
         gene_info_dict[gene_id_base] = lifton_gene_info
         
         ################################
@@ -134,11 +141,19 @@ def run_all_liftoff_steps(args):
             transcript_id = transcript["ID"][0]
             transcript_id_base = lifton_utils.get_trans_ID_base(transcript_id)
 
+            ################################
+            # Step 3.3.1: Creating trans copy number dictionary
+            ################################
+            if transcript_id_base in trans_copy_num_dict.keys():
+                trans_copy_num_dict[transcript_id_base] += 1
+            else:
+                trans_copy_num_dict[transcript_id_base] = 0
+
             print("\ttranscript_id      : ", transcript_id)
             # print("&& transcript_id_base : ", transcript_id_base)
 
             transcript_info = copy.deepcopy(transcript)
-            lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info, transcript_id_base, gene_id_base)
+            lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id_base, gene_id_base)
 
             trans_2_gene_dict[transcript_id_base] = gene_id_base
             trans_info_dict[transcript_id_base] = lifton_trans_info
@@ -225,7 +240,7 @@ def run_all_liftoff_steps(args):
     ################################
     EXTRA_COPY_MINIPROT_COUNT = 0 
     NEW_LOCUS_MINIPROT_COUNT = 0
-    EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, fw)
+    EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
 
 
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
