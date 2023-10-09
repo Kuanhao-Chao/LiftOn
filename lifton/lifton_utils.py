@@ -48,3 +48,11 @@ def get_trans_ID_base(id):
         id_base = match.group(0)  # Full match
 
     return id_base
+
+def get_parent_features_to_lift(feature_types_file):
+    feature_types = ["gene"]
+    if feature_types_file is not None:
+        f = open(feature_types_file)
+        for line in f.readlines():
+            feature_types.append(line.rstrip())
+    return feature_types
