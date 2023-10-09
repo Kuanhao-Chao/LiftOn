@@ -107,7 +107,7 @@ def run_all_liftoff_steps(args):
     ################################
     # For missing transcripts.
     gene_copy_num_dict["gene-LiftOn"] = 0
-    for gene in l_feature_db.features_of_type('gene', limit=("chr1", 0, 10905573)):
+    for gene in l_feature_db.features_of_type('gene'):#, limit=("chr1", 0, 10905573)):
         LIFTOFF_TOTAL_GENE_COUNT += 1
         chromosome = gene.seqid
         gene_id = gene.attributes["ID"][0]
@@ -240,7 +240,7 @@ def run_all_liftoff_steps(args):
     ################################
     EXTRA_COPY_MINIPROT_COUNT = 0 
     NEW_LOCUS_MINIPROT_COUNT = 0
-    EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
+    # EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
 
 
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)

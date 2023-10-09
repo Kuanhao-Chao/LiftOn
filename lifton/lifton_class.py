@@ -36,7 +36,8 @@ class Lifton_GENE_info:
     def update_gene_info_copy_number(self, gene_id_base, gene_copy_num_dict):
         # print("Before self.attributes['ID']: ", self.attributes['ID'])
         self.attributes['ID'] = [gene_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
-        self.attributes['extra_copy_number'] = [str(gene_copy_num_dict[gene_id_base])]
+        if gene_id_base != "gene-LiftOn":
+            self.attributes['extra_copy_number'] = [str(gene_copy_num_dict[gene_id_base])]
 
         # print("After  self.attributes['ID']: ", self.attributes['ID'])
 
@@ -59,22 +60,25 @@ class Lifton_TRANS_info:
         #     print(key, val)
         # print("====================\n")
 
-    def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, copy_num_dict):
-        print(">> gene_id_base  : ", gene_id_base)
-        print(">> trans_id_base : ", trans_id_base)
-
-        if not novel: 
-            copy_num = str(copy_num_dict[gene_id_base])
+    def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, gene_copy_num_dict, trans_copy_num_dict):
+        trans_id = ""
+        gene_copy_num = gene_copy_num_dict[gene_id_base]
+        gene_id = gene_id_base + '_' + str(gene_copy_num)
+        
+        trans_copy_num = 0
+        trans_id = ""
+        if trans_id_base in trans_copy_num_dict.keys():
+            trans_copy_num = trans_copy_num_dict[trans_id_base]
+            trans_id = trans_id_base + '_' + str(trans_copy_num)
         else:
-            if trans_id_base in copy_num_dict.keys():
-                copy_num = str(copy_num_dict[trans_id_base])
-            else:
-                copy_num = str(0)
+            trans_copy_num = 0
+            trans_id = trans_id_base
 
-        self.attributes['ID'] = [trans_id_base + '_' + copy_num]
-        self.attributes['Parent'] = [gene_id_base + '_' + copy_num]
-        self.attributes['transcript_id'] = [trans_id_base + '_' + copy_num]
-        self.attributes['extra_copy_number'] = [copy_num]
+        self.attributes['ID'] = [trans_id]
+        self.attributes['Parent'] = [gene_id]
+        self.attributes['transcript_id'] = [trans_id]
+        if trans_copy_num > 0:
+            self.attributes['extra_copy_number'] = [trans_copy_num]
 
 
 class Lifton_GENE:
@@ -98,36 +102,16 @@ class Lifton_GENE:
         self.entry.attributes = gene_attrs.attributes
         return self.entry.attributes["ID"][0]
 
-    # def update_gene_info_novel(self, gene_id, chromosome, start, end):
-    #     self.entry.seqid = chromosome
-    #     self.entry.featuretype = "gene"
-    #     self.entry.start = start
-    #     self.entry.end = end
-    #     self.entry.attributes = {}
-    #     self.entry.attributes["ID"] = [gene_id]
-    #     return self.entry.attributes["ID"][0]
-
-    def create_new_transcript(self, novel, gene_id, trans_id, trans_entry, chromosome, start, end, trans_attrs, gene_copy_num_dict):
+    def create_new_transcript(self, novel, gene_id, trans_id, trans_entry, chromosome, start, end, trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
         Lifton_trans = Lifton_TRANS(trans_entry)
         Lifton_trans.entry.seqid = chromosome
         Lifton_trans.entry.featuretype = "mRNA"
         Lifton_trans.entry.start = start
         Lifton_trans.entry.end = end
-        trans_attrs.update_trans_info_copy_number(novel, gene_id, trans_id, gene_copy_num_dict)
+        trans_attrs.update_trans_info_copy_number(novel, gene_id, trans_id, gene_copy_num_dict, trans_copy_num_dict)
         Lifton_trans.entry.attributes = trans_attrs.attributes
         self.transcripts[Lifton_trans.entry.attributes["ID"][0]] = Lifton_trans
         return Lifton_trans.entry.attributes["ID"][0]
-    
-    # def create_new_transcript_novel(self, gene_id, trans_id, trans_entry, chromosome, start, end, trans_copy_num_dict):
-    #     Lifton_trans = Lifton_TRANS(trans_entry)
-    #     Lifton_trans.entry.seqid = chromosome
-    #     Lifton_trans.entry.featuretype = "mRNA"
-    #     Lifton_trans.entry.start = start
-    #     Lifton_trans.entry.end = end
-    #     Lifton_trans.entry.attributes = {}
-    #     Lifton_trans.entry.attributes["ID"] = [trans_id]
-    #     self.transcripts[trans_id] = Lifton_trans
-    #     return Lifton_trans.entry.attributes["ID"][0]
 
     def add_transcript(self, gffutil_entry_trans):
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
@@ -191,27 +175,7 @@ class Lifton_TRANS:
         # Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
 
-    # def add_exon_extra_cp(self, gffutil_entry_exon):
-    #     # Parent=rna-NM_001385641.1;Dbxref=Ensembl:ENST00000616016.5,GeneID:148398,GenBank:NM_001385641.1,HGNC:HGNC:28706,MIM:616765;gbkey=mRNA;gene=SAMD11;product=sterile alpha motif domain containing 11%2C transcript variant 1;tag=MANE Select;transcript_id=NM_001385641.1;extra_copy_number=0
-
-    #     copy_attrs = copy.deepcopy(self.entry.attributes)
-
-    #     if 'ID' in copy_attrs: copy_attrs.pop('ID')
-    #     if 'Name' in copy_attrs: copy_attrs.pop('Name')
-    #     copy_attrs['Parent'] = self.entry.attributes['ID']
-
-    #     Lifton_exon = Lifton_EXON(copy_attrs)
-    #     lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
-        
-
     def add_cds(self, gffutil_entry_cds):
-        # print("!!@>> Run add_cds function! ")
-        # # self.exons[0].add_cds(gffutil_entry_cds)
-        # Lifton_exon_retrieval = None
-        # if gffutil_entry_cds.start in self.exon_dic.keys():
-        #     Lifton_exon_retrieval = self.exon_dic[gffutil_entry_cds.start]
-        # elif gffutil_entry_cds.end in self.exon_dic.keys():
-        #     Lifton_exon_retrieval = self.exon_dic[gffutil_entry_cds.end]
 
         for exon in self.exons:
             if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
@@ -569,7 +533,6 @@ class Lifton_TRANS:
         # print(f"(write_entry) update_boundaries, exon length: {len(self.exons)};  {self.entry.start} - {self.entry.end}")
 
         fw.write(str(self.entry) + "\n")
-        
         # Write out the exons first
         for exon in self.exons:
             exon.write_entry(fw)
