@@ -262,39 +262,6 @@ class Lifton_TRANS:
             cds = cds_list[cds_idx]
             exon = self.exons[exon_idx]
 
-            # cds.print_cds()
-            # exon.print_exon()
-
-            # last_exon = self.exons[-1]
-            # last_cds = cds_list[-1]
-
-            # print("last_cds: ")
-            # last_cds.print_cds()
-
-            # print(f"All cdss ({len(cds_list)}): ")
-            # for cds_p in cds_list:
-            #     cds_p.print_cds()
-
-
-            # print(f"All exons ({len(self.exons)}): ")
-            # for exon_p in self.exons:
-            #     exon_p.print_exon()
-
-
-
-            # while cds_idx < len(cds_list) or exon_idx < len(self.exons):
-            #     if cds_idx == len(cds_list):
-            #         exon_idx += 1
-            #     elif exon_idx == len(self.exons):
-            #         cds_idx += 1
-                
-            #     exon = self.exons[exon_idx]
-            #     cds = cds_list[cds_idx]
-
-            #     if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-            #         pass
-            #     else:
-
             ################################################
             # Step 1: CDSs or exons are smaller & no overlapping 
             #      => finding the first overlapping CDS and exons
@@ -441,7 +408,6 @@ class Lifton_TRANS:
             # # Step 5: parse all remaining exons without CDS if there's any
             # ################################################
 
-
             # # # print("len(self.exons): ", len(self.exons))
             # # # Handle the first CDS            
             # # while idx_exon_itr < len(self.exons):
@@ -550,7 +516,6 @@ class Lifton_TRANS:
         print(f"\t{self.entry}")
         for exon in self.exons:
             exon.print_exon()
-
 
 
 
