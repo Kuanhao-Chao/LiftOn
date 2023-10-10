@@ -61,7 +61,6 @@ class Lifton_TRANS_info:
         # print("====================\n")
 
     def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, gene_copy_num_dict, trans_copy_num_dict):
-        trans_id = ""
         gene_copy_num = gene_copy_num_dict[gene_id_base]
         gene_id = gene_id_base + '_' + str(gene_copy_num)
         
@@ -78,7 +77,7 @@ class Lifton_TRANS_info:
         self.attributes['Parent'] = [gene_id]
         self.attributes['transcript_id'] = [trans_id]
         if trans_copy_num > 0:
-            self.attributes['extra_copy_number'] = [trans_copy_num]
+            self.attributes['extra_copy_number'] = [str(trans_copy_num)]
 
 
 class Lifton_GENE:
