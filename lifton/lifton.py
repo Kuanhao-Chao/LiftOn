@@ -222,10 +222,9 @@ def run_all_liftoff_steps(args):
                         liftoff_set = set()
                         for ovp_liftoff in ovps_liftoff:
                             liftoff_set.add(ovp_liftoff[2])
-                            print("\tovp_liftoff: ", ovp_liftoff)
-
-                        print("liftoff_set : ", liftoff_set)                            
-
+                            # print("\tovp_liftoff: ", ovp_liftoff)
+                        # print("liftoff_set : ", liftoff_set)
+                        
                         for ovp_miniprot in ovps_miniprot:
                             if ovp_miniprot[2] not in liftoff_set:
                                 # Miniprot overlap to more genes

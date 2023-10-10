@@ -58,7 +58,6 @@ def find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, 
                     cds_copy = copy.deepcopy(cds)
                     Lifton_gene_ecp.add_cds(new_extra_cp_trans_id, cds_copy)
                 Lifton_gene_ecp.write_entry(fw)
-
             else:
                 # Reason it's missing => the mRNA does not belong to gene (vdj segments)
                 NEW_LOCUS_MINIPROT_COUNT += 1
