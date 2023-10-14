@@ -1,5 +1,12 @@
-from lifton import lifton_utils
+from lifton import lifton_utils, lifton_class, align
 import copy
+from Bio.Seq import Seq
+
+class Lifton_ORF:
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+        # print(f">> orf: {self.start} - {self.end}")
 
 class Lifton_Alignment:
     def __init__(self, extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry):
@@ -122,7 +129,11 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-                            
+
+    def fix_truncated_protein(self, trans_id, fai, fai_protein):
+        ref_protein_seq = fai_protein[trans_id]
+        self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq)
+               
     def update_cds_list(self, trans_id, cds_list):
         self.transcripts[trans_id].update_cds_list(cds_list)
         self.update_boundaries()
@@ -492,6 +503,151 @@ class Lifton_TRANS:
         self.update_boundaries()
 
 
+    def fix_truncated_protein(self, fai, ref_protein_seq):
+        ################################
+        # Step 1: Iterate through the children and chain the DNA sequence
+        ################################
+        coding_seq = ""
+        cdss_lens = []
+
+        trans_seq = ""
+        exon_lens = []
+        for exon_idx, exon in enumerate(self.exons):
+
+            p_trans_seq = exon.entry.sequence(fai)
+            p_trans_seq = Seq(p_trans_seq)
+
+            # Chaining the exon features
+            if exon.entry.strand == '-':
+                trans_seq = p_trans_seq + trans_seq
+                exon_lens.insert(0, exon.entry.end - exon.entry.start + 1)
+            elif exon.entry.strand == '+':
+                trans_seq = trans_seq + p_trans_seq
+                exon_lens.append(exon.entry.end - exon.entry.start + 1)
+
+            if exon.cds is not None:
+                # Chaining the CDS features
+                p_seq = exon.cds.entry.sequence(fai)
+                p_seq = Seq(p_seq)
+
+                # Chaining the CDS features
+                if exon.cds.entry.strand == '-':
+                    coding_seq = p_seq + coding_seq
+                    # cdss_lens.append(cds.entry.end - cds.entry.start + 1)
+                    cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
+                elif exon.cds.entry.strand == '+':
+                    coding_seq = coding_seq + p_seq
+                    cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+
+        ################################
+        # Step 2: Translate the DNA sequence & get the reference protein sequence.
+        ################################
+        protein_seq = coding_seq.translate()
+        peps = protein_seq.split("*")
+
+        if len(peps) == 2 and str(peps[1]) == "":
+            # This is a valid protein
+            return True
+        elif len(peps) == 1:
+            # This is a protein without stop codon
+            return True
+        else:
+            print("Invalid protein: ", peps)
+
+            # print(f"\t >> coding_seq: {coding_seq}")
+            # print(f"\t >> cdss_lens: {cdss_lens}")
+            self.__find_orfs(trans_seq, exon_lens, ref_protein_seq)
+            return False
+
+    def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq):
+        # sequence = Seq.Seq("ATGTTGCTCTGATGAGGGGTGAAGCAAGGTTACAGTGAGAAGGGCCTGGAGGGAGGAGGTCCTGGAGGAGGGGGG")
+        trans_seq = trans_seq.upper()
+        print(f"\t >> trans_seq: {trans_seq}")
+        print(f"\t >> exon_lens: {exon_lens}")
+
+        # Find ORFs manually
+        start_codon = "ATG"
+        stop_codons = ["TAA", "TAG", "TGA"]
+
+        orf_list = []
+
+        for frame in range(3):
+            orf_idx_s = 0
+            for i in range(frame, len(trans_seq), 3):
+                codon = str(trans_seq[i:i+3])
+                
+                if codon == start_codon:
+                    orf_idx_s = i
+                    orf_idx_e = i
+                    orf_seq = ""
+                    for j in range(i, len(trans_seq), 3):
+                        codon = str(trans_seq[j:j+3])
+                        orf_seq += codon
+                        if codon in stop_codons:
+                            orf_idx_e = j+3
+                            break
+                    if orf_seq and (orf_idx_s < orf_idx_e):
+                        orf = lifton_class.Lifton_ORF(orf_idx_s, orf_idx_e)
+                        orf_list.append(orf)
+
+        # Print the ORFs
+        final_orf_seq = ""
+        final_orf = None
+        max_align_score = 0
+        for i, orf in enumerate(orf_list):
+            orf_DNA_seq = trans_seq[orf.start:orf.end]
+            orf_protein_seq = orf_DNA_seq.translate()
+            
+            print(f"\tORF {i+1}: {orf_DNA_seq}")
+            print(f"\torf_protein_seq: {orf_protein_seq}")
+            extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_base(orf_protein_seq, str(ref_protein_seq))
+
+            alignment_score = extracted_parasail_res.score
+            if alignment_score > max_align_score:
+                max_align_score = alignment_score
+                final_orf_seq = orf_protein_seq
+                final_orf = orf
+                print(f"\talignment_score: {alignment_score}")
+        
+        # Updating CDS now.
+        print(f">> max_align_score: {max_align_score}")
+        print(f">> final_orf_seq: {final_orf_seq}")
+
+        accum_exon_length = 0
+
+        for exon_idx, exon in enumerate(self.exons):
+            exon.print_exon()
+            curr_exon_len = exon.entry.end - exon.entry.start + 1
+            if accum_exon_length < final_orf.start:
+                if final_orf.start < accum_exon_length+curr_exon_len:
+                    # Create first partial CDS
+                    if exon.cds is not None:
+                        exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
+                    else:
+                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start + (final_orf.start - accum_exon_length), exon.entry.end)
+                else:
+                    # No CDS should be created
+                    exon.cds = None
+                    pass
+            elif final_orf.start < accum_exon_length and accum_exon_length < final_orf.end:
+
+                if final_orf.end < accum_exon_length+curr_exon_len:
+                    # Create the last partial CDS
+                    print("DEBUG")
+                    exon.print_exon()
+
+                    if exon.cds is not None:
+                        exon.cds.entry.end = exon.entry.start + (final_orf.end - accum_exon_length)
+                    else:
+                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length))
+
+                else:
+                    # Keep the original full CDS
+                    pass
+
+            accum_exon_length += curr_exon_len
+
+
     def write_entry(self, fw):
         # print("Inside 'write_entry'!")
         # print(self.entry)
@@ -537,6 +693,17 @@ class Lifton_EXON:
 
     def add_cds(self, gffutil_entry_cds):
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
+        self.cds = Lifton_cds
+
+    def add_novel_lifton_cds(self, gffutil_entry_exon, start, end):
+        gffutil_entry_cds = copy.deepcopy(gffutil_entry_exon)
+        gffutil_entry_cds.featuretype = "CDS"
+        gffutil_entry_cds.start = start
+        gffutil_entry_cds.end = end
+        Lifton_cds = Lifton_CDS(gffutil_entry_cds)
+        attributes = {}
+        attributes['Parent'] = self.entry.attributes['Parent']
+        Lifton_cds.entry.attributes = attributes
         self.cds = Lifton_cds
 
     def add_lifton_cds(self, Lifton_cds):

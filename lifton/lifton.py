@@ -104,6 +104,7 @@ def run_all_liftoff_steps(args):
 
     LIFTOFF_TOTAL_GENE_COUNT = 0
     LIFTOFF_ONLY_GENE_COUNT = 0
+    LIFTOFF_INVALID_TRANS_COUNT = 0
     LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
 
     ################################
@@ -237,6 +238,12 @@ def run_all_liftoff_steps(args):
                         LIFTOFF_MINIPROT_FIXED_GENE_COUNT += 1
                         cds_list = fix_trans_annotation.fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw)
                         lifton_gene.update_cds_list(transcript_id, cds_list)
+
+                        # Check if there are mutations in the transcript
+                        good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
+                        if not good_trans:
+                            LIFTOFF_INVALID_TRANS_COUNT += 1
+
                 else:
                     LIFTOFF_ONLY_GENE_COUNT += 1
 
@@ -261,7 +268,7 @@ def run_all_liftoff_steps(args):
     NEW_LOCUS_MINIPROT_COUNT = 0
     EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
 
-
+    print("Liftoff truncated trans loci\t\t\t: ", LIFTOFF_INVALID_TRANS_COUNT)
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
     print("Liftoff only gene loci\t\t\t: ", LIFTOFF_ONLY_GENE_COUNT)
     print("Liftoff & miniprot matched gene loci\t: ", LIFTOFF_MINIPROT_FIXED_GENE_COUNT)

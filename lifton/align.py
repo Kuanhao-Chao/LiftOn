@@ -21,6 +21,17 @@ def get_cdss_protein_boundary(cdss_lens):
     return cdss_protein_boundary
 
 
+def parasail_align_base(protein_seq, ref_protein_seq):
+    matrix = parasail.Matrix("blosum62")
+    gap_open = 11
+    gap_extend = 1
+    extracted_seq = str(protein_seq)
+    reference_seq = str(ref_protein_seq) + "*"
+    # (Query, Reference)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
+    return extracted_parasail_res, extracted_seq, reference_seq
+
+
 def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 1: Sort CDS by its start
@@ -82,13 +93,7 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 5: Protein alignment
     ################################
-    matrix = parasail.Matrix("blosum62")
-    gap_open = 11
-    gap_extend = 1
-    extracted_seq = str(protein_seq)
-    reference_seq = str(ref_protein_seq) + "*"
-    # (Query, Reference)
-    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_base(protein_seq, ref_protein_seq)
 
     ################################
     # Step 6: Extract the alignment information
