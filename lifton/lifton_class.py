@@ -510,20 +510,24 @@ class Lifton_TRANS:
             if extracted_identity > max_identity:
                 max_identity = extracted_identity
 
-                if self.entry.strand == "+":
-                    final_orf = orf
-                elif self.entry.strand == "-":
-                    print("Original: ", orf.start, orf.end, "(", len(trans_seq), ")")
-                    final_orf = lifton_class.Lifton_ORF(len(trans_seq)-orf.end, len(trans_seq)-orf.start)
-                    print("Update: :", final_orf.start, final_orf.end, "(", len(trans_seq), ")")
+                # if self.entry.strand == "+":
+                final_orf = orf
+                
+                # elif self.entry.strand == "-":
+                #     print("Original: ", orf.start, orf.end, "(", len(trans_seq), ")")
+                #     final_orf = lifton_class.Lifton_ORF(len(trans_seq)-orf.end, len(trans_seq)-orf.start)
+                #     print("Update: :", final_orf.start, final_orf.end, "(", len(trans_seq), ")")
         self.__update_cds_boundary(final_orf)
 
 
     def __update_cds_boundary(self, final_orf):
-        self.__iterate_exons_update_cds(final_orf, self.exons)
+        if self.entry.strand == "+":
+            self.__iterate_exons_update_cds(final_orf, self.exons, "+")
+        elif self.entry.strand == "-":
+            self.__iterate_exons_update_cds(final_orf, self.exons[::-1], "-")            
 
 
-    def __iterate_exons_update_cds(self, final_orf, exons):
+    def __iterate_exons_update_cds(self, final_orf, exons, strand):
         accum_exon_length = 0
         accum_cds_length = 0
         for exon_idx, exon in enumerate(exons):
@@ -534,14 +538,20 @@ class Lifton_TRANS:
                 if final_orf.start < accum_exon_length+curr_exon_len:
                     # Create first partial CDS
                     if exon.cds is not None:
-                        exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
+                        if strand == "+":
+                            exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
+                        elif strand == "-":
+                            exon.cds.entry.end = exon.entry.end - (final_orf.start - accum_exon_length)
                     else:
-                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start + (final_orf.start - accum_exon_length), exon.entry.end)
+                        if strand == "+":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start + (final_orf.start - accum_exon_length), exon.entry.end)
+                        elif strand == "-":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end - (final_orf.start - accum_exon_length))
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
-                    print(f"\t&&& >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-                    print(f"\t&&& >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
-                    print(f"\t>> exon.cds.entry.frame: {exon.cds.entry.frame}")
+                    print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+                    print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
+                    print(f"\t\t>> exon.cds.entry.frame: {exon.cds.entry.frame}")
                 else:
                     # No CDS should be created
                     exon.cds = None
@@ -551,18 +561,25 @@ class Lifton_TRANS:
                 if final_orf.end <= accum_exon_length+curr_exon_len:
                     # Create the last partial CDS
                     if exon.cds is not None:
-                        exon.cds.entry.end = exon.entry.start + (final_orf.end - accum_exon_length)-1
+                        if strand == "+":
+                            exon.cds.entry.end = exon.entry.start + (final_orf.end - accum_exon_length)-1
+                        elif strand == "-":
+                            exon.cds.entry.start = exon.entry.end - (final_orf.end - accum_exon_length)+1
                     else:
-                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length)-1)
+                        if strand == "+":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length)-1)
+                        elif strand == "-":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.end - (final_orf.end - accum_exon_length)+1, exon.entry.end)
 
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
-                    print(f"\t&&& >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-                    print(f"\t&&& >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
-                    print(f"\t&&& >> exon.cds.entry.frame: {exon.cds.entry.frame}")
+                    print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+                    print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
+                    print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
 
                 else:
                     # Keep the original full CDS
+                    exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
 
             elif final_orf.end <= accum_exon_length:
