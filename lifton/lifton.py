@@ -113,7 +113,7 @@ def run_all_liftoff_steps(args):
     gene_copy_num_dict["gene-LiftOn"] = 0
     features = lifton_utils.get_parent_features_to_lift(args.features)
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 10905573)):
+        for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 259055730)):
             LIFTOFF_TOTAL_GENE_COUNT += 1
             chromosome = gene.seqid
             gene_id = gene.attributes["ID"][0]
