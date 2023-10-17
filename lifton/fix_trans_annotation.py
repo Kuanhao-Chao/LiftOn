@@ -1,4 +1,4 @@
-from lifton import get_id_fraction, lifton_class, lifton_entry, write_lifton_entry
+from lifton import get_id_fraction, lifton_entry
 import math
 
 def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
@@ -81,32 +81,25 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
     return cds_ls
 
 
-def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
+def fix_transcript_annotation(l_lifton_aln, m_lifton_aln, fai, fw):
 
     m_children = m_lifton_aln.cds_children
     l_children = l_lifton_aln.cds_children
 
     # print("number of children, m: ", len(m_children))
     # print("number of children, l: ", len(l_children))
-
-    m_len_sum = 0
     
     m_c_idx = 0
     l_c_idx = 0
     m_c_idx_last = m_c_idx
     l_c_idx_last = l_c_idx
 
-    # print("New protein")
-    l_lifton_aln.db_entry.source = "Lifton"
-    # print(l_lifton_aln.db_entry)
-    write_lifton_entry.write_lifton_entry(fw, l_lifton_aln.db_entry)
-
     cds_list = []
-
     ref_aa_liftoff_count = 0
     ref_aa_miniprot_count = 0
 
     while m_c_idx != (len(m_children)-1) or l_c_idx != (len(l_children)-1):
+        
         if (m_c_idx == len(m_children)-1) and (l_c_idx < (len(l_children)-1)):
             l_c_idx, ref_aa_liftoff_count = push_cds_idx(l_c_idx, l_lifton_aln, ref_aa_liftoff_count)
             continue
@@ -115,10 +108,8 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
             continue
 
         # print("m_lifton_aln.db_entry.strand: ", m_lifton_aln.db_entry.strand)
-
         # ref_aa_miniprot_lcl_count = get_protein_reference_length_single(m_lifton_aln, m_c_idx)
         # ref_aa_miniprot_count += ref_aa_miniprot_lcl_count
-
         # ref_aa_liftoff_lcl_count = get_protein_reference_length_single(l_lifton_aln, l_c_idx)
         # ref_aa_liftoff_count += ref_aa_liftoff_lcl_count
 
@@ -188,20 +179,3 @@ def fix_transcript_annotation(m_lifton_aln, l_lifton_aln, fai, fw):
     cds_list += cdss
 
     return cds_list
-    # print("\tGroup!")
-
-    # for child in m_children:
-    #     child_len = child.end - child.start + 1
-    #     m_len_sum += child_len
-    #     print("start: ", child.start, ";  start: ", child.end, ";  len: ", child_len, ";  len_sum: ", m_len_sum, ";  aa_len: ", m_len_sum/3)
-    # print("m_aln_query: ", len(m_aln_query))
-    
-    # print("number of children: ", len(l_children))
-    # l_len_sum = 0
-    # for child in l_children:
-    #     child_len = child.end - child.start + 1
-    #     l_len_sum += child_len
-    #     print("start: ", child.start, ";  start: ", child.end, ";  len: ", child_len, ";  len_sum: ", l_len_sum, ";  aa_len: ", l_len_sum/3)
-    # print("l_aln_query: ", len(l_aln_query))
-
-
