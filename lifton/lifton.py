@@ -113,7 +113,7 @@ def run_all_liftoff_steps(args):
     gene_copy_num_dict["gene-LiftOn"] = 0
     features = lifton_utils.get_parent_features_to_lift(args.features)
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 259055730)):
+        for gene in l_feature_db.features_of_type(feature):#, limit=("chr5", 97275315, 97308744)):
             LIFTOFF_TOTAL_GENE_COUNT += 1
             chromosome = gene.seqid
             gene_id = gene.attributes["ID"][0]
@@ -265,7 +265,7 @@ def run_all_liftoff_steps(args):
     ################################
     EXTRA_COPY_MINIPROT_COUNT = 0 
     NEW_LOCUS_MINIPROT_COUNT = 0
-    EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
+    # EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
 
     print("Liftoff truncated trans loci\t\t\t: ", LIFTOFF_INVALID_TRANS_COUNT)
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
