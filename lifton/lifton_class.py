@@ -1,4 +1,4 @@
-from lifton import lifton_utils, lifton_class, align
+from lifton import lifton_utils, lifton_class, align, get_id_fraction
 import copy
 from Bio.Seq import Seq
 
@@ -38,7 +38,6 @@ class Lifton_GENE_info:
         self.attributes['ID'] = [gene_id_base]
 
     def update_gene_info_copy_number(self, gene_id_base, gene_copy_num_dict):
-        # print("Before self.attributes['ID']: ", self.attributes['ID'])
         self.attributes['ID'] = [gene_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
         if gene_id_base != "gene-LiftOn":
             self.attributes['extra_copy_number'] = [str(gene_copy_num_dict[gene_id_base])]
@@ -122,7 +121,6 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-
     def fix_truncated_protein(self, trans_id, fai, fai_protein):
         ref_protein_seq = fai_protein[trans_id]
         self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq)
@@ -144,7 +142,6 @@ class Lifton_GENE:
             # print("\t## key: ", key)
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
-
         # print(f"update_boundaries:  {self.entry.start}-{self.entry.end}")
 
     def print_gene(self):
@@ -152,6 +149,7 @@ class Lifton_GENE:
         for key, trans in self.transcripts.items():
             trans.print_transcript()
         # print("\n\n")
+
 
 
 class Lifton_TRANS:
@@ -189,7 +187,7 @@ class Lifton_TRANS:
             self.entry.attributes[key] = atr
 
     def update_cds_list(self, cds_list):
-        print(f"\t\t>> update_cds_list (len: {len(cds_list)}) ")
+        # print(f"\t\t>> update_cds_list (len: {len(cds_list)}) ")
         # print(f"\t>> self.exons (len: {len(self.exons)}) ")
         idx_exon_itr = 0
         new_exons = []
@@ -461,17 +459,13 @@ class Lifton_TRANS:
             return False
 
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq):
-        # sequence = Seq.Seq("ATGTTGCTCTGATGAGGGGTGAAGCAAGGTTACAGTGAGAAGGGCCTGGAGGGAGGAGGTCCTGGAGGAGGGGGG")
         trans_seq = trans_seq.upper()
-        # print(f"\t >> trans_seq: {trans_seq}")
-        # print(f"\t >> exon_lens: {exon_lens}")
 
         # Find ORFs manually
         start_codon = "ATG"
         stop_codons = ["TAA", "TAG", "TGA"]
 
         orf_list = []
-
         for frame in range(3):
             orf_idx_s = 0
             for i in range(frame, len(trans_seq), 3):
@@ -492,58 +486,84 @@ class Lifton_TRANS:
                         orf_list.append(orf)
 
         # Print the ORFs
-        final_orf_seq = ""
+        orf_list = orf_list[:100]
         final_orf = None
-        max_align_score = 0
+        max_identity = 0
         for i, orf in enumerate(orf_list):
             orf_DNA_seq = trans_seq[orf.start:orf.end]
             orf_protein_seq = orf_DNA_seq.translate()
             
             # print(f"\tORF {i+1}: {orf_DNA_seq}")
             # print(f"\torf_protein_seq: {orf_protein_seq}")
-            extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_base(orf_protein_seq, str(ref_protein_seq))
+            extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_base(orf_protein_seq, str(ref_protein_seq))        
+            extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
 
-            alignment_score = extracted_parasail_res.score
-            if alignment_score > max_align_score:
-                max_align_score = alignment_score
-                final_orf_seq = orf_protein_seq
+            extracted_identity = extracted_matches/extracted_length
+
+
+            # print(f"\textracted_identity: {extracted_identity}")
+            if extracted_identity > max_identity:
+                max_identity = extracted_identity
                 final_orf = orf
-                # print(f"\talignment_score: {alignment_score}")
         
         # Updating CDS now.
-        # print(f">> max_align_score: {max_align_score}")
+        # print(f">> max_identity: {max_identity}")
         # print(f">> final_orf_seq: {final_orf_seq}")
-        accum_exon_length = 0
+        self.__update_cds_boundary(final_orf)
 
-        for exon_idx, exon in enumerate(self.exons):
-            exon.print_exon()
+
+    def __update_cds_boundary(self, final_orf):
+        accum_exon_length = 0
+        if self.entry.strand == "+":
+            self.__iterate_exons_update_cds(final_orf, self.exons, "+")
+        elif self.entry.strand == "-":
+            # self.__iterate_exons_update_cds(final_orf, self.exons[::-1], "-")
+            pass
+
+
+    def __iterate_exons_update_cds(self, final_orf, exons, strand):
+        accum_exon_length = 0
+        for exon_idx, exon in enumerate(exons):
             curr_exon_len = exon.entry.end - exon.entry.start + 1
-            if accum_exon_length < final_orf.start:
+
+            if accum_exon_length <= final_orf.start:
                 if final_orf.start < accum_exon_length+curr_exon_len:
                     # Create first partial CDS
                     if exon.cds is not None:
-                        exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
+                        if strand == "+":
+                            exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
+                        elif strand == "-":
+                            exon.cds.entry.end = exon.entry.end - (final_orf.start - accum_exon_length)
                     else:
-                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start + (final_orf.start - accum_exon_length), exon.entry.end)
+                        if strand == "+":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start + (final_orf.start - accum_exon_length), exon.entry.end)
+                        elif strand == "-":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end - (final_orf.start - accum_exon_length))
                 else:
                     # No CDS should be created
                     exon.cds = None
-                    pass
+
             elif final_orf.start < accum_exon_length and accum_exon_length < final_orf.end:
 
-                if final_orf.end < accum_exon_length+curr_exon_len:
+                if final_orf.end <= accum_exon_length+curr_exon_len:
                     # Create the last partial CDS
-                    exon.print_exon()
-
                     if exon.cds is not None:
-                        exon.cds.entry.end = exon.entry.start + (final_orf.end - accum_exon_length)
+                        if strand == "+":
+                            exon.cds.entry.end = exon.entry.start + (final_orf.end - accum_exon_length)
+                        elif strand == "-":
+                            exon.cds.entry.start = exon.entry.end - (final_orf.end - accum_exon_length)
                     else:
-                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length))
+                        if strand == "+":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length))
+                        elif strand == "-":
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.end - (final_orf.end - accum_exon_length), exon.entry.end)
 
                 else:
                     # Keep the original full CDS
                     pass
-
+            elif final_orf.end <= accum_exon_length:
+                # No CDS should be created
+                exon.cds = None
             accum_exon_length += curr_exon_len
 
 
@@ -620,6 +640,7 @@ class Lifton_EXON:
         print(f"\t\t{self.entry}")
         if self.cds != None:
             self.cds.print_cds()
+
 
 
 class Lifton_CDS:

@@ -28,16 +28,15 @@ def parasail_align_base(protein_seq, ref_protein_seq):
     extracted_seq = str(protein_seq)
     reference_seq = str(ref_protein_seq) + "*"
     # (Query, Reference)
-    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, ref_protein_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq
 
 
-def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
+def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 1: Sort CDS by its start
     ################################
     cds_children = []
-    # print("db_entry: ", db_entry)
     for child in db.children(db_entry, featuretype='CDS'):
         if len(cds_children) == 0:
             cds_children.append(child)
@@ -84,6 +83,11 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     ref_protein_seq = str(fai_protein[aa_trans_id])
     protein_seq = str(trans_seq.translate())
+    return ref_protein_seq, protein_seq, cdss_lens, cds_children
+
+
+def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
+    ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id)
 
     ################################
     # Step 4: Get the corresponding protein boundaries for each CDS
@@ -102,6 +106,11 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
+
+    # print(f"alignment_score: {alignment_score}")
+    # print(alignment_query)
+    # print(alignment_comp)
+    # print(alignment_ref)
 
     cigar = extracted_parasail_res.cigar
     # alignment_start_query = extracted_parasail_res.traceback.query_begin
