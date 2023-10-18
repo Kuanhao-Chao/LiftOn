@@ -113,7 +113,7 @@ def run_all_liftoff_steps(args):
     gene_copy_num_dict["gene-LiftOn"] = 0
     features = lifton_utils.get_parent_features_to_lift(args.features)
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature):#, limit=("chr5", 97275315, 97308744)):
+        for gene in l_feature_db.features_of_type(feature):#, limit=("chr9", 80476554, 80478771)):
             LIFTOFF_TOTAL_GENE_COUNT += 1
             chromosome = gene.seqid
             gene_id = gene.attributes["ID"][0]
@@ -154,6 +154,9 @@ def run_all_liftoff_steps(args):
                     trans_copy_num_dict[transcript_id_base] = 0
 
                 print("\ttranscript_id      : ", transcript_id)
+                if transcript_id_base == "rna-NM_001005388.3":
+                    continue
+                
                 # print("&& transcript_id_base : ", transcript_id_base)
 
                 transcript_info = copy.deepcopy(transcript)
@@ -191,13 +194,17 @@ def run_all_liftoff_steps(args):
 
                     if l_lifton_aln.identity < 1:
                         m_ids = m_id_dict[transcript_id]
+
+                        is_overlap = False
                         for m_id in m_ids:
                             m_entry = m_feature_db[m_id]
                             overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
 
                             if not overlap or m_entry.seqid != transcript.seqid:
+                                print("Not overlapping")
                                 continue
                             
+                            is_overlap = True
                             ################################
                             # Step 3.6.2: Protein sequences are in both Liftoff and miniprot & overlap
                             #   Fix & update CDS list
@@ -242,8 +249,24 @@ def run_all_liftoff_steps(args):
                             good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
                             if not good_trans:
                                 LIFTOFF_INVALID_TRANS_COUNT += 1
-                
+                        
+                        if not is_overlap:
+                            # There are no overlapping miniprot transcripts
+                            print("Has cds & protein & miniprot annotation; but miniprot not overlapping!")
+                            good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
+                            if not good_trans:
+                                LIFTOFF_INVALID_TRANS_COUNT += 1
+                            
+                elif (cds_num > 0) and (transcript_id in fai_protein.keys()):
+                    # Check if there are mutations in the transcript
+                    print("Has cds & protein")
+                    good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
+                    if not good_trans:
+                        LIFTOFF_INVALID_TRANS_COUNT += 1
+
                 else:
+                    # Only liftoff annotation => check if mutated.                     
+                    print("No cds & no protein & no miniprot annotation")
                     LIFTOFF_ONLY_GENE_COUNT += 1
 
             ###########################
