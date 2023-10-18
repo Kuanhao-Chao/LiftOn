@@ -163,11 +163,6 @@ class Lifton_TRANS:
         self.exon_dic = {}
 
     def add_exon(self, gffutil_entry_exon):
-        # copy_attrs = copy.deepcopy(self.entry.attributes)
-
-        # if 'ID' in copy_attrs: copy_attrs.pop('ID')
-        # if 'Name' in copy_attrs: copy_attrs.pop('Name')
-        # copy_attrs['Parent'] = self.entry.attributes['ID']
         attributes = {}
         attributes['Parent'] = self.entry.attributes['ID']
         gffutil_entry_exon.attributes = attributes
@@ -192,13 +187,13 @@ class Lifton_TRANS:
         idx_exon_itr = 0
         new_exons = []
 
-        # Update frame in CDS first!
+        # Update frame in CDS first! => CDSs are in the protein translation order
         accum_cds_length = 0
         for cds_idx, cds in enumerate(cds_list):
             cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
             accum_cds_length = cds.entry.end - cds.entry.start + 1
 
-        # Reverse CDS list if the strand is "-"
+        # Reverse CDS list if the strand is "-" => CDSs are in small to large order
         if self.entry.strand == "-":
             cds_list.reverse()
 
@@ -211,7 +206,6 @@ class Lifton_TRANS:
                 exon = self.exons[idx_exon_itr]
                 idx_exon_itr += 1
                 # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
-                
                 if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end)):
 
                     if exon.entry.start >= only_cds.entry.start:
@@ -225,10 +219,6 @@ class Lifton_TRANS:
                 else:
                     exon.add_lifton_cds(None)
                     new_exons.append(exon)
-            
-            # while idx_exon_itr < len(self.exons):
-            #     exon = self.exons[idx_exon_itr]
-            #     idx_exon_itr += 1
 
         ########################
         # Case 2: only 1 exon, and >1 CDSs
@@ -253,17 +243,14 @@ class Lifton_TRANS:
                 exon.add_lifton_cds(cds)
                 new_exons.append(exon)
 
-
         ########################
         # Case 3: multiple CDSs and exons
         ########################
         elif len(cds_list) > 1 and len(self.exons) > 1:
-
             cds_idx = 0
             exon_idx = 0
             cds = cds_list[cds_idx]
             exon = self.exons[exon_idx]
-
             ################################################
             # Step 1: CDSs or exons are smaller & no overlapping 
             #      => finding the first overlapping CDS and exons
@@ -415,15 +402,12 @@ class Lifton_TRANS:
         ################################
         coding_seq = ""
         cdss_lens = []
-
         trans_seq = ""
         exon_lens = []
-        for exon_idx, exon in enumerate(self.exons):
-
+        for exon in self.exons:
+            # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
             p_trans_seq = Seq(p_trans_seq)
-
-            # Chaining the exon features
             if exon.entry.strand == '-':
                 trans_seq = p_trans_seq + trans_seq
                 exon_lens.insert(0, exon.entry.end - exon.entry.start + 1)
@@ -435,11 +419,8 @@ class Lifton_TRANS:
                 # Chaining the CDS features
                 p_seq = exon.cds.entry.sequence(fai)
                 p_seq = Seq(p_seq)
-
-                # Chaining the CDS features
                 if exon.cds.entry.strand == '-':
                     coding_seq = p_seq + coding_seq
-                    # cdss_lens.append(cds.entry.end - cds.entry.start + 1)
                     cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
@@ -458,14 +439,12 @@ class Lifton_TRANS:
             # This is a protein without stop codon
             return True
         else:
-            # print(f"\t >> coding_seq: {coding_seq}")
-            # print(f"\t >> cdss_lens: {cdss_lens}")
             self.__find_orfs(trans_seq, exon_lens, ref_protein_seq)
             return False
 
+
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq):
         trans_seq = trans_seq.upper()
-
         # Find ORFs manually
         start_codon = "ATG"
         stop_codons = ["TAA", "TAG", "TGA"]
@@ -509,10 +488,9 @@ class Lifton_TRANS:
             # print(f"\textracted_identity: {extracted_identity}")
             if extracted_identity > max_identity:
                 max_identity = extracted_identity
-
-                # if self.entry.strand == "+":
                 final_orf = orf
-                
+                # if self.entry.strand == "+":
+                #    final_orf = orf
                 # elif self.entry.strand == "-":
                 #     print("Original: ", orf.start, orf.end, "(", len(trans_seq), ")")
                 #     final_orf = lifton_class.Lifton_ORF(len(trans_seq)-orf.end, len(trans_seq)-orf.start)
