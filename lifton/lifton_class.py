@@ -450,11 +450,11 @@ class Lifton_TRANS:
         stop_codons = ["TAA", "TAG", "TGA"]
 
         orf_list = []
+        max_orf_len = [0, 0, 0]
         for frame in range(3):
             orf_idx_s = 0
             for i in range(frame, len(trans_seq), 3):
                 codon = str(trans_seq[i:i+3])
-                
                 if codon == start_codon:
                     orf_idx_s = i
                     orf_idx_e = i
@@ -465,12 +465,15 @@ class Lifton_TRANS:
                         if codon in stop_codons:
                             orf_idx_e = j+3
                             break
+
                     if orf_seq and (orf_idx_s < orf_idx_e):
-                        orf = lifton_class.Lifton_ORF(orf_idx_s, orf_idx_e)
-                        orf_list.append(orf)
+                        curr_orf_len = orf_idx_e-orf_idx_s+1
+                        if curr_orf_len >  max_orf_len[frame]:
+                            max_orf_len[frame] = curr_orf_len
+                            orf = lifton_class.Lifton_ORF(orf_idx_s, orf_idx_e)
+                            orf_list.append(orf)
 
         # Print the ORFs
-        orf_list = orf_list[:100]
         final_orf = None
         max_identity = 0
         for i, orf in enumerate(orf_list):
@@ -557,6 +560,8 @@ class Lifton_TRANS:
 
                 else:
                     # Keep the original full CDS
+                    if exon.cds is not None:
+                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
 
