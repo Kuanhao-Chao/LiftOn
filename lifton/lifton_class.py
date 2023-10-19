@@ -498,7 +498,8 @@ class Lifton_TRANS:
                 #     print("Original: ", orf.start, orf.end, "(", len(trans_seq), ")")
                 #     final_orf = lifton_class.Lifton_ORF(len(trans_seq)-orf.end, len(trans_seq)-orf.start)
                 #     print("Update: :", final_orf.start, final_orf.end, "(", len(trans_seq), ")")
-        self.__update_cds_boundary(final_orf)
+        if final_orf is not None:
+            self.__update_cds_boundary(final_orf)
 
 
     def __update_cds_boundary(self, final_orf):
