@@ -28,7 +28,7 @@ def parasail_align_base(protein_seq, ref_protein_seq):
     extracted_seq = str(protein_seq)
     reference_seq = str(ref_protein_seq) + "*"
     # (Query, Reference)
-    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, ref_protein_seq, gap_open, gap_extend, matrix)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq
 
 
@@ -41,15 +41,12 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
         if len(cds_children) == 0:
             cds_children.append(child)
             continue
-        
         idx_insert = 0
         for idx_c in range(len(cds_children)):
             itr_c = cds_children[idx_c]
-
             # Equal sign is important! => it fixes those 0 intron cases.
             if child.start >= itr_c.end:
                 idx_insert += 1
-        
         cds_children.insert(idx_insert, child)
 
     ################################
@@ -58,8 +55,6 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     trans_seq = ""
     cdss_lens = []
     for cds_idx, cds in enumerate(cds_children):
-        # print(">> cds: ", cds)
-
         # Include the stop coding for the last CDS(+) / first CDS(-) for miniprot 
         if tool == "miniprot" and cds_idx == 0 and cds.strand == '-':
             cds.start = cds.start -3
@@ -72,7 +67,6 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
         # Chaining the CDS features
         if cds.strand == '-':
             trans_seq = p_seq + trans_seq
-            # cdss_lens.append(cds.end - cds.start + 1)
             cdss_lens.insert(0, cds.end - cds.start + 1)
         elif cds.strand == '+':
             trans_seq = trans_seq + p_seq
@@ -87,6 +81,7 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
 
 
 def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
+
     ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id)
 
     ################################
@@ -106,11 +101,6 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
-
-    # print(f"alignment_score: {alignment_score}")
-    # print(alignment_query)
-    # print(alignment_comp)
-    # print(alignment_ref)
 
     cigar = extracted_parasail_res.cigar
     # alignment_start_query = extracted_parasail_res.traceback.query_begin

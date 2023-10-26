@@ -1,5 +1,5 @@
 from lifton import lifton_utils, lifton_class, align, get_id_fraction
-import copy
+import copy, os
 from Bio.Seq import Seq
 
 class Lifton_ORF:
@@ -7,6 +7,12 @@ class Lifton_ORF:
         self.start = start
         self.end = end
 
+class Lifton_Status:
+    def __init__(self):
+        self.liftoff = 0
+        self.miniprot = 0
+        self.lifton = 0
+        self.status = None
 
 class Lifton_Alignment:
     def __init__(self, extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry):
@@ -21,6 +27,15 @@ class Lifton_Alignment:
         self.ref_seq = reference_seq
         self.db_entry = db_entry
 
+    def write_alignment(self, outdir, tool_name, trans_id):
+        outdir_tool = outdir+"/"+tool_name+"/"
+        os.makedirs(outdir_tool, exist_ok=True)
+        outfile= outdir_tool+trans_id+".fa"
+        with open(outfile, "w") as fw:
+            fw.write("> " + trans_id + "\n")
+            fw.write(self.ref_aln + "\n")
+            fw.write(self.query_aln + "\n")
+
 
 class Lifton_GENE_info:
     def __init__(self, attrs, gene_id_base):
@@ -34,7 +49,6 @@ class Lifton_GENE_info:
         if 'valid_ORFs' in self.attributes: self.attributes.pop('valid_ORFs')
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')
         if 'copy_num_ID' in self.attributes: self.attributes.pop('copy_num_ID')
-        
         self.attributes['ID'] = [gene_id_base]
 
     def update_gene_info_copy_number(self, gene_id_base, gene_copy_num_dict):
@@ -52,8 +66,7 @@ class Lifton_TRANS_info:
         #########################
         if 'matches_ref_protein' in self.attributes: self.attributes.pop('matches_ref_protein')
         if 'valid_ORF' in self.attributes: self.attributes.pop('valid_ORF')
-        if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')
-        
+        if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')        
         self.attributes['ID'] = [trans_id_base]
         self.attributes['Parent'] = [gene_id_base]
         self.attributes['transcript_id'] = [trans_id_base]
@@ -62,7 +75,6 @@ class Lifton_TRANS_info:
     def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, gene_copy_num_dict, trans_copy_num_dict):
         gene_copy_num = gene_copy_num_dict[gene_id_base]
         gene_id = gene_id_base + '_' + str(gene_copy_num)
-        
         trans_copy_num = 0
         trans_id = ""
         if trans_id_base in trans_copy_num_dict.keys():
@@ -123,23 +135,20 @@ class Lifton_GENE:
                             
     def fix_truncated_protein(self, trans_id, fai, fai_protein):
         ref_protein_seq = fai_protein[trans_id]
-        self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq)
+        lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq)
+        return lifton_aln, good_trans
                
     def update_cds_list(self, trans_id, cds_list):
         self.transcripts[trans_id].update_cds_list(cds_list)
         self.update_boundaries()
-        # print("\tnew cds_list (inner): ", len(self.transcripts[trans_id].exons))     
 
     def write_entry(self, fw):
-        # print(self.entry)
         fw.write(str(self.entry) + "\n")
         for key, trans in self.transcripts.items():
             trans.write_entry(fw)
 
     def update_boundaries(self):        
-        # print("\tself.transcripts length: ", len(self.transcripts))
         for key, trans in self.transcripts.items():
-            # print("\t## key: ", key)
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
         # print(f"update_boundaries:  {self.entry.start}-{self.entry.end}")
@@ -148,7 +157,6 @@ class Lifton_GENE:
         print(self.entry)
         for key, trans in self.transcripts.items():
             trans.print_transcript()
-        # print("\n\n")
 
 
 
@@ -182,8 +190,6 @@ class Lifton_TRANS:
             self.entry.attributes[key] = atr
 
     def update_cds_list(self, cds_list):
-        # print(f"\t\t>> update_cds_list (len: {len(cds_list)}) ")
-        # print(f"\t>> self.exons (len: {len(self.exons)}) ")
         idx_exon_itr = 0
         new_exons = []
 
@@ -397,6 +403,7 @@ class Lifton_TRANS:
 
 
     def fix_truncated_protein(self, fai, ref_protein_seq):
+        # Need to output which type of mutation it is.
         ################################
         # Step 1: Iterate through the children and chain the DNA sequence
         ################################
@@ -432,15 +439,51 @@ class Lifton_TRANS:
         protein_seq = coding_seq.translate()
         peps = protein_seq.split("*")
 
+        extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_base(protein_seq, str(ref_protein_seq))
+
+
+        alignment_score = extracted_parasail_res.score
+        alignment_query = extracted_parasail_res.traceback.query
+        alignment_comp = extracted_parasail_res.traceback.comp
+        alignment_ref = extracted_parasail_res.traceback.ref
+
+        extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
+
+        extracted_identity = extracted_matches/extracted_length
+
+        lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+
+    
         if len(peps) == 2 and str(peps[1]) == "":
-            # This is a valid protein
-            return True
+            # This is a valid protein ends with stop codon *
+            if extracted_identity == 1:
+                return lifton_aln, True
+            else:
+                return lifton_aln, False
+            
         elif len(peps) == 1:
             # This is a protein without stop codon
-            return True
+            self.entry.attributes["MissStopCodon"] = "1"
+
+            # print("extracted_parasail_res: ", extracted_parasail_res)
+            # print("extracted_seq: ", extracted_seq)
+            # print("reference_seq: ", reference_seq)
+            return lifton_aln, False
+        
         else:
+            stop_codon_count = 0
+            for idx, ele in enumerate(protein_seq):
+                if ele == "*" and idx != len(protein_seq)-1:
+                    stop_codon_count += 1
+            self.entry.attributes["StopCodon"] = str(stop_codon_count)
+
+            print("extracted_parasail_res: ", extracted_parasail_res)
+            print("extracted_seq: ", extracted_seq)
+            print("reference_seq: ", reference_seq)
+            print("stop_codon_count: ", stop_codon_count)
+
             self.__find_orfs(trans_seq, exon_lens, ref_protein_seq)
-            return False
+            return lifton_aln, False
 
 
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq):
@@ -641,7 +684,6 @@ class Lifton_EXON:
         self.cds = Lifton_cds
 
     def write_entry(self, fw):
-        # print(self.entry)
         fw.write(str(self.entry) + "\n")
 
     def print_exon(self):
@@ -659,7 +701,6 @@ class Lifton_CDS:
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
 
     def write_entry(self, fw):
-        # print(self.entry)
         fw.write(str(self.entry) + "\n")
 
     def print_cds(self):
