@@ -58,3 +58,24 @@ def get_parent_features_to_lift(feature_types_file):
         for line in f.readlines():
             feature_types.append(line.rstrip())
     return feature_types
+
+def update_copy(id_base, copy_num_dict):
+    if id_base in copy_num_dict.keys():
+        copy_num_dict[id_base] += 1
+    else:
+        copy_num_dict[id_base] = 0
+
+def LiftOn_no_miniprot(lifton_gene, transcript_id, fai, fai_protein, lifon_status, outdir, LIFTON_BAD_PROT_TRANS_COUNT):
+    on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
+    # SETTING LiftOn score
+    lifon_status.lifton = max(lifon_status.lifton, on_lifton_aln.identity)
+    lifon_status.status = "LiftOff_truncated_protein"
+
+    if on_lifton_aln.identity < 1:
+        # Writing out truncated miniprot annotation
+        on_lifton_aln.write_alignment(outdir, "lifton", transcript_id)
+    if not good_trans:
+        LIFTON_BAD_PROT_TRANS_COUNT += 1
+
+    return LIFTON_BAD_PROT_TRANS_COUNT
+    

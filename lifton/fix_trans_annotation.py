@@ -81,7 +81,7 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
     return cds_ls
 
 
-def fix_transcript_annotation(l_lifton_aln, m_lifton_aln, fai, fw):
+def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw):
 
     m_children = m_lifton_aln.cds_children
     l_children = l_lifton_aln.cds_children
