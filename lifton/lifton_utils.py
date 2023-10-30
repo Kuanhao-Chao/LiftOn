@@ -34,21 +34,20 @@ def custom_bisect_insert(sorted_list, element_to_insert):
 
     sorted_list.insert(low, element_to_insert)
 
+# def get_ID_base(id):
+#     id_base = id.split("_")[0]
+
+#     id_base.split("-")[:-1]
+#     return id_base
+
 def get_ID_base(id):
-
-    id_base = id.split("_")[0]
-    return id_base
-
-def get_trans_ID_base(id):
-
-    # Regular expression pattern to match the desired substrings
-    pattern = r'[A-Za-z0-9_]+-([A-Za-z0-9_]+_\d+\.\d+)'
-
-    match = re.search(pattern, id)
-    id_base = ""
-    if match:
-        id_base = match.group(0)  # Full match
-
+    # # Regular expression pattern to match the desired substrings
+    splits = id.split("_")
+    try:
+        int(splits[-1])
+        id_base = "_".join(splits[:-1])
+    except:
+        id_base = id
     return id_base
 
 def get_parent_features_to_lift(feature_types_file):
