@@ -59,17 +59,17 @@ def get_parent_features_to_lift(feature_types_file):
             feature_types.append(line.rstrip())
     return feature_types
 
+
 def update_copy(id_base, copy_num_dict):
     if id_base in copy_num_dict.keys():
         copy_num_dict[id_base] += 1
     else:
         copy_num_dict[id_base] = 0
 
-def LiftOn_no_miniprot(lifton_gene, transcript_id, fai, fai_protein, lifon_status, outdir, LIFTON_BAD_PROT_TRANS_COUNT):
-    on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
+
+def LiftOn_no_miniprot(lifton_gene, transcript_id, fai, fai_protein, lifton_status, outdir, LIFTON_BAD_PROT_TRANS_COUNT):
+    on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein, lifton_status)
     # SETTING LiftOn score
-    lifon_status.lifton = max(lifon_status.lifton, on_lifton_aln.identity)
-    lifon_status.status = "LiftOff_truncated_protein"
 
     if on_lifton_aln.identity < 1:
         # Writing out truncated miniprot annotation
@@ -79,3 +79,69 @@ def LiftOn_no_miniprot(lifton_gene, transcript_id, fai, fai_protein, lifon_statu
 
     return LIFTON_BAD_PROT_TRANS_COUNT
     
+
+def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id):
+    m_lifton_aln = None
+    has_valid_miniprot = False
+    if (transcript_id in m_id_dict.keys()):
+        #############################################
+        # Step 3.6.1.1: Liftoff annotation is not perfect & miniprot annotation exists => Fix by protein information
+        #############################################
+        m_ids = m_id_dict[transcript_id]
+
+        for m_id in m_ids:
+
+            ##################################################
+            # Check 1: Check if the miniprot transcript is overlapping the current gene locus
+            ##################################################
+            m_entry = m_feature_db[m_id]
+            overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+            if not overlap or m_entry.seqid != transcript.seqid:
+                print("Not overlapping")
+                continue
+
+            ##################################################
+            # Check 2: reference overlapping status
+            #   1. Check it the transcript overlapping with the next gene
+            # Check the miniprot protein overlapping status
+            # The case I should not process the transcript 
+            #   1. The Liftoff does not overlap with other gene
+            #   2. The miniprot protein overlap the other gene
+            ##################################################
+            ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
+            ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
+
+            miniprot_cross_gene_loci = False
+            liftoff_set = set()
+            for ovp_liftoff in ovps_liftoff:
+                liftoff_set.add(ovp_liftoff[2])
+                # print("\tovp_liftoff: ", ovp_liftoff)
+            # print("liftoff_set : ", liftoff_set)
+            
+            for ovp_miniprot in ovps_miniprot:
+                if ovp_miniprot[2] not in liftoff_set:
+                    # Miniprot overlap to more genes
+                    miniprot_cross_gene_loci = True
+                    break
+            if miniprot_cross_gene_loci:
+                continue
+
+            ################################
+            # Step 3.6.2: Protein sequences are in both Liftoff and miniprot & overlap
+            #   Fix & update CDS list
+            ################################
+            ################################
+            # Step 3.6.3: miniprot transcript alignment
+            ################################
+            has_valid_miniprot = True
+
+            if m_lifton_aln == None or m_lifton_aln.identity > lifton_status.miniprot:
+                # # Writing out truncated miniprot annotation
+                # m_lifton_aln.write_alignment(outdir, "miniprot", m_id)
+                # SETTING miniprot identity score
+                
+                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
+                lifton_status.miniprot = m_lifton_aln.identity
+        
+    return m_lifton_aln, has_valid_miniprot
+            

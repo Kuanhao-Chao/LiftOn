@@ -27,7 +27,8 @@ def create_feature_db_connections(args):
 
 
 
-def build_database(db, gff_file, disable_transcripts, disable_genes,):
+def build_database(db, gff_file, disable_transcripts, disable_genes):
+    feature_db = None
     if db is None:
         try:
             feature_db = gffutils.create_db(gff_file, gff_file + "_db", merge_strategy="create_unique", force=True,
@@ -37,6 +38,7 @@ def build_database(db, gff_file, disable_transcripts, disable_genes,):
         except:
             find_problem_line(gff_file)
     else:
+        print("db: ", db)
         feature_db = gffutils.FeatureDB(db)
     return feature_db
 
