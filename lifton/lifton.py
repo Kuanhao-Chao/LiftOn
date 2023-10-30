@@ -143,6 +143,9 @@ def run_all_liftoff_steps(args):
     gene_copy_num_dict["gene-LiftOn"] = 0
     features = lifton_utils.get_parent_features_to_lift(args.features)
     
+    fw_other_trans = open(outdir+"/other_trans.txt", "w")
+    fw_nc_trans = open(outdir+"/nc_trans.txt", "w")
+
     for feature in features:
         for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
             LIFTOFF_TOTAL_GENE_COUNT += 1
@@ -174,7 +177,7 @@ def run_all_liftoff_steps(args):
                 lifton_status = lifton_class.Lifton_Status()
                 lifton_gene.add_transcript(transcript)
                 transcript_id = transcript["ID"][0]
-                transcript_id_base = lifton_utils.get_trans_ID_base(transcript_id)
+                transcript_id_base = lifton_utils.get_ID_base(transcript_id)
 
                 ################################
                 # Step 3.3.1: Creating trans copy number dictionary
@@ -182,7 +185,7 @@ def run_all_liftoff_steps(args):
                 lifton_utils.update_copy(transcript_id_base, trans_copy_num_dict)
 
                 print("\ttranscript_id      : ", transcript_id)                
-                # print("&& transcript_id_base : ", transcript_id_base)
+                print("&& transcript_id_base : ", transcript_id_base)
 
                 transcript_info = copy.deepcopy(transcript)
                 lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id_base, gene_id_base)
@@ -209,8 +212,8 @@ def run_all_liftoff_steps(args):
                 #############################################
                 # Step 3.6: Processing transcript
                 #############################################
-                if (cds_num > 0) and (transcript_id in fai_protein.keys()):
-                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
+                if (cds_num > 0) and (transcript_id_base in fai_protein.keys()):
+                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id_base)
 
                     # SETTING Liftoff identity score
                     lifton_status.liftoff = l_lifton_aln.identity
@@ -225,7 +228,7 @@ def run_all_liftoff_steps(args):
                         # Writing out truncated LiftOff annotation
                         l_lifton_aln.write_alignment(outdir, "liftoff", transcript_id)
                     
-                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id)
+                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id_base)
 
 
                         #############################################
@@ -258,16 +261,14 @@ def run_all_liftoff_steps(args):
                         LIFTOFF_GOOD_PROT_TRANS_COUNT += 1
                         LIFTON_GOOD_PROT_TRANS_COUNT += 1
 
-                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id)
+                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id_base)
 
                         # SETTING LiftOn identity score => Same as Liftoff
                         lifton_status.lifton = l_lifton_aln.identity
                         lifton_status.annotation = "LiftOff_identical"
                         lifton_status.status = "identical"
 
-
                     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{lifton_status.status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
-                
                 
                 else:
                     # Only liftoff annotation
@@ -277,12 +278,14 @@ def run_all_liftoff_steps(args):
                         LIFTON_OTHER_TRANS_COUNT += 1
                         lifton_status.annotation = "LiftOff_no_ref_protein"
                         lifton_status.status = "no_ref_protein"
+                        fw_other_trans.write(transcript_id+"\n")
+
                     else:
                         LIFTOFF_NC_TRANS_COUNT += 1
                         LIFTON_NC_TRANS_COUNT += 1
                         lifton_status.annotation = "LiftOff_nc_transcript"
                         lifton_status.status = "nc_transcript"
-
+                        fw_nc_trans.write(transcript_id+"\n")
 
 
 
@@ -335,6 +338,8 @@ def run_all_liftoff_steps(args):
 
     fw.close()
     fw_truncated.close()
+    fw_other_trans.close()
+    fw_nc_trans.close()
 
 def main(arglist=None):
     args = parse_args(arglist)

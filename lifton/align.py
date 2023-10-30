@@ -81,7 +81,6 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
 
 
 def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
-
     ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id)
 
     ################################
@@ -120,7 +119,6 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     decoded_cigar = cigar.decode.decode()
     cigar_ls = list(Cigar(decoded_cigar).items())
     # print("\t>> cigar_ls: ", cigar_ls)
-
     
     ################################
     # Step 7: Change the CDS protein boundaries based on CIGAR string.
