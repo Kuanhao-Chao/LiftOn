@@ -225,8 +225,8 @@ def run_all_liftoff_steps(args):
                         #############################################
                         lifton_status.annotation = "LiftOff_truncated"
 
-                        # Writing out truncated LiftOff annotation
-                        l_lifton_aln.write_alignment(outdir, "liftoff", transcript_id)
+                        # # Writing out truncated LiftOff annotation
+                        # l_lifton_aln.write_alignment(outdir, "liftoff", transcript_id)
                     
                         m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id_base)
 
@@ -245,7 +245,7 @@ def run_all_liftoff_steps(args):
                         #############################################
                         # Step 3.6.1.2: Check if there are mutations in the transcript
                         #############################################
-                        on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein, lifton_status)
+                        on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, fai, fai_protein, lifton_status)
                         # SETTING LiftOn identity score
                         if on_lifton_aln.identity == 1:
                             LIFTON_GOOD_PROT_TRANS_COUNT += 1

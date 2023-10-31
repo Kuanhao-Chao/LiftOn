@@ -33,8 +33,9 @@ class Lifton_Alignment:
         os.makedirs(outdir_tool, exist_ok=True)
         outfile= outdir_tool+trans_id+".fa"
         with open(outfile, "w") as fw:
-            fw.write("> " + trans_id + "\n")
+            fw.write("> Reference\n")
             fw.write(self.ref_aln + "\n")
+            fw.write("> Target\n")
             fw.write(self.query_aln + "\n")
 
 
@@ -134,8 +135,8 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-    def fix_truncated_protein(self, trans_id, fai, fai_protein, lifton_status):
-        ref_protein_seq = fai_protein[trans_id]
+    def fix_truncated_protein(self, trans_id, trans_id_base, fai, fai_protein, lifton_status):
+        ref_protein_seq = fai_protein[trans_id_base]
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, lifton_status)
         return lifton_aln, good_trans
                

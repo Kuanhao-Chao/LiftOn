@@ -64,19 +64,6 @@ def update_copy(id_base, copy_num_dict):
         copy_num_dict[id_base] += 1
     else:
         copy_num_dict[id_base] = 0
-
-
-def LiftOn_no_miniprot(lifton_gene, transcript_id, fai, fai_protein, lifton_status, outdir, LIFTON_BAD_PROT_TRANS_COUNT):
-    on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein, lifton_status)
-    # SETTING LiftOn score
-
-    if on_lifton_aln.identity < 1:
-        # Writing out truncated miniprot annotation
-        on_lifton_aln.write_alignment(outdir, "lifton", transcript_id)
-    if not good_trans:
-        LIFTON_BAD_PROT_TRANS_COUNT += 1
-
-    return LIFTON_BAD_PROT_TRANS_COUNT
     
 
 def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id):
