@@ -207,73 +207,10 @@ def run_all_lifton_steps(args):
         print(">> Creating transcript protein dictionary from the reference annotation ...")
         ref_proteins = Fasta(args.proteins)
     print(">> Creating transcript DNA dictionary from the reference annotation ...")
-    # ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
+    ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
 
-    # print(ref_proteins.keys(), "; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
-    # print(ref_trans.keys(), ";  len(ref_trans.keys()): ", len(ref_trans.keys()))
-
-    ################################
-    # Extract protein from reference annotation
-    ################################
-    # protein_dict = {}
-    # features = lifton_utils.get_parent_features_to_lift(args.features)    
-    
-    # # ref_proteins = sequence.SequenceDict(ref_feature_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
-
-    # # print("ref_proteins: ", ref_proteins)
-
-    # for feature in features:
-    #     for gene in ref_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
-    # #         LIFTOFF_TOTAL_GENE_COUNT += 1
-    # #         chromosome = gene.seqid
-    # #         gene_id = gene.attributes["ID"][0]
-    # #         gene_id_base = lifton_utils.get_ID_base(gene_id)
-
-    # #         ################################
-    # #         # Step 3.1: Creating gene copy number dictionary
-    # #         ################################
-    # #         lifton_utils.update_copy(gene_id_base, gene_copy_num_dict)
-
-    # #         ################################
-    # #         # Step 3.2: Creating LiftOn gene & gene_info
-    # #         ################################
-    # #         lifton_gene = lifton_class.Lifton_GENE(gene)
-    # #         gene_info = copy.deepcopy(gene)
-    # #         lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id_base)
-    # #         gene_info_dict[gene_id_base] = lifton_gene_info
-            
-    # #         ################################
-    # #         # Step 3.3: Adding LiftOn transcripts
-    # #         ################################
-    # #         # Assumption that all 1st level are transcripts
-    #         transcripts = ref_feature_db.children(gene, level=1)
-    #         for transcript in list(transcripts):
-    #             transcript_id = transcript.attributes["ID"][0]
-    #             transcript_id_base = lifton_utils.get_ID_base(transcript_id)
-    #             # ['CDS', 'start_codon', 'stop_codon']
-    #             # print(transcript.attributes)
-                
-    #             cdss = ref_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
-    #             cds_num = 0
-
-    #             for cds in list(cdss):
-    #                 cds_num += 1
-
-    #                 # Chaining the CDS features
-    #                 p_seq = cds.entry.sequence(ref_fai)
-    #                 p_seq = Seq(p_seq)
-    #                 if cds.entry.strand == '-':
-    #                     coding_seq = p_seq + coding_seq
-    #                     # cdss_lens.insert(0, cds.entry.end - cds.entry.start + 1)
-    #                 elif cds.entry.strand == '+':
-    #                     coding_seq = coding_seq + p_seq
-    #                     # cdss_lens.append(cds.entry.end - cds.entry.start + 1)
-
-    #             ################################
-    #             # Step 2: Translate the DNA sequence & get the reference protein sequence.
-    #             ################################
-    #             protein_seq = coding_seq.translate()
-    #             peps = protein_seq.split("*")
+    print("; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
+    print(";  len(ref_trans.keys()): ", len(ref_trans.keys()))
 
 
     ################################
@@ -435,14 +372,14 @@ def run_all_lifton_steps(args):
                         #############################################
                         # Step 3.6.1.2: Check if there are mutations in the transcript
                         #############################################
-                        on_lifton_aln, good_trans = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, fai, ref_proteins, lifton_status)
+                        on_lifton_trans_aln, on_lifton_aa_aln = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, fai, ref_proteins, ref_trans, lifton_status)
                         # SETTING LiftOn identity score
-                        if on_lifton_aln.identity == 1:
+                        if on_lifton_aa_aln.identity == 1:
                             LIFTON_GOOD_PROT_TRANS_COUNT += 1
-                        elif on_lifton_aln.identity < 1:
+                        elif on_lifton_aa_aln.identity < 1:
                             # Writing out truncated LiftOn annotation
                             LIFTON_BAD_PROT_TRANS_COUNT += 1
-                            on_lifton_aln.write_alignment(outdir, "lifton", transcript_id)                            
+                            on_lifton_aa_aln.write_alignment(outdir, "lifton", transcript_id)                            
 
                     elif l_lifton_aln.identity == 1:
                         #############################################
@@ -456,9 +393,10 @@ def run_all_lifton_steps(args):
                         # SETTING LiftOn identity score => Same as Liftoff
                         lifton_status.lifton = l_lifton_aln.identity
                         lifton_status.annotation = "LiftOff_identical"
-                        lifton_status.status = "identical"
+                        lifton_status.status = ["identical"]
 
-                    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{lifton_status.status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+                    final_status = ";".join(lifton_status.status)
+                    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
                 
                 else:
                     # Only liftoff annotation
@@ -467,14 +405,14 @@ def run_all_lifton_steps(args):
                         LIFTOFF_OTHER_TRANS_COUNT += 1
                         LIFTON_OTHER_TRANS_COUNT += 1
                         lifton_status.annotation = "LiftOff_no_ref_protein"
-                        lifton_status.status = "no_ref_protein"
+                        lifton_status.status = ["no_ref_protein"]
                         fw_other_trans.write(transcript_id+"\n")
 
                     else:
                         LIFTOFF_NC_TRANS_COUNT += 1
                         LIFTON_NC_TRANS_COUNT += 1
                         lifton_status.annotation = "LiftOff_nc_transcript"
-                        lifton_status.status = "nc_transcript"
+                        lifton_status.status = ["nc_transcript"]
                         fw_nc_trans.write(transcript_id+"\n")
 
 
@@ -500,18 +438,6 @@ def run_all_lifton_steps(args):
     NEW_LOCUS_MINIPROT_COUNT = 0
     # EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
 
-    # LIFTOFF_TOTAL_GENE_COUNT = 0
-    # LIFTOFF_BAD_PROT_TRANS_COUNT = 0
-    # LIFTOFF_GOOD_PROT_TRANS_COUNT = 0
-    # LIFTOFF_NC_TRANS_COUNT = 0
-    # LIFTOFF_OTHER_TRANS_COUNT = 0
-
-    
-    # LIFTON_BAD_PROT_TRANS_COUNT = 0
-    # LIFTON_GOOD_PROT_TRANS_COUNT = 0
-    # LIFTON_NC_TRANS_COUNT = 0
-    # LIFTON_OTHER_TRANS_COUNT = 0
-    # LIFTON_MINIPROT_FIXED_GENE_COUNT = 0
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
     print("Liftoff total transcript\t\t\t: ", LIFTOFF_TOTAL_TRANS_COUNT)
     print("Liftoff bad protein trans count\t\t\t: ", LIFTOFF_BAD_PROT_TRANS_COUNT)

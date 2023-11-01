@@ -21,12 +21,45 @@ def get_cdss_protein_boundary(cdss_lens):
     return cdss_protein_boundary
 
 
-def parasail_align_base(protein_seq, ref_protein_seq):
+def parasail_align_protein_base(protein_seq, ref_protein_seq):
     matrix = parasail.Matrix("blosum62")
     gap_open = 11
     gap_extend = 1
     extracted_seq = str(protein_seq)
     reference_seq = str(ref_protein_seq) + "*"
+    # (Query, Reference)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
+    return extracted_parasail_res, extracted_seq, reference_seq
+
+
+def protein_align(protein_seq, ref_protein_seq):
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, str(ref_protein_seq))
+
+    alignment_query = extracted_parasail_res.traceback.query
+    alignment_comp = extracted_parasail_res.traceback.comp
+    alignment_ref = extracted_parasail_res.traceback.ref
+    extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
+    extracted_identity = extracted_matches/extracted_length
+    lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+    return lifton_aln
+
+def trans_align(trans_seq, ref_trans_seq):
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_DNA_base(trans_seq, str(ref_trans_seq))
+    alignment_query = extracted_parasail_res.traceback.query
+    alignment_comp = extracted_parasail_res.traceback.comp
+    alignment_ref = extracted_parasail_res.traceback.ref
+    extracted_matches, extracted_length = get_id_fraction.get_DNA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
+    extracted_identity = extracted_matches/extracted_length
+    lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+    return lifton_aln
+
+def parasail_align_DNA_base(trans_seq, ref_trans_seq):
+    matrix = parasail.matrix_create("ACGT*", 1, -3)
+    gap_open = 5
+    gap_extend = 2
+
+    extracted_seq = str(trans_seq)
+    reference_seq = str(ref_trans_seq)
     # (Query, Reference)
     extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq
@@ -91,7 +124,7 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 5: Protein alignment
     ################################
-    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_base(protein_seq, ref_protein_seq)
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, ref_protein_seq)
 
     ################################
     # Step 6: Extract the alignment information
