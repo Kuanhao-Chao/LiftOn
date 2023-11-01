@@ -5,22 +5,35 @@ def has_stop_codon(ref_align, target_align):
     return False
 
 
-def is_frameshift(s):
-    # Initialize a variable to keep track of consecutive '-' characters.
-    consecutive_count = 0
-    # Iterate through the string.
-    for char in s:
-        if char == '-':
-            consecutive_count += 1
-        else:
-            # If we encounter a non-'-' character, check if the consecutive count is not divisible by three.
-            if consecutive_count % 3 != 0:
+# def is_frameshift(s):
+#     # Initialize a variable to keep track of consecutive '-' characters.
+#     consecutive_count = 0
+#     # Iterate through the string.
+#     for char in s:
+#         if char == '-':
+#             consecutive_count += 1
+#         else:
+#             # If we encounter a non-'-' character, check if the consecutive count is not divisible by three.
+#             if consecutive_count % 3 != 0:
+#                 return True
+#             consecutive_count = 0
+#     # After the loop, check the last substring if it's not divisible by three.
+#     if consecutive_count % 3 != 0:
+#         return True    
+#     # If no non-divisible substrings are found, return False.
+#     return False
+
+def is_frameshift(dna):
+    prev_letter=''
+    count = 0
+    for letter in dna:
+        if letter!=prev_letter:
+            if prev_letter == "-" and count %3 !=0:
                 return True
-            consecutive_count = 0
-    # After the loop, check the last substring if it's not divisible by three.
-    if consecutive_count % 3 != 0:
-        return True    
-    # If no non-divisible substrings are found, return False.
+            count = 1
+        else:
+            count += 1
+        prev_letter = letter
     return False
 
 
@@ -71,20 +84,24 @@ def find_variants(align_dna, align_protein, lifton_status, peps):
     # 1. return cases
     if align_dna.identity == 1.0:
         mutation_type.append('identical')
-        return mutation_type
+        lifton_status.status = mutation_type
+        return 
 
     # 2. return cases
     frameshift = False
     if align_protein.identity == 1.0:
         mutation_type.append('synonymous')
-        return mutation_type
+        lifton_status.status = mutation_type
+        return
 
     # 3. return cases
     if is_frameshift(align_dna.query_aln):
+        print("frameshift: align_dna.query_aln: ", align_dna.query_aln)
         mutation_type.append('frameshift')
         frameshift = True
 
     if is_frameshift(align_dna.ref_aln):
+        print("frameshift: align_dna.ref_aln: ", align_dna.ref_aln)
         mutation_type.append('frameshift')
         frameshift = True
 

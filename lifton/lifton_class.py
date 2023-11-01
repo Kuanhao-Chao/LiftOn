@@ -137,7 +137,7 @@ class Lifton_GENE:
                             
     def fix_truncated_protein(self, trans_id, trans_id_base, fai, fai_protein, fai_trans, lifton_status):
         ref_protein_seq = fai_protein[trans_id_base]
-        ref_trans_seq = fai_protein[trans_id_base]
+        ref_trans_seq = fai_trans[trans_id_base]
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
         return lifton_aln, good_trans
                
@@ -446,7 +446,7 @@ class Lifton_TRANS:
         # Update lifton sequence identity
         lifton_status.lifton = max(lifton_status.lifton, lifton_aa_aln.identity)
 
-        lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+        lifton_tran_aln = align.trans_align(coding_seq, ref_trans_seq)
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
 
         for mutation in lifton_status.status:
