@@ -1,4 +1,4 @@
-from lifton import lifton_utils, lifton_class, align, get_id_fraction
+from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants
 import copy, os
 from Bio.Seq import Seq
 
@@ -135,9 +135,10 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-    def fix_truncated_protein(self, trans_id, trans_id_base, fai, fai_protein, lifton_status):
+    def fix_truncated_protein(self, trans_id, trans_id_base, fai, fai_protein, fai_trans, lifton_status):
         ref_protein_seq = fai_protein[trans_id_base]
-        lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, lifton_status)
+        ref_trans_seq = fai_protein[trans_id_base]
+        lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
         return lifton_aln, good_trans
                
     def update_cds_list(self, trans_id, cds_list):
@@ -404,7 +405,7 @@ class Lifton_TRANS:
         self.update_boundaries()
 
 
-    def fix_truncated_protein(self, fai, ref_protein_seq, lifton_status):
+    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
         # Need to output which type of mutation it is.
         ################################
         # Step 1: Iterate through the children and chain the DNA sequence
@@ -441,55 +442,56 @@ class Lifton_TRANS:
         protein_seq = coding_seq.translate()
         peps = protein_seq.split("*")
 
-        extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_base(protein_seq, str(ref_protein_seq))
-
-        alignment_query = extracted_parasail_res.traceback.query
-        alignment_comp = extracted_parasail_res.traceback.comp
-        alignment_ref = extracted_parasail_res.traceback.ref
-
-        extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
-
-        extracted_identity = extracted_matches/extracted_length
-
-        lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
-
+        lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
         # Update lifton sequence identity
-        lifton_status.lifton = max(lifton_status.lifton, lifton_aln.identity)
+        lifton_status.lifton = max(lifton_status.lifton, lifton_aa_aln.identity)
 
-        if extracted_identity == 1:
-            lifton_status.status = "identical"
-            return lifton_aln, True
+        lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+        variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
+
+        for mutation in lifton_status.status:
+            if mutation == "stop_missing" or mutation == "stop_codon_gain":
+                self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
+                break
+        return lifton_tran_aln, lifton_aa_aln
+
+        # if lifton_aa_aln.identiy == 1:
+        #     lifton_status.status = "identical"
+        #     return lifton_aa_aln, True
         
-        elif extracted_identity < 1:
-            if len(peps) == 2 and str(peps[1]) == "":
-                # This is a valid protein ends with stop codon *
-                # But alignment is not 100% identical
-                lifton_status.status = "truncated"
-                return lifton_aln, False
+        # elif lifton_aa_aln.identiy < 1:
+        #     # Check DNA sequence since there's mutation in protein.
+        #     lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+
+        #     if len(peps) == 2 and str(peps[1]) == "":
+        #         # This is a valid protein ends with stop codon *
+        #         # But alignment is not 100% identical
+        #         lifton_status.status = "truncated"
+        #         return lifton_aa_aln, False
                 
-            elif len(peps) == 1:
-                # This is a protein without stop codon
-                self.entry.attributes["MissStopCodon"] = "1"
-                lifton_status.status = "stop_codon_missing"
-                return lifton_aln, False
+        #     elif len(peps) == 1:
+        #         # This is a protein without stop codon
+        #         self.entry.attributes["MissStopCodon"] = "1"
+        #         lifton_status.status = "stop_codon_missing"
+        #         return lifton_aa_aln, False
             
-            else:
-                stop_codon_count = 0
-                for idx, ele in enumerate(protein_seq):
-                    if ele == "*" and idx != len(protein_seq)-1:
-                        stop_codon_count += 1
-                self.entry.attributes["StopCodon"] = str(stop_codon_count)
-                lifton_status.status = "early_stop_codon"
+        #     else:
+        #         stop_codon_count = 0
+        #         for idx, ele in enumerate(protein_seq):
+        #             if ele == "*" and idx != len(protein_seq)-1:
+        #                 stop_codon_count += 1
+        #         self.entry.attributes["StopCodon"] = str(stop_codon_count)
+        #         lifton_status.status = "early_stop_codon"
 
-                print("extracted_parasail_res: ", extracted_parasail_res)
-                print("extracted_seq: ", extracted_seq)
-                print("reference_seq: ", reference_seq)
-                print("stop_codon_count: ", stop_codon_count)
+        #         # print("extracted_parasail_res: ", extracted_parasail_res)
+        #         # print("extracted_seq: ", extracted_seq)
+        #         # print("reference_seq: ", reference_seq)
+        #         print("stop_codon_count: ", stop_codon_count)
 
-                self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status)
+        #         self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
 
-                return lifton_aln, False
-    
+        #         return lifton_aa_aln, False
+
 
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status):
         trans_seq = trans_seq.upper()
@@ -530,7 +532,7 @@ class Lifton_TRANS:
             
             # print(f"\tORF {i+1}: {orf_DNA_seq}")
             # print(f"\torf_protein_seq: {orf_protein_seq}")
-            extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_base(orf_protein_seq, str(ref_protein_seq))        
+            extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_protein_base(orf_protein_seq, str(ref_protein_seq))        
 
             alignment_score = extracted_parasail_res.score
             alignment_query = extracted_parasail_res.traceback.query
