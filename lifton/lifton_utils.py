@@ -2,21 +2,29 @@ import re, sys, os
 from Bio.Seq import Seq
 from lifton import align, lifton_class, run_liftoff, run_miniprot
 
-def check_software_installed():
+def check_liftoff_installed():
     ################################
     # Checkk if liftoff and miniprot are installed
     ################################
-    # print(run_liftoff.run_all_liftoff_steps)
     liftoff_installed = run_liftoff.check_liftoff_installed()
-    miniprot_installed = run_miniprot.check_miniprot_installed()
     print("liftoff_installed : ", liftoff_installed)
-    print("miniprot_installed: ", miniprot_installed)
-    if not liftoff_installed or not miniprot_installed:
+    if not liftoff_installed:
         if not liftoff_installed:
             print("Liftoff is not properly installed.")
-        if not miniprot_installed:
-            print("Miniprot is not properly installed.")
         return sys.exit(1)
+
+
+def check_miniprot_installed():
+    ################################
+    # Checkk if liftoff and miniprot are installed
+    ################################
+    miniprot_installed = run_miniprot.check_miniprot_installed()
+    print("miniprot_installed: ", miniprot_installed)
+    if not miniprot_installed:
+        if not miniprot_installed:
+            print("miniprot is not properly installed.")
+        return sys.exit(1)
+
 
 def exec_liftoff(outdir):
     ################################
@@ -29,6 +37,7 @@ def exec_liftoff(outdir):
     ################################
     if not os.path.exists(liftoff_annotation):
         run_liftoff.run_liftoff()
+    return liftoff_annotation
 
 
 def exec_miniprot(outdir):
@@ -42,7 +51,7 @@ def exec_miniprot(outdir):
     ################################
     if not os.path.exists(miniprot_annotation):
         run_miniprot.run_miniprot()
-
+    return miniprot_annotation
 
 def get_child_types(parent_types, db):
     child_types = set()
