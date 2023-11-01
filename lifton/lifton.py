@@ -3,12 +3,13 @@ from intervaltree import Interval, IntervalTree
 import argparse
 from pyfaidx import Fasta, Faidx
 import copy, os
-from lifton import run_liftoff, run_miniprot, sequence
+from lifton import run_liftoff, run_miniprot, sequence, annotation
 import subprocess
 import sys
 from Bio.Seq import Seq
 
 from lifton import align, adjust_cds_boundaries, fix_trans_annotation, lifton_class, lifton_utils
+
 
 def args_outgrp(parser):
     outgrp = parser.add_argument_group('* Output settings')
@@ -28,6 +29,8 @@ def args_optional(parser):
         '-t', '--threads', default=1, type=int, metavar='P', help='use p parallel processes to accelerate alignment; by default p=1'
     )
     parser.add_argument('-f', '--features', metavar='TYPES', help='list of feature types to lift over')
+    parser.add_argument('-infer-genes', required=False, action='store_true', default=False)
+
 
 
 def parse_args(arglist):
@@ -133,118 +136,94 @@ def run_all_lifton_steps(args):
     
 
     ################################
-    # Checkk if liftoff and miniprot are installed
+    # Run liftoff & miniprot
     ################################
-    # print(run_liftoff.run_all_liftoff_steps)
-    liftoff_installed = run_liftoff.check_liftoff_installed()
-    miniprot_installed = run_miniprot.check_miniprot_installed()
+    lifton_utils.check_software_installed()
+    lifton_utils.exec_liftoff(outdir)
+    lifton_utils.exec_miniprot(outdir)
 
-    print("liftoff_installed : ", liftoff_installed)
-    print("miniprot_installed: ", miniprot_installed)
-
-    if not liftoff_installed or not miniprot_installed:
-        if not liftoff_installed:
-            print("Liftoff is not properly installed.")
-        if not miniprot_installed:
-            print("Miniprot is not properly installed.")
-        return sys.exit(1)
-
-
-    ################################
-    # Check if liftoff and miniprot results are generated
-    ################################
-    # liftoff_annotation = outdir + "/" + "liftoff.gff3_polished"
-    # miniprot_annotation = outdir + "/" + "miniprot.gff3"
-
-    liftoff_annotation = outdir + "/" + "liftoff.gff3"
-    miniprot_annotation = outdir + "/" + "miniprot.gff3"
-
-    print("liftoff_annotation  : ", liftoff_annotation)
-    print("miniprot_annotation : ", miniprot_annotation)
-
-    # liftoff_executed = run_liftoff.check_liftoff_installed()
-    # miniprot_executed = run_miniprot.check_miniprot_installed()
-
-    
-    ################################
-    # Execute liftoff and miniprot
-    ################################
-    if not os.path.exists(liftoff_annotation):
-        run_liftoff.run_liftoff()
-
-    if not os.path.exists(miniprot_annotation):
-        run_miniprot.run_miniprot()
 
     ################################
     # Building database from the reference annotation
     ################################
     disable_transcripts = False
     disable_genes = True
-    ref_feature_db = extract_features.build_database(args.referencedb, args.reference, disable_transcripts, disable_genes)
-    print("ref_feature_db: ", ref_feature_db)
+    # ref_feature_db = extract_features.build_database(args.referencedb, args.reference, disable_transcripts, disable_genes)
+    # print("ref_feature_db: ", ref_feature_db)
+
+
+    feature_types = lifton_utils.get_feature_types(args.features)
+    ref_db = annotation.Annotation(args.referencedb, args.infer_genes)
+    child_types = lifton_utils.get_child_types(feature_types, ref_db)
+
+    ref_proteins = sequence.SequenceDict(ref_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
+    ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
+
+    print(ref_proteins.keys(), "; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
+    print(ref_trans.keys(), ";  len(ref_trans.keys()): ", len(ref_trans.keys()))
 
     ################################
     # Extract protein from reference annotation
     ################################
-    protein_dict = {}
-    features = lifton_utils.get_parent_features_to_lift(args.features)    
+    # protein_dict = {}
+    # features = lifton_utils.get_parent_features_to_lift(args.features)    
     
-    # ref_proteins = sequence.SequenceDict(ref_feature_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
+    # # ref_proteins = sequence.SequenceDict(ref_feature_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
 
-    # print("ref_proteins: ", ref_proteins)
+    # # print("ref_proteins: ", ref_proteins)
 
-    for feature in features:
-        for gene in ref_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
-    #         LIFTOFF_TOTAL_GENE_COUNT += 1
-    #         chromosome = gene.seqid
-    #         gene_id = gene.attributes["ID"][0]
-    #         gene_id_base = lifton_utils.get_ID_base(gene_id)
+    # for feature in features:
+    #     for gene in ref_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
+    # #         LIFTOFF_TOTAL_GENE_COUNT += 1
+    # #         chromosome = gene.seqid
+    # #         gene_id = gene.attributes["ID"][0]
+    # #         gene_id_base = lifton_utils.get_ID_base(gene_id)
 
-    #         ################################
-    #         # Step 3.1: Creating gene copy number dictionary
-    #         ################################
-    #         lifton_utils.update_copy(gene_id_base, gene_copy_num_dict)
+    # #         ################################
+    # #         # Step 3.1: Creating gene copy number dictionary
+    # #         ################################
+    # #         lifton_utils.update_copy(gene_id_base, gene_copy_num_dict)
 
-    #         ################################
-    #         # Step 3.2: Creating LiftOn gene & gene_info
-    #         ################################
-    #         lifton_gene = lifton_class.Lifton_GENE(gene)
-    #         gene_info = copy.deepcopy(gene)
-    #         lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id_base)
-    #         gene_info_dict[gene_id_base] = lifton_gene_info
+    # #         ################################
+    # #         # Step 3.2: Creating LiftOn gene & gene_info
+    # #         ################################
+    # #         lifton_gene = lifton_class.Lifton_GENE(gene)
+    # #         gene_info = copy.deepcopy(gene)
+    # #         lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id_base)
+    # #         gene_info_dict[gene_id_base] = lifton_gene_info
             
-    #         ################################
-    #         # Step 3.3: Adding LiftOn transcripts
-    #         ################################
-    #         # Assumption that all 1st level are transcripts
-            transcripts = ref_feature_db.children(gene, level=1)
-            for transcript in list(transcripts):
-                transcript_id = transcript.attributes["ID"][0]
-                transcript_id_base = lifton_utils.get_ID_base(transcript_id)
-                # ['CDS', 'start_codon', 'stop_codon']
-                # print(transcript.attributes)
+    # #         ################################
+    # #         # Step 3.3: Adding LiftOn transcripts
+    # #         ################################
+    # #         # Assumption that all 1st level are transcripts
+    #         transcripts = ref_feature_db.children(gene, level=1)
+    #         for transcript in list(transcripts):
+    #             transcript_id = transcript.attributes["ID"][0]
+    #             transcript_id_base = lifton_utils.get_ID_base(transcript_id)
+    #             # ['CDS', 'start_codon', 'stop_codon']
+    #             # print(transcript.attributes)
                 
-                cdss = ref_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
-                cds_num = 0
+    #             cdss = ref_feature_db.children(transcript, featuretype='CDS')  # Replace 'exon' with the desired child feature type
+    #             cds_num = 0
 
-                for cds in list(cdss):
-                    cds_num += 1
+    #             for cds in list(cdss):
+    #                 cds_num += 1
 
-                    # Chaining the CDS features
-                    p_seq = cds.entry.sequence(ref_fai)
-                    p_seq = Seq(p_seq)
-                    if cds.entry.strand == '-':
-                        coding_seq = p_seq + coding_seq
-                        # cdss_lens.insert(0, cds.entry.end - cds.entry.start + 1)
-                    elif cds.entry.strand == '+':
-                        coding_seq = coding_seq + p_seq
-                        # cdss_lens.append(cds.entry.end - cds.entry.start + 1)
+    #                 # Chaining the CDS features
+    #                 p_seq = cds.entry.sequence(ref_fai)
+    #                 p_seq = Seq(p_seq)
+    #                 if cds.entry.strand == '-':
+    #                     coding_seq = p_seq + coding_seq
+    #                     # cdss_lens.insert(0, cds.entry.end - cds.entry.start + 1)
+    #                 elif cds.entry.strand == '+':
+    #                     coding_seq = coding_seq + p_seq
+    #                     # cdss_lens.append(cds.entry.end - cds.entry.start + 1)
 
-                ################################
-                # Step 2: Translate the DNA sequence & get the reference protein sequence.
-                ################################
-                protein_seq = coding_seq.translate()
-                peps = protein_seq.split("*")
+    #             ################################
+    #             # Step 2: Translate the DNA sequence & get the reference protein sequence.
+    #             ################################
+    #             protein_seq = coding_seq.translate()
+    #             peps = protein_seq.split("*")
 
     ################################
     # Running LiftOn algorithm
@@ -253,18 +232,12 @@ def run_all_lifton_steps(args):
 
 
 
-    ################################
-    # Step 0: Getting the arguments (required / optional)
-    ################################
+    # ################################
+    # # Step 0: Getting the arguments (required / optional)
+    # ################################
     # fai = Fasta(args.target)
-    # fai_protein = Fasta(args.proteins)
+    # # fai_protein = Fasta(args.proteins)
     # l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, args)
-
-    # print("args.features: ", args.features)
-    # print("args.threads: ", args.threads)
-    # print("args.proteins: ", args.proteins)
-
-    # outdir = os.path.dirname(args.output)
     # fw = open(args.output, "w")
     # fw_truncated = open(args.output+".truncated", "w")
     # fw_score = open(outdir+"/score.txt", "w")
@@ -307,8 +280,8 @@ def run_all_lifton_steps(args):
     # gene_copy_num_dict["gene-LiftOn"] = 0
     # features = lifton_utils.get_parent_features_to_lift(args.features)
     
-    # fw_other_trans = open(outdir+"/other_trans.txt", "w")
-    # fw_nc_trans = open(outdir+"/nc_trans.txt", "w")
+    # # fw_other_trans = open(outdir+"/other_trans.txt", "w")
+    # # fw_nc_trans = open(outdir+"/nc_trans.txt", "w")
 
     # for feature in features:
     #     for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):

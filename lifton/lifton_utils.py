@@ -1,6 +1,71 @@
-import re
+import re, sys, os
 from Bio.Seq import Seq
-from lifton import align, lifton_class
+from lifton import align, lifton_class, run_liftoff, run_miniprot
+
+def check_software_installed():
+    ################################
+    # Checkk if liftoff and miniprot are installed
+    ################################
+    # print(run_liftoff.run_all_liftoff_steps)
+    liftoff_installed = run_liftoff.check_liftoff_installed()
+    miniprot_installed = run_miniprot.check_miniprot_installed()
+    print("liftoff_installed : ", liftoff_installed)
+    print("miniprot_installed: ", miniprot_installed)
+    if not liftoff_installed or not miniprot_installed:
+        if not liftoff_installed:
+            print("Liftoff is not properly installed.")
+        if not miniprot_installed:
+            print("Miniprot is not properly installed.")
+        return sys.exit(1)
+
+def exec_liftoff(outdir):
+    ################################
+    # Check if liftoff and miniprot results are generated
+    ################################
+    liftoff_annotation = outdir + "/" + "liftoff.gff3"
+    print("liftoff_annotation  : ", liftoff_annotation)
+    ################################
+    # Execute liftoff and miniprot
+    ################################
+    if not os.path.exists(liftoff_annotation):
+        run_liftoff.run_liftoff()
+
+
+def exec_miniprot(outdir):
+    ################################
+    # Check if liftoff and miniprot results are generated
+    ################################
+    miniprot_annotation = outdir + "/" + "miniprot.gff3"
+    print("miniprot_annotation : ", miniprot_annotation)
+    ################################
+    # Execute liftoff and miniprot
+    ################################
+    if not os.path.exists(miniprot_annotation):
+        run_miniprot.run_miniprot()
+
+
+def get_child_types(parent_types, db):
+    child_types = set()
+    for parent in parent_types:
+        for feature in db.db_connection.features_of_type(featuretype=parent):
+            child_count = 0
+            for child in db.db_connection.children(feature):
+                child_count += 1
+                if db.is_lowest_child(child):
+                    child_types.add(child.featuretype)
+            if child_count == 0:
+                child_types.add(feature.featuretype)
+    return child_types
+
+
+def get_feature_types(feature_arg):
+    feature_types = ['gene']
+    if feature_arg is not None:
+        with open(feature_arg) as fa:
+            for line in fa:
+                feature_types.append(line.strip())
+    return feature_types
+
 
 def segments_overlap(segment1, segment2):
     # Check if the segments have valid endpoints
