@@ -21,14 +21,47 @@ def get_cdss_protein_boundary(cdss_lens):
     return cdss_protein_boundary
 
 
-def parasail_align_base(protein_seq, ref_protein_seq):
+def parasail_align_protein_base(protein_seq, ref_protein_seq):
     matrix = parasail.Matrix("blosum62")
     gap_open = 11
     gap_extend = 1
     extracted_seq = str(protein_seq)
     reference_seq = str(ref_protein_seq) + "*"
     # (Query, Reference)
-    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, ref_protein_seq, gap_open, gap_extend, matrix)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
+    return extracted_parasail_res, extracted_seq, reference_seq
+
+
+def protein_align(protein_seq, ref_protein_seq):
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, str(ref_protein_seq))
+
+    alignment_query = extracted_parasail_res.traceback.query
+    alignment_comp = extracted_parasail_res.traceback.comp
+    alignment_ref = extracted_parasail_res.traceback.ref
+    extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
+    extracted_identity = extracted_matches/extracted_length
+    lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+    return lifton_aln
+
+def trans_align(trans_seq, ref_trans_seq):
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_DNA_base(trans_seq, str(ref_trans_seq))
+    alignment_query = extracted_parasail_res.traceback.query
+    alignment_comp = extracted_parasail_res.traceback.comp
+    alignment_ref = extracted_parasail_res.traceback.ref
+    extracted_matches, extracted_length = get_id_fraction.get_DNA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
+    extracted_identity = extracted_matches/extracted_length
+    lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+    return lifton_aln
+
+def parasail_align_DNA_base(trans_seq, ref_trans_seq):
+    matrix = parasail.matrix_create("ACGT*", 1, -3)
+    gap_open = 5
+    gap_extend = 2
+
+    extracted_seq = str(trans_seq)
+    reference_seq = str(ref_trans_seq)
+    # (Query, Reference)
+    extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq
 
 
@@ -41,15 +74,12 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
         if len(cds_children) == 0:
             cds_children.append(child)
             continue
-        
         idx_insert = 0
         for idx_c in range(len(cds_children)):
             itr_c = cds_children[idx_c]
-
             # Equal sign is important! => it fixes those 0 intron cases.
             if child.start >= itr_c.end:
                 idx_insert += 1
-        
         cds_children.insert(idx_insert, child)
 
     ################################
@@ -58,8 +88,6 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     trans_seq = ""
     cdss_lens = []
     for cds_idx, cds in enumerate(cds_children):
-        # print(">> cds: ", cds)
-
         # Include the stop coding for the last CDS(+) / first CDS(-) for miniprot 
         if tool == "miniprot" and cds_idx == 0 and cds.strand == '-':
             cds.start = cds.start -3
@@ -72,7 +100,6 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
         # Chaining the CDS features
         if cds.strand == '-':
             trans_seq = p_seq + trans_seq
-            # cdss_lens.append(cds.end - cds.start + 1)
             cdss_lens.insert(0, cds.end - cds.start + 1)
         elif cds.strand == '+':
             trans_seq = trans_seq + p_seq
@@ -97,7 +124,7 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 5: Protein alignment
     ################################
-    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_base(protein_seq, ref_protein_seq)
+    extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, ref_protein_seq)
 
     ################################
     # Step 6: Extract the alignment information
@@ -106,11 +133,6 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
-
-    # print(f"alignment_score: {alignment_score}")
-    # print(alignment_query)
-    # print(alignment_comp)
-    # print(alignment_ref)
 
     cigar = extracted_parasail_res.cigar
     # alignment_start_query = extracted_parasail_res.traceback.query_begin
@@ -130,7 +152,6 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     decoded_cigar = cigar.decode.decode()
     cigar_ls = list(Cigar(decoded_cigar).items())
     # print("\t>> cigar_ls: ", cigar_ls)
-
     
     ################################
     # Step 7: Change the CDS protein boundaries based on CIGAR string.

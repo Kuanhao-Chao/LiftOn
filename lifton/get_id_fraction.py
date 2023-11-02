@@ -9,3 +9,11 @@ def get_id_fraction(reference, target, start, end):
         if target[i] == "*":
             break
     return matches, end-start
+
+def get_DNA_id_fraction(reference, target):
+    matches = 0
+
+    for i, letter in enumerate(reference):
+        if letter == target[i]:
+            matches += 1
+    return matches, max(len(reference), len(target))

@@ -26,22 +26,46 @@ def create_feature_db_connections(args):
     return liftoff_feature_db, miniprot_feature_db
 
 
-
-def build_database(db, gff_file, disable_transcripts, disable_genes,):
-    if db is None:
-        try:
-            feature_db = gffutils.create_db(gff_file, gff_file + "_db", merge_strategy="create_unique", force=True,
-                                            disable_infer_transcripts=disable_transcripts,
-                                            disable_infer_genes=disable_genes, verbose=True, keep_order=True, 
-                                            sort_attribute_values=True)
-        except:
-            find_problem_line(gff_file)
+def get_transform_func(self):
+    if self.infer_genes is False:
+        return None
     else:
-        feature_db = gffutils.FeatureDB(db)
+        return transform_func
+
+def transform_func(x):
+    if 'transcript_id' in x.attributes:
+        x.attributes['transcript_id'][0] += '_transcript'
+    return x
+
+
+def build_database(db, gff_file, disable_transcripts, disable_genes):
+    # feature_db = None
+    # if db is None:
+    #     try:
+    #         feature_db = gffutils.create_db(gff_file, gff_file + "_db", merge_strategy="create_unique", force=True,
+    #                                         disable_infer_transcripts=disable_transcripts,
+    #                                         disable_infer_genes=disable_genes, verbose=True, keep_order=True, 
+    #                                         sort_attribute_values=True)
+    #     except:
+    #         find_problem_line(gff_file)
+    # else:
+    #     print("db: ", db)
+    #     feature_db = gffutils.FeatureDB(db)
+    # return feature_db
+    if self.infer_genes:
+        disable_genes = False
+    else:
+        disable_genes = True
+    try:
+        transform_func = get_transform_func()
+        feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", merge_strategy="create_unique",
+                                    force=True,
+                                    verbose=True, disable_infer_transcripts=True,
+                                        disable_infer_genes=disable_genes, transform=transform_func)
+    except Exception as e:
+        print("gffutils database build failed with", e)
+        sys.exit()
     return feature_db
-
-
-
 
 
 
