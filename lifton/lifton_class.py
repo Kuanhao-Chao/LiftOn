@@ -28,8 +28,8 @@ class Lifton_Alignment:
         self.ref_seq = reference_seq
         self.db_entry = db_entry
 
-    def write_alignment(self, outdir, tool_name, trans_id):
-        outdir_tool = outdir+"/"+tool_name+"/"
+    def write_alignment(self, outdir, tool_name, mutation, trans_id):
+        outdir_tool = outdir+"/"+tool_name+"/"+mutation+"/"
         os.makedirs(outdir_tool, exist_ok=True)
         outfile= outdir_tool+trans_id+".fa"
         with open(outfile, "w") as fw:
@@ -417,7 +417,7 @@ class Lifton_TRANS:
         for exon in self.exons:
             # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
-            p_trans_seq = Seq(p_trans_seq)
+            p_trans_seq = Seq(p_trans_seq).upper()
             if exon.entry.strand == '-':
                 trans_seq = p_trans_seq + trans_seq
                 exon_lens.insert(0, exon.entry.end - exon.entry.start + 1)
@@ -428,7 +428,7 @@ class Lifton_TRANS:
             if exon.cds is not None:
                 # Chaining the CDS features
                 p_seq = exon.cds.entry.sequence(fai)
-                p_seq = Seq(p_seq)
+                p_seq = Seq(p_seq).upper()
                 if exon.cds.entry.strand == '-':
                     coding_seq = p_seq + coding_seq
                     cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)

@@ -379,7 +379,11 @@ def run_all_lifton_steps(args):
                         elif on_lifton_aa_aln.identity < 1:
                             # Writing out truncated LiftOn annotation
                             LIFTON_BAD_PROT_TRANS_COUNT += 1
-                            on_lifton_aa_aln.write_alignment(outdir, "lifton", transcript_id)                            
+                            
+                            for mutation in lifton_status.status:
+                                if mutation != "synonymous" and mutation != "identical" and mutation != "nonsynonymous":
+                                    on_lifton_aa_aln.write_alignment(outdir, "lifton_AA", mutation, transcript_id)
+                                    on_lifton_trans_aln.write_alignment(outdir, "lifton_DNA", mutation, transcript_id)
 
                     elif l_lifton_aln.identity == 1:
                         #############################################
