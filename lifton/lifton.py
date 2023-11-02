@@ -1,89 +1,238 @@
 from lifton import extract_features, mapping, intervals, extra_copy
+from intervaltree import Interval, IntervalTree
 import argparse
 from pyfaidx import Fasta, Faidx
-from intervaltree import Interval, IntervalTree
-import copy
+import copy, os
+from lifton import run_liftoff, run_miniprot, sequence, annotation
+import subprocess
+import sys
+from Bio.Seq import Seq
 
 from lifton import align, adjust_cds_boundaries, fix_trans_annotation, lifton_class, lifton_utils
+
+
+def args_outgrp(parser):
+    outgrp = parser.add_argument_group('* Output settings')
+    outgrp.add_argument(
+        '-o', '--output', default='stdout', metavar='FILE',
+        help='write output to FILE in same format as input; by default, output is written to terminal (stdout)'
+    )
+    outgrp.add_argument(
+        '-D', '--dir', default='intermediate_files', metavar='DIR',
+        help='name of directory to save intermediate fasta and SAM files; default is "intermediate_files"',
+    )
+    outgrp.add_argument(
+        '-u', default='unmapped_features.txt', metavar='FILE',
+        help='write unmapped features to FILE; default is "unmapped_features.txt"',
+    )
+    outgrp.add_argument(
+        '-exclude_partial', action='store_true',
+        help='write partial mappings below -s and -a threshold to unmapped_features.txt; if true '
+             'partial/low sequence identity mappings will be included in the gff file with '
+             'partial_mapping=True, low_identity=True in comments'
+    )
+    return outgrp
+
+def args_aligngrp(parser):
+    aligngrp = parser.add_argument_group('Alignments')
+    aligngrp.add_argument('-mm2_options', metavar='=STR', type=str, default='-a --end-bonus '
+                                                                            '5 --eqx -N 50 '
+                                                                            '-p 0.5',
+                          help='space delimited minimap2 parameters. By default ="-a --end-bonus 5 --eqx -N 50 -p 0.5"')
+    aligngrp.add_argument(
+        '-a', default=0.5, metavar='A', type=float,
+        help='designate a feature mapped only if it aligns with coverage ≥A; by default A=0.5',
+    )
+    aligngrp.add_argument(
+        '-s', default=0.5, metavar='S', type=float,
+        help='designate a feature mapped only if its child features (usually exons/CDS) align '
+             'with sequence identity ≥S; by default S=0.5'
+    )
+    aligngrp.add_argument(
+        '-d', metavar='D', default=2.0, type=float,
+        help='distance scaling factor; alignment nodes separated by more than a factor of D in '
+             'the target genome will not be connected in the graph; by default D=2.0'
+    )
+    aligngrp.add_argument(
+        '-flank', default=0, metavar='F', type=float, help="amount of flanking sequence to align as a "
+                                                           "fraction [0.0-1.0] of gene length. This can improve gene "
+                                                           "alignment where gene structure  differs between "
+                                                           "target and "
+                                                           "reference; by default F=0.0")
+    return aligngrp
+
+def args_optional(parser):
+    parser.add_argument('-V', '--version', help='show program version', action='version', version='v1.6.3')
+    parser.add_argument(
+        '-t', '--threads', default=1, type=int, metavar='P', help='use p parallel processes to accelerate alignment; by default p=1'
+    )
+    parser.add_argument('-m', help='Minimap2 path', metavar='PATH')
+    parser.add_argument('-f', '--features', metavar='TYPES', help='list of feature types to lift over')
+    parser.add_argument(
+        '-infer-genes', required=False, action='store_true',
+        help='use if annotation file only includes transcripts, exon/CDS features'
+    )
+    parser.add_argument(
+        '-infer_transcripts', action='store_true', required=False,
+        help='use if annotation file only includes exon/CDS features and does not include transcripts/mRNA'
+    )
+    parser.add_argument(
+        '-chroms', metavar='TXT', help='comma seperated file with corresponding chromosomes in '
+                                       'the reference,target sequences',
+    )
+    parser.add_argument(
+        '-unplaced', metavar='TXT',
+        help='text file with name(s) of unplaced sequences to map genes from after genes from '
+             'chromosomes in chroms.txt are mapped; default is "unplaced_seq_names.txt"',
+    )
+    parser.add_argument('-copies', action='store_true', help='look for extra gene copies in the target genome')
+    parser.add_argument(
+        '-sc', default=1.0, metavar='SC', type=float,
+        help='with -copies, minimum sequence identity in exons/CDS for which a gene is considered '
+             'a copy; must be greater than -s; default is 1.0',
+    )
+    parser.add_argument('-overlap', default=0.1, metavar='O', help="maximum fraction [0.0-1.0] of overlap allowed by 2 "
+                                                                   "features; by default O=0.1", type=float)
+    parser.add_argument('-mismatch', default=2, metavar='M', help="mismatch penalty in exons when finding best "
+                                                                  "mapping; by default M=2", type=int)
+    parser.add_argument('-gap_open', default=2, metavar='GO', help="gap open penalty in exons when finding best "
+                                                                   "mapping; by default GO=2", type=int)
+    parser.add_argument('-gap_extend', default=1, metavar='GE', help="gap extend penalty in exons when finding best "
+                                                                     "mapping; by default GE=1", type=int)
+    parser.add_argument('-subcommand', required=False,  help=argparse.SUPPRESS)
+    parser.add_argument('-polish', required=False, action='store_true', default = False)
+    parser.add_argument('-cds', required=False, action="store_true", default=True, help="annotate status of each CDS "
+                                                                                        "(partial, missing start, "
+                                                                                        "missing stop, inframe stop "
+                                                                                        "codon)")
+
+
 
 def parse_args(arglist):
     print("arglist: ", arglist)
     parser = argparse.ArgumentParser(description='Lift features from one genome assembly to another')
     parser.add_argument('target', help='target fasta genome to lift genes to')
+    parser.add_argument('reference', help='reference fasta genome to lift genes from')
+    
+    parser_outgrp = args_outgrp(parser)
+    parser_aligngrp = args_aligngrp(parser)
+    args_optional(parser)
 
-    outgrp = parser.add_argument_group('* Output')
-    outgrp.add_argument(
-        '-o', '--output', default='stdout', metavar='FILE',
-        help='write output to FILE in same format as input; by default, output is written to terminal (stdout)'
+    referencegrp = parser.add_argument_group('* Required input (Reference annotation)')    
+    referencegrp.add_argument(
+        '-g', '--reference-annotation', metavar='GFF',  required=True,
+        help='the reference annotation file to lift over in GFF or GTF format (or) '
+                'name of feature database; if not specified, the -g '
+                'argument must be provided and a database will be built automatically'
     )
 
-    outgrp.add_argument(
-        '-d', '--dir', default='intermediate_files', metavar='DIR',
-        help='name of directory to save intermediate fasta and SAM files; default is "intermediate_files"',
-    )
-
-    parser.add_argument('-V', '--version', help='show program version', action='version', version='v1.6.3')
-    parser.add_argument(
-        '-t', '--threads', default=1, type=int, metavar='P', help='use p parallel processes to accelerate alignment; by default p=1'
-    )
-
-    parser.add_argument('-f', '--features', metavar='TYPES', help='list of feature types to lift over')
-
-    proteinrefrgrp = parser.add_argument_group('* Required input (Protein sequences)')
-    proteinrefrgrp.add_argument(
-        '-p', '--proteins', metavar='fasta', required=True,
+    referencegrp.add_argument(
+        '-p', '--proteins', metavar='FASTA', required=False, default=None,
         help='the reference protein sequences.'
     )
 
-    liftoffrefrgrp = parser.add_argument_group('* Required input (Liftoff annotation)')
-
-    liftoffgrp = liftoffrefrgrp.add_mutually_exclusive_group(required=True)
-    liftoffgrp.add_argument(
-        '-l', '--liftoff', metavar='gff',
-        help='the annotation generated by Liftoff'
-    )
-    liftoffgrp.add_argument(
-        '-ldb', '--liftoffdb', metavar='gff-DB',
-        help='name of Liftoff gffutils database; if not specified, the -liftoff '
-                                  'argument must be provided and a database will be built automatically'
+    ###################################
+    # This is for the subparser arguments
+    ###################################
+    liftoffrefrgrp = parser.add_argument_group('* Optional input (Liftoff annotation)')
+    liftoffrefrgrp.add_argument(
+        '-L', '--liftoff', metavar='gff', default=None,
+        help='the annotation generated by Liftoff (or) '
+                'name of Liftoff gffutils database; if not specified, the -liftoff '
+                'argument must be provided and a database will be built automatically'
     )
 
-    miniprotrefrgrp = parser.add_argument_group('* Required input (miniprot annotation)')
-
-    miniprotgrp = miniprotrefrgrp.add_mutually_exclusive_group(required=True)
-    miniprotgrp.add_argument(
-        '-m', '--miniprot', metavar='gff',
-        help='the annotation generated by miniprot'
-    )
-    miniprotgrp.add_argument(
-        '-mdb', '--miniprotdb', metavar='gff-DB',
-        help='name of miniprot gffutils database; if not specified, the -miniprot '
-                                  'argument must be provided and a database will be built automatically'
+    miniprotrefrgrp = parser.add_argument_group('* Optional input (miniprot annotation)')
+    miniprotrefrgrp.add_argument(
+        '-M', '--miniprot', metavar='gff', default=None,
+        help='the annotation generated by miniprot (or) '
+                'name of miniprot gffutils database; if not specified, the -miniprot '
+                'argument must be provided and a database will be built automatically'
     )
 
     parser._positionals.title = '* Required input (sequences)'
     parser._optionals.title = '* Miscellaneous settings'
+    # parser._action_groups = [referencegrp, parser_outgrp, parser._optionals]
 
-    parser._action_groups = [parser._positionals, proteinrefrgrp, liftoffrefrgrp, miniprotrefrgrp, outgrp, parser._optionals]
+    parser._action_groups = [parser._positionals, referencegrp, liftoffrefrgrp, miniprotrefrgrp, parser_outgrp, parser._optionals, parser_aligngrp]
     args = parser.parse_args(arglist)
     return args
 
 
-def run_all_liftoff_steps(args):
+def run_all_lifton_steps(args):
     ref_chroms = []
 
     ################################
+    # Step 0: end2end mode
+    ################################
+    tgt_genome = args.target
+    ref_genome = args.reference
+    outdir = os.path.dirname(args.output)
+    outdir = outdir if outdir is not "" else "."
+    print("outdir: ", outdir)
+
+    tgt_fai = Fasta(tgt_genome)
+    ref_fai = Fasta(ref_genome)
+
+    print("tgt_genome: ", tgt_genome)
+    print("ref_genome: ", ref_genome)
+    
+
+    ################################
+    # Run liftoff & miniprot
+    ################################
+    if args.liftoff is None:
+        lifton_utils.check_liftoff_installed()
+        liftoff_annotation = lifton_utils.exec_liftoff(outdir)
+    else:
+        liftoff_annotation = args.liftoff
+        
+    if args.miniprot is None:
+        lifton_utils.check_miniprot_installed()
+        miniprot_annotation = lifton_utils.exec_miniprot(outdir)
+    else:
+        miniprot_annotation = args.miniprot
+
+
+    ################################
+    # Building database from the reference annotation
+    ################################
+    feature_types = lifton_utils.get_feature_types(args.features)
+    ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes)
+    child_types = lifton_utils.get_child_types(feature_types, ref_db)
+    if args.proteins is None:
+        print(">> Creating transcript protein dictionary from the reference annotation ...")
+        ref_proteins = sequence.SequenceDict(ref_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
+    else:
+        print(">> Creating transcript protein dictionary from the reference annotation ...")
+        ref_proteins = Fasta(args.proteins)
+    print(">> Creating transcript DNA dictionary from the reference annotation ...")
+    ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
+
+    print("; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
+    print(";  len(ref_trans.keys()): ", len(ref_trans.keys()))
+
+
+    ################################
+    # Running LiftOn algorithm
+    ################################
+    ################################
     # Step 0: Getting the arguments (required / optional)
     ################################
-    fai = Fasta(args.target)
-    fai_protein = Fasta(args.proteins)
-    l_feature_db, m_feature_db = extract_features.extract_features_to_fix(ref_chroms, args)
+    fai = Fasta(tgt_genome)
+    print("liftoff_annotation : ", liftoff_annotation)
+    print("miniprot_annotation: ", miniprot_annotation)
 
-    print("args.features: ", args.features)
-    print("args.threads: ", args.threads)
-    print("args.proteins: ", args.proteins)
+    l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
+    m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
+
+    print("l_feature_db: ", l_feature_db)
+    print("m_feature_db: ", m_feature_db)
 
     fw = open(args.output, "w")
+    fw_truncated = open(args.output+".truncated", "w")
+    fw_score = open(outdir+"/score.txt", "w")
+
     ################################
     # Step 1: Creating miniprot 2 Liftoff ID mapping
     ################################
@@ -102,9 +251,17 @@ def run_all_liftoff_steps(args):
     trans_2_gene_dict = {}
 
     LIFTOFF_TOTAL_GENE_COUNT = 0
-    LIFTOFF_ONLY_GENE_COUNT = 0
-    LIFTOFF_INVALID_TRANS_COUNT = 0
-    LIFTOFF_MINIPROT_FIXED_GENE_COUNT = 0
+    LIFTOFF_TOTAL_TRANS_COUNT = 0
+    LIFTOFF_BAD_PROT_TRANS_COUNT = 0
+    LIFTOFF_GOOD_PROT_TRANS_COUNT = 0
+    LIFTOFF_NC_TRANS_COUNT = 0
+    LIFTOFF_OTHER_TRANS_COUNT = 0
+
+    LIFTON_BAD_PROT_TRANS_COUNT = 0
+    LIFTON_GOOD_PROT_TRANS_COUNT = 0
+    LIFTON_NC_TRANS_COUNT = 0
+    LIFTON_OTHER_TRANS_COUNT = 0
+    LIFTON_MINIPROT_FIXED_GENE_COUNT = 0
 
     ################################
     # Step 3: Iterating gene entries & fixing CDS lists
@@ -112,8 +269,12 @@ def run_all_liftoff_steps(args):
     # For missing transcripts.
     gene_copy_num_dict["gene-LiftOn"] = 0
     features = lifton_utils.get_parent_features_to_lift(args.features)
+    
+    fw_other_trans = open(outdir+"/other_trans.txt", "w")
+    fw_nc_trans = open(outdir+"/nc_trans.txt", "w")
+
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature):#, limit=("chr9", 80476554, 80478771)):
+        for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
             LIFTOFF_TOTAL_GENE_COUNT += 1
             chromosome = gene.seqid
             gene_id = gene.attributes["ID"][0]
@@ -122,10 +283,7 @@ def run_all_liftoff_steps(args):
             ################################
             # Step 3.1: Creating gene copy number dictionary
             ################################
-            if gene_id_base in gene_copy_num_dict.keys():
-                gene_copy_num_dict[gene_id_base] += 1
-            else:
-                gene_copy_num_dict[gene_id_base] = 0
+            lifton_utils.update_copy(gene_id_base, gene_copy_num_dict)
 
             ################################
             # Step 3.2: Creating LiftOn gene & gene_info
@@ -141,27 +299,23 @@ def run_all_liftoff_steps(args):
             # Assumption that all 1st level are transcripts
             transcripts = l_feature_db.children(gene, level=1)
             for transcript in list(transcripts):
+                LIFTOFF_TOTAL_TRANS_COUNT += 1
+
+                lifton_status = lifton_class.Lifton_Status()
                 lifton_gene.add_transcript(transcript)
                 transcript_id = transcript["ID"][0]
-                transcript_id_base = lifton_utils.get_trans_ID_base(transcript_id)
+                transcript_id_base = lifton_utils.get_ID_base(transcript_id)
 
                 ################################
                 # Step 3.3.1: Creating trans copy number dictionary
                 ################################
-                if transcript_id_base in trans_copy_num_dict.keys():
-                    trans_copy_num_dict[transcript_id_base] += 1
-                else:
-                    trans_copy_num_dict[transcript_id_base] = 0
+                lifton_utils.update_copy(transcript_id_base, trans_copy_num_dict)
 
-                print("\ttranscript_id      : ", transcript_id)
-                if transcript_id_base == "rna-NM_001005388.3":
-                    continue
-                
-                # print("&& transcript_id_base : ", transcript_id_base)
+                print("\ttranscript_id\t: ", transcript_id)                
+                print("&& transcript_id_base\t: ", transcript_id_base)
 
                 transcript_info = copy.deepcopy(transcript)
                 lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id_base, gene_id_base)
-
                 trans_2_gene_dict[transcript_id_base] = gene_id_base
                 trans_info_dict[transcript_id_base] = lifton_trans_info
 
@@ -180,94 +334,92 @@ def run_all_liftoff_steps(args):
                 for cds in list(cdss):
                     cds_num += 1
                     lifton_gene.add_cds(transcript_id, cds)
+                
 
                 #############################################
                 # Step 3.6: Processing transcript
-                #   1. There are CDS features
-                #   2. transcript ID is in both miniprot & Liftoff & protein FASTA file
                 #############################################
-                if (cds_num > 0) and (transcript_id in m_id_dict.keys()) and (transcript_id in fai_protein.keys()):
-                    ################################
-                    # Step 3.6.1: liftoff transcript alignment
-                    ################################
-                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, fai_protein, transcript_id)
+                if (cds_num > 0) and (transcript_id_base in ref_proteins.keys()):
+                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, ref_proteins, transcript_id_base)
+
+                    # SETTING Liftoff identity score
+                    lifton_status.liftoff = l_lifton_aln.identity
 
                     if l_lifton_aln.identity < 1:
-                        m_ids = m_id_dict[transcript_id]
+                        LIFTOFF_BAD_PROT_TRANS_COUNT += 1
+                        #############################################
+                        # Step 3.6.1: Liftoff annotation is not perfect
+                        #############################################
+                        lifton_status.annotation = "LiftOff_truncated"
 
-                        is_overlap = False
-                        for m_id in m_ids:
-                            m_entry = m_feature_db[m_id]
-                            overlap = lifton_utils.segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
-
-                            if not overlap or m_entry.seqid != transcript.seqid:
-                                print("Not overlapping")
-                                continue
-                            
-                            is_overlap = True
-                            ################################
-                            # Step 3.6.2: Protein sequences are in both Liftoff and miniprot & overlap
-                            #   Fix & update CDS list
-                            ################################
-                            ################################
-                            # Step 3.6.3: miniprot transcript alignment
-                            ################################
-                            m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
-
-                            # Check reference overlapping status
-                            # 1. Check it the transcript overlapping with the next gene
-                            # Check the miniprot protein overlapping status
-                            # The case I should not process the transcript 
-                            # 1. The Liftoff does not overlap with other gene
-                            # 2. The miniprot protein overlap the other gene
-                            ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
-                            ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
+                        # # Writing out truncated LiftOff annotation
+                        # l_lifton_aln.write_alignment(outdir, "liftoff", transcript_id)
+                    
+                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, transcript_id_base)
 
 
-                            # if len(ovps_liftoff) == 1 and len(ovps_miniprot) > 1:
-                            miniprot_cross_gene_loci = False
-                            liftoff_set = set()
-                            for ovp_liftoff in ovps_liftoff:
-                                liftoff_set.add(ovp_liftoff[2])
-                                # print("\tovp_liftoff: ", ovp_liftoff)
-                            # print("liftoff_set : ", liftoff_set)
-                            
-                            for ovp_miniprot in ovps_miniprot:
-                                if ovp_miniprot[2] not in liftoff_set:
-                                    # Miniprot overlap to more genes
-                                    miniprot_cross_gene_loci = True
-                                    break
-
-                            if miniprot_cross_gene_loci:
-                                continue                            
-
-                            # LIFTOFF_MINIPROT_FIXED_GENE_COUNT += 1
-                            cds_list = fix_trans_annotation.fix_transcript_annotation(l_lifton_aln, m_lifton_aln, fai, fw)
+                        #############################################
+                        # Step 3.6.1.1: Running chaining algorithm if there are valid miniprot alignments
+                        #############################################
+                        if has_valid_miniprot:
+                            LIFTON_MINIPROT_FIXED_GENE_COUNT += 1
+                            cds_list = fix_trans_annotation.chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw)
                             lifton_gene.update_cds_list(transcript_id, cds_list)
-
-                            # Check if there are mutations in the transcript
-                            good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
-                            if not good_trans:
-                                LIFTOFF_INVALID_TRANS_COUNT += 1
-                        
-                        if not is_overlap:
-                            # There are no overlapping miniprot transcripts
-                            print("Has cds & protein & miniprot annotation; but miniprot not overlapping!")
-                            good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
-                            if not good_trans:
-                                LIFTOFF_INVALID_TRANS_COUNT += 1
+                            lifton_status.annotation = "LiftOff_miniprot_chaining_algorithm" 
+                        else:
+                            print("Has cds & protein & miniprot annotation; but no valid miniprot annotation!")
                             
-                elif (cds_num > 0) and (transcript_id in fai_protein.keys()):
-                    # Check if there are mutations in the transcript
-                    print("Has cds & protein")
-                    good_trans = lifton_gene.fix_truncated_protein(transcript_id, fai, fai_protein)
-                    if not good_trans:
-                        LIFTOFF_INVALID_TRANS_COUNT += 1
+                        #############################################
+                        # Step 3.6.1.2: Check if there are mutations in the transcript
+                        #############################################
+                        on_lifton_trans_aln, on_lifton_aa_aln = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, fai, ref_proteins, ref_trans, lifton_status)
+                        # SETTING LiftOn identity score
+                        if on_lifton_aa_aln.identity == 1:
+                            LIFTON_GOOD_PROT_TRANS_COUNT += 1
+                        elif on_lifton_aa_aln.identity < 1:
+                            # Writing out truncated LiftOn annotation
+                            LIFTON_BAD_PROT_TRANS_COUNT += 1
+                            
+                            for mutation in lifton_status.status:
+                                if mutation != "synonymous" and mutation != "identical" and mutation != "nonsynonymous":
+                                    on_lifton_aa_aln.write_alignment(outdir, "lifton_AA", mutation, transcript_id)
+                                    on_lifton_trans_aln.write_alignment(outdir, "lifton_DNA", mutation, transcript_id)
 
+                    elif l_lifton_aln.identity == 1:
+                        #############################################
+                        # Step 3.6.2: Liftoff annotation is perfect
+                        #############################################
+                        LIFTOFF_GOOD_PROT_TRANS_COUNT += 1
+                        LIFTON_GOOD_PROT_TRANS_COUNT += 1
+
+                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, transcript_id_base)
+
+                        # SETTING LiftOn identity score => Same as Liftoff
+                        lifton_status.lifton = l_lifton_aln.identity
+                        lifton_status.annotation = "LiftOff_identical"
+                        lifton_status.status = ["identical"]
+
+                    final_status = ";".join(lifton_status.status)
+                    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+                
                 else:
-                    # Only liftoff annotation => check if mutated.                     
-                    print("No cds & no protein & no miniprot annotation")
-                    LIFTOFF_ONLY_GENE_COUNT += 1
+                    # Only liftoff annotation
+                    print("No cds || no protein")
+                    if (cds_num > 0):
+                        LIFTOFF_OTHER_TRANS_COUNT += 1
+                        LIFTON_OTHER_TRANS_COUNT += 1
+                        lifton_status.annotation = "LiftOff_no_ref_protein"
+                        lifton_status.status = ["no_ref_protein"]
+                        fw_other_trans.write(transcript_id+"\n")
+
+                    else:
+                        LIFTOFF_NC_TRANS_COUNT += 1
+                        LIFTON_NC_TRANS_COUNT += 1
+                        lifton_status.annotation = "LiftOff_nc_transcript"
+                        lifton_status.status = ["nc_transcript"]
+                        fw_nc_trans.write(transcript_id+"\n")
+
+
 
             ###########################
             # Step 4.7: Writing out LiftOn entries
@@ -290,17 +442,27 @@ def run_all_liftoff_steps(args):
     NEW_LOCUS_MINIPROT_COUNT = 0
     # EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT = extra_copy.find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw)
 
-    print("Liftoff truncated trans loci\t\t\t: ", LIFTOFF_INVALID_TRANS_COUNT)
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
-    print("Liftoff only gene loci\t\t\t: ", LIFTOFF_ONLY_GENE_COUNT)
-    print("Liftoff & miniprot matched gene loci\t: ", LIFTOFF_MINIPROT_FIXED_GENE_COUNT)
+    print("Liftoff total transcript\t\t\t: ", LIFTOFF_TOTAL_TRANS_COUNT)
+    print("Liftoff bad protein trans count\t\t\t: ", LIFTOFF_BAD_PROT_TRANS_COUNT)
+    print("Liftoff good protein trans count\t\t\t: ", LIFTOFF_GOOD_PROT_TRANS_COUNT)
+    print("Liftoff non-coding trans count\t\t\t: ", LIFTOFF_NC_TRANS_COUNT)
+    print("Liftoff OTHER trans count\t\t\t: ", LIFTOFF_OTHER_TRANS_COUNT)
+    print("\n\n")
 
-    print("miniprot found extra copy gene loci\t: ", EXTRA_COPY_MINIPROT_COUNT)
-    print("miniprot found new loci\t\t\t: ", NEW_LOCUS_MINIPROT_COUNT)
+    print("LiftOn bad protein trans count\t\t\t: ", LIFTON_BAD_PROT_TRANS_COUNT)
+    print("LiftOn good protein trans count\t\t\t: ", LIFTON_GOOD_PROT_TRANS_COUNT)
+    print("LiftOn non-coding trans count\t\t\t: ", LIFTON_NC_TRANS_COUNT)
+    print("LiftOn OTHER trans count\t\t\t: ", LIFTON_OTHER_TRANS_COUNT)
+    print("LiftOn miniprot fixed trans count\t\t\t: ", LIFTON_MINIPROT_FIXED_GENE_COUNT)
 
+    fw.close()
+    fw_truncated.close()
+    fw_other_trans.close()
+    fw_nc_trans.close()
 
 def main(arglist=None):
     args = parse_args(arglist)
     print("Run Lifton!!")
     print(args)
-    run_all_liftoff_steps(args)
+    run_all_lifton_steps(args)
