@@ -2,8 +2,6 @@ from Bio import Seq
 
 sequence = Seq.Seq("ATGTTGCTCTGATGAGGGGTGAAGCAAGGTTACAGTGAGAAGGGCCTGGAGGGAGGAGGTCCTGGAGGAGGGGGG")
 
-
-
 # Find ORFs manually
 start_codon = "ATG"
 stop_codons = ["TAA", "TAG", "TGA"]
