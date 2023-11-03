@@ -1,6 +1,7 @@
-import re, sys, os
+import re, sys, os, copy
 from Bio.Seq import Seq
 from lifton import align, lifton_class, run_liftoff, run_miniprot
+from lifton.liftoff import liftoff_main
 
 def check_liftoff_installed():
     ################################
@@ -25,33 +26,52 @@ def check_miniprot_installed():
             print("miniprot is not properly installed.")
         return sys.exit(1)
 
+def write_protein_2_file(outdir, ref_proteins):
+    ref_proteins_file = outdir + "/proteins.fa"
+    with open(ref_proteins_file, 'w') as new_fasta_file:
+        # Iterate through the original FASTA and write the records to the new FASTA file
+        for record in ref_proteins:
+            print("record: ", record)
+            new_fasta_file.write(f'>{record}\n{ref_proteins[record]}\n')   
+    return ref_proteins_file
 
-def exec_liftoff(outdir):
+def exec_liftoff(outdir, args):
     ################################
     # Check if liftoff and miniprot results are generated
     ################################
-    liftoff_annotation = outdir + "/" + "liftoff.gff3"
-    print("liftoff_annotation  : ", liftoff_annotation)
+    # liftoff_annotation = outdir + "/" + "liftoff.gff3"
+    # print("liftoff_annotation  : ", liftoff_annotation)
+    
     ################################
-    # Execute liftoff and miniprot
+    # Execute liftoff
     ################################
-    if not os.path.exists(liftoff_annotation):
-        run_liftoff.run_liftoff()
+    liftoff_annotation = args.liftoff
+    if liftoff_annotation is None or not os.path.exists(liftoff_annotation):
+        print(">> run_liftoff")
+        liftoff_args = copy.deepcopy(args)
+        liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
+        os.makedirs(liftoff_outdir, exist_ok=True)
+        liftoff_annotation = liftoff_outdir + "liftoff.gff3"
+        liftoff_args.output = liftoff_annotation
+        liftoff_main.run_all_liftoff_steps(liftoff_args)
+        run_liftoff.run_liftoff(args)
     return liftoff_annotation
 
 
-def exec_miniprot(outdir):
+def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     ################################
     # Check if liftoff and miniprot results are generated
     ################################
     miniprot_annotation = outdir + "/" + "miniprot.gff3"
     print("miniprot_annotation : ", miniprot_annotation)
     ################################
-    # Execute liftoff and miniprot
+    # Execute miniprot
     ################################
+    liftoff_annotation = args.miniprot
     if not os.path.exists(miniprot_annotation):
-        run_miniprot.run_miniprot()
+        miniprot_annotation = run_miniprot.run_miniprot(args, tgt_genome, ref_proteins_file)
     return miniprot_annotation
+
 
 def get_child_types(parent_types, db):
     child_types = set()
