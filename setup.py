@@ -10,6 +10,6 @@ setuptools.setup(
 	url="https://github.com/Kuanhao-Chao/Lifton",
 	install_requires=['numpy>=1.22.0', "parasail>=1.2.1"],
 	python_requires='>=3.6',
-	packages=['lifton'],
+	packages=setuptools.find_packages(),
 	entry_points={'console_scripts': ['lifton = lifton.lifton:main'], },
 )
