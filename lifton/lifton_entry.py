@@ -1,4 +1,4 @@
-from lifton import write_lifton_entry, lifton_class
+from lifton import lifton_class
 
 def create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw, miniprot_is_better):
     cds_list = []

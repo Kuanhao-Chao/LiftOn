@@ -1,10 +1,93 @@
 import gffutils
 from pyfaidx import Fasta, Faidx
-from liftoff2 import liftoff_utils, feature_hierarchy, new_feature
+from lifton.liftoff  import liftoff_utils, feature_hierarchy, new_feature
 import os
 import sys
 import numpy as np
 import ujson as json
+
+
+
+
+
+def extract_features_to_lift(ref_chroms, liftover_type, parents_to_lift, args):
+    print("extracting features")
+    if os.path.exists(args.dir) is False:
+        os.mkdir(args.dir)
+    feature_db = create_feature_db_connections(args)
+    feature_hierarchy, parent_order = seperate_parents_and_children(feature_db, parents_to_lift)
+    get_gene_sequences(feature_hierarchy.parents, ref_chroms, args, liftover_type)
+    return feature_hierarchy, feature_db, parent_order
+
+
+# def create_feature_db_connections(args):
+#     gffutils.constants.ignore_url_escape_characters = True
+#     if args.infer_transcripts is True:
+#         disable_transcripts = False
+#     else:
+#         disable_transcripts = True
+#     if args.infer_genes is True:
+#         disable_genes = False
+#     else:
+#         disable_genes = True
+#     feature_db = build_database(args.db, args.g, disable_transcripts, disable_genes)
+#     return feature_db
+
+
+
+# def build_database(db, gff_file, disable_transcripts, disable_genes,):
+#     if db is None:
+#         try:
+#             feature_db = gffutils.create_db(gff_file, gff_file + "_db", merge_strategy="create_unique", force=True,
+#                                             disable_infer_transcripts=disable_transcripts,
+#                                             disable_infer_genes=disable_genes, verbose=True)
+#         except:
+#             find_problem_line(gff_file)
+#     else:
+#         feature_db = gffutils.FeatureDB(db)
+#     return feature_db
+
+
+
+def create_feature_db_connections(args):
+    try:
+        feature_db = gffutils.FeatureDB(args.reference_annotation)
+    except:
+        feature_db = build_database(args)
+    feature_db.execute('ANALYZE features')
+    return feature_db
+
+
+def build_database(args):
+    if args.infer_genes:
+        disable_genes = False
+    else:
+        disable_genes = True
+    try:
+        transform_func = get_transform_func(args)
+        feature_db = gffutils.create_db(args.reference_annotation, args.reference_annotation + "_db", merge_strategy="create_unique",
+                                    force=True,
+                                    verbose=True, disable_infer_transcripts=True,
+                                        disable_infer_genes=disable_genes, transform=transform_func)
+    except Exception as e:
+        print("gffutils database build failed with", e)
+        sys.exit()
+    return feature_db
+
+def get_transform_func(args):
+    if args.infer_genes is False:
+        return None
+    else:
+        return transform_func
+
+def transform_func(x):
+    if 'transcript_id' in x.attributes:
+        x.attributes['transcript_id'][0] += '_transcript'
+    return x
+
+
+
+
 
 
 def find_problem_line(gff_file):
@@ -24,7 +107,6 @@ def seperate_parents_and_children(feature_db, parent_types_to_lift):
     relations = [list(feature) for feature in c.execute('''SELECT * FROM relations join features as a on 
     a.id = relations.parent join features as b on b.id = relations.child''') if
                  feature[0] != feature[1]]
-    
     all_ids = [list(feature)[0]for feature in c.execute('''SELECT * FROM features''')]
     all_children_ids = [relation[1] for relation in relations ]
     all_parent_ids = [relation[0] for relation in relations]
@@ -32,43 +114,12 @@ def seperate_parents_and_children(feature_db, parent_types_to_lift):
     highest_parents = np.setdiff1d(all_ids, all_children_ids)
     intermediates = set(all_children_ids).intersection(set( all_parent_ids ))
     parent_dict, child_dict, intermediate_dict = {}, {}, {}
-
-    ################################
-    # Kuan-Hao add
-    ################################
-    # print(f"\n>>## all_ids: {all_ids}")
-    # print(f">>## all_children_ids: {all_children_ids} ")
-    # print(f">>## all_parent_ids: {all_parent_ids} ")
-    # print(f">>## lowest_children: {lowest_children} ")
-    # print(f">>## highest_parents: {highest_parents} ")
-    # print(f">>## intermediates: {intermediates}\n")
-    ################################
-
-
-
     add_parents(parent_dict, child_dict, highest_parents, parent_types_to_lift, feature_db)
     add_children(parent_dict, child_dict, lowest_children, feature_db)
     add_intermediates(intermediates, intermediate_dict, feature_db)
-
-
-    ################################
-    # Kuan-Hao add
-    ################################
-    # print(f">>## parent_dict: {parent_dict}")
-    # print(f">>## child_dict: {child_dict} ")
-    # print(f">>## intermediate_dict: {intermediate_dict} ")
-    ################################
-
     parent_order = liftoff_utils.find_parent_order(
         [parent for parent in list(parent_dict.values()) if parent is not None])
     ref_feature_hierarchy = feature_hierarchy.feature_hierarchy(parent_dict, intermediate_dict, child_dict)
-
-    ################################
-    # Kuan-Hao add
-    ################################
-    # print(f">>## parent_order: {parent_order}")
-    # print(f">>## ref_feature_hierarchy: {ref_feature_hierarchy} ")
-    ################################
     return ref_feature_hierarchy, parent_order
 
 
