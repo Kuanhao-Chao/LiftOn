@@ -2,9 +2,9 @@ from lifton.liftoff import write_new_gff, liftover_types, polish, align_features
 import argparse
 from pyfaidx import Fasta, Faidx
 
-# def main(arglist=None):
-#     args = parse_args(arglist)
-#     run_all_liftoff_steps(args)
+def main(arglist=None):
+    args = parse_args(arglist)
+    run_all_liftoff_steps(args)
 
 
 def run_all_liftoff_steps(args):
@@ -67,7 +67,7 @@ def parse_args(arglist):
 
     outgrp = parser.add_argument_group('Output')
     outgrp.add_argument(
-        '-o', default='stdout', metavar='FILE',
+        '-o', '--output', default='stdout', metavar='FILE',
         help='write output to FILE in same format as input; by default, output is written to terminal (stdout)'
     )
     outgrp.add_argument(
@@ -113,10 +113,10 @@ def parse_args(arglist):
 
     parser.add_argument('-V', '--version', help='show program version', action='version', version='v1.6.3')
     parser.add_argument(
-        '-p', default=1, type=int, metavar='P', help='use p parallel processes to accelerate alignment; by default p=1'
+        '-p', '--threads', default=1, type=int, metavar='P', help='use p parallel processes to accelerate alignment; by default p=1'
     )
     parser.add_argument('-m', help='Minimap2 path', metavar='PATH')
-    parser.add_argument('-f', metavar='TYPES', help='list of feature types to lift over')
+    parser.add_argument('-f', '--features', metavar='TYPES', help='list of feature types to lift over')
     parser.add_argument(
         '-infer_genes', action='store_true',
         help='use if annotation file only includes transcripts, exon/CDS features'
@@ -126,7 +126,7 @@ def parse_args(arglist):
         help='use if annotation file only includes exon/CDS features and does not include transcripts/mRNA'
     )
     parser.add_argument(
-        '-chroms', metavar='TXT', help='comma seperated file with corresponding chromosomes in '
+        '-chroms', metavar='TXT', default=None, help='comma seperated file with corresponding chromosomes in '
                                        'the reference,target sequences',
     )
     parser.add_argument(
@@ -277,9 +277,3 @@ def check_cds(feature_list, feature_hierarchy, args):
         ref_sub_features = polish.get_sub_features(feature_hierarchy.children, target_sub_features[0].id)
         polish.find_and_check_cds(target_sub_features, ref_sub_features, ref_faidx,
                                                              target_faidx, feature_list[target_feature])
-
-
-
-
-if __name__ == "__main__":
-    main()
