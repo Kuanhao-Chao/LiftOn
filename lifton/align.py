@@ -26,7 +26,7 @@ def parasail_align_protein_base(protein_seq, ref_protein_seq):
     gap_open = 11
     gap_extend = 1
     extracted_seq = str(protein_seq)
-    reference_seq = str(ref_protein_seq) + "*"
+    reference_seq = str(ref_protein_seq)
     # (Query, Reference)
     extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq

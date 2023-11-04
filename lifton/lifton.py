@@ -181,59 +181,48 @@ def run_all_lifton_steps(args):
     ref_chroms = []
 
     ################################
-    # Step 0: end2end mode
+    # Step 0: Reading target & reference genomes
     ################################
     tgt_genome = args.target
     ref_genome = args.reference
     outdir = os.path.dirname(args.output)
+    os.makedirs(outdir, exist_ok=True)
     outdir = outdir if outdir is not "" else "."
-    print("outdir: ", outdir)
-
     tgt_fai = Fasta(tgt_genome)
     ref_fai = Fasta(ref_genome)
-
-    print("tgt_genome: ", tgt_genome)
-    print("ref_genome: ", ref_genome)
-    
-    print(args)
+    # print(args)
 
     ################################
-    # Building database from the reference annotation
+    # Step 1: Building database from the reference annotation
     ################################
     feature_types = lifton_utils.get_feature_types(args.features)
     ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes)
     child_types = lifton_utils.get_child_types(feature_types, ref_db)
-    ref_proteins_file = args.proteins
 
+
+    ################################
+    # Step 2: Creating protein & DNA dictionaries from the reference annotation
+    ################################
+    ref_proteins_file = args.proteins
     if ref_proteins_file is None:
         print(">> Creating transcript protein dictionary from the reference annotation ...")
         ref_proteins = sequence.SequenceDict(ref_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
         ref_proteins_file = lifton_utils.write_protein_2_file(outdir, ref_proteins)
-
     else:
         print(">> Creating transcript protein dictionary from the reference annotation ...")
         ref_proteins = Fasta(ref_proteins_file)
+
     print(">> Creating transcript DNA dictionary from the reference annotation ...")
     ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
 
-    print("; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
-    print(";  len(ref_trans.keys()): ", len(ref_trans.keys()))
-
+    # print("; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
+    # print(";  len(ref_trans.keys()): ", len(ref_trans.keys()))
 
     ################################
-    # Run liftoff & miniprot
+    # Step 3: Run liftoff & miniprot
     ################################
-    if args.liftoff is None:
-        liftoff_annotation = lifton_utils.exec_liftoff(outdir, args)
-    else:
-        liftoff_annotation = args.liftoff
-        
-    if args.miniprot is None:
-        lifton_utils.check_miniprot_installed()
-        miniprot_annotation = lifton_utils.exec_miniprot(outdir, args, tgt_genome, ref_proteins_file)
-    else:
-        miniprot_annotation = args.miniprot
-
+    liftoff_annotation = lifton_utils.exec_liftoff(outdir, args)
+    miniprot_annotation = lifton_utils.exec_miniprot(outdir, args, tgt_genome, ref_proteins_file)
 
 
     ################################
