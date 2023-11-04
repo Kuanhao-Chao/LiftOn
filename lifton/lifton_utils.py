@@ -31,7 +31,6 @@ def write_protein_2_file(outdir, ref_proteins):
     with open(ref_proteins_file, 'w') as new_fasta_file:
         # Iterate through the original FASTA and write the records to the new FASTA file
         for record in ref_proteins:
-            print("record: ", record)
             new_fasta_file.write(f'>{record}\n{ref_proteins[record]}\n')   
     return ref_proteins_file
 
@@ -62,13 +61,16 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     ################################
     # Check if liftoff and miniprot results are generated
     ################################
-    miniprot_annotation = outdir + "/" + "miniprot.gff3"
-    print("miniprot_annotation : ", miniprot_annotation)
+    # miniprot_annotation = outdir + "/" + "miniprot.gff3"
+    # print("miniprot_annotation : ", miniprot_annotation)
     ################################
     # Execute miniprot
     ################################
-    liftoff_annotation = args.miniprot
-    if not os.path.exists(miniprot_annotation):
+    check_miniprot_installed()
+    miniprot_annotation = args.miniprot
+    if miniprot_annotation is None or not os.path.exists(miniprot_annotation):
+        # miniprot_annotation = outdir + "/" + "miniprot.gff3"
+        # print("miniprot_annotation : ", miniprot_annotation)
         miniprot_annotation = run_miniprot.run_miniprot(args, tgt_genome, ref_proteins_file)
     return miniprot_annotation
 
