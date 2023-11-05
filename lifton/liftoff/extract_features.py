@@ -12,8 +12,8 @@ import ujson as json
 
 def extract_features_to_lift(ref_chroms, liftover_type, parents_to_lift, args):
     print("extracting features")
-    if os.path.exists(args.dir) is False:
-        os.mkdir(args.dir)
+    if os.path.exists(args.directory) is False:
+        os.mkdir(args.directory)
     feature_db = create_feature_db_connections(args)
     feature_hierarchy, parent_order = seperate_parents_and_children(feature_db, parents_to_lift)
     get_gene_sequences(feature_hierarchy.parents, ref_chroms, args, liftover_type)
@@ -193,9 +193,9 @@ def add_intermediates(intermediate_ids, intermediate_dict, feature_db):
 def get_gene_sequences(parent_dict, ref_chroms, args, liftover_type):
     fai = Fasta(args.reference)
     if liftover_type == "unplaced":
-        open(args.dir + "/unplaced_genes.fa", 'w')
+        open(args.directory + "/unplaced_genes.fa", 'w')
     for chrom in ref_chroms:
-        fasta_out = get_fasta_out(chrom, args.reference, liftover_type, args.dir)
+        fasta_out = get_fasta_out(chrom, args.reference, liftover_type, args.directory)
         sorted_parents = sorted(list(parent_dict.values()), key=lambda x: x.seqid)
 
         if len(sorted_parents) == 0:

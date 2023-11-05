@@ -81,7 +81,7 @@ def parse_args(arglist):
              'partial_mapping=True, low_identity=True in comments'
     )
     outgrp.add_argument(
-        '-dir', default='intermediate_files', metavar='DIR',
+        '-dir', "--directory", default='intermediate_files', metavar='DIR',
         help='name of directory to save intermediate fasta and SAM files; default is "intermediate_files"',
     )
 

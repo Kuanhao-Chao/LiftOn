@@ -27,7 +27,7 @@ def args_outgrp(parser):
              'partial_mapping=True, low_identity=True in comments'
     )
     outgrp.add_argument(
-        '-D', '--dir', default='intermediate_files', metavar='DIR',
+        '-dir', '--directory', default='intermediate_files', metavar='DIR',
         help='name of directory to save intermediate fasta and SAM files; default is "intermediate_files"',
     )
     return outgrp
@@ -188,9 +188,12 @@ def run_all_lifton_steps(args):
     outdir = os.path.dirname(args.output)
     os.makedirs(outdir, exist_ok=True)
     outdir = outdir if outdir is not "" else "."
+    print(">> Reading target genome ...")
     tgt_fai = Fasta(tgt_genome)
+    
+    print(">> Reading reference genome ...")
     ref_fai = Fasta(ref_genome)
-    # print(args)
+    print(args)
 
     ################################
     # Step 1: Building database from the reference annotation
@@ -203,14 +206,18 @@ def run_all_lifton_steps(args):
     ################################
     # Step 2: Creating protein & DNA dictionaries from the reference annotation
     ################################
-    ref_proteins_file = args.proteins
+    ref_proteins_file = args.proteins    
     if ref_proteins_file is None:
         print(">> Creating transcript protein dictionary from the reference annotation ...")
-        ref_proteins = sequence.SequenceDict(ref_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)
-        ref_proteins_file = lifton_utils.write_protein_2_file(outdir, ref_proteins)
+        ref_proteins = sequence.SequenceDict(ref_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)        
+        ref_proteins_file = lifton_utils.write_protein_2_file(outdir, ref_proteins, False)
+
     else:
-        print(">> Creating transcript protein dictionary from the reference annotation ...")
+        print(">> Reading transcript protein dictionary from the reference fasta ...")
         ref_proteins = Fasta(ref_proteins_file)
+
+    trunc_ref_proteins = lifton_utils.get_truncated_protein(ref_proteins)
+    trunc_ref_proteins_file = lifton_utils.write_protein_2_file(outdir, trunc_ref_proteins, True)
 
     print(">> Creating transcript DNA dictionary from the reference annotation ...")
     ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
@@ -223,42 +230,38 @@ def run_all_lifton_steps(args):
     ################################
     liftoff_annotation = lifton_utils.exec_liftoff(outdir, args)
     miniprot_annotation = lifton_utils.exec_miniprot(outdir, args, tgt_genome, ref_proteins_file)
+    # print("liftoff_annotation : ", liftoff_annotation)
+    # print("miniprot_annotation: ", miniprot_annotation)
 
 
     ################################
-    # Running LiftOn algorithm
+    # Step 4: Run LiftOn algorithm
     ################################
     ################################
-    # Step 0: Getting the arguments (required / optional)
+    # Step 4.0: Create liftoff and miniprot database
     ################################
-    fai = Fasta(tgt_genome)
-    print("liftoff_annotation : ", liftoff_annotation)
-    print("miniprot_annotation: ", miniprot_annotation)
 
+    print(">> Creating liftoff database : ", liftoff_annotation)
     l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
+    print(">> Creating miniprot database : ", miniprot_annotation)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
-
-    print("l_feature_db: ", l_feature_db)
-    print("m_feature_db: ", m_feature_db)
 
     fw = open(args.output, "w")
     fw_truncated = open(args.output+".truncated", "w")
     fw_score = open(outdir+"/score.txt", "w")
 
     ################################
-    # Step 1: Creating miniprot 2 Liftoff ID mapping
+    # Step 4.1: Creating miniprot 2 Liftoff ID mapping
     ################################
     m_id_dict, aa_id_2_m_id_dict = mapping.id_mapping(m_feature_db)
     print("m_id_dict; ", m_id_dict)
     print("aa_id_2_m_id_dict; ", aa_id_2_m_id_dict)
-
     
     ################################
-    # Step 2: Initializing intervaltree
+    # Step 4.2: Initializing intervaltree
     ################################
     tree_dict = intervals.initialize_interval_tree(l_feature_db)
 
-    
     # Dictionary for extra copy
     gene_copy_num_dict = {}
     trans_copy_num_dict = {}
@@ -273,21 +276,26 @@ def run_all_lifton_steps(args):
     LIFTOFF_NC_TRANS_COUNT = 0
     LIFTOFF_OTHER_TRANS_COUNT = 0
 
+    LIFTON_TOTAL_TRANS_COUNT = 0
     LIFTON_BAD_PROT_TRANS_COUNT = 0
     LIFTON_GOOD_PROT_TRANS_COUNT = 0
     LIFTON_NC_TRANS_COUNT = 0
     LIFTON_OTHER_TRANS_COUNT = 0
     LIFTON_MINIPROT_FIXED_GENE_COUNT = 0
 
+
     ################################
-    # Step 3: Iterating gene entries & fixing CDS lists
+    # Step 4.3: Iterate gene entries & fixing CDS lists
     ################################
     # For missing transcripts.
     gene_copy_num_dict["gene-LiftOn"] = 0
     features = lifton_utils.get_parent_features_to_lift(args.features)
     
-    fw_other_trans = open(outdir+"/other_trans.txt", "w")
-    fw_nc_trans = open(outdir+"/nc_trans.txt", "w")
+    # For transcripts without CDSs
+    tmp_outdir = outdir + "/tmp/"
+    os.makedirs(tmp_outdir, exist_ok=True)
+    fw_other_trans = open(tmp_outdir+"/other_trans.txt", "w")
+    fw_nc_trans = open(tmp_outdir+"/nc_trans.txt", "w")
 
     for feature in features:
         for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
@@ -305,9 +313,9 @@ def run_all_lifton_steps(args):
             # Step 3.2: Creating LiftOn gene & gene_info
             ################################
             lifton_gene = lifton_class.Lifton_GENE(gene)
-            gene_info = copy.deepcopy(gene)
-            lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id_base)
-            gene_info_dict[gene_id_base] = lifton_gene_info
+            # gene_info = copy.deepcopy(gene)
+            # lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id_base)
+            # gene_info_dict[gene_id_base] = lifton_gene_info
             
             ################################
             # Step 3.3: Adding LiftOn transcripts
@@ -316,7 +324,6 @@ def run_all_lifton_steps(args):
             transcripts = l_feature_db.children(gene, level=1)
             for transcript in list(transcripts):
                 LIFTOFF_TOTAL_TRANS_COUNT += 1
-
                 lifton_status = lifton_class.Lifton_Status()
                 lifton_gene.add_transcript(transcript)
                 transcript_id = transcript["ID"][0]
@@ -326,14 +333,13 @@ def run_all_lifton_steps(args):
                 # Step 3.3.1: Creating trans copy number dictionary
                 ################################
                 lifton_utils.update_copy(transcript_id_base, trans_copy_num_dict)
-
-                print("\ttranscript_id\t: ", transcript_id)                
-                print("&& transcript_id_base\t: ", transcript_id_base)
-
-                transcript_info = copy.deepcopy(transcript)
-                lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id_base, gene_id_base)
+                print("\ttranscript_id\t: ", transcript_id)
+                if transcript_id != transcript_id_base:
+                    print("&& transcript_id_base\t: ", transcript_id_base)
+                # transcript_info = copy.deepcopy(transcript)
+                # lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id_base, gene_id_base)
                 trans_2_gene_dict[transcript_id_base] = gene_id_base
-                trans_info_dict[transcript_id_base] = lifton_trans_info
+                # trans_info_dict[transcript_id_base] = lifton_trans_info
 
                 ###########################
                 # Step 3.4: Adding exons
@@ -350,13 +356,13 @@ def run_all_lifton_steps(args):
                 for cds in list(cdss):
                     cds_num += 1
                     lifton_gene.add_cds(transcript_id, cds)
-                
+
 
                 #############################################
                 # Step 3.6: Processing transcript
                 #############################################
                 if (cds_num > 0) and (transcript_id_base in ref_proteins.keys()):
-                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, fai, ref_proteins, transcript_id_base)
+                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, tgt_fai, ref_proteins, transcript_id_base)
 
                     # SETTING Liftoff identity score
                     lifton_status.liftoff = l_lifton_aln.identity
@@ -371,7 +377,7 @@ def run_all_lifton_steps(args):
                         # # Writing out truncated LiftOff annotation
                         # l_lifton_aln.write_alignment(outdir, "liftoff", transcript_id)
                     
-                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, transcript_id_base)
+                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, transcript_id_base)
 
 
                         #############################################
@@ -379,7 +385,7 @@ def run_all_lifton_steps(args):
                         #############################################
                         if has_valid_miniprot:
                             LIFTON_MINIPROT_FIXED_GENE_COUNT += 1
-                            cds_list = fix_trans_annotation.chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw)
+                            cds_list = fix_trans_annotation.chaining_algorithm(l_lifton_aln, m_lifton_aln, tgt_fai, fw)
                             lifton_gene.update_cds_list(transcript_id, cds_list)
                             lifton_status.annotation = "LiftOff_miniprot_chaining_algorithm" 
                         else:
@@ -388,7 +394,7 @@ def run_all_lifton_steps(args):
                         #############################################
                         # Step 3.6.1.2: Check if there are mutations in the transcript
                         #############################################
-                        on_lifton_trans_aln, on_lifton_aa_aln = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, fai, ref_proteins, ref_trans, lifton_status)
+                        on_lifton_trans_aln, on_lifton_aa_aln = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, tgt_fai, ref_proteins, ref_trans, lifton_status)
                         # SETTING LiftOn identity score
                         if on_lifton_aa_aln.identity == 1:
                             LIFTON_GOOD_PROT_TRANS_COUNT += 1
@@ -408,7 +414,7 @@ def run_all_lifton_steps(args):
                         LIFTOFF_GOOD_PROT_TRANS_COUNT += 1
                         LIFTON_GOOD_PROT_TRANS_COUNT += 1
 
-                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, transcript_id_base)
+                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, transcript_id_base)
 
                         # SETTING LiftOn identity score => Same as Liftoff
                         lifton_status.lifton = l_lifton_aln.identity
@@ -441,6 +447,7 @@ def run_all_lifton_steps(args):
             # Step 4.7: Writing out LiftOn entries
             ###########################
             lifton_gene.write_entry(fw)
+            LIFTON_TOTAL_TRANS_COUNT += 1
             # print("Final!!")
             # lifton_gene.print_gene()
 
@@ -460,13 +467,14 @@ def run_all_lifton_steps(args):
 
     print("Liftoff total gene loci\t\t\t: ", LIFTOFF_TOTAL_GENE_COUNT)
     print("Liftoff total transcript\t\t\t: ", LIFTOFF_TOTAL_TRANS_COUNT)
-    print("Liftoff bad protein trans count\t\t\t: ", LIFTOFF_BAD_PROT_TRANS_COUNT)
+    print("Liftoff unperfect protein trans count\t\t\t: ", LIFTOFF_BAD_PROT_TRANS_COUNT)
     print("Liftoff good protein trans count\t\t\t: ", LIFTOFF_GOOD_PROT_TRANS_COUNT)
     print("Liftoff non-coding trans count\t\t\t: ", LIFTOFF_NC_TRANS_COUNT)
     print("Liftoff OTHER trans count\t\t\t: ", LIFTOFF_OTHER_TRANS_COUNT)
     print("\n\n")
 
-    print("LiftOn bad protein trans count\t\t\t: ", LIFTON_BAD_PROT_TRANS_COUNT)
+    print("LiftOn total transcript\t\t\t: ", LIFTON_TOTAL_TRANS_COUNT)
+    print("LiftOn unperfect protein trans count\t\t\t: ", LIFTON_BAD_PROT_TRANS_COUNT)
     print("LiftOn good protein trans count\t\t\t: ", LIFTON_GOOD_PROT_TRANS_COUNT)
     print("LiftOn non-coding trans count\t\t\t: ", LIFTON_NC_TRANS_COUNT)
     print("LiftOn OTHER trans count\t\t\t: ", LIFTON_OTHER_TRANS_COUNT)

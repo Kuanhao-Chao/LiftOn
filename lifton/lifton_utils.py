@@ -26,14 +26,49 @@ def check_miniprot_installed():
             print("miniprot is not properly installed.")
         return sys.exit(1)
 
-def write_protein_2_file(outdir, ref_proteins):
-    ref_proteins_file = outdir + "/proteins.fa"
-    with open(ref_proteins_file, 'w') as new_fasta_file:
-        # Iterate through the original FASTA and write the records to the new FASTA file
-        for record in ref_proteins:
-            new_fasta_file.write(f'>{record}\n{ref_proteins[record]}\n')   
+def get_truncated_protein(ref_proteins):
+    truncated_proteins = {}
+    for record in ref_proteins.keys():
+        protein = ref_proteins[record]
+        if not check_protein_valid(str(protein)):
+            truncated_proteins[record] = protein
+    # print("truncated_proteins: ", len(truncated_proteins))
+    # print("good_protein: ", good_protein)
+    # print("bad_protein: ", bad_protein)
+    return truncated_proteins
+
+
+def write_protein_2_file(outdir, ref_proteins, is_truncated):
+    if is_truncated:
+        ref_proteins_file = outdir + "/proteins_truncated.fa"
+    else:
+        ref_proteins_file = outdir + "/proteins.fa"
+
+    fw = open(ref_proteins_file, 'w')
+
+    # Iterate through the original FASTA and write the records to the new FASTA file
+    for record in ref_proteins.keys():
+        protein = ref_proteins[record]
+
+        fw.write(f'>{record}\n{ref_proteins[record]}\n')
+    fw.close()
     return ref_proteins_file
 
+
+def check_protein_valid(protein):
+    # Start with M
+    if protein[0] != "M":
+        return False
+    
+    # End with *
+    if protein[-1] != "*":
+        return False
+
+    # Only 1 * in the string
+    if protein.count("*") != 1:
+        return False
+    return True
+    
 def exec_liftoff(outdir, args):
     ################################
     # Check if liftoff and miniprot results are generated
@@ -46,7 +81,7 @@ def exec_liftoff(outdir, args):
     ################################
     liftoff_annotation = args.liftoff
     if liftoff_annotation is None or not os.path.exists(liftoff_annotation):
-        print(">> run_liftoff")
+        print(">> Running Liftoff ...")
         liftoff_args = copy.deepcopy(args)
         liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
         os.makedirs(liftoff_outdir, exist_ok=True)
@@ -69,8 +104,7 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     check_miniprot_installed()
     miniprot_annotation = args.miniprot
     if miniprot_annotation is None or not os.path.exists(miniprot_annotation):
-        # miniprot_annotation = outdir + "/" + "miniprot.gff3"
-        # print("miniprot_annotation : ", miniprot_annotation)
+        print(">> Running miniprot ...")
         miniprot_annotation = run_miniprot.run_miniprot(args, tgt_genome, ref_proteins_file)
     return miniprot_annotation
 
@@ -226,4 +260,3 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
                 lifton_status.miniprot = m_lifton_aln.identity
         
     return m_lifton_aln, has_valid_miniprot
-            
