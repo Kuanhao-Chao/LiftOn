@@ -17,7 +17,7 @@ def polish_annotations(feature_list, ref_faidx, target_faidx, args, feature_heir
     transcript_list = [feature for feature in target_sub_features if "matches_ref_protein" in feature.attributes]
     good_transcripts = [tran for tran in transcript_list if  tran.attributes["valid_ORF"] == ["True"]]
     if len(transcript_list) != len(good_transcripts):
-        output_sam = open(args.dir+"/polish.sam", 'w')
+        output_sam = open(args.directory+"/polish.sam", 'w')
         write_sam_header(target_faidx, output_sam)
         target_gene = target_sub_features[0]
         polish_annotation(ref_gene, target_gene, ref_sub_features, target_sub_features, ref_faidx,

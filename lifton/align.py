@@ -13,7 +13,6 @@ def get_cdss_protein_boundary(cdss_lens):
         start = cdss_cumulative_div[idx-1] if idx > 0 else 0
         end = cdss_cumulative_div[idx]
         cdss_protein_boundary[idx] = (start, end)
-
     # print("cdss_cumulative : ", cdss_cumulative)
     # print("cdss_cumulative_div : ", cdss_cumulative_div)
     # print("cdss_protein_boundary: ", cdss_protein_boundary)
@@ -70,10 +69,21 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     # Step 1: Sort CDS by its start
     ################################
     cds_children = []
+    # Gathering CDS regions
     for child in db.children(db_entry, featuretype='CDS'):
         if len(cds_children) == 0:
             cds_children.append(child)
             continue
+        idx_insert = 0
+        for idx_c in range(len(cds_children)):
+            itr_c = cds_children[idx_c]
+            # Equal sign is important! => it fixes those 0 intron cases.
+            if child.start >= itr_c.end:
+                idx_insert += 1
+        cds_children.insert(idx_insert, child)
+    
+    # Gathering stop codon regions (treated as coding sequence as well)
+    for child in db.children(db_entry, featuretype='stop_codon'):
         idx_insert = 0
         for idx_c in range(len(cds_children)):
             itr_c = cds_children[idx_c]
@@ -87,16 +97,9 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     trans_seq = ""
     cdss_lens = []
-    for cds_idx, cds in enumerate(cds_children):
-        # Include the stop coding for the last CDS(+) / first CDS(-) for miniprot 
-        if tool == "miniprot" and cds_idx == 0 and cds.strand == '-':
-            cds.start = cds.start -3
-        if tool == "miniprot" and cds_idx == len(cds_children)-1 and cds.strand == '+':
-            cds.end = cds.end + 3
-
+    for cds in cds_children:
         p_seq = cds.sequence(fai)
         p_seq = Seq(p_seq)
-
         # Chaining the CDS features
         if cds.strand == '-':
             trans_seq = p_seq + trans_seq
@@ -110,6 +113,8 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     ref_protein_seq = str(fai_protein[aa_trans_id])
     protein_seq = str(trans_seq.translate())
+
+    # print(tool, "; aa_trans_id: ", aa_trans_id, ";  protein_seq: ", protein_seq)
     return ref_protein_seq, protein_seq, cdss_lens, cds_children
 
 

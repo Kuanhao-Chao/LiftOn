@@ -11,9 +11,9 @@ from os import path
 
 def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy, liftover_type, unmapped_features):
     if args.subcommand == "polish":
-        sam_files = [args.dir + "/polish.sam"]
+        sam_files = [args.directory + "/polish.sam"]
     else:
-        target_fasta_dict = split_target_sequence(target_chroms, args.target, args.dir)
+        target_fasta_dict = split_target_sequence(target_chroms, args.target, args.directory)
         genome_size = get_genome_size(target_fasta_dict)
         threads_per_alignment = max(1, math.floor(int(args.threads) / len(ref_chroms)))
         sam_files = []
@@ -53,7 +53,7 @@ def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, l
     minimap2_path = get_minimap_path(args)
     target_prefix = get_target_prefix_name(target_chroms, index, args, liftover_type)
     if genome_size > max_single_index_size:
-        split_prefix = args.dir + "/" + features_name + "_to_" + target_prefix + "_split"
+        split_prefix = args.directory + "/" + features_name + "_to_" + target_prefix + "_split"
         command = [minimap2_path, '-o', output_file, target_file, features_file] + args.mm2_options.split(" ") + [
             "--split-prefix", split_prefix, '-t', threads_arg]
         subprocess.run(command)
@@ -74,7 +74,7 @@ def get_features_file(ref_chroms, args, liftover_type, index):
         features_name = "unplaced"
     else:
         features_name = ref_chroms[index]
-    return args.dir + "/" + features_name + "_genes.fa", features_name
+    return args.directory + "/" + features_name + "_genes.fa", features_name
 
 
 def get_target_file_and_output_file(liftover_type, target_chroms, index, features_name, args):
@@ -82,9 +82,9 @@ def get_target_file_and_output_file(liftover_type, target_chroms, index, feature
         target_file = args.target
         out_file_target = "target_all"
     else:
-        target_file = args.dir + "/" + target_chroms[index] + ".fa"
+        target_file = args.directory + "/" + target_chroms[index] + ".fa"
         out_file_target = target_chroms[index]
-    output_file = args.dir + "/" + features_name + "_to_" + out_file_target + ".sam"
+    output_file = args.directory + "/" + features_name + "_to_" + out_file_target + ".sam"
     return target_file, output_file
 
 
