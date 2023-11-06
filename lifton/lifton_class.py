@@ -13,7 +13,7 @@ class Lifton_Status:
         self.miniprot = 0
         self.lifton = 0
         self.annotation = None
-        self.status = None
+        self.status = []
 
 class Lifton_Alignment:
     def __init__(self, extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry):
@@ -128,6 +128,9 @@ class Lifton_GENE:
     def add_transcript(self, gffutil_entry_trans):
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
         self.transcripts[gffutil_entry_trans["ID"][0]] = Lifton_trans
+
+    def remove_transcript(self, transcript_id):
+        del self.transcripts[transcript_id]
 
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.transcripts[trans_id].add_exon(gffutil_entry_exon)
