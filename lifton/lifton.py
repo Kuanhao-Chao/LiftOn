@@ -9,6 +9,8 @@ import copy, os
 # import sys
 # from Bio.Seq import Seq
 
+import time
+
 
 def args_outgrp(parser):
     outgrp = parser.add_argument_group('* Output settings')
@@ -200,8 +202,8 @@ def run_all_lifton_steps(args):
     ################################
     feature_types = lifton_utils.get_feature_types(args.features)
     ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes)
-    child_types = lifton_utils.get_child_types(feature_types, ref_db)
-
+    # This is for special annotation file where there are no exon type
+    # child_types = lifton_utils.get_child_types(feature_types, ref_db)
 
     ################################
     # Step 2: Creating protein & DNA dictionaries from the reference annotation
@@ -220,7 +222,8 @@ def run_all_lifton_steps(args):
     trunc_ref_proteins_file = lifton_utils.write_protein_2_file(outdir, trunc_ref_proteins, True)
 
     print(">> Creating transcript DNA dictionary from the reference annotation ...")
-    ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
+    # ref_trans = sequence.SequenceDict(ref_db, ref_fai, child_types, False)
+    ref_trans = sequence.SequenceDict(ref_db, ref_fai, ['exon'], False)
 
     # print("; len(ref_proteins.keys()): ", len(ref_proteins.keys()))
     # print(";  len(ref_trans.keys()): ", len(ref_trans.keys()))
@@ -240,9 +243,9 @@ def run_all_lifton_steps(args):
     ################################
     # Step 4.0: Create liftoff and miniprot database
     ################################
-
     print(">> Creating liftoff database : ", liftoff_annotation)
     l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
+    
     print(">> Creating miniprot database : ", miniprot_annotation)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
 
@@ -362,12 +365,15 @@ def run_all_lifton_steps(args):
                 # Step 3.6: Processing transcript
                 #############################################
                 if (cds_num > 0) and (transcript_id_base in ref_proteins.keys()):
-                    l_lifton_aln = align.parasail_align("liftoff", l_feature_db, transcript, tgt_fai, ref_proteins, transcript_id_base)
+                    liftoff_aln = align.parasail_align("liftoff", l_feature_db, transcript, tgt_fai, ref_proteins, transcript_id_base)
 
                     # SETTING Liftoff identity score
-                    lifton_status.liftoff = l_lifton_aln.identity
+                    lifton_status.liftoff = liftoff_aln.identity
 
-                    if l_lifton_aln.identity < 1:
+                    if liftoff_aln.identity < 1:
+                        # This is for debugging purpose
+                        # lifton_gene.remove_transcript(transcript_id)
+                        
                         LIFTOFF_BAD_PROT_TRANS_COUNT += 1
                         #############################################
                         # Step 3.6.1: Liftoff annotation is not perfect
@@ -375,9 +381,9 @@ def run_all_lifton_steps(args):
                         lifton_status.annotation = "LiftOff_truncated"
 
                         # # Writing out truncated LiftOff annotation
-                        # l_lifton_aln.write_alignment(outdir, "liftoff", transcript_id)
+                        # liftoff_aln.write_alignment(outdir, "liftoff", transcript_id)
                     
-                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, transcript_id_base)
+                        miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, transcript_id_base)
 
 
                         #############################################
@@ -385,7 +391,7 @@ def run_all_lifton_steps(args):
                         #############################################
                         if has_valid_miniprot:
                             LIFTON_MINIPROT_FIXED_GENE_COUNT += 1
-                            cds_list = fix_trans_annotation.chaining_algorithm(l_lifton_aln, m_lifton_aln, tgt_fai, fw)
+                            cds_list = fix_trans_annotation.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai, fw)
                             lifton_gene.update_cds_list(transcript_id, cds_list)
                             lifton_status.annotation = "LiftOff_miniprot_chaining_algorithm" 
                         else:
@@ -396,6 +402,7 @@ def run_all_lifton_steps(args):
                         #############################################
                         on_lifton_trans_aln, on_lifton_aa_aln = lifton_gene.fix_truncated_protein(transcript_id, transcript_id_base, tgt_fai, ref_proteins, ref_trans, lifton_status)
                         # SETTING LiftOn identity score
+                        
                         if on_lifton_aa_aln.identity == 1:
                             LIFTON_GOOD_PROT_TRANS_COUNT += 1
                         elif on_lifton_aa_aln.identity < 1:
@@ -407,23 +414,24 @@ def run_all_lifton_steps(args):
                                     on_lifton_aa_aln.write_alignment(outdir, "lifton_AA", mutation, transcript_id)
                                     on_lifton_trans_aln.write_alignment(outdir, "lifton_DNA", mutation, transcript_id)
 
-                    elif l_lifton_aln.identity == 1:
+                    elif liftoff_aln.identity == 1:
                         #############################################
                         # Step 3.6.2: Liftoff annotation is perfect
                         #############################################
                         LIFTOFF_GOOD_PROT_TRANS_COUNT += 1
                         LIFTON_GOOD_PROT_TRANS_COUNT += 1
 
-                        m_lifton_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, transcript_id_base)
+                        miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, transcript_id_base)
 
                         # SETTING LiftOn identity score => Same as Liftoff
-                        lifton_status.lifton = l_lifton_aln.identity
+                        lifton_status.lifton = liftoff_aln.identity
                         lifton_status.annotation = "LiftOff_identical"
                         lifton_status.status = ["identical"]
 
                     final_status = ";".join(lifton_status.status)
                     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
-                
+
+
                 else:
                     # Only liftoff annotation
                     print("No cds || no protein")

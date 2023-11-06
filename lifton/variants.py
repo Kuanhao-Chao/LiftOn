@@ -96,12 +96,12 @@ def find_variants(align_dna, align_protein, lifton_status, peps):
 
     # 3. return cases
     if is_frameshift(align_dna.query_aln):
-        print("frameshift: align_dna.query_aln: ", align_dna.query_aln)
+        # print("frameshift: align_dna.query_aln: ", align_dna.query_aln)
         mutation_type.append('frameshift')
         frameshift = True
 
     if is_frameshift(align_dna.ref_aln):
-        print("frameshift: align_dna.ref_aln: ", align_dna.ref_aln)
+        # print("frameshift: align_dna.ref_aln: ", align_dna.ref_aln)
         mutation_type.append('frameshift')
         frameshift = True
 
