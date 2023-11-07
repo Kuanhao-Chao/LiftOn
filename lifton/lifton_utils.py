@@ -206,6 +206,7 @@ def update_copy(id_base, copy_num_dict):
 def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id):
     m_lifton_aln = None
     has_valid_miniprot = False
+    # print("transcript_id in m_id_dict.keys(): ", transcript_id in m_id_dict.keys())
     if (transcript_id in m_id_dict.keys()):
         #############################################
         # Step 3.6.1.1: Liftoff annotation is not perfect & miniprot annotation exists => Fix by protein information
