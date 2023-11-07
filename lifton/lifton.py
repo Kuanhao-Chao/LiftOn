@@ -336,7 +336,7 @@ def run_all_lifton_steps(args):
 
 
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature):#, limit=("chr1", 0, 80478771)):
+        for gene in l_feature_db.features_of_type(feature):#, limit=("CM033155.1", 0, 877531)):
             LIFTON_TOTAL_GENE_COUNT += 1
             chromosome = gene.seqid
             gene_id = gene.attributes["ID"][0]
@@ -517,6 +517,11 @@ def run_all_lifton_steps(args):
             ###########################
             gene_interval = Interval(lifton_gene.entry.start, lifton_gene.entry.end, gene_id)
             tree_dict[chromosome].add(gene_interval)
+
+
+    ################################
+    # Step 6: Check Liftoff unmapped features
+    ################################
 
 
     ################################
