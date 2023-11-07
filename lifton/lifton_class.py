@@ -618,7 +618,7 @@ class Lifton_TRANS:
 
                 else:
                     # Keep the original full CDS
-                    if exon.cds is not None:
+                    if exon.cds is None:
                         exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)

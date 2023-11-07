@@ -38,24 +38,30 @@ def get_truncated_protein(ref_proteins):
     return truncated_proteins
 
 
-def write_protein_2_file(outdir, ref_proteins, is_truncated):
-    if is_truncated:
-        ref_proteins_file = outdir + "/proteins_truncated.fa"
-    else:
-        ref_proteins_file = outdir + "/proteins.fa"
+def write_seq_2_file(outdir, ref_seqs, target):
+    if target == "truncated_proteins":
+        ref_seqs_file = outdir + "/proteins_truncated.fa"
+    elif target == "proteins":
+        ref_seqs_file = outdir + "/proteins.fa"
+    elif target == "transcripts":
+        ref_seqs_file = outdir + "/transcripts.fa"
 
-    fw = open(ref_proteins_file, 'w')
+    fw = open(ref_seqs_file, 'w')
 
     # Iterate through the original FASTA and write the records to the new FASTA file
-    for record in ref_proteins.keys():
-        protein = ref_proteins[record]
+    for record in ref_seqs.keys():
+        seq = ref_seqs[record]
 
-        fw.write(f'>{record}\n{ref_proteins[record]}\n')
+        fw.write(f'>{record}\n{seq}\n')
     fw.close()
-    return ref_proteins_file
+    return ref_seqs_file
 
 
 def check_protein_valid(protein):
+    # The length of the protein has to be greater than 0
+    if len(protein) == 0:
+        return False
+    
     # Start with M
     if protein[0] != "M":
         return False
@@ -183,6 +189,7 @@ def get_ID_base(id):
 def get_parent_features_to_lift(feature_types_file):
     feature_types = ["gene"]
     if feature_types_file is not None:
+        feature_types = []
         f = open(feature_types_file)
         for line in f.readlines():
             feature_types.append(line.rstrip())
