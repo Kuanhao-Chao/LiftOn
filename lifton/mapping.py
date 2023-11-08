@@ -1,6 +1,6 @@
 def id_mapping(m_feature_db):
     m_id_dict = {}
-    aa_id_2_m_id_dict = {}
+    m_id_2_ref_id_trans_dict = {}
     for feature in m_feature_db.features_of_type("mRNA"):
         # Print all attributes and their values for the feature
         miniprot_id = feature["ID"][0]
@@ -11,7 +11,7 @@ def id_mapping(m_feature_db):
             m_id_dict[aa_trans_id].append(miniprot_id)
         else:
             m_id_dict[aa_trans_id] = [miniprot_id]
-        aa_id_2_m_id_dict[miniprot_id] = aa_trans_id
+        m_id_2_ref_id_trans_dict[miniprot_id] = aa_trans_id
 
     ###################################
     # Printing the miniprot dictionary
@@ -25,4 +25,4 @@ def id_mapping(m_feature_db):
     # for feature in m_feature_db.features_of_type("mRNA"):
     #     print("feature ", feature)
     
-    return m_id_dict, aa_id_2_m_id_dict
+    return m_id_dict, m_id_2_ref_id_trans_dict

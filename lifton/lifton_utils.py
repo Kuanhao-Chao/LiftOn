@@ -76,6 +76,7 @@ def check_protein_valid(protein):
     return True
     
 def exec_liftoff(outdir, args):
+    # Run liftoff with no extra-copies
     ################################
     # Check if liftoff and miniprot results are generated
     ################################
@@ -129,15 +130,6 @@ def get_child_types(parent_types, db):
     return child_types
 
 
-def get_feature_types(feature_arg):
-    feature_types = ['gene']
-    if feature_arg is not None:
-        with open(feature_arg) as fa:
-            for line in fa:
-                feature_types.append(line.strip())
-    return feature_types
-
-
 def segments_overlap(segment1, segment2):
     # Check if the segments have valid endpoints
     # print("Checking two segments overlapping.!")
@@ -185,6 +177,11 @@ def get_ID_base(id):
     except:
         id_base = id
     return id_base
+
+def get_ID(feature):
+    id = feature["ID"][0]
+    id_base = get_ID_base(id)
+    return id, id_base
 
 def get_parent_features_to_lift(feature_types_file):
     feature_types = ["gene"]
@@ -268,3 +265,36 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
                 lifton_status.miniprot = m_lifton_aln.identity
         
     return m_lifton_aln, has_valid_miniprot
+
+
+def get_ref_liffover_features(features, ref_db):
+    ref_features_dict = {}
+    ref_trans_2_gene_dict = {}
+    gene_info_dict = {}
+    trans_info_dict = {}
+    
+    for feature in features:
+        for gene in ref_db.db_connection.features_of_type(feature):#, limit=("CM033155.1", 0, 
+            gene_id = gene.attributes["ID"][0]
+            gene_info = copy.deepcopy(gene)
+            lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id)
+            gene_info_dict[gene_id] = lifton_gene_info
+            
+
+
+            if gene_id not in ref_features_dict.keys():
+                ref_features_dict[gene_id] = {}
+
+            transcripts = ref_db.db_connection.children(gene, level=1)
+            for transcript in list(transcripts):
+                transcript_id = transcript["ID"][0]
+                transcript_info = copy.deepcopy(transcript)
+                lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id, gene_id)
+                trans_info_dict[lifton_trans_info] = lifton_trans_info
+
+                ref_features_dict[gene_id][transcript_id] = False
+                ref_trans_2_gene_dict[transcript_id] = gene_id
+
+    print("ref gene count : ", len(ref_features_dict), "(", len(gene_info_dict), ")")
+    print("ref trans count: ", len(trans_info_dict))
+    return ref_features_dict, ref_trans_2_gene_dict, gene_info_dict, trans_info_dict

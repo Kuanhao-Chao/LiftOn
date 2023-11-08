@@ -228,6 +228,10 @@ def write_gene_sequences_to_file(chrom_name, reference_fasta_name, reference_fas
         current_chrom = chrom_name
     chrom_seq = reference_fasta_idx[current_chrom][:].seq
     for parent in parents:
+        # Skip those chromosomes that are not in the reference fasta
+        if parent.seqid not in reference_fasta_idx.keys():
+            continue
+
         if parent.seqid != current_chrom and chrom_name == reference_fasta_name:
             current_chrom = parent.seqid
             chrom_seq = reference_fasta_idx[current_chrom][:].seq
