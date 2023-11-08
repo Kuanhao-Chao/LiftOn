@@ -62,7 +62,24 @@ elif [[ "$TARGET" == "rice" || "$TARGET" == "rice_test" ]]; then
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.fna"
 
+elif [[ "$TARGET" == "human_chess" ]]; then
+    echo "running LiftOn on human_chess"
+    REFERENCE_gff="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/chess/chess3.0.1.gff_db"
+    # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished_db"
+    # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff_db"
+    TARGET_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
+    REFERENCE_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/chess/hg38_p12_ucsc.no_alts.no_fixs.fa"
+    ADDITIONAL_ARG="-f /ccb/salz2/kh.chao/Lifton/data/features_chess.txt"
+
+elif [[ "$TARGET" == "human_mane" || "$TARGET" == "CHM13_MANE" ]]; then
+    echo "running LiftOn on human_mane"
+    REFERENCE_gff="/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/MANE_RefSeq/MANE.GRCh38.v1.2.refseq_genomic.cleaned.gff_db"
+    # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished_db"
+    # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff_db"
+    TARGET_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
+    REFERENCE_genome="/ccb/salz2/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
 else
+
     echo "Cannot find the genome. Exit.."
     exit -1
 fi
@@ -78,6 +95,6 @@ ref_trans="${intermediate_dir}transcripts.fa"
 echo "lifoff annotation: $LIFTOFF_gff"
 echo "miniprot annotation: $MINIPROT_gff"
 echo "intermediate_dir: $intermediate_dir"
-echo "lifton -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans $TARGET_genome $REFERENCE_genome"
+echo "lifton -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG"
 
-lifton -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans $TARGET_genome $REFERENCE_genome
+# lifton -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans $TARGET_genome $REFERENCE_genome
