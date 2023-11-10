@@ -205,20 +205,15 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
     has_valid_miniprot = False
 
     if (transcript_id in m_id_dict.keys()) and (transcript_id in ref_proteins.keys()):
-        #############################################
-        # Step 3.6.1.1: Liftoff annotation is not perfect & miniprot annotation exists => Fix by protein information
-        #############################################
         m_ids = m_id_dict[transcript_id]
-
         for m_id in m_ids:
-
             ##################################################
             # Check 1: Check if the miniprot transcript is overlapping the current gene locus
             ##################################################
             m_entry = m_feature_db[m_id]
             overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
             if not overlap or m_entry.seqid != transcript.seqid:
-                print("Not overlapping")
+                print("Not overlapped")
                 continue
 
             ##################################################
@@ -236,8 +231,6 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             liftoff_set = set()
             for ovp_liftoff in ovps_liftoff:
                 liftoff_set.add(ovp_liftoff[2])
-                # print("\tovp_liftoff: ", ovp_liftoff)
-            # print("liftoff_set : ", liftoff_set)
             
             for ovp_miniprot in ovps_miniprot:
                 if ovp_miniprot[2] not in liftoff_set:
@@ -248,20 +241,13 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
                 continue
 
             ################################
-            # Step 3.6.2: Protein sequences are in both Liftoff and miniprot & overlap
-            #   Fix & update CDS list
-            ################################
-            ################################
-            # Step 3.6.3: miniprot transcript alignment
+            # Step 3: valid miniprot transcript exists => check if the miniprot transcript is valid
             ################################
             has_valid_miniprot = True
 
             if m_lifton_aln == None or m_lifton_aln.identity > lifton_status.miniprot:
-                # # Writing out truncated miniprot annotation
-                # m_lifton_aln.write_alignment(outdir, "miniprot", m_id)
-                # SETTING miniprot identity score
-                
                 m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, ref_proteins, transcript_id, lifton_status)
+                # SETTING miniprot identity score                
                 lifton_status.miniprot = m_lifton_aln.identity
         
     return m_lifton_aln, has_valid_miniprot
@@ -305,3 +291,30 @@ def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+
+
+def segments_overlap_length(segment1, segment2):
+    # Check if the segments have valid endpoints
+    # print("Checking two segments overlapping.!")
+    if len(segment1) != 2 or len(segment2) != 2:
+        raise ValueError("Segments must have exactly 2 endpoints")
+    
+    # Sort the segments by their left endpoints
+    segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
+    # print("Checking miniprot overlapped length: ", segment1[1] - segment2[0] + 1)
+
+    return segment1[1] - segment2[0] + 1
+
+def check_ovps_ratio(mtrans_interval, ovps, overlap_ratio):
+    is_overlapped = False
+    for ovp in ovps:
+        ovp_len = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
+        ref_len = ovp[1] - ovp[0] + 1
+        # Overlapping does not extend the ratio of the reference
+        if (ovp_len / ref_len) > overlap_ratio:
+            # print("Overlapped!!: ", (ovp_len / ref_len))
+            is_overlapped = True
+            break
+    return is_overlapped
+
+

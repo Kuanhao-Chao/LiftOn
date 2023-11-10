@@ -64,7 +64,7 @@ def parasail_align_DNA_base(trans_seq, ref_trans_seq):
     return extracted_parasail_res, extracted_seq, reference_seq
 
 
-def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
+def LiftOn_translate(tool, db, db_entry, fai, ref_proteins, transcript_id):
     ################################
     # Step 1: Sort CDS by its start
     ################################
@@ -111,59 +111,48 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     ################################
     # Step 3: Translate the DNA sequence & get the reference protein sequence.
     ################################
-    ref_protein_seq = str(fai_protein[aa_trans_id])
+    ref_protein_seq = str(ref_proteins[transcript_id])
     protein_seq = str(trans_seq.translate())
 
-    # print(tool, "; aa_trans_id: ", aa_trans_id, ";  protein_seq: ", protein_seq)
+    # print(tool, "; transcript_id: ", transcript_id, ";  protein_seq: ", protein_seq)
     return ref_protein_seq, protein_seq, cdss_lens, cds_children
 
 
-def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id, lifton_status):
+def parasail_align(tool, db, db_entry, fai, ref_proteins, transcript_id, lifton_status):
+    ################################
+    # Step 1: Check if the transcript_id is in the reference protein dictionary
+    ################################
     lifton_aln = None
-    if aa_trans_id not in fai_protein.keys():
+    if transcript_id not in ref_proteins.keys():
         return lifton_aln
-        
-    ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id)
 
     ################################
-    # Step 4: Get the corresponding protein boundaries for each CDS
+    # Step 2: Translate the given annotation
+    ################################
+    ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, ref_proteins, transcript_id)
+
+    ################################
+    # Step 3: Get the corresponding protein boundaries for each CDS
     ################################
     cdss_protein_boundary = get_cdss_protein_boundary(cdss_lens)
 
     ################################
-    # Step 5: Protein alignment
+    # Step 4: Protein alignment
     ################################
     extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, ref_protein_seq)
 
     ################################
-    # Step 6: Extract the alignment information
+    # Step 5: Extract the alignment information
     ################################
-    alignment_score = extracted_parasail_res.score
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
-
     cigar = extracted_parasail_res.cigar
-    # alignment_start_query = extracted_parasail_res.traceback.query_begin
-    # alignment_end_query = extracted_parasail_res.traceback.query_end
-    # alignment_start_comp = extracted_parasail_res.traceback.comp_begin
-    # alignment_end_comp = extracted_parasail_res.traceback.comp_end
-
-    # print("extracted_seq: ", extracted_seq)
-    # # Print the additional alignment results
-    # print("\t>> alignment_score: ", alignment_score)
-    # print("\t>> cigar.seq   : ", cigar.seq)
-    # for i in cigar.seq:
-    #     print("\t\t>> cigar.i   : ", i)
-    # use decode attribute to return a decoded cigar string
-    
-    # print("\t>> cigar.decode: ", cigar.decode.decode())
     decoded_cigar = cigar.decode.decode()
     cigar_ls = list(Cigar(decoded_cigar).items())
-    # print("\t>> cigar_ls: ", cigar_ls)
-    
+
     ################################
-    # Step 7: Change the CDS protein boundaries based on CIGAR string.
+    # Step 6: Change the CDS protein boundaries based on CIGAR string.
     ################################
     cigar_accum_len = 0
     cdss_protein_aln_boundary = cdss_protein_boundary.copy()
