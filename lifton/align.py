@@ -64,7 +64,7 @@ def parasail_align_DNA_base(trans_seq, ref_trans_seq):
     return extracted_parasail_res, extracted_seq, reference_seq
 
 
-def LiftOn_translate(tool, db, db_entry, fai, ref_proteins, transcript_id):
+def LiftOn_translate(tool, db, db_entry, fai, ref_proteins, ref_trans_id):
     ################################
     # Step 1: Sort CDS by its start
     ################################
@@ -111,25 +111,25 @@ def LiftOn_translate(tool, db, db_entry, fai, ref_proteins, transcript_id):
     ################################
     # Step 3: Translate the DNA sequence & get the reference protein sequence.
     ################################
-    ref_protein_seq = str(ref_proteins[transcript_id])
+    ref_protein_seq = str(ref_proteins[ref_trans_id])
     protein_seq = str(trans_seq.translate())
 
-    # print(tool, "; transcript_id: ", transcript_id, ";  protein_seq: ", protein_seq)
+    # print(tool, "; ref_trans_id: ", ref_trans_id, ";  protein_seq: ", protein_seq)
     return ref_protein_seq, protein_seq, cdss_lens, cds_children
 
 
-def parasail_align(tool, db, db_entry, fai, ref_proteins, transcript_id, lifton_status):
+def parasail_align(tool, db, db_entry, fai, ref_proteins, ref_trans_id, lifton_status):
     ################################
-    # Step 1: Check if the transcript_id is in the reference protein dictionary
+    # Step 1: Check if the ref_trans_id is in the reference protein dictionary
     ################################
     lifton_aln = None
-    if transcript_id not in ref_proteins.keys():
+    if ref_trans_id not in ref_proteins.keys():
         return lifton_aln
 
     ################################
     # Step 2: Translate the given annotation
     ################################
-    ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, ref_proteins, transcript_id)
+    ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, ref_proteins, ref_trans_id)
 
     ################################
     # Step 3: Get the corresponding protein boundaries for each CDS
