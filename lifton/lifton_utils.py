@@ -200,12 +200,12 @@ def update_copy(id_base, copy_num_dict):
         copy_num_dict[id_base] = 0
     
 
-def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, transcript_id):
+def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
     m_lifton_aln = None
     has_valid_miniprot = False
 
-    if (transcript_id in m_id_dict.keys()) and (transcript_id in ref_proteins.keys()):
-        m_ids = m_id_dict[transcript_id]
+    if (ref_trans_id in m_id_dict.keys()) and (ref_trans_id in ref_proteins.keys()):
+        m_ids = m_id_dict[ref_trans_id]
         for m_id in m_ids:
             ##################################################
             # Check 1: Check if the miniprot transcript is overlapping the current gene locus
@@ -246,7 +246,7 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             has_valid_miniprot = True
 
             if m_lifton_aln == None or m_lifton_aln.identity > lifton_status.miniprot:
-                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, ref_proteins, transcript_id, lifton_status)
+                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
                 # SETTING miniprot identity score                
                 lifton_status.miniprot = m_lifton_aln.identity
         
@@ -282,6 +282,7 @@ def get_ref_liffover_features(features, ref_db):
     print("ref gene count : ", len(ref_features_dict), "(", len(gene_info_dict), ")")
     print("ref trans count: ", len(trans_info_dict))
     return ref_features_dict, ref_trans_2_gene_dict, gene_info_dict, trans_info_dict
+
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)

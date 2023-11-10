@@ -44,14 +44,14 @@ class Lifton_GENE_info:
     def __init__(self, attrs, gene_id_base):
         self.attributes = attrs
 
-        #########################
-        # These info are for extra copies
-        #########################
-        if 'coverage' in self.attributes: self.attributes.pop('coverage')
-        if 'sequence_ID' in self.attributes: self.attributes.pop('sequence_ID')
-        if 'valid_ORFs' in self.attributes: self.attributes.pop('valid_ORFs')
+        # #########################
+        # # These info are for extra copies
+        # #########################
+        # if 'coverage' in self.attributes: self.attributes.pop('coverage')
+        # if 'sequence_ID' in self.attributes: self.attributes.pop('sequence_ID')
+        # if 'valid_ORFs' in self.attributes: self.attributes.pop('valid_ORFs')
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')
-        if 'copy_num_ID' in self.attributes: self.attributes.pop('copy_num_ID')
+        # if 'copy_num_ID' in self.attributes: self.attributes.pop('copy_num_ID')
         self.attributes['ID'] = [gene_id_base]
 
     def update_gene_info_copy_number(self, gene_id_base, gene_copy_num_dict):
@@ -67,8 +67,8 @@ class Lifton_TRANS_info:
         #########################
         # These info are for extra copies
         #########################
-        if 'matches_ref_protein' in self.attributes: self.attributes.pop('matches_ref_protein')
-        if 'valid_ORF' in self.attributes: self.attributes.pop('valid_ORF')
+        # if 'matches_ref_protein' in self.attributes: self.attributes.pop('matches_ref_protein')
+        # if 'valid_ORF' in self.attributes: self.attributes.pop('valid_ORF')
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')        
         self.attributes['ID'] = [trans_id_base]
         self.attributes['Parent'] = [gene_id_base]
@@ -96,46 +96,46 @@ class Lifton_TRANS_info:
 
 class Lifton_GENE:
     def __init__(self, gffutil_entry_gene, ref_gene_attrs, gene_copy_num_dict, tree_dict):
-        gffutil_entry_gene.source = "Lifton"
-
-        id = gffutil_entry_gene["ID"][0]
-        self.id_base = lifton_utils.get_ID_base(id)
-
-        gffutil_entry_gene.attributes = ref_gene_attrs.attributes
+        ###########################
+        # Assigning the reference gene & attributes
+        ###########################
         self.entry = gffutil_entry_gene
+        self.entry.attributes = ref_gene_attrs.attributes
+        self.entry.source = "LiftOn"
+        self.transcripts = {}
 
-        # if 'coverage' in self.entry.attributes: self.entry.attributes.pop('coverage')
-        # if 'sequence_ID' in self.entry.attributes: self.entry.attributes.pop('sequence_ID')
-        # if 'valid_ORFs' in self.entry.attributes: self.entry.attributes.pop('valid_ORFs')
-        # if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
-        # if 'copy_num_ID' in self.entry.attributes: self.entry.attributes.pop('copy_num_ID')
+        ###########################
+        # Get reference ID for the gene.
+        ###########################
+        self.ref_id = lifton_utils.get_ID_base(self.entry["ID"][0])
 
         ###########################
         # Update gene copy number dictionary
         ###########################
-        lifton_utils.update_copy(self.id_base, gene_copy_num_dict)
-        if gene_copy_num_dict[self.id_base] > 0:
-            self.entry["ID"][0] = self.id_base + '_' + str(gene_copy_num_dict[self.id_base])
-            self.entry.attributes["extra_copy_number"] = [str(gene_copy_num_dict[self.id_base])]
+        lifton_utils.update_copy(self.ref_id, gene_copy_num_dict)
+        print("gene copy_number: ", gene_copy_num_dict[self.ref_id])
+        if gene_copy_num_dict[self.ref_id] > 0:
+            # Update the gene ID & extra_copy_number attributes
+            self.entry["ID"][0] = self.ref_id + '_' + str(gene_copy_num_dict[self.ref_id])
+            print("gene: self.entry[ID][0]: ", self.entry["ID"][0])
+            self.entry.attributes["extra_copy_number"] = [str(gene_copy_num_dict[self.ref_id])]
 
         ###########################
         # Adding LiftOn intervals
         ###########################
         gene_interval = Interval(self.entry.start, self.entry.end, id)
-        tree_dict[gffutil_entry_gene.seqid].add(gene_interval)
-
-        self.transcripts = {}
-    
-    def update_gene_info(self, gene_id, chromosome, start, end, gene_attrs, gene_copy_num_dict):
+        tree_dict[self.entry.seqid].add(gene_interval)
+        
+    def update_gene_info(self, ref_gene_id, chromosome, start, end, gene_attrs, gene_copy_num_dict):
         self.entry.seqid = chromosome
         self.entry.featuretype = "gene"
         self.entry.start = start
         self.entry.end = end
-        if gene_id not in gene_copy_num_dict.keys():
-            gene_copy_num_dict[gene_id] = 0
+        if ref_gene_id not in gene_copy_num_dict.keys():
+            gene_copy_num_dict[ref_gene_id] = 0
         else:    
-            gene_copy_num_dict[gene_id] += 1
-        gene_attrs.update_gene_info_copy_number(gene_id, gene_copy_num_dict)
+            gene_copy_num_dict[ref_gene_id] += 1
+        gene_attrs.update_gene_info_copy_number(ref_gene_id, gene_copy_num_dict)
         self.entry.attributes = gene_attrs.attributes
 
     def create_new_transcript(self, novel, gene_id, trans_id, trans_entry, chromosome, start, end, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
@@ -151,7 +151,8 @@ class Lifton_GENE:
 
     def add_transcript(self, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
         Lifton_trans = Lifton_TRANS(gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict)
-        self.transcripts[gffutil_entry_trans["ID"][0]] = Lifton_trans
+        self.transcripts[Lifton_trans.entry["ID"][0]] = Lifton_trans
+        return Lifton_trans.entry["ID"][0]
 
     def remove_transcript(self, transcript_id):
         del self.transcripts[transcript_id]
@@ -162,9 +163,9 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-    def fix_truncated_protein(self, trans_id, trans_id_base, fai, fai_protein, fai_trans, lifton_status):
-        ref_protein_seq = fai_protein[trans_id_base]
-        ref_trans_seq = fai_trans[trans_id_base]
+    def fix_truncated_protein(self, trans_id, ref_trans_id, fai, ref_proteins, fai_trans, lifton_status):
+        ref_protein_seq = ref_proteins[ref_trans_id]
+        ref_trans_seq = fai_trans[ref_trans_id]
         if trans_id not in self.transcripts.keys():
             return None, False
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
@@ -200,24 +201,29 @@ class Lifton_GENE:
 
 class Lifton_TRANS:
     def __init__(self, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
-        gffutil_entry_trans.source = "Lifton"
-        id = gffutil_entry_trans["ID"][0]
-        self.id_base = lifton_utils.get_ID_base(id)
-        gffutil_entry_trans.attributes = ref_trans_attrs.attributes
+        ###########################
+        # Assigning the reference transcripts & attributes
+        ###########################
         self.entry = gffutil_entry_trans
-        # if 'matches_ref_protein' in self.entry.attributes: self.entry.attributes.pop('matches_ref_protein')
-        # if 'valid_ORF' in self.entry.attributes: self.entry.attributes.pop('valid_ORF')
-        # if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')        
+        self.entry.attributes = ref_trans_attrs.attributes
+        self.entry.source = "LiftOn"
         self.exons = []
         self.exon_dic = {}
 
         ###########################
+        # Get reference ID for the transcript.
+        ###########################
+        self.ref_id = lifton_utils.get_ID_base(self.entry["ID"][0])
+
+        ###########################
         # Update gene copy number dictionary
         ###########################
-        lifton_utils.update_copy(self.id_base, trans_copy_num_dict)
-        if trans_copy_num_dict[self.id_base] > 0:
-            self.entry["ID"][0] = self.id_base + '_' + str(trans_copy_num_dict[self.id_base])
-            self.entry.attributes["extra_copy"] = [str(trans_copy_num_dict[self.id_base])]
+        lifton_utils.update_copy(self.ref_id, trans_copy_num_dict)
+        print("transcript copy_number: ", trans_copy_num_dict[self.ref_id])
+        if trans_copy_num_dict[self.ref_id] > 0:
+            self.entry["ID"][0] = self.ref_id + '_' + str(trans_copy_num_dict[self.ref_id])
+            print("self.entry[ID][0]: ", self.entry["ID"][0])
+            self.entry.attributes["extra_copy"] = [str(trans_copy_num_dict[self.ref_id])]
 
     def add_lifton_status_attrs(self, lifton_status):
         self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton:.3f}"]
@@ -684,7 +690,7 @@ class Lifton_TRANS:
 
 class Lifton_EXON:
     def __init__(self, gffutil_entry_exon):
-        gffutil_entry_exon.source = "Lifton"
+        gffutil_entry_exon.source = "LiftOn"
         gffutil_entry_exon.featuretype = "exon"
         self.entry = gffutil_entry_exon
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
@@ -694,7 +700,7 @@ class Lifton_EXON:
 
     def update_exon_info(self, start, end):
         self.cds = None
-        self.entry.source = "Lifton"
+        self.entry.source = "LiftOn"
         self.entry.start = start
         self.entry.end = end
         # print(f"start: {self.entry.start} - end: {self.entry.end}")
@@ -733,7 +739,7 @@ class Lifton_EXON:
 
 class Lifton_CDS:
     def __init__(self, gffutil_entry_cds):
-        gffutil_entry_cds.source = "Lifton"
+        gffutil_entry_cds.source = "LiftOn"
         gffutil_entry_cds.featuretype = "CDS"
         self.entry = gffutil_entry_cds
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
