@@ -111,7 +111,8 @@ class Lifton_GENE:
         # Update gene copy number dictionary
         ###########################
         lifton_utils.update_copy(self.id_base, gene_copy_num_dict)
-        self.entry.attributes["extra_copy"] = [str(gene_copy_num_dict[self.id_base])]
+        if gene_copy_num_dict[self.id_base] > 0:
+            self.entry.attributes["extra_copy"] = [str(gene_copy_num_dict[self.id_base])]
 
         ###########################
         # Adding LiftOn intervals
@@ -203,7 +204,8 @@ class Lifton_TRANS:
         # Update gene copy number dictionary
         ###########################
         lifton_utils.update_copy(self.id_base, trans_copy_num_dict)
-        self.entry.attributes["extra_copy"] = [str(trans_copy_num_dict[self.id_base])]
+        if trans_copy_num_dict[self.id_base] > 0:
+            self.entry.attributes["extra_copy"] = [str(trans_copy_num_dict[self.id_base])]
 
 
     def add_exon(self, gffutil_entry_exon):
