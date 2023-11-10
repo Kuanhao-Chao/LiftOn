@@ -118,7 +118,11 @@ def LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     return ref_protein_seq, protein_seq, cdss_lens, cds_children
 
 
-def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
+def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id, lifton_status):
+    lifton_aln = None
+    if aa_trans_id not in fai_protein.keys():
+        return lifton_aln
+        
     ref_protein_seq, protein_seq, cdss_lens, cds_children = LiftOn_translate(tool, db, db_entry, fai, fai_protein, aa_trans_id)
 
     ################################
@@ -182,4 +186,12 @@ def parasail_align(tool, db, db_entry, fai, fai_protein, aa_trans_id):
     extracted_identity = extracted_matches/extracted_length
 
     lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry)
+
+    if tool == "liftoff":
+        # SETTING Liftoff identity score
+        lifton_status.liftoff = lifton_aln.identity
+    elif tool == "miniprot":
+        # SETTING miniprot identity score
+        lifton_status.miniprot = lifton_aln.identity
+
     return lifton_aln

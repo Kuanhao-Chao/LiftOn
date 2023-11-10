@@ -200,11 +200,11 @@ def update_copy(id_base, copy_num_dict):
         copy_num_dict[id_base] = 0
     
 
-def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, fai_protein, transcript_id):
+def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, transcript_id):
     m_lifton_aln = None
     has_valid_miniprot = False
-    # print("transcript_id in m_id_dict.keys(): ", transcript_id in m_id_dict.keys())
-    if (transcript_id in m_id_dict.keys()):
+
+    if (transcript_id in m_id_dict.keys()) and (transcript_id in ref_proteins.keys()):
         #############################################
         # Step 3.6.1.1: Liftoff annotation is not perfect & miniprot annotation exists => Fix by protein information
         #############################################
@@ -261,7 +261,7 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
                 # m_lifton_aln.write_alignment(outdir, "miniprot", m_id)
                 # SETTING miniprot identity score
                 
-                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, fai_protein, transcript_id)
+                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, ref_proteins, transcript_id, lifton_status)
                 lifton_status.miniprot = m_lifton_aln.identity
         
     return m_lifton_aln, has_valid_miniprot
@@ -280,8 +280,6 @@ def get_ref_liffover_features(features, ref_db):
             lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id)
             gene_info_dict[gene_id] = lifton_gene_info
             
-
-
             if gene_id not in ref_features_dict.keys():
                 ref_features_dict[gene_id] = {}
 
@@ -290,7 +288,7 @@ def get_ref_liffover_features(features, ref_db):
                 transcript_id = transcript["ID"][0]
                 transcript_info = copy.deepcopy(transcript)
                 lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id, gene_id)
-                trans_info_dict[lifton_trans_info] = lifton_trans_info
+                trans_info_dict[transcript_id] = lifton_trans_info
 
                 ref_features_dict[gene_id][transcript_id] = False
                 ref_trans_2_gene_dict[transcript_id] = gene_id
@@ -298,3 +296,12 @@ def get_ref_liffover_features(features, ref_db):
     print("ref gene count : ", len(ref_features_dict), "(", len(gene_info_dict), ")")
     print("ref trans count: ", len(trans_info_dict))
     return ref_features_dict, ref_trans_2_gene_dict, gene_info_dict, trans_info_dict
+
+def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
+    final_status = ";".join(lifton_status.status)
+    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+
+
+def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
+    final_status = ";".join(lifton_status.status)
+    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
