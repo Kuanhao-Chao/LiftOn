@@ -193,13 +193,6 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
-def update_copy(id_base, copy_num_dict):
-    if id_base in copy_num_dict.keys():
-        copy_num_dict[id_base] += 1
-    else:
-        copy_num_dict[id_base] = 0
-    
-
 def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
     m_lifton_aln = None
     has_valid_miniprot = False
@@ -286,13 +279,9 @@ def get_ref_liffover_features(features, ref_db):
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
+
+    print(">> transcript_id: ", transcript_id)
     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
-
-
-def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
-    final_status = ";".join(lifton_status.status)
-    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
-
 
 def segments_overlap_length(segment1, segment2):
     # Check if the segments have valid endpoints

@@ -1,4 +1,4 @@
-from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants
+from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants, extra_copy
 import copy, os
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
@@ -41,27 +41,17 @@ class Lifton_Alignment:
 
 
 class Lifton_GENE_info:
-    def __init__(self, attrs, gene_id_base):
+    def __init__(self, attrs, ref_gene_id):
         self.attributes = attrs
 
         # #########################
         # # These info are for extra copies
         # #########################
-        # if 'coverage' in self.attributes: self.attributes.pop('coverage')
-        # if 'sequence_ID' in self.attributes: self.attributes.pop('sequence_ID')
-        # if 'valid_ORFs' in self.attributes: self.attributes.pop('valid_ORFs')
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')
-        # if 'copy_num_ID' in self.attributes: self.attributes.pop('copy_num_ID')
-        self.attributes['ID'] = [gene_id_base]
-
-    def update_gene_info_copy_number(self, gene_id_base, gene_copy_num_dict):
-        self.attributes['ID'] = [gene_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
-        if gene_id_base != "gene-LiftOn" and gene_copy_num_dict[gene_id_base] > 0:
-            self.attributes['extra_copy_number'] = [str(gene_copy_num_dict[gene_id_base])]
-
+        self.attributes['ID'] = [ref_gene_id]
     
 class Lifton_TRANS_info:
-    def __init__(self, attrs, trans_id_base, gene_id_base):
+    def __init__(self, attrs, ref_trans_id, ref_gene_id):
         self.attributes = attrs
 
         #########################
@@ -70,28 +60,9 @@ class Lifton_TRANS_info:
         # if 'matches_ref_protein' in self.attributes: self.attributes.pop('matches_ref_protein')
         # if 'valid_ORF' in self.attributes: self.attributes.pop('valid_ORF')
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')        
-        self.attributes['ID'] = [trans_id_base]
-        self.attributes['Parent'] = [gene_id_base]
-        self.attributes['transcript_id'] = [trans_id_base]
-
-
-    def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, gene_copy_num_dict, trans_copy_num_dict):
-        gene_copy_num = gene_copy_num_dict[gene_id_base]
-        gene_id = gene_id_base + '_' + str(gene_copy_num)
-        trans_copy_num = 0
-        trans_id = ""
-        if trans_id_base in trans_copy_num_dict.keys():
-            trans_copy_num = trans_copy_num_dict[trans_id_base]
-            trans_id = trans_id_base + '_' + str(trans_copy_num)
-        else:
-            trans_copy_num = 0
-            trans_id = trans_id_base
-
-        self.attributes['ID'] = [trans_id]
-        self.attributes['Parent'] = [gene_id]
-        self.attributes['transcript_id'] = [trans_id]
-        if trans_copy_num > 0:
-            self.attributes['extra_copy_number'] = [str(trans_copy_num)]
+        self.attributes['ID'] = [ref_trans_id]
+        self.attributes['Parent'] = [ref_gene_id]
+        self.attributes['transcript_id'] = [ref_trans_id]
 
 
 class Lifton_GENE:
@@ -100,59 +71,63 @@ class Lifton_GENE:
         # Assigning the reference gene & attributes
         ###########################
         self.entry = gffutil_entry_gene
-        self.entry.attributes = ref_gene_attrs.attributes
         self.entry.source = "LiftOn"
+        self.entry.attributes = copy.deepcopy(ref_gene_attrs.attributes)
         self.transcripts = {}
-
         ###########################
         # Get reference ID for the gene.
         ###########################
-        self.ref_id = lifton_utils.get_ID_base(self.entry["ID"][0])
-
+        self.ref_id = lifton_utils.get_ID_base(self.entry.id)
         ###########################
         # Update gene copy number dictionary
         ###########################
-        lifton_utils.update_copy(self.ref_id, gene_copy_num_dict)
-        print("gene copy_number: ", gene_copy_num_dict[self.ref_id])
-        if gene_copy_num_dict[self.ref_id] > 0:
-            # Update the gene ID & extra_copy_number attributes
-            self.entry["ID"][0] = self.ref_id + '_' + str(gene_copy_num_dict[self.ref_id])
-            print("gene: self.entry[ID][0]: ", self.entry["ID"][0])
-            self.entry.attributes["extra_copy_number"] = [str(gene_copy_num_dict[self.ref_id])]
-
+        self.__update_gene_copy(gene_copy_num_dict)
         ###########################
         # Adding LiftOn intervals
         ###########################
-        gene_interval = Interval(self.entry.start, self.entry.end, id)
+        gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
         tree_dict[self.entry.seqid].add(gene_interval)
-        
-    def update_gene_info(self, ref_gene_id, chromosome, start, end, gene_attrs, gene_copy_num_dict):
+
+    def __update_gene_copy(self, gene_copy_num_dict):
+        if self.ref_id in gene_copy_num_dict.keys():
+            gene_copy_num_dict[self.ref_id] += 1
+            new_gene_id = self.ref_id + '_' + str(gene_copy_num_dict[self.ref_id])
+            print("before gene id: ", self.entry.id)
+            self.__update_gene_id(new_gene_id)
+            self.__update_gene_extra_copy_attrs(gene_copy_num_dict)
+            print("after gene id: ", self.entry.id)
+
+        else:
+            gene_copy_num_dict[self.ref_id] = 0
+
+    def __update_gene_id(self, gene_id):
+        self.entry.id = gene_id
+        self.entry.attributes['ID'] = [gene_id]
+
+    def __update_gene_extra_copy_attrs(self, gene_copy_num_dict):
+        self.entry.attributes["extra_copy_number"] = [str(gene_copy_num_dict[self.ref_id])]
+
+    def update_gene_info(self, chromosome, start, end):
         self.entry.seqid = chromosome
         self.entry.featuretype = "gene"
         self.entry.start = start
         self.entry.end = end
-        if ref_gene_id not in gene_copy_num_dict.keys():
-            gene_copy_num_dict[ref_gene_id] = 0
-        else:    
-            gene_copy_num_dict[ref_gene_id] += 1
-        gene_attrs.update_gene_info_copy_number(ref_gene_id, gene_copy_num_dict)
-        self.entry.attributes = gene_attrs.attributes
 
-    def create_new_transcript(self, novel, gene_id, trans_id, trans_entry, chromosome, start, end, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
-        Lifton_trans = Lifton_TRANS(trans_entry, ref_trans_attrs, trans_copy_num_dict)
-        Lifton_trans.entry.seqid = chromosome
-        Lifton_trans.entry.featuretype = "mRNA"
-        Lifton_trans.entry.start = start
-        Lifton_trans.entry.end = end
-        ref_trans_attrs.update_trans_info_copy_number(novel, gene_id, trans_id, gene_copy_num_dict, trans_copy_num_dict)
-        Lifton_trans.entry.attributes = ref_trans_attrs.attributes
-        self.transcripts[Lifton_trans.entry.attributes["ID"][0]] = Lifton_trans
-        return Lifton_trans.entry.attributes["ID"][0]
+    def add_miniprot_transcript(self, trans_id, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
+        Lifton_trans = Lifton_TRANS(trans_id, self.entry.id, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict)
+        self.transcripts[Lifton_trans.entry.id] = Lifton_trans
+        return Lifton_trans.entry.id
+    
+    def update_trans_info(self, trans_id, chromosome, start, end):
+        self.transcripts[trans_id].entry.seqid = chromosome
+        self.transcripts[trans_id].entry.featuretype = "mRNA"
+        self.transcripts[trans_id].entry.start = start
+        self.transcripts[trans_id].entry.end = end
 
     def add_transcript(self, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
-        Lifton_trans = Lifton_TRANS(gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict)
-        self.transcripts[Lifton_trans.entry["ID"][0]] = Lifton_trans
-        return Lifton_trans.entry["ID"][0]
+        Lifton_trans = Lifton_TRANS(gffutil_entry_trans.id, self.entry.id ,gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict)
+        self.transcripts[Lifton_trans.entry.id] = Lifton_trans
+        return Lifton_trans.entry.id
 
     def remove_transcript(self, transcript_id):
         del self.transcripts[transcript_id]
@@ -177,9 +152,6 @@ class Lifton_GENE:
 
     def add_lifton_status_attrs(self, trans_id, lifton_status):
         self.transcripts[trans_id].add_lifton_status_attrs(lifton_status)
-        # self.entry.attributes["protein_identity"] = [str(lifton_status.lifton)]
-        # self.entry.attributes["liftoff_aa_identity"] = [str(lifton_status.liftoff)]
-        # self.entry.attributes["miniprot_aa_identity"] = [str(lifton_status.miniprot)]
 
     def write_entry(self, fw):
         fw.write(str(self.entry) + "\n")
@@ -200,12 +172,12 @@ class Lifton_GENE:
 
 
 class Lifton_TRANS:
-    def __init__(self, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
+    def __init__(self, trans_id, gene_id, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
         ###########################
         # Assigning the reference transcripts & attributes
         ###########################
         self.entry = gffutil_entry_trans
-        self.entry.attributes = ref_trans_attrs.attributes
+        self.entry.attributes = copy.deepcopy(ref_trans_attrs.attributes)
         self.entry.source = "LiftOn"
         self.exons = []
         self.exon_dic = {}
@@ -213,17 +185,41 @@ class Lifton_TRANS:
         ###########################
         # Get reference ID for the transcript.
         ###########################
-        self.ref_id = lifton_utils.get_ID_base(self.entry["ID"][0])
+        self.ref_id = lifton_utils.get_ID_base(trans_id)
 
         ###########################
         # Update gene copy number dictionary
         ###########################
-        lifton_utils.update_copy(self.ref_id, trans_copy_num_dict)
-        print("transcript copy_number: ", trans_copy_num_dict[self.ref_id])
-        if trans_copy_num_dict[self.ref_id] > 0:
-            self.entry["ID"][0] = self.ref_id + '_' + str(trans_copy_num_dict[self.ref_id])
-            print("self.entry[ID][0]: ", self.entry["ID"][0])
-            self.entry.attributes["extra_copy"] = [str(trans_copy_num_dict[self.ref_id])]
+        self.__update_trans_copy(trans_copy_num_dict)
+        self.entry.attributes['Parent'] = [gene_id]
+        self.entry.attributes['transcript_id'] = [self.entry.id]
+
+
+    def __update_trans_copy(self, trans_copy_num_dict):
+        if self.ref_id in trans_copy_num_dict.keys():
+            trans_copy_num_dict[self.ref_id] += 1
+            new_trans_id = self.ref_id + '_' + str(trans_copy_num_dict[self.ref_id])
+            print("before trans id: ", self.entry.id)
+            self.__update_trans_id(new_trans_id)
+            self.__update_trans_extra_copy_attrs(trans_copy_num_dict)
+            print("after trans id: ", self.entry.id)
+        else:
+            trans_copy_num_dict[self.ref_id] = 0
+            new_trans_id = self.ref_id
+            self.__update_trans_id(new_trans_id)
+
+    def __update_trans_id(self, trans_id):
+        self.entry.id = trans_id
+        self.entry.attributes['ID'] = [trans_id]
+
+    def __update_trans_extra_copy_attrs(self, trans_copy_num_dict):
+        self.entry.attributes["extra_copy_number"] = [str(trans_copy_num_dict[self.ref_id])]
+
+
+
+
+
+
 
     def add_lifton_status_attrs(self, lifton_status):
         self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton:.3f}"]
@@ -231,7 +227,7 @@ class Lifton_TRANS:
 
     def add_exon(self, gffutil_entry_exon):
         attributes = {}
-        attributes['Parent'] = self.entry.attributes['ID']
+        attributes['Parent'] = [self.entry.id]
         gffutil_entry_exon.attributes = attributes
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
@@ -240,7 +236,7 @@ class Lifton_TRANS:
         for exon in self.exons:
             if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
                 attributes = {}
-                attributes['Parent'] = self.entry.attributes['ID']
+                attributes['Parent'] = [self.entry.id]
                 gffutil_entry_cds.attributes = attributes
                 exon.add_cds(gffutil_entry_cds)
 
