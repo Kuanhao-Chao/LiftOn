@@ -97,3 +97,10 @@ def find_extra_copy(m_feature_db, tree_dict, m_id_2_ref_id_trans_dict, gene_info
                 Lifton_gene_ecp.write_entry(fw)
 
     return EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT
+
+
+def update_copy(id_base, copy_num_dict):
+    if id_base in copy_num_dict.keys():
+        copy_num_dict[id_base] += 1
+    else:
+        copy_num_dict[id_base] = 0

@@ -321,16 +321,33 @@ def run_all_lifton_steps(args):
     # Step 5: Process Liftoff genes & transcripts
     ################################
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature, limit=("chr1", 0, 10877531)):
+        for gene in l_feature_db.features_of_type(feature, limit=("chr1", 0, 100877531)):
             liftoff_gene_id, ref_gene_id = lifton_utils.get_ID(gene)
 
+            # print("before gene.attributes[ID]: ", gene.attributes["ID"] )
+            # print("before id: ", gene.id )
+
+            # gene.attributes["ID"] = ["1234567890"]
+
+
+            # print("after gene.attributes[ID]: ", gene.attributes["ID"] )
+            # print("after id: ", gene.id )
+
+            # gene.id = "ABCDED"
+
+            # print("after 2 gene.attributes[ID]: ", gene.attributes["ID"] )
+            # print("after 2 id: ", gene.id )
+            # print("\n\n")
+
+            # print("gene 2: ", gene.attributes["ID"][0] )
             ###########################
             # 5.1 Create LifOn gene instance
             ###########################
             lifton_gene = lifton_class.Lifton_GENE(gene, ref_gene_info_dict[ref_gene_id], gene_copy_num_dict, tree_dict)
             # Assign new gene ID with copy_number updated
-            liftoff_gene_id = lifton_gene.entry["ID"][0]
+            liftoff_gene_id = lifton_gene.entry.id
             
+
             ###########################
             # 5.2 iterate through Liftoff transcripts
             #   Assumption: all 1st level are transcripts
@@ -477,9 +494,6 @@ def run_all_lifton_steps(args):
             lifton_gene.write_entry(fw)
 
 
-
-
-
     ################################
     # Step 6: Process miniprot transcripts
     ################################
@@ -505,15 +519,16 @@ def run_all_lifton_steps(args):
                 # Create LifOn gene instance
                 ###########################
                 lifton_gene = lifton_class.Lifton_GENE(gene_entry_base, ref_gene_info_dict[ref_gene_id], gene_copy_num_dict, tree_dict)
-                lifton_gene.update_gene_info(ref_gene_id, mtrans.seqid, mtrans.start, mtrans.end, ref_gene_info_dict[ref_gene_id], gene_copy_num_dict)
+                lifton_gene.update_gene_info(mtrans.seqid, mtrans.start, mtrans.end)
 
                 ###########################
                 # Create LifOn transcript instance
                 ###########################
-                trans_attrs = ref_trans_info_dict[ref_trans_id]
-                new_m_trans_id = lifton_gene.create_new_transcript(False, ref_gene_id, ref_trans_id, trans_entry_base, mtrans.seqid, mtrans.start, mtrans.end, trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
-                ref_features_dict[ref_gene_id][ref_trans_id] = True
+                new_m_trans_id = lifton_gene.add_miniprot_transcript(ref_trans_id, trans_entry_base, ref_trans_info_dict[ref_trans_id], trans_copy_num_dict)
+                lifton_gene.update_trans_info(new_m_trans_id, mtrans.seqid, mtrans.start, mtrans.end)
 
+                # Mark the gene & transcript as lifted-over
+                ref_features_dict[ref_gene_id][ref_trans_id] = True
 
                 #######################################
                 # Create exon / CDS entries
@@ -526,18 +541,12 @@ def run_all_lifton_steps(args):
                     cds_copy = copy.deepcopy(cds)
                     lifton_gene.add_cds(new_m_trans_id, cds_copy)
 
-
+                #######################################
                 # Update LiftOn status
-                # create status for each LiftOn transcript
+                #######################################
                 lifton_status = lifton_class.Lifton_Status()                
-
-                ##################################################
-                # Check 1: Check if the miniprot transcript is overlapping the current gene locus
-                ##################################################
                 m_entry = m_feature_db[mtrans_id]
-
                 m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
-                lifton_status.miniprot = m_lifton_aln.identity
                 lifton_status.lifton = m_lifton_aln.identity
 
                 if m_lifton_aln.identity == 1:
@@ -556,14 +565,14 @@ def run_all_lifton_steps(args):
                 ref_gene_id = "gene-LiftOn"
                 gene_attrs = lifton_class.Lifton_GENE_info({}, ref_gene_id)
                 lifton_gene = lifton_class.Lifton_GENE(gene_entry_base, gene_attrs, gene_copy_num_dict, tree_dict)
-                lifton_gene.update_gene_info(ref_gene_id, mtrans.seqid, mtrans.start, mtrans.end, gene_attrs, gene_copy_num_dict)
+                lifton_gene.update_gene_info(mtrans.seqid, mtrans.start, mtrans.end)
 
                 #######################################
                 # Create LiftOn transcript entry
                 #######################################
                 trans_attrs = lifton_class.Lifton_TRANS_info({}, ref_trans_id, ref_gene_id)
-                new_m_trans_id = lifton_gene.create_new_transcript(True, ref_gene_id, ref_trans_id, trans_entry_base, mtrans.seqid, mtrans.start, mtrans.end, trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
-
+                new_m_trans_id = lifton_gene.add_miniprot_transcript(ref_trans_id, trans_entry_base, trans_attrs, trans_copy_num_dict)
+                lifton_gene.update_trans_info(new_m_trans_id, mtrans.seqid, mtrans.start, mtrans.end)
 
                 #######################################
                 # Create the exon / CDS entry
@@ -574,7 +583,14 @@ def run_all_lifton_steps(args):
                     lifton_gene.add_exon(new_m_trans_id, cds)
                     cds_copy = copy.deepcopy(cds)
                     lifton_gene.add_cds(new_m_trans_id, cds_copy)
-            
+
+                #######################################
+                # Update LiftOn status
+                #######################################
+                lifton_status = lifton_class.Lifton_Status()                
+                lifton_status.annotation = "miniprot_no_ref_protein"
+                lifton_status.status = ["no_ref_protein"]
+
             ###########################
             # Write scores for each transcript
             ###########################
@@ -587,9 +603,6 @@ def run_all_lifton_steps(args):
             lifton_gene.write_entry(fw)
 
 
-
-
-
     TOTOAL_GENES = 0
     TOTOAL_TRANS = 0
 
@@ -598,6 +611,7 @@ def run_all_lifton_steps(args):
 
     LIFTED_TRANS = 0
     MISSED_TRANS = 0
+
 
     for gene in ref_features_dict.keys():
         TOTOAL_GENES += 1
@@ -618,14 +632,53 @@ def run_all_lifton_steps(args):
         else:
             MISSED_GENES += 1
 
-    print("* TOTOAL_GENES: ", TOTOAL_GENES)
-    print("* LIFTED_GENES: ", LIFTED_GENES)
-    print("* MISSED_GENES: ", MISSED_GENES)
-    print()
+
+    SINGLE_COPY_GENES = 0
+    EXTRA_COPY_GENES = 0
+    EXTRA_COPY_GENES_NUM = 0
+
+    SINGLE_COPY_TRANS = 0
+    EXTRA_COPY_TRANS = 0
+    EXTRA_COPY_TRANS_NUM = 0
+
+
+    for gene in gene_copy_num_dict.keys():
+        if gene_copy_num_dict[gene] > 0:
+            EXTRA_COPY_GENES += 1
+            EXTRA_COPY_GENES_NUM += gene_copy_num_dict[gene]
+        else:
+            SINGLE_COPY_GENES += 1
+
+    for trans in trans_copy_num_dict.keys():
+        if trans_copy_num_dict[trans] > 0:
+            EXTRA_COPY_TRANS += 1
+            EXTRA_COPY_TRANS_NUM += trans_copy_num_dict[trans]
+        else:
+            SINGLE_COPY_TRANS += 1
+
+    if TOTOAL_GENES != (EXTRA_COPY_GENES + SINGLE_COPY_GENES):
+        print("Error: ", TOTOAL_GENES, " != ", (EXTRA_COPY_GENES + SINGLE_COPY_GENES))
+    if TOTOAL_TRANS != (EXTRA_COPY_TRANS + SINGLE_COPY_TRANS):
+        print("Error: ", TOTOAL_TRANS, " != ", (EXTRA_COPY_TRANS + SINGLE_COPY_TRANS))
+
+    print("* Total genes\t: ", TOTOAL_GENES)
+    print("* Lifted genes\t: ", LIFTED_GENES)
+    print("* Missed genes\t: ", MISSED_GENES)
+    print("* Extra copy genes\t: ", EXTRA_COPY_GENES)
+    print("* Extra copy genes total\t: ", EXTRA_COPY_GENES_NUM)
+    for gene in gene_copy_num_dict.keys():
+        if gene_copy_num_dict[gene] > 0:
+            print(f"\t{gene}: {gene_copy_num_dict[gene]}")
     
-    print("* TOTOAL_TRANS: ", TOTOAL_TRANS)
-    print("* LIFTED_TRANS: ", LIFTED_TRANS)
-    print("* MISSED_TRANS: ", MISSED_TRANS)
+    print("* Total trans\t: ", TOTOAL_TRANS)
+    print("* Lifted trans\t: ", LIFTED_TRANS)
+    print("* Missed trans\t: ", MISSED_TRANS)
+    print("* Extra copy trans\t: ", EXTRA_COPY_TRANS)
+    print("* Extra copy trans total\t: ", EXTRA_COPY_TRANS_NUM)
+    for trans in trans_copy_num_dict.keys():
+        if trans_copy_num_dict[trans] > 0:
+            print(f"\t{trans}: {trans_copy_num_dict[trans]}")
+
 
     # # print("*********************************************************************")
     # # print("LiftOn total gene loci\t\t\t\t: ", LIFTON_TOTAL_GENE_COUNT)
