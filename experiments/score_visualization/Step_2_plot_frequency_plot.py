@@ -42,7 +42,7 @@ if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" o
     elif TARGET == "GRCh38_RefSeq":
         genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
 
-    elif TARGET == "CHM13_MANE": 
+    elif TARGET == "CHM13_MANE" or TARGET == "human_mane": 
         genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
 
     elif TARGET == "CHM13_RefSeq":
