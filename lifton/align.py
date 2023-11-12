@@ -26,6 +26,8 @@ def parasail_align_protein_base(protein_seq, ref_protein_seq):
     gap_extend = 1
     extracted_seq = str(protein_seq)
     reference_seq = str(ref_protein_seq)
+    extracted_seq = "*" if extracted_seq == "" else extracted_seq
+
     # (Query, Reference)
     extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq
@@ -81,7 +83,7 @@ def LiftOn_translate(tool, db, db_entry, fai, ref_proteins, ref_trans_id):
             if child.start >= itr_c.end:
                 idx_insert += 1
         cds_children.insert(idx_insert, child)
-    
+
     # Gathering stop codon regions (treated as coding sequence as well)
     for child in db.children(db_entry, featuretype='stop_codon'):
         idx_insert = 0
@@ -108,12 +110,14 @@ def LiftOn_translate(tool, db, db_entry, fai, ref_proteins, ref_trans_id):
             trans_seq = trans_seq + p_seq
             cdss_lens.append(cds.end - cds.start + 1)
 
+    # print("trans_seq: ", trans_seq)
+    # print("cdss_lens: ", cdss_lens)
+
     ################################
     # Step 3: Translate the DNA sequence & get the reference protein sequence.
     ################################
     ref_protein_seq = str(ref_proteins[ref_trans_id])
     protein_seq = str(trans_seq.translate())
-
     # print(tool, "; ref_trans_id: ", ref_trans_id, ";  protein_seq: ", protein_seq)
     return ref_protein_seq, protein_seq, cdss_lens, cds_children
 

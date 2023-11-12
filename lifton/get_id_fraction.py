@@ -8,7 +8,7 @@ def get_id_fraction(reference, target, start, end):
             matches += 1
         if target[i] == "*":
             break
-    if end-start == 0:
+    if (end-start) == 0:
         return matches, 1
     return matches, end-start
 

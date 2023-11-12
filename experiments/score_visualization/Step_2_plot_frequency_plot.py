@@ -77,11 +77,11 @@ for target in ["lifton", "miniprot", "liftoff"]:
     figure_path = f"{outdir_root}{target}_frequency.png"
 
     if target == "liftoff":
-        select_scores = table[1][table[1] <0.99]
+        select_scores = table[1][(table[1] < 0.99) & (table[1] > 0.0)]
     elif target == "miniprot":
-        select_scores = table[2][table[2] <0.99]
+        select_scores = table[2][(table[2] < 0.99) & (table[2] > 0.0)]
     elif target == "lifton":
-        select_scores = table[3][table[3] <0.99]
+        select_scores = table[3][(table[3] < 0.99) & (table[3] > 0.0)]
 
     plt.hist(select_scores, bins=100)
     plt.gca().set(title='Score frequency histogram', ylabel='Frequency')

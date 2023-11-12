@@ -179,7 +179,10 @@ def get_ID_base(id):
     return id_base
 
 def get_ID(feature):
-    id = feature["ID"][0]
+    print("feature: ", feature)
+
+    # id_spec={"ID"}
+    id = feature.id
     id_base = get_ID_base(id)
     return id, id_base
 
@@ -206,7 +209,7 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             m_entry = m_feature_db[m_id]
             overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
             if not overlap or m_entry.seqid != transcript.seqid:
-                print("Not overlapped")
+                # print("Not overlapped")
                 continue
 
             ##################################################
@@ -254,7 +257,7 @@ def get_ref_liffover_features(features, ref_db):
     
     for feature in features:
         for gene in ref_db.db_connection.features_of_type(feature):#, limit=("CM033155.1", 0, 
-            gene_id = gene.attributes["ID"][0]
+            gene_id = gene.id
             gene_info = copy.deepcopy(gene)
             lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id)
             gene_info_dict[gene_id] = lifton_gene_info
@@ -264,7 +267,7 @@ def get_ref_liffover_features(features, ref_db):
 
             transcripts = ref_db.db_connection.children(gene, level=1)
             for transcript in list(transcripts):
-                transcript_id = transcript["ID"][0]
+                transcript_id = transcript.id
                 transcript_info = copy.deepcopy(transcript)
                 lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id, gene_id)
                 trans_info_dict[transcript_id] = lifton_trans_info
@@ -279,8 +282,6 @@ def get_ref_liffover_features(features, ref_db):
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
-
-    print(">> transcript_id: ", transcript_id)
     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
 def segments_overlap_length(segment1, segment2):
@@ -295,8 +296,12 @@ def segments_overlap_length(segment1, segment2):
 
     return segment1[1] - segment2[0] + 1
 
-def check_ovps_ratio(mtrans_interval, ovps, overlap_ratio):
+def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
     is_overlapped = False
+    if mtrans.seqid not in tree_dict.keys():
+        return is_overlapped
+    
+    ovps = tree_dict[mtrans.seqid].overlap(mtrans_interval)
     for ovp in ovps:
         ovp_len = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
         ref_len = ovp[1] - ovp[0] + 1

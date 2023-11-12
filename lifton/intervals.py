@@ -13,5 +13,4 @@ def initialize_interval_tree(l_feature_db):
         if chromosome not in tree_dict.keys():
             tree_dict[chromosome] = IntervalTree()
         tree_dict[chromosome].add(gene_interval)
-    print(tree_dict.keys())
     return tree_dict

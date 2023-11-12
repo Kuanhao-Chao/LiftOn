@@ -66,7 +66,7 @@ class Lifton_TRANS_info:
 
 
 class Lifton_GENE:
-    def __init__(self, gffutil_entry_gene, ref_gene_attrs, gene_copy_num_dict, tree_dict):
+    def __init__(self, gene_id, gffutil_entry_gene, ref_gene_attrs, gene_copy_num_dict, tree_dict):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -77,7 +77,8 @@ class Lifton_GENE:
         ###########################
         # Get reference ID for the gene.
         ###########################
-        self.ref_id = lifton_utils.get_ID_base(self.entry.id)
+        self.ref_id = lifton_utils.get_ID_base(gene_id)
+
         ###########################
         # Update gene copy number dictionary
         ###########################
@@ -92,10 +93,8 @@ class Lifton_GENE:
         if self.ref_id in gene_copy_num_dict.keys():
             gene_copy_num_dict[self.ref_id] += 1
             new_gene_id = self.ref_id + '_' + str(gene_copy_num_dict[self.ref_id])
-            print("before gene id: ", self.entry.id)
             self.__update_gene_id(new_gene_id)
             self.__update_gene_extra_copy_attrs(gene_copy_num_dict)
-            print("after gene id: ", self.entry.id)
 
         else:
             gene_copy_num_dict[self.ref_id] = 0
@@ -113,8 +112,8 @@ class Lifton_GENE:
         self.entry.start = start
         self.entry.end = end
 
-    def add_miniprot_transcript(self, trans_id, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
-        Lifton_trans = Lifton_TRANS(trans_id, self.entry.id, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict)
+    def add_miniprot_transcript(self, trans_id, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
+        Lifton_trans = Lifton_TRANS(trans_id, self.ref_id, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
         self.transcripts[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans.entry.id
     
@@ -124,8 +123,8 @@ class Lifton_GENE:
         self.transcripts[trans_id].entry.start = start
         self.transcripts[trans_id].entry.end = end
 
-    def add_transcript(self, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
-        Lifton_trans = Lifton_TRANS(gffutil_entry_trans.id, self.entry.id ,gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict)
+    def add_transcript(self, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
+        Lifton_trans = Lifton_TRANS(gffutil_entry_trans.id, self.entry.id ,gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
         self.transcripts[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans.entry.id
 
@@ -172,7 +171,7 @@ class Lifton_GENE:
 
 
 class Lifton_TRANS:
-    def __init__(self, trans_id, gene_id, gffutil_entry_trans, ref_trans_attrs, trans_copy_num_dict):
+    def __init__(self, trans_id, gene_id, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
         ###########################
         # Assigning the reference transcripts & attributes
         ###########################
@@ -183,27 +182,27 @@ class Lifton_TRANS:
         self.exon_dic = {}
 
         ###########################
-        # Get reference ID for the transcript.
+        # Get reference ID for the gene & transcript.
         ###########################
+        self.ref_gene_id = lifton_utils.get_ID_base(gene_id)
         self.ref_id = lifton_utils.get_ID_base(trans_id)
 
         ###########################
         # Update gene copy number dictionary
         ###########################
-        self.__update_trans_copy(trans_copy_num_dict)
+        self.__update_trans_copy(self.ref_gene_id, gene_copy_num_dict, trans_copy_num_dict)
         self.entry.attributes['Parent'] = [gene_id]
         self.entry.attributes['transcript_id'] = [self.entry.id]
 
 
-    def __update_trans_copy(self, trans_copy_num_dict):
-        if self.ref_id in trans_copy_num_dict.keys():
-            trans_copy_num_dict[self.ref_id] += 1
+    def __update_trans_copy(self, ref_gene_id, gene_copy_num_dict, trans_copy_num_dict):
+        if ref_gene_id in gene_copy_num_dict.keys() and gene_copy_num_dict[ref_gene_id] > 0:
+            trans_copy_num_dict[self.ref_id] = gene_copy_num_dict[ref_gene_id]
             new_trans_id = self.ref_id + '_' + str(trans_copy_num_dict[self.ref_id])
-            print("before trans id: ", self.entry.id)
             self.__update_trans_id(new_trans_id)
             self.__update_trans_extra_copy_attrs(trans_copy_num_dict)
-            print("after trans id: ", self.entry.id)
         else:
+            gene_copy_num_dict[ref_gene_id] = 0
             trans_copy_num_dict[self.ref_id] = 0
             new_trans_id = self.ref_id
             self.__update_trans_id(new_trans_id)
@@ -579,7 +578,6 @@ class Lifton_TRANS:
                 final_orf = orf
                 lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
                 lifton_status.lifton = max(lifton_status.lifton, lifton_aln.identity)
-                print(">> ",self.entry.id, " lifton_aln: ", lifton_aln.identity)
 
         if final_orf is not None:
             self.__update_cds_boundary(final_orf)
@@ -597,7 +595,7 @@ class Lifton_TRANS:
         accum_cds_length = 0
         for exon_idx, exon in enumerate(exons):
             curr_exon_len = exon.entry.end - exon.entry.start + 1
-            print(f"\t>> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+            # print(f"\t>> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
 
             if accum_exon_length <= final_orf.start:
                 if final_orf.start < accum_exon_length+curr_exon_len:
@@ -614,9 +612,9 @@ class Lifton_TRANS:
                             exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end - (final_orf.start - accum_exon_length))
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
-                    print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-                    print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
-                    print(f"\t\t>> exon.cds.entry.frame: {exon.cds.entry.frame}")
+                    # print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+                    # print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
+                    # print(f"\t\t>> exon.cds.entry.frame: {exon.cds.entry.frame}")
                 else:
                     # No CDS should be created
                     exon.cds = None
@@ -638,9 +636,9 @@ class Lifton_TRANS:
 
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
-                    print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-                    print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
-                    print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
+                    # print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+                    # print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
+                    # print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
 
                 else:
                     # Keep the original full CDS
