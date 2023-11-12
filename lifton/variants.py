@@ -160,7 +160,7 @@ def find_variants(align_dna, align_protein, lifton_status, peps):
         # print("extracted_parasail_res: ", extracted_parasail_res)
         # print("extracted_seq: ", extracted_seq)
         # print("reference_seq: ", reference_seq)
-        print("stop_codon_count: ", stop_codon_count)
+        # print("stop_codon_count: ", stop_codon_count)
 
         # self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
         # return lifton_aa_aln, False

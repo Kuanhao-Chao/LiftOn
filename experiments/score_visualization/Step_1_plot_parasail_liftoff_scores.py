@@ -81,8 +81,11 @@ for target in ["Liftoff", "miniprot"]:
     figure_out = f"{outdir_root}{target}/parasail_identities.png"
 
     if target == "Liftoff":
-        plt.scatter(table[1], table[3], s=2)
+
+        select_table = table[(table[1] > 0.0) | (table[3] > 0.0)]
+        plt.scatter(select_table[1], select_table[3], s=2)
     elif target == "miniprot":
+        select_table = table[(table[2] > 0.0) | (table[3] > 0.0)]
         plt.scatter(table[2], table[3], s=2)
     print(table)
     # # Add labels to the points

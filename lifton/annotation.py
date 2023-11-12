@@ -18,7 +18,7 @@ class Annotation():
         except:
             feature_db = self.build_database()
         
-        print("feature_db: ", feature_db)
+        # print("feature_db: ", feature_db)
         # feature_db.execute('ANALYZE features')
         self.db_connection = feature_db
 
@@ -31,7 +31,7 @@ class Annotation():
         try:
             transform_func = self.get_transform_func()
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", merge_strategy="create_unique", 
-                                        id_spec={'gene': 'ID', 'transcript': 'ID', 'mRNA': 'ID', 'exon': 'ID', 'CDS': ''},
+                                        id_spec={"gene": ['ID', 'Name'], "mRNA": ['ID', 'Name'], "transcript": ['ID', 'Name'], "lnc_RNA": ['ID', 'Name'], "nc_RNA": ['ID', 'Name']},
                                         force=True,
                                         verbose=True, disable_infer_transcripts=True,
                                             disable_infer_genes=disable_genes, transform=transform_func)
