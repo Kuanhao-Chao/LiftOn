@@ -102,7 +102,6 @@ def args_optional(parser):
                                                                                         "missing stop, inframe stop "
                                                                                         "codon)")
 
-
 def parse_args(arglist):
     parser = argparse.ArgumentParser(description='Lift features from one genome assembly to another')
     parser.add_argument('target', help='target fasta genome to lift genes to')
@@ -454,7 +453,7 @@ def run_all_lifton_steps(args):
     for mtrans in m_feature_db.features_of_type('mRNA'):
         mtrans_id = mtrans.attributes["ID"][0]
         mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
-        
+
         is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
 
         if not is_overlapped:
