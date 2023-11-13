@@ -18,7 +18,7 @@ def randrange(n, vmin, vmax):
 TARGET = sys.argv[1]
 
 protein_fa = ""
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
     print("Running with ", TARGET)
     genome = ""
 

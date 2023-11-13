@@ -87,6 +87,8 @@ class Lifton_GENE:
         # Adding LiftOn intervals
         ###########################
         gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
+        if self.entry.seqid not in tree_dict.keys():
+            tree_dict[self.entry.seqid] = IntervalTree()
         tree_dict[self.entry.seqid].add(gene_interval)
 
     def __update_gene_copy(self, gene_copy_num_dict):
