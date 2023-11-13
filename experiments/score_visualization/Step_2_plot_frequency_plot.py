@@ -13,7 +13,7 @@ import pandas as pd
 TARGET = sys.argv[1]
 
 protein_fa = ""
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
     print("Running with ", TARGET)
     genome = ""
 
@@ -70,18 +70,18 @@ outdir_root = f"{outdir_root}visualization/"
 
 table = pd.read_csv(fname, sep="\t", header=None)
 
-
+upper_threshold = 1.00
 for target in ["lifton", "miniprot", "liftoff"]:
     # target = "lifton"
 
     figure_path = f"{outdir_root}{target}_frequency.png"
 
     if target == "liftoff":
-        select_scores = table[1][(table[1] < 0.99) & (table[1] > 0.0)]
+        select_scores = table[1][(table[1] < upper_threshold) & (table[1] > 0.0)]
     elif target == "miniprot":
-        select_scores = table[2][(table[2] < 0.99) & (table[2] > 0.0)]
+        select_scores = table[2][(table[2] < upper_threshold) & (table[2] > 0.0)]
     elif target == "lifton":
-        select_scores = table[3][(table[3] < 0.99) & (table[3] > 0.0)]
+        select_scores = table[3][(table[3] < upper_threshold) & (table[3] > 0.0)]
 
     plt.hist(select_scores, bins=100)
     plt.gca().set(title='Score frequency histogram', ylabel='Frequency')

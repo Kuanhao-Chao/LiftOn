@@ -274,7 +274,6 @@ def run_all_lifton_steps(args):
     ################################
     m_id_dict, m_id_2_ref_id_trans_dict = mapping.id_mapping(m_feature_db)
 
-    
     ################################
     # Step 4.2: Initializing intervaltree
     ################################
@@ -283,19 +282,17 @@ def run_all_lifton_steps(args):
     gene_copy_num_dict = {}
     trans_copy_num_dict = {}
 
-
     ################################
     # Step 4.3: Iterate gene entries & fixing CDS lists
     ################################
     # For missing transcripts.
     gene_copy_num_dict["gene-LiftOn"] = 0
 
-
     ################################
     # Step 5: Process Liftoff genes & transcripts
     ################################
     for feature in features:
-        for gene in l_feature_db.features_of_type(feature):#, limit=("CP101152.1", 22584243, 22587514)):
+        for gene in l_feature_db.features_of_type(feature):#, limit=("OX291666.1", 14237, 214237)):
             liftoff_gene_id, ref_gene_id = lifton_utils.get_ID(gene)
             logger.log(f"Liftoff: liftoff_gene_id\t: {liftoff_gene_id}\t{ref_gene_id}\n", debug=DEBUG)
             ###########################
