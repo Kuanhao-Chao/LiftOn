@@ -40,7 +40,7 @@ elif [ "$TARGET" == "bee" ]; then
 
 elif [ "$TARGET" == "bee_test" ]; then
     echo "running LiftOn on bee test"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic_no_alts.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic_no_alts.gff_db"
     LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3_db"
     MINIPROT_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/miniprot/miniprot.gff3_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_genomic.fna"
@@ -64,7 +64,7 @@ elif [[ "$TARGET" == "rice" || "$TARGET" == "rice_test" ]]; then
 
 elif [[ "$TARGET" == "human_chess" ]]; then
     echo "running LiftOn on human_chess"
-    REFERENCE_gff="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/chess/chess3.0.1.gff"
+    REFERENCE_gff="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/chess/chess3.0.1.gff_db"
     # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished_db"
     # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff_db"
     TARGET_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"

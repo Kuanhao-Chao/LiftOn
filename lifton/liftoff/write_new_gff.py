@@ -112,6 +112,7 @@ def make_gff_line(attr_dict, feature):
     return feature.seqid + "\t" + feature.source + "\t" + feature.featuretype + "\t" + str(feature.start) + \
            "\t" + str(feature.end) + "\t" + "." + "\t" + feature.strand + "\t" + feature.frame + "\t" + attributes_str[:-1]
 
+
 def edit_copy_ids(feature):
     new_attr_dict = feature.attributes.copy()
     copy_num = feature.attributes["extra_copy_number"][0]

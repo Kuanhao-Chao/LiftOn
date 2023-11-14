@@ -60,7 +60,6 @@ def find_extra_copy(m_feature_db, tree_dict, m_id_2_ref_id_trans_dict, gene_info
                 cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
                 # print("cdss len: ", len(cdss))
                 for cds in list(cdss):
-                    # entry.attributes["ID"]
                     Lifton_gene_ecp.add_exon(new_extra_cp_trans_id, cds)
                     cds_copy = copy.deepcopy(cds)
                     Lifton_gene_ecp.add_cds(new_extra_cp_trans_id, cds_copy)
