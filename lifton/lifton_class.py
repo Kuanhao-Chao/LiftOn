@@ -64,32 +64,43 @@ class Lifton_TRANS_info:
         self.attributes['Parent'] = [ref_gene_id]
         self.attributes['transcript_id'] = [ref_trans_id]
 
+class Lifton_feature:
+    def __init__(self, id):
+        self.id = id
+        self.copy_num = 0
+        self.children = set()
 
 class Lifton_GENE:
-    def __init__(self, gene_id, gffutil_entry_gene, ref_gene_attrs, gene_copy_num_dict, tree_dict):
+    def __init__(self, gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, holder = False):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
         self.entry = gffutil_entry_gene
+        self.copy_num = gffutil_entry_gene.attributes["extra_copy_number"]
         self.entry.source = "LiftOn"
-        self.entry.attributes = copy.deepcopy(ref_gene_attrs.attributes)
+        self.entry.featuretype = "gene"
         self.transcripts = {}
-        ###########################
-        # Get reference ID for the gene.
-        ###########################
-        self.ref_id = lifton_utils.get_ID_base(gene_id)
+        self.ref_id = gene_id
+        if holder == False:
+            self.entry.attributes = copy.deepcopy(ref_gene_attrs)
+            self.entry.attributes["ID"] = self.ref_id
 
-        ###########################
-        # Update gene copy number dictionary
-        ###########################
-        self.__update_gene_copy(gene_copy_num_dict)
-        ###########################
-        # Adding LiftOn intervals
-        ###########################
-        gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
-        if self.entry.seqid not in tree_dict.keys():
-            tree_dict[self.entry.seqid] = IntervalTree()
-        tree_dict[self.entry.seqid].add(gene_interval)
+            # ###########################
+            # # Update gene copy number dictionary
+            # ###########################
+            # self.__update_gene_copy(gene_copy_num_dict)
+            
+            ###########################
+            # Adding LiftOn intervals
+            ###########################
+            gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
+            if self.entry.seqid not in tree_dict.keys():
+                tree_dict[self.entry.seqid] = IntervalTree()
+            tree_dict[self.entry.seqid].add(gene_interval)
+
+        # else:
+        #     self.transcripts = {}
+        
 
     def __update_gene_copy(self, gene_copy_num_dict):
         if self.ref_id in gene_copy_num_dict.keys():

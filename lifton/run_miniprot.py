@@ -57,7 +57,6 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_t
     #######################################
     cdss = m_feature_db.children(m_feature, featuretype='CDS')  # Replace 'exon' with the desired child feature type
     for cds in list(cdss):
-        # entry.attributes["ID"]
         lifton_gene.add_exon(new_m_trans_id, cds)
         cds_copy = copy.deepcopy(cds)
         lifton_gene.add_cds(new_m_trans_id, cds_copy)

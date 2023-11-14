@@ -7,7 +7,7 @@ def initialize_interval_tree(l_feature_db):
     # Adding gene intervals into intervaltree
     ################################
     for gene in l_feature_db.features_of_type('gene'):
-        gene_interval = Interval(gene.start, gene.end, gene.attributes["ID"][0])
+        gene_interval = Interval(gene.start, gene.end, gene.id)
         chromosome = gene.seqid
 
         if chromosome not in tree_dict.keys():

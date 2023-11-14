@@ -179,7 +179,7 @@ def get_ID_base(id):
     return id_base
 
 def get_ID(feature):
-    print("feature: ", feature)
+    # print("feature: ", feature)
 
     # id_spec={"ID"}
     id = feature.id
@@ -251,33 +251,80 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
 
 def get_ref_liffover_features(features, ref_db):
     ref_features_dict = {}
-    ref_trans_2_gene_dict = {}
-    gene_info_dict = {}
-    trans_info_dict = {}
+    # ref_trans_2_gene_dict = {}
+    # gene_info_dict = {}
+    # trans_info_dict = {}
     
-    for feature in features:
-        for gene in ref_db.db_connection.features_of_type(feature):#, limit=("CM033155.1", 0, 
-            gene_id = gene.id
-            gene_info = copy.deepcopy(gene)
-            lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id)
-            gene_info_dict[gene_id] = lifton_gene_info
-            
-            if gene_id not in ref_features_dict.keys():
-                ref_features_dict[gene_id] = {}
+    for f_itr in features:
+        for locus in ref_db.db_connection.features_of_type(f_itr):#, limit=("CM033155.1", 0, 
+            # loci
+            feature = lifton_class.Lifton_feature(locus.id)
+            # gene_info = copy.deepcopy(gene)
+            # lifton_gene_info = lifton_class.Lifton_GENE_info(gene_info.attributes, gene_id)
+            # gene_info_dict[gene_id] = lifton_gene_info
 
-            transcripts = ref_db.db_connection.children(gene, level=1)
-            for transcript in list(transcripts):
-                transcript_id = transcript.id
-                transcript_info = copy.deepcopy(transcript)
-                lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id, gene_id)
-                trans_info_dict[transcript_id] = lifton_trans_info
+            children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
+            if len(children) == 0:
+                transcripts = ref_db.db_connection.children(locus, level=1)
+                for transcript in list(transcripts):
+                    # print(transcript)
+                    process_ref_liffover_features(transcript, ref_db, feature)
+            else:
+                process_ref_liffover_features(locus, ref_db, None)
 
-                ref_features_dict[gene_id][transcript_id] = False
-                ref_trans_2_gene_dict[transcript_id] = gene_id
+            ref_features_dict[locus.id] = feature
 
-    print("ref gene count : ", len(ref_features_dict), "(", len(gene_info_dict), ")")
-    print("ref trans count: ", len(trans_info_dict))
-    return ref_features_dict, ref_trans_2_gene_dict, gene_info_dict, trans_info_dict
+            # if gene_id not in ref_features_dict.keys():
+            #     ref_features_dict[gene_id] = {}
+
+            # transcripts = ref_db.db_connection.children(gene, level=1)
+            # for transcript in list(transcripts):
+            #     transcript_id = transcript.id
+            #     transcript_info = copy.deepcopy(transcript)
+            #     lifton_trans_info = lifton_class.Lifton_TRANS_info(transcript_info.attributes, transcript_id, gene_id)
+            #     trans_info_dict[transcript_id] = lifton_trans_info
+            #     ref_features_dict[gene_id][transcript_id] = False
+            #     ref_trans_2_gene_dict[transcript_id] = gene_id
+
+    # print("ref gene count : ", len(ref_features_dict), "(", len(gene_info_dict), ")")
+    # print("ref trans count: ", len(trans_info_dict))
+    return ref_features_dict
+
+
+def process_ref_liffover_features(locus, ref_db, feature):
+    if feature != None:
+        feature.children.add(locus.id)
+
+
+def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
+    if liftoff_gene_id in ref_features_dict.keys():
+        ref_gene_id = liftoff_gene_id        
+        ref_trans_id = get_ref_trans_id(ref_features_dict, ref_gene_id, liftoff_trans_id)
+        return ref_gene_id, ref_trans_id
+    else:
+        ref_gene_id = get_ID_base(liftoff_gene_id)
+        if ref_gene_id in ref_features_dict.keys():
+            ref_trans_id = get_ref_trans_id(ref_features_dict, ref_gene_id, liftoff_trans_id)
+            return ref_gene_id, ref_trans_id
+        else:
+            return None, None
+
+def get_ref_trans_id(ref_features_dict, ref_gene_id, liftoff_trans_id):
+    if liftoff_trans_id == None:
+        return liftoff_trans_id    
+    
+    if liftoff_trans_id in ref_features_dict[ref_gene_id].children:
+        return liftoff_trans_id
+    else:
+        ref_trans_id = get_ID_base(liftoff_trans_id)
+        if ref_trans_id in ref_features_dict[ref_gene_id].children:
+            return ref_trans_id
+        else:
+            return None
+
+
+def get_ref_ids_miniprot(ref_features_dict, ):
+    pass
 
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
