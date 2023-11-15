@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import os
 import gffutils
 from Bio import SeqIO
+import sys
+from progress.bar import Bar
 
 '''
 One of the LiftOn modes is taking LiftOff and miniprot annotations along with protein sequences to generate LiftOn annotations.
@@ -30,13 +32,13 @@ def create_id_mapping(liftoff_annotations, miniprot_annotations):
     """
     id_mapping = {}
 
-    # Scenario 1: Direct mapping with transcript IDs
+    # direct mapping with transcript IDs
     for gene_id, transcript_id in liftoff_annotations.items():
         if transcript_id in miniprot_annotations:
             protein_id = miniprot_annotations[transcript_id]
             id_mapping[protein_id] = transcript_id
 
-    # Scenario 2: Protein_ID to transcript_ID mapping
+    # protein_ID to transcript_ID mapping
     for protein_id, gene_id in miniprot_annotations.items():
         if protein_id not in id_mapping:
             id_mapping[protein_id] = gene_id
@@ -54,11 +56,12 @@ def read_annotations_from_file(file_path):
     Returns:
     - annotations: Dictionary containing annotations.
     """
+
     annotations = {}
     with open(file_path, 'r') as file:
         for line in file:
-            # Assuming the file has two columns separated by a tab or space
-            fields = line.strip().split('\t')  # Change to '\t' or ' ' based on your file format
+            # assuming the file has two columns separated by a tab or space
+            fields = line.strip().split('\t')  # change to '\t' or ' ' based on your file format
             if len(fields) == 2:
                 annotations[fields[0]] = fields[1]
     return annotations
@@ -107,7 +110,7 @@ def get_files_in_directory(directory_path):
     for file_name in os.listdir(directory_path):
         if os.path.isfile(os.path.join(directory_path, file_name)):
             file_list.append(file_name)
-    return file_list
+    return sorted(file_list)
 
 def get_db(file_path, db_file=''):
     """
@@ -135,13 +138,34 @@ def get_db(file_path, db_file=''):
 
     # generate database if empty (~5 mins / 3.42 mil features), 
     if not os.path.exists(db_file):
-        db = gffutils.create_db(fin, db_file, merge_strategy="create_unique", force=True, \
-            disable_infer_transcripts=True, disable_infer_genes=True, verbose=True)
+        try:
+            db = gffutils.create_db(fin, db_file, merge_strategy="create_unique", force=True, \
+                disable_infer_transcripts=True, disable_infer_genes=True, verbose=True)
+        except:
+            print('[Info] Error creating database, searching for line error...')
+            find_problem_line(file_path)
     else: 
         db = gffutils.FeatureDB(db_file)
 
     return db, db_file
 
+
+def find_problem_line(gff_file):
+    '''
+    Finds the line in the GFF file causing error for gffutils.
+    '''
+    f = open(gff_file, 'r')
+    lines = f.readlines()
+    pbar = Bar('Searching GFF file... ', max=len(lines))
+    for i in range(len(lines)):
+        line = lines[i]
+        if line[0] != "#":
+            try:
+                gffutils.create_db(line, ":memory:", from_string=True, force=True)
+            except:
+                raise ValueError("ERROR: Incorrect GFF/GTF syntax on line " + str(i + 1))
+        pbar.next()
+    pbar.finish()
 
 def run():
 
@@ -157,9 +181,9 @@ def run():
     for liftoff_f, miniprot_f in paired_list[:1]:
         print(f'previewing: {liftoff_f}, {miniprot_f}')
         preview_file(liftoff_f)
-        print('-'*120)
+        print('-'*170)
         preview_file(miniprot_f)
-        liftoff_db, _= get_db(liftoff_f)
+        liftoff_db, _ = get_db(liftoff_f)
         miniprot_db, _ = get_db(miniprot_f)
 
     # preview files
