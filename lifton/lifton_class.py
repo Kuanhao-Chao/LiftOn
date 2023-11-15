@@ -1,6 +1,7 @@
-from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants
+from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants, extra_copy
 import copy, os
 from Bio.Seq import Seq
+from intervaltree import Interval, IntervalTree
 
 class Lifton_ORF:
     def __init__(self, start, end):
@@ -13,7 +14,7 @@ class Lifton_Status:
         self.miniprot = 0
         self.lifton = 0
         self.annotation = None
-        self.status = None
+        self.status = []
 
 class Lifton_Alignment:
     def __init__(self, extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry):
@@ -40,94 +41,108 @@ class Lifton_Alignment:
 
 
 class Lifton_GENE_info:
-    def __init__(self, attrs, gene_id_base):
+    def __init__(self, attrs, ref_gene_id):
         self.attributes = attrs
 
-        #########################
-        # These info are for extra copies
-        #########################
-        if 'coverage' in self.attributes: self.attributes.pop('coverage')
-        if 'sequence_ID' in self.attributes: self.attributes.pop('sequence_ID')
-        if 'valid_ORFs' in self.attributes: self.attributes.pop('valid_ORFs')
+        # #########################
+        # # These info are for extra copies
+        # #########################
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')
-        if 'copy_num_ID' in self.attributes: self.attributes.pop('copy_num_ID')
-        self.attributes['ID'] = [gene_id_base]
-
-    def update_gene_info_copy_number(self, gene_id_base, gene_copy_num_dict):
-        self.attributes['ID'] = [gene_id_base + '_' + str(gene_copy_num_dict[gene_id_base])]
-        if gene_id_base != "gene-LiftOn":
-            self.attributes['extra_copy_number'] = [str(gene_copy_num_dict[gene_id_base])]
-
+        self.attributes['ID'] = [ref_gene_id]
     
 class Lifton_TRANS_info:
-    def __init__(self, attrs, trans_id_base, gene_id_base):
+    def __init__(self, attrs, ref_trans_id, ref_gene_id):
         self.attributes = attrs
 
         #########################
         # These info are for extra copies
         #########################
-        if 'matches_ref_protein' in self.attributes: self.attributes.pop('matches_ref_protein')
-        if 'valid_ORF' in self.attributes: self.attributes.pop('valid_ORF')
+        # if 'matches_ref_protein' in self.attributes: self.attributes.pop('matches_ref_protein')
+        # if 'valid_ORF' in self.attributes: self.attributes.pop('valid_ORF')
         if 'extra_copy_number' in self.attributes: self.attributes.pop('extra_copy_number')        
-        self.attributes['ID'] = [trans_id_base]
-        self.attributes['Parent'] = [gene_id_base]
-        self.attributes['transcript_id'] = [trans_id_base]
+        self.attributes['ID'] = [ref_trans_id]
+        self.attributes['Parent'] = [ref_gene_id]
+        self.attributes['transcript_id'] = [ref_trans_id]
 
-
-    def update_trans_info_copy_number(self, novel, gene_id_base, trans_id_base, gene_copy_num_dict, trans_copy_num_dict):
-        gene_copy_num = gene_copy_num_dict[gene_id_base]
-        gene_id = gene_id_base + '_' + str(gene_copy_num)
-        trans_copy_num = 0
-        trans_id = ""
-        if trans_id_base in trans_copy_num_dict.keys():
-            trans_copy_num = trans_copy_num_dict[trans_id_base]
-            trans_id = trans_id_base + '_' + str(trans_copy_num)
-        else:
-            trans_copy_num = 0
-            trans_id = trans_id_base
-
-        self.attributes['ID'] = [trans_id]
-        self.attributes['Parent'] = [gene_id]
-        self.attributes['transcript_id'] = [trans_id]
-        if trans_copy_num > 0:
-            self.attributes['extra_copy_number'] = [str(trans_copy_num)]
-
+class Lifton_feature:
+    def __init__(self, id):
+        self.id = id
+        self.copy_num = 0
+        self.children = set()
 
 class Lifton_GENE:
-    def __init__(self, gffutil_entry_gene):
-        gffutil_entry_gene.source = "Lifton"
+    def __init__(self, gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, holder = False):
+        ###########################
+        # Assigning the reference gene & attributes
+        ###########################
         self.entry = gffutil_entry_gene
-        if 'coverage' in self.entry.attributes: self.entry.attributes.pop('coverage')
-        if 'sequence_ID' in self.entry.attributes: self.entry.attributes.pop('sequence_ID')
-        if 'valid_ORFs' in self.entry.attributes: self.entry.attributes.pop('valid_ORFs')
-        if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
-        if 'copy_num_ID' in self.entry.attributes: self.entry.attributes.pop('copy_num_ID')
+        self.copy_num = gffutil_entry_gene.attributes["extra_copy_number"]
+        self.entry.source = "LiftOn"
+        self.entry.featuretype = "gene"
         self.transcripts = {}
-    
-    def update_gene_info(self, gene_id, chromosome, start, end, gene_attrs, gene_copy_num_dict):
+        self.ref_id = gene_id
+        if holder == False:
+            self.entry.attributes = copy.deepcopy(ref_gene_attrs)
+            self.entry.attributes["ID"] = self.ref_id
+
+            # ###########################
+            # # Update gene copy number dictionary
+            # ###########################
+            # self.__update_gene_copy(gene_copy_num_dict)
+            
+            ###########################
+            # Adding LiftOn intervals
+            ###########################
+            gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
+            if self.entry.seqid not in tree_dict.keys():
+                tree_dict[self.entry.seqid] = IntervalTree()
+            tree_dict[self.entry.seqid].add(gene_interval)
+
+        # else:
+        #     self.transcripts = {}
+        
+
+    def __update_gene_copy(self, gene_copy_num_dict):
+        if self.ref_id in gene_copy_num_dict.keys():
+            gene_copy_num_dict[self.ref_id] += 1
+            new_gene_id = self.ref_id + '_' + str(gene_copy_num_dict[self.ref_id])
+            self.__update_gene_id(new_gene_id)
+            self.__update_gene_extra_copy_attrs(gene_copy_num_dict)
+
+        else:
+            gene_copy_num_dict[self.ref_id] = 0
+
+    def __update_gene_id(self, gene_id):
+        self.entry.id = gene_id
+        self.entry.attributes['ID'] = [gene_id]
+
+    def __update_gene_extra_copy_attrs(self, gene_copy_num_dict):
+        self.entry.attributes["extra_copy_number"] = [str(gene_copy_num_dict[self.ref_id])]
+
+    def update_gene_info(self, chromosome, start, end):
         self.entry.seqid = chromosome
         self.entry.featuretype = "gene"
         self.entry.start = start
         self.entry.end = end
-        gene_copy_num_dict[gene_id] += 1
-        gene_attrs.update_gene_info_copy_number(gene_id, gene_copy_num_dict)
-        self.entry.attributes = gene_attrs.attributes
-        return self.entry.attributes["ID"][0]
 
-    def create_new_transcript(self, novel, gene_id, trans_id, trans_entry, chromosome, start, end, trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
-        Lifton_trans = Lifton_TRANS(trans_entry)
-        Lifton_trans.entry.seqid = chromosome
-        Lifton_trans.entry.featuretype = "mRNA"
-        Lifton_trans.entry.start = start
-        Lifton_trans.entry.end = end
-        trans_attrs.update_trans_info_copy_number(novel, gene_id, trans_id, gene_copy_num_dict, trans_copy_num_dict)
-        Lifton_trans.entry.attributes = trans_attrs.attributes
-        self.transcripts[Lifton_trans.entry.attributes["ID"][0]] = Lifton_trans
-        return Lifton_trans.entry.attributes["ID"][0]
+    def add_miniprot_transcript(self, trans_id, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
+        Lifton_trans = Lifton_TRANS(trans_id, self.ref_id, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
+        self.transcripts[Lifton_trans.entry.id] = Lifton_trans
+        return Lifton_trans.entry.id
+    
+    def update_trans_info(self, trans_id, chromosome, start, end):
+        self.transcripts[trans_id].entry.seqid = chromosome
+        self.transcripts[trans_id].entry.featuretype = "mRNA"
+        self.transcripts[trans_id].entry.start = start
+        self.transcripts[trans_id].entry.end = end
 
-    def add_transcript(self, gffutil_entry_trans):
-        Lifton_trans = Lifton_TRANS(gffutil_entry_trans)
-        self.transcripts[gffutil_entry_trans["ID"][0]] = Lifton_trans
+    def add_transcript(self, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
+        Lifton_trans = Lifton_TRANS(gffutil_entry_trans.id, self.entry.id ,gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
+        self.transcripts[Lifton_trans.entry.id] = Lifton_trans
+        return Lifton_trans.entry.id
+
+    def remove_transcript(self, transcript_id):
+        del self.transcripts[transcript_id]
 
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.transcripts[trans_id].add_exon(gffutil_entry_exon)
@@ -135,15 +150,20 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-    def fix_truncated_protein(self, trans_id, trans_id_base, fai, fai_protein, fai_trans, lifton_status):
-        ref_protein_seq = fai_protein[trans_id_base]
-        ref_trans_seq = fai_trans[trans_id_base]
+    def fix_truncated_protein(self, trans_id, ref_trans_id, fai, ref_proteins, fai_trans, lifton_status):
+        ref_protein_seq = ref_proteins[ref_trans_id]
+        ref_trans_seq = fai_trans[ref_trans_id]
+        if trans_id not in self.transcripts.keys():
+            return None, False
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
         return lifton_aln, good_trans
                
     def update_cds_list(self, trans_id, cds_list):
         self.transcripts[trans_id].update_cds_list(cds_list)
         self.update_boundaries()
+
+    def add_lifton_status_attrs(self, trans_id, lifton_status):
+        self.transcripts[trans_id].add_lifton_status_attrs(lifton_status)
 
     def write_entry(self, fw):
         fw.write(str(self.entry) + "\n")
@@ -164,18 +184,62 @@ class Lifton_GENE:
 
 
 class Lifton_TRANS:
-    def __init__(self, gffutil_entry_trans):
-        gffutil_entry_trans.source = "Lifton"
+    def __init__(self, trans_id, gene_id, gffutil_entry_trans, ref_trans_attrs, gene_copy_num_dict, trans_copy_num_dict):
+        ###########################
+        # Assigning the reference transcripts & attributes
+        ###########################
         self.entry = gffutil_entry_trans
-        if 'matches_ref_protein' in self.entry.attributes: self.entry.attributes.pop('matches_ref_protein')
-        if 'valid_ORF' in self.entry.attributes: self.entry.attributes.pop('valid_ORF')
-        if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
+        self.entry.attributes = copy.deepcopy(ref_trans_attrs.attributes)
+        self.entry.source = "LiftOn"
         self.exons = []
         self.exon_dic = {}
 
+        ###########################
+        # Get reference ID for the gene & transcript.
+        ###########################
+        self.ref_gene_id = lifton_utils.get_ID_base(gene_id)
+        self.ref_id = lifton_utils.get_ID_base(trans_id)
+
+        ###########################
+        # Update gene copy number dictionary
+        ###########################
+        self.__update_trans_copy(self.ref_gene_id, gene_copy_num_dict, trans_copy_num_dict)
+        self.entry.attributes['Parent'] = [gene_id]
+        self.entry.attributes['transcript_id'] = [self.entry.id]
+
+
+    def __update_trans_copy(self, ref_gene_id, gene_copy_num_dict, trans_copy_num_dict):
+        if ref_gene_id in gene_copy_num_dict.keys() and gene_copy_num_dict[ref_gene_id] > 0:
+            trans_copy_num_dict[self.ref_id] = gene_copy_num_dict[ref_gene_id]
+            new_trans_id = self.ref_id + '_' + str(trans_copy_num_dict[self.ref_id])
+            self.__update_trans_id(new_trans_id)
+            self.__update_trans_extra_copy_attrs(trans_copy_num_dict)
+        else:
+            gene_copy_num_dict[ref_gene_id] = 0
+            trans_copy_num_dict[self.ref_id] = 0
+            new_trans_id = self.ref_id
+            self.__update_trans_id(new_trans_id)
+
+    def __update_trans_id(self, trans_id):
+        self.entry.id = trans_id
+        self.entry.attributes['ID'] = [trans_id]
+
+    def __update_trans_extra_copy_attrs(self, trans_copy_num_dict):
+        self.entry.attributes["extra_copy_number"] = [str(trans_copy_num_dict[self.ref_id])]
+
+
+
+
+
+
+
+    def add_lifton_status_attrs(self, lifton_status):
+        self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton:.3f}"]
+        self.entry.attributes["status"] = [lifton_status.annotation]
+
     def add_exon(self, gffutil_entry_exon):
         attributes = {}
-        attributes['Parent'] = self.entry.attributes['ID']
+        attributes['Parent'] = [self.entry.id]
         gffutil_entry_exon.attributes = attributes
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
@@ -184,7 +248,7 @@ class Lifton_TRANS:
         for exon in self.exons:
             if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
                 attributes = {}
-                attributes['Parent'] = self.entry.attributes['ID']
+                attributes['Parent'] = [self.entry.id]
                 gffutil_entry_cds.attributes = attributes
                 exon.add_cds(gffutil_entry_cds)
 
@@ -449,48 +513,25 @@ class Lifton_TRANS:
         lifton_tran_aln = align.trans_align(coding_seq, ref_trans_seq)
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
 
+        # self.entry.attributes["mutation"] 
+
+        ORF_search = False
         for mutation in lifton_status.status:
-            if mutation == "stop_missing" or mutation == "stop_codon_gain":
-                self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
-                break
+            # identical
+            # synonymous # inframe_insertion # inframe_deletion # nonsynonymous # frameshift # start_lost # stop_missing # stop_codon_gain            
+            # Adding mutations in to entry.attributes
+            if mutation != "identical":
+                if "mutation" not in self.entry.attributes:
+                    self.entry.attributes["mutation"] = [mutation]
+                else:
+                    self.entry.attributes["mutation"].append(mutation)
+            # ORF searching
+            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift" or mutation == "start_lost":
+                ORF_search = True
+
+        if ORF_search:
+            self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
         return lifton_tran_aln, lifton_aa_aln
-
-        # if lifton_aa_aln.identiy == 1:
-        #     lifton_status.status = "identical"
-        #     return lifton_aa_aln, True
-        
-        # elif lifton_aa_aln.identiy < 1:
-        #     # Check DNA sequence since there's mutation in protein.
-        #     lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
-
-        #     if len(peps) == 2 and str(peps[1]) == "":
-        #         # This is a valid protein ends with stop codon *
-        #         # But alignment is not 100% identical
-        #         lifton_status.status = "truncated"
-        #         return lifton_aa_aln, False
-                
-        #     elif len(peps) == 1:
-        #         # This is a protein without stop codon
-        #         self.entry.attributes["MissStopCodon"] = "1"
-        #         lifton_status.status = "stop_codon_missing"
-        #         return lifton_aa_aln, False
-            
-        #     else:
-        #         stop_codon_count = 0
-        #         for idx, ele in enumerate(protein_seq):
-        #             if ele == "*" and idx != len(protein_seq)-1:
-        #                 stop_codon_count += 1
-        #         self.entry.attributes["StopCodon"] = str(stop_codon_count)
-        #         lifton_status.status = "early_stop_codon"
-
-        #         # print("extracted_parasail_res: ", extracted_parasail_res)
-        #         # print("extracted_seq: ", extracted_seq)
-        #         # print("reference_seq: ", reference_seq)
-        #         print("stop_codon_count: ", stop_codon_count)
-
-        #         self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
-
-        #         return lifton_aa_aln, False
 
 
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status):
@@ -550,7 +591,6 @@ class Lifton_TRANS:
                 final_orf = orf
                 lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
                 lifton_status.lifton = max(lifton_status.lifton, lifton_aln.identity)
-                print(">> ",self.entry.id, " lifton_aln: ", lifton_aln.identity)
 
         if final_orf is not None:
             self.__update_cds_boundary(final_orf)
@@ -568,7 +608,7 @@ class Lifton_TRANS:
         accum_cds_length = 0
         for exon_idx, exon in enumerate(exons):
             curr_exon_len = exon.entry.end - exon.entry.start + 1
-            print(f"\t>> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+            # print(f"\t>> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
 
             if accum_exon_length <= final_orf.start:
                 if final_orf.start < accum_exon_length+curr_exon_len:
@@ -585,9 +625,9 @@ class Lifton_TRANS:
                             exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end - (final_orf.start - accum_exon_length))
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
-                    print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-                    print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
-                    print(f"\t\t>> exon.cds.entry.frame: {exon.cds.entry.frame}")
+                    # print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+                    # print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
+                    # print(f"\t\t>> exon.cds.entry.frame: {exon.cds.entry.frame}")
                 else:
                     # No CDS should be created
                     exon.cds = None
@@ -609,13 +649,13 @@ class Lifton_TRANS:
 
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
-                    print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-                    print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
-                    print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
+                    # print(f"\t\t >> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
+                    # print(f"\t\t >> exon.cds.entry.start: {exon.cds.entry.start}; exon.cds.entry.end: {exon.cds.entry.end}")
+                    # print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
 
                 else:
                     # Keep the original full CDS
-                    if exon.cds is not None:
+                    if exon.cds is None:
                         exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
@@ -657,7 +697,7 @@ class Lifton_TRANS:
 
 class Lifton_EXON:
     def __init__(self, gffutil_entry_exon):
-        gffutil_entry_exon.source = "Lifton"
+        gffutil_entry_exon.source = "LiftOn"
         gffutil_entry_exon.featuretype = "exon"
         self.entry = gffutil_entry_exon
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
@@ -667,7 +707,7 @@ class Lifton_EXON:
 
     def update_exon_info(self, start, end):
         self.cds = None
-        self.entry.source = "Lifton"
+        self.entry.source = "LiftOn"
         self.entry.start = start
         self.entry.end = end
         # print(f"start: {self.entry.start} - end: {self.entry.end}")
@@ -706,7 +746,7 @@ class Lifton_EXON:
 
 class Lifton_CDS:
     def __init__(self, gffutil_entry_cds):
-        gffutil_entry_cds.source = "Lifton"
+        gffutil_entry_cds.source = "LiftOn"
         gffutil_entry_cds.featuretype = "CDS"
         self.entry = gffutil_entry_cds
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')

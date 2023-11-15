@@ -82,9 +82,8 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
 
 
 def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw):
-
-    m_children = m_lifton_aln.cds_children
     l_children = l_lifton_aln.cds_children
+    m_children = m_lifton_aln.cds_children
 
     # print("number of children, m: ", len(m_children))
     # print("number of children, l: ", len(l_children))
@@ -116,7 +115,6 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw):
         # print(">> ref_aa_miniprot_count: ", ref_aa_miniprot_count)
         # print(">> ref_aa_liftoff_count: ", ref_aa_liftoff_count)
 
-
         if m_lifton_aln.db_entry.strand == "+":
             # print(">>> m_c_idx: ", m_c_idx)
             # print(">>> l_c_idx: ", l_c_idx)
@@ -144,7 +142,6 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw):
 
 
         elif m_lifton_aln.db_entry.strand == "-":
-
             m_c = m_children[len(m_children) - m_c_idx - 1]
             l_c = l_children[len(l_children) - l_c_idx - 1]
 
@@ -170,8 +167,6 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, fw):
 
                 l_c_idx, ref_aa_liftoff_count = push_cds_idx(l_c_idx, l_lifton_aln, ref_aa_liftoff_count)
                 m_c_idx, ref_aa_miniprot_count = push_cds_idx(m_c_idx, m_lifton_aln, ref_aa_miniprot_count)
-
-                # print("\tGroup!")
         
     l_c_idx += 1
     m_c_idx += 1

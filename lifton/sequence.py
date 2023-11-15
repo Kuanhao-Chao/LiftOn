@@ -82,6 +82,10 @@ def get_dna_sequence(fasta, features):
     strand = features[0].strand
     merged_features = merge_children_intervals(features)
     sequence =''
+
+    if chrom not in fasta.keys():
+        return sequence
+
     for start, end in merged_features:
         sequence += str(fasta[chrom][start -1: end])
     if strand == "-":
