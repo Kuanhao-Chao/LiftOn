@@ -112,6 +112,7 @@ def get_files_in_directory(directory_path):
             file_list.append(file_name)
     return sorted(file_list)
 
+
 def get_db(file_path, db_file=''):
     """
     Read data from a GFF file and return a list of features.
@@ -126,7 +127,7 @@ def get_db(file_path, db_file=''):
 
     """    
     # create an output for the database file
-    base_name = os.path.splitext(os.path.basename(file_path))[0] + '.db'
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
     if db_file == '':
         db_dir = os.path.join(os.path.dirname(file_path), 'db/')
         db_name = base_name + '.db'
@@ -144,8 +145,9 @@ def get_db(file_path, db_file=''):
                 disable_infer_transcripts=True, disable_infer_genes=True, verbose=True)
         except:
             print('[Info] Error creating database, searching for line error...')
-            find_problem_lines(file_path, f'./results/{db_name}_PROBLEM_LINES.out', quit=False) # DEBUGGING
+            find_problem_lines(file_path, f'./results/{base_name}_PROBLEM_LINES.out', quit=False) # DEBUGGING
     else: 
+        print(f'[Info] Database already on file at {db_file}, reading from here.')
         db = gffutils.FeatureDB(db_file)
 
     return db, db_file
@@ -197,13 +199,21 @@ def run():
     paired_list = [(liftoff_dir+lf, miniprot_dir+mf) for lf, mf in zip(liftoff_files, miniprot_files)]
     # print(paired_list)
 
-    for liftoff_f, miniprot_f in paired_list[:1]:
-        print(f'previewing: {liftoff_f}, {miniprot_f}')
-        preview_file(liftoff_f)
+    for liftoff_f, miniprot_f in paired_list[:]:
+        print(f'Previewing: {liftoff_f}')
+        try:
+            preview_file(liftoff_f)
+        except Exception as e: 
+            print(f'Error in {liftoff_f}:\n{e}')
         print('-'*170)
-        preview_file(miniprot_f)
-        liftoff_db, _ = get_db(liftoff_f)
-        miniprot_db, _ = get_db(miniprot_f)
+        print(f'Previewing: {miniprot_f}')
+        try:
+            preview_file(miniprot_f)
+        except Exception as e: 
+            print(f'Error in {miniprot_f}:\n{e}')
+        print('-'*170, '\n\n')
+        #liftoff_db, _ = get_db(liftoff_f)
+        #miniprot_db, _ = get_db(miniprot_f)
 
     # preview files
     # for file in liftoff_files:
