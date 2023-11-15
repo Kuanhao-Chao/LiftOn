@@ -126,9 +126,10 @@ def get_db(file_path, db_file=''):
 
     """    
     # create an output for the database file
+    base_name = os.path.splitext(os.path.basename(file_path))[0] + '.db'
     if db_file == '':
         db_dir = os.path.join(os.path.dirname(file_path), 'db/')
-        db_name = os.path.splitext(os.path.basename(file_path))[0] + '.db'
+        db_name = base_name + '.db'
         os.makedirs(db_dir, exist_ok=True)
         db_file = db_dir+db_name
         print(f'[Info] No database name given, creating at: {db_file}')
@@ -143,19 +144,26 @@ def get_db(file_path, db_file=''):
                 disable_infer_transcripts=True, disable_infer_genes=True, verbose=True)
         except:
             print('[Info] Error creating database, searching for line error...')
-            find_problem_line(file_path)
+            find_problem_lines(file_path, f'./results/{db_name}_PROBLEM_LINES.out', quit=False) # DEBUGGING
     else: 
         db = gffutils.FeatureDB(db_file)
 
     return db, db_file
 
 
-def find_problem_line(gff_file):
+def find_problem_lines(gff_file, outfile='', quit=True):
     '''
     Finds the line in the GFF file causing error for gffutils.
+    
+    Parameters:
+    - gff_file: filepath to the GFF file
+    - output: output file with error, only if given
+    - quit: if true, will stop running program when problem lines found 
+
     '''
     f = open(gff_file, 'r')
     lines = f.readlines()
+    problem_lines = []
     pbar = Bar('Searching GFF file... ', max=len(lines))
     for i in range(len(lines)):
         line = lines[i]
@@ -163,10 +171,21 @@ def find_problem_line(gff_file):
             try:
                 gffutils.create_db(line, ":memory:", from_string=True, force=True)
             except:
-                raise ValueError("ERROR: Incorrect GFF/GTF syntax on line " + str(i + 1))
+                problem_lines.append(i+1)
+
         pbar.next()
     pbar.finish()
 
+    if len(problem_lines) != 0:
+        if outfile != '':
+            with (open(outfile), 'w') as f:
+                for l in problem_lines:
+                    f.write(str(l) + '\n')
+        if quit:
+            raise ValueError("ERROR: Incorrect GFF/GTF syntax on line(s) " + str(list(problem_lines)))
+
+
+''' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ MAIN DRIVER FUNCTION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
 def run():
 
     # get the annotation files in a paired list
