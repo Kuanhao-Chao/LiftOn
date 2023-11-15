@@ -1,28 +1,24 @@
-import liftoff
 import subprocess
+import os, copy
+from lifton.liftoff import liftoff_main
+from lifton.liftoff.tests import test_basic, test_advanced
 
-def check_liftoff_installed():
-    installed = False
-    try:
-        installed = liftoff.__version__ >= "1.6.3"
-    except:
-        pass
-    return installed
+# def check_liftoff_installed():
+#     installed = False
+#     try:
+#         installed = liftoff.__version__ >= "1.6.3"
+#     except:
+#         pass
+#     return installed
 
 
-def run_liftoff():
-
-    # liftoff -g /ccb/salz2/kh.chao/PR_liftoff_protein_search/data/MANE_RefSeq/MANE.GRCh38.v1.2.refseq_genomic.cleaned.gff -o /ccb/salz2/kh.chao/PR_liftoff_protein_search/results/liftoff/$TARGET/${TARGET}_liftoff.gff3 -chroms /ccb/salz2/kh.chao/PR_liftoff_protein_search/data/chroms_mapping.csv -copies -polish $TARGET_genome /ccb/salz2/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna
-
-    # # command = ["liftoff", "-g", arg,  "--version"]
-
-    # installed = False
-    # try:
-    #     res = subprocess.run(command)
-    #     print(res)
-    #     installed = True
-    # except: 
-    #     pass
-
+def run_liftoff(args):
     print(">> run_liftoff")
-    pass
+    liftoff_args = copy.deepcopy(args)
+    liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
+    os.makedirs(liftoff_outdir, exist_ok=True)
+    liftoff_args.output = liftoff_outdir + "/liftoff.gff3"
+    liftoff_main.run_all_liftoff_steps(liftoff_args)
+
+    # test_basic.test_yeast(liftoff_outdir + "test_basic/")
+    # test_advanced.test_yeast(liftoff_outdir + "test_advance/")

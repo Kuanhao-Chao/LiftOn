@@ -2,7 +2,7 @@ from lifton import lifton_class
 import copy
 from intervaltree import Interval, IntervalTree
 
-def find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw):
+def find_extra_copy(m_feature_db, tree_dict, m_id_2_ref_id_trans_dict, gene_info_dict, trans_info_dict, trans_2_gene_dict, gene_copy_num_dict, trans_copy_num_dict, fw, ref_features_dict):
 
     EXTRA_COPY_MINIPROT_COUNT = 0
     NEW_LOCUS_MINIPROT_COUNT = 0
@@ -17,15 +17,22 @@ def find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, 
         gene_interval = Interval(mtrans.start, mtrans.end, mtrans.attributes["ID"])
         tree_dict[chromosome].add(gene_interval)
 
+        # ref_features_dict[]
+
         if len(ovps) == 0:
 
-            extra_cp_trans_id = aa_id_2_m_id_dict[mtrans_id]
+            extra_cp_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]
             gene_entry_base = copy.deepcopy(mtrans)
             trans_entry_base = copy.deepcopy(mtrans)
             # Find the extra copy for know gene
+
+
             if extra_cp_trans_id in trans_info_dict.keys():
                 EXTRA_COPY_MINIPROT_COUNT += 1
                 extra_cp_gene_id = trans_2_gene_dict[extra_cp_trans_id] 
+
+                ref_features_dict[extra_cp_gene_id][extra_cp_trans_id]
+
 
                 #######################################
                 # Step 5.1: Create the gene entry
@@ -53,7 +60,6 @@ def find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, 
                 cdss = m_feature_db.children(mtrans, featuretype='CDS')  # Replace 'exon' with the desired child feature type
                 # print("cdss len: ", len(cdss))
                 for cds in list(cdss):
-                    # entry.attributes["ID"]
                     Lifton_gene_ecp.add_exon(new_extra_cp_trans_id, cds)
                     cds_copy = copy.deepcopy(cds)
                     Lifton_gene_ecp.add_cds(new_extra_cp_trans_id, cds_copy)
@@ -90,3 +96,10 @@ def find_extra_copy(m_feature_db, tree_dict, aa_id_2_m_id_dict, gene_info_dict, 
                 Lifton_gene_ecp.write_entry(fw)
 
     return EXTRA_COPY_MINIPROT_COUNT, NEW_LOCUS_MINIPROT_COUNT
+
+
+def update_copy(id_base, copy_num_dict):
+    if id_base in copy_num_dict.keys():
+        copy_num_dict[id_base] += 1
+    else:
+        copy_num_dict[id_base] = 0
