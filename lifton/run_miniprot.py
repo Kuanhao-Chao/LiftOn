@@ -33,33 +33,36 @@ def run_miniprot(args, tgt_genome, ref_proteins_file):
     return miniprot_output
 
 
-def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_trans_id, ref_gene_info_dict, ref_trans_info_dict, gene_copy_num_dict, trans_copy_num_dict, tgt_fai, ref_proteins, ref_trans, tree_dict, DEBUG):
+
+def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
     logger.log("\tminiprot with reference protein", debug=DEBUG)
 
     mtrans_id = m_feature.attributes["ID"][0]
-
-    gene_feature = copy.deepcopy(m_feature)
-    trans_feature = copy.deepcopy(m_feature)
     ###########################
     # Create LifOn gene instance
     ###########################
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, gene_feature, ref_gene_info_dict[ref_gene_id], gene_copy_num_dict, tree_dict)
+    if ref_gene_id is None:
+        # This is a place holder gene
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, holder=True)
+    else:
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), copy.deepcopy(ref_db.db_connection[ref_gene_id].attributes), tree_dict, ref_features_dict)
+
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
 
     ###########################
     # Create LifOn transcript instance
     ###########################
-    new_m_trans_id = lifton_gene.add_miniprot_transcript(ref_trans_id, trans_feature, ref_trans_info_dict[ref_trans_id], gene_copy_num_dict, trans_copy_num_dict)
-    lifton_gene.update_trans_info(new_m_trans_id, m_feature.seqid, m_feature.start, m_feature.end)
+    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db.db_connection[ref_trans_id].attributes, ref_features_dict)
+    lifton_gene.update_trans_info(Lifton_trans.entry.id, m_feature.seqid, m_feature.start, m_feature.end)
 
     #######################################
     # Create exon / CDS entries
     #######################################
     cdss = m_feature_db.children(m_feature, featuretype='CDS')  # Replace 'exon' with the desired child feature type
     for cds in list(cdss):
-        lifton_gene.add_exon(new_m_trans_id, cds)
+        lifton_gene.add_exon(Lifton_trans.entry.id, cds)
         cds_copy = copy.deepcopy(cds)
-        lifton_gene.add_cds(new_m_trans_id, cds_copy)
+        lifton_gene.add_cds(Lifton_trans.entry.id, cds_copy)
 
     #######################################
     # Update LiftOn status
@@ -74,41 +77,36 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_t
     elif m_lifton_aln.identity < 1:
         lifton_status.annotation =  "miniprot_truncated"
     
-    lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(new_m_trans_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
+    lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(Lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
 
-    return lifton_gene, new_m_trans_id, lifton_status
+    return lifton_gene, Lifton_trans.entry.id, lifton_status
 
 
 
-def lifton_miniprot_no_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_trans_id, gene_copy_num_dict, trans_copy_num_dict, tree_dict, DEBUG):
+def lifton_miniprot_no_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_trans_id, ref_features_dict, tree_dict, DEBUG):
     logger.log("\tminiprot with NO reference protein", debug=DEBUG)
-
-    gene_feature = copy.deepcopy(m_feature)
-    trans_feature = copy.deepcopy(m_feature)
 
     # Reason it's missing => the mRNA does not belong to gene (vdj segments) || the mRNA is not in the reference annotation
     #######################################
     # Create LiftOn gene entry
     #######################################
-    gene_attrs = lifton_class.Lifton_GENE_info({}, ref_gene_id)
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, gene_feature, gene_attrs, gene_copy_num_dict, tree_dict)
+    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict)
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
 
     #######################################
     # Create LiftOn transcript entry
     #######################################
-    trans_attrs = lifton_class.Lifton_TRANS_info({}, ref_trans_id, ref_gene_id)
-    new_m_trans_id = lifton_gene.add_miniprot_transcript(ref_trans_id, trans_feature, trans_attrs, gene_copy_num_dict, trans_copy_num_dict)
-    lifton_gene.update_trans_info(new_m_trans_id, m_feature.seqid, m_feature.start, m_feature.end)
+    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), {}, ref_features_dict)
+    lifton_gene.update_trans_info(Lifton_trans.entry.id, m_feature.seqid, m_feature.start, m_feature.end)
 
     #######################################
     # Create the exon / CDS entry
     #######################################
     cdss = m_feature_db.children(m_feature, featuretype='CDS')  # Replace 'exon' with the desired child feature type
     for cds in list(cdss):
-        lifton_gene.add_exon(new_m_trans_id, cds)
+        lifton_gene.add_exon(Lifton_trans.entry.id, cds)
         cds_copy = copy.deepcopy(cds)
-        lifton_gene.add_cds(new_m_trans_id, cds_copy)
+        lifton_gene.add_cds(Lifton_trans.entry.id, cds_copy)
 
     #######################################
     # Update LiftOn status
@@ -116,4 +114,4 @@ def lifton_miniprot_no_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_tra
     lifton_status = lifton_class.Lifton_Status()                
     lifton_status.annotation = "miniprot_no_ref_protein"
     lifton_status.status = ["no_ref_protein"]
-    return lifton_gene, new_m_trans_id, lifton_status
+    return lifton_gene, Lifton_trans.entry.id, lifton_status
