@@ -37,6 +37,8 @@ def run_miniprot(args, tgt_genome, ref_proteins_file):
 def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
     logger.log("\tminiprot with reference protein", debug=DEBUG)
 
+
+
     mtrans_id = m_feature.attributes["ID"][0]
     ###########################
     # Create LifOn gene instance
@@ -45,14 +47,14 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
         # This is a place holder gene
         lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, holder=True)
     else:
-        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), copy.deepcopy(ref_db.db_connection[ref_gene_id].attributes), tree_dict, ref_features_dict)
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
 
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
 
     ###########################
     # Create LifOn transcript instance
     ###########################
-    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db.db_connection[ref_trans_id].attributes, ref_features_dict)
+    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
     lifton_gene.update_trans_info(Lifton_trans.entry.id, m_feature.seqid, m_feature.start, m_feature.end)
 
     #######################################
@@ -68,6 +70,8 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
     # Update LiftOn status
     #######################################
     lifton_status = lifton_class.Lifton_Status()                
+
+    print("mtrans_id: ", mtrans_id)
     m_entry = m_feature_db[mtrans_id]
     m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
     lifton_status.lifton = m_lifton_aln.identity
@@ -78,6 +82,8 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
         lifton_status.annotation =  "miniprot_truncated"
     
     lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(Lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
+
+    # lifton_gene.print_gene()
 
     return lifton_gene, Lifton_trans.entry.id, lifton_status
 
