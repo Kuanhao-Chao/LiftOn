@@ -1,7 +1,7 @@
 TARGET=$1
 if [ "$TARGET" == "human_to_chimp" ]; then
     echo "running LiftOn on human_to_chimp"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic_no_alt.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna"
@@ -9,7 +9,7 @@ if [ "$TARGET" == "human_to_chimp" ]; then
 
 elif [ "$TARGET" == "mouse_to_rat" ]; then
     echo "running LiftOn on mouse_to_rat"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_no_alt_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/mouse_to_rat/mRatBN7.2_liftoff_from_GRCm39_no_alt.gff_polished_db"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/mouse_to_rat/mRatBN7.2_miniprot_from_GRCm39.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/mouse_to_rat/mRatBN7.2_genomic.fna"
@@ -48,15 +48,15 @@ elif [ "$TARGET" == "bee_test" ]; then
 
 elif [[ "$TARGET" == "mouse" || "$TARGET" == "mouse_test" ]]; then
     echo "running LiftOn on mouse"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_no_alt_genomic.gff"
-    LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_liftoff_from_GRCm39_no_alt.gff_polished_db"
-    MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_from_miniprot_GRCm39.gff_db"
-    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_genomic.fna"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.gff_db"
+    #LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_liftoff_from_GRCm39_no_alt.gff_polished_db"
+    #MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_from_miniprot_GRCm39.gff_db"
+    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/mouse/NOD_SCID_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna"
 
 elif [[ "$TARGET" == "rice" || "$TARGET" == "rice_test" ]]; then
     echo "running LiftOn on rice"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic_no_alts.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.gff"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_genomic.fna"
@@ -86,13 +86,18 @@ elif [[ "$TARGET" == "human_refseq" ]]; then
     # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff_db"
     TARGET_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
     REFERENCE_genome="/ccb/salz2/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
+elif [[ "$TARGET" == "drosophila" ]]; then
+    echo "running drosophila"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff_db"
+    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.simulans_genomic.fna"
+    REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
 else
 
     echo "Cannot find the genome. Exit.."
     exit -1
 fi
 
-LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3_db"
+LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3"
 MINIPROT_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/miniprot/miniprot.gff3_db"
 
 intermediate_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/intermediate_files/"

@@ -55,10 +55,9 @@ class Lifton_GENE:
         self.entry.source = "LiftOn"
         self.entry.featuretype = "gene"
         self.transcripts = {}
-        self.copy_num = self.entry.attributes["extra_copy_number"][0] if 'extra_copy_number' in self.entry.attributes else "0"
-        # This is used for retrieving the copy num & attributes info
         self.ref_gene_id = ref_gene_id
-
+        self.copy_num = self.__get_gene_copy(ref_features_dict)
+        # This is used for retrieving the copy num & attributes info
         if holder:
             # ref_gene_id_in, ref_trans_id_in = lifton_utils.get_ref_ids_liftoff(ref_features_dict, self.entry.id, None)
             attributes = {}
@@ -69,16 +68,14 @@ class Lifton_GENE:
             # print("Holder self.entry.attributes: ", self.entry.attributes)
         else:
             self.entry.attributes = ref_gene_attrs
-            self.entry.attributes["ID"] = self.ref_gene_id + "_" + self.copy_num if int(self.copy_num) > 0 else self.ref_gene_id
-            if int(self.copy_num) > 0:
-                self.entry.attributes["extra_copy_number"] = [self.copy_num]
+            self.entry.attributes["ID"] = self.ref_gene_id + "_" + str(self.copy_num) if self.copy_num > 0 else self.ref_gene_id
+            if self.copy_num > 0:
+                self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
 
-            # ###########################
-            # # Update gene copy number dictionary
-            # ###########################
-            self.__update_gene_copy(ref_features_dict)
-            # print("Nonholder self.entry.attributes: ", self.entry.attributes)
-            
+        ###########################
+        # Update gene copy number dictionary
+        ###########################        
+        self.__update_gene_copy(ref_features_dict)
         self.entry.id = self.entry.attributes["ID"][0]
         ###########################
         # Adding LiftOn intervals
@@ -88,6 +85,15 @@ class Lifton_GENE:
             tree_dict[self.entry.seqid] = IntervalTree()
         tree_dict[self.entry.seqid].add(gene_interval)
         
+
+    def __get_gene_copy(self, ref_features_dict):
+        if 'extra_copy_number' in self.entry.attributes:
+            return int(self.entry.attributes['extra_copy_number'][0])
+        else:
+            if self.ref_gene_id in ref_features_dict.keys():
+                return ref_features_dict[self.ref_gene_id].copy_num
+            else:
+                return 0
 
     def __update_gene_copy(self, ref_features_dict):
         if self.ref_gene_id in ref_features_dict.keys():
@@ -100,7 +106,6 @@ class Lifton_GENE:
         self.entry.end = end
 
     def add_miniprot_transcript(self, ref_trans_id, gffutil_entry_trans, ref_trans_attrs, ref_features_dict):
-        self.__update_gene_copy(ref_features_dict)
         Lifton_trans = Lifton_TRANS(ref_trans_id, self.ref_gene_id, self.entry.id, self.copy_num, gffutil_entry_trans, ref_trans_attrs)
         self.transcripts[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans
@@ -116,6 +121,11 @@ class Lifton_GENE:
         Lifton_trans = Lifton_TRANS(ref_trans_id, self.ref_gene_id, self.entry.id, self.copy_num, gffutil_entry_trans, ref_trans_attrs)
         self.transcripts[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans
+
+    def add_feature(self, gffutil_entry_trans):
+        Lifton_feature = LiftOn_FEATURE(self.entry.id, gffutil_entry_trans, self.copy_num)
+        self.transcripts[Lifton_feature.entry.id] = Lifton_feature
+        return Lifton_feature
 
     def remove_transcript(self, transcript_id):
         del self.transcripts[transcript_id]
@@ -157,6 +167,32 @@ class Lifton_GENE:
         for key, trans in self.transcripts.items():
             trans.print_transcript()
 
+class LiftOn_FEATURE:
+    def __init__(self, parent_id, gffutil_entry_feature, copy_num):
+        self.entry = gffutil_entry_feature
+        self.entry.source = "LiftOn"
+        self.copy_num = copy_num
+        self.features = {}
+        self.entry.attributes["Parent"] = [parent_id]
+        if int(copy_num) > 0:
+            feature_id_base = lifton_utils.get_ID_base(self.entry.id)
+            self.entry.id = f"{feature_id_base}_{copy_num}"
+            self.entry.attributes["ID"] = [self.entry.id]
+
+    def add_feature(self, gffutil_entry_trans):
+        Lifton_feature = LiftOn_FEATURE(self.entry.id, gffutil_entry_trans, self.copy_num)
+        self.features[Lifton_feature.entry.id] = Lifton_feature
+        return Lifton_feature
+
+    def write_entry(self, fw):
+        fw.write(str(self.entry) + "\n")
+        for key, feature in self.features.items():
+            feature.write_entry(fw)
+
+    def print_feature(self):
+        print(self.entry)
+        for key, feature in self.features.items():
+            feature.print_feature()
 
 
 class Lifton_TRANS:

@@ -305,6 +305,7 @@ def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
 
 
 def extract_ref_ids(ref_features_dict, liftoff_id):
+    print("\t\tliftoff_id: ", liftoff_id)
     if liftoff_id in ref_features_dict.keys():
         return liftoff_id
     else:

@@ -30,8 +30,10 @@ class Annotation():
             disable_genes = True
         try:
             transform_func = self.get_transform_func()
-            feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", merge_strategy="create_unique", 
-                                        id_spec='ID',
+            feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
+                                        merge_strategy="create_unique", 
+                                            # merge_strategy="create_unique", 
+                                        # id_spec='ID',
                                         force=True,
                                         verbose=True, disable_infer_transcripts=True,
                                             disable_infer_genes=disable_genes, transform=transform_func)
