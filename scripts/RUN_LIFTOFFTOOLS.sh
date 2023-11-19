@@ -84,6 +84,7 @@ elif [[ "$TARGET" == "drosophila" || "$TARGET" == "drosophila_test" ]]; then
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.simulans_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
 else
+
     echo "Cannot find the genome. Exit.."
     exit -1
 fi
@@ -96,10 +97,9 @@ output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3"
 ref_proteins="${intermediate_dir}proteins.fa"
 ref_trans="${intermediate_dir}transcripts.fa"
 log_file="/ccb/salz2/kh.chao/Lifton/results/$TARGET/output.log"
+output_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftofftools_output/"
 
-echo "lifoff annotation: $LIFTOFF_gff"
-echo "miniprot annotation: $MINIPROT_gff"
-echo "intermediate_dir: $intermediate_dir"
-echo "lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG"
+echo "liftofftools synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir
 
-lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG
+liftofftools synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff -dir $output_dir
+

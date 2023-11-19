@@ -13,7 +13,7 @@ import pandas as pd
 TARGET = sys.argv[1]
 
 protein_fa = ""
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "drosophila" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1":
     print("Running with ", TARGET)
     genome = ""
 
@@ -119,6 +119,34 @@ for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
 
     # Plot the histogram on the corresponding subplot
     axes[idx].hist(select_scores, bins=100, log=True)
+    axes[idx].set(title=f'{target.capitalize()} Score Frequency Histogram (Log)', xlabel='Log(Score)', ylabel='Frequency')
+
+# Adjust layout
+plt.tight_layout()
+
+# Save the figure
+figure_path = f"{outdir_root}combined_frequency_log.png"
+plt.savefig(figure_path, dpi=300)
+
+# Show the plot
+plt.show()
+
+
+# Create a subplot with 1 row and 3 columns
+fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharex='col', sharey='row')
+
+for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
+    select_scores = None
+
+    if target == "liftoff":
+        select_scores = table[1][(table[1] <= upper_threshold) & (table[1] > 0.0)]
+    elif target == "miniprot":
+        select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
+    elif target == "lifton":
+        select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
+
+    # Plot the histogram on the corresponding subplot
+    axes[idx].hist(select_scores, bins=100)
     axes[idx].set(title=f'{target.capitalize()} Score Frequency Histogram', xlabel='Score', ylabel='Frequency')
 
 # Adjust layout
