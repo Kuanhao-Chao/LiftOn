@@ -1,4 +1,4 @@
-from lifton import extract_features, mapping, intervals, extra_copy, align, adjust_cds_boundaries, fix_trans_annotation, lifton_class, lifton_utils, annotation, sequence, stats, logger, run_miniprot, run_liftoff, __version__
+from lifton import extract_features, mapping, intervals, extra_copy, align, adjust_cds_boundaries, fix_trans_annotation, lifton_class, lifton_utils, annotation, extract_sequence, sequence, stats, logger, run_miniprot, run_liftoff, __version__
 from intervaltree import Interval, IntervalTree
 import argparse
 from argparse import Namespace
@@ -195,90 +195,90 @@ def run_all_lifton_steps(args):
     os.makedirs(intermediate_dir, exist_ok=True)
     args.directory = intermediate_dir
     
-    print(">> Reading target genome ...")
+    logger.log(">> Reading target genome ...", debug=True)
     tgt_fai = Fasta(tgt_genome)
-    print(">> Reading reference genome ...")
+    logger.log(">> Reading reference genome ...", debug=True)
     ref_fai = Fasta(ref_genome)
+
 
     ################################
     # Step 1: Building database from the reference annotation
     ################################
     ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes)
-    # Get all the parent features to liftover    
+
+
+    ################################
+    # Step 2: Get all reference features to liftover
+    ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
-
     ref_features_dict, ref_features_reverse_dict = lifton_utils.get_ref_liffover_features(features, ref_db)
-    print("ref_features_dict         : ", len(ref_features_dict))
-    print("ref_features_reverse_dict : ", len(ref_features_reverse_dict))
+    # print("ref_features_dict         : ", len(ref_features_dict))
+    # print("ref_features_reverse_dict : ", len(ref_features_reverse_dict))
 
 
     ################################
-    # Step 2: Creating protein & DNA dictionaries from the reference annotation
+    # Step 3: Extract protein & DNA dictionaries from the selected reference features
     ################################
-    ref_proteins_file = args.proteins    
-    if ref_proteins_file is None or not os.path.exists(ref_proteins_file):
-        print(">> Creating transcript protein dictionary from the reference annotation ...")
-        ref_proteins = sequence.SequenceDict(ref_db, ref_fai, ['CDS', 'start_codon', 'stop_codon'], True)        
-        ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_proteins, "proteins")
-    else:
-        print(">> Reading transcript protein dictionary from the reference fasta ...")
-        ref_proteins = Fasta(ref_proteins_file)
-    print("\t * number of proteins: ", len(ref_proteins.keys()))
-
-    trunc_ref_proteins = lifton_utils.get_truncated_protein(ref_proteins)
-    trunc_ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, trunc_ref_proteins, "truncated_proteins")
-
     ref_trans_file = args.transcripts    
-    if ref_trans_file is None or not os.path.exists(ref_trans_file):
-        print(">> Creating transcript DNA dictionary from the reference annotation ...")
-        ref_trans = sequence.SequenceDict(ref_db, ref_fai, ['exon'], False)
+    ref_proteins_file = args.proteins    
+    if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
+        logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
+        logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
+        ref_trans, ref_proteins = extract_sequence.extract_features(ref_db, features, ref_fai)
+        ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_proteins, "proteins")
         ref_trans_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_trans, "transcripts")
     else:
-        print(">> Reading transcript DNA dictionary from the reference fasta ...")
+        logger.log(">> Reading transcript DNA dictionary from the reference fasta ...", debug=True)
+        logger.log(">> Reading transcript protein dictionary from the reference fasta ...", debug=True)
         ref_trans = Fasta(ref_trans_file)
-    print("\t * number of transcripts: ", len(ref_trans.keys()))
+        ref_proteins = Fasta(ref_proteins_file)
+    logger.log("\t * number of transcripts: ", len(ref_trans.keys()), debug=True)
+    logger.log("\t * number of proteins: ", len(ref_proteins.keys()), debug=True)
+    trunc_ref_proteins = lifton_utils.get_truncated_protein(ref_proteins)
+    trunc_ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, trunc_ref_proteins, "truncated_proteins")
+    logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
 
 
     ################################
-    # Step 3: Run liftoff & miniprot
+    # Step 4: Run liftoff & miniprot
     ################################
     liftoff_annotation = lifton_utils.exec_liftoff(outdir, args)
     miniprot_annotation = lifton_utils.exec_miniprot(outdir, args, tgt_genome, ref_proteins_file)
 
 
     ################################
-    # Step 4: Run LiftOn algorithm
+    # Step 5: Run LiftOn algorithm
     ################################
     ################################
-    # Step 4.0: Create liftoff and miniprot database
+    # Step 5.0: Create liftoff and miniprot database
     ################################
-    print(">> Creating liftoff database : ", liftoff_annotation)
+    logger.log(">> Creating liftoff database : ", liftoff_annotation, debug=True)
     l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
-    print(">> Creating miniprot database : ", miniprot_annotation)
+    logger.log(">> Creating miniprot database : ", miniprot_annotation, debug=True)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
     fw = open(args.output, "w")
     fw_score = open(outdir+"/score.txt", "w")
     fw_unmapped = open(outdir+"/unmapped_features.txt", "w")
     fw_extra_copy = open(outdir+"/extra_copy_features.txt", "w")
 
-    
+
     ################################
-    # Step 4.1: Creating miniprot 2 Liftoff ID mapping
+    # Step 5.1: Creating miniprot 2 Liftoff ID mapping
     ################################
     ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = mapping.miniprot_id_mapping(m_feature_db)
 
     ################################
-    # Step 4.2: Initializing intervaltree
+    # Step 5.2: Initializing intervaltree
     ################################
     tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
 
     ################################
-    # Step 5: Process Liftoff genes & transcripts
+    # Step 6: Process Liftoff genes & transcripts
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("CM062734.1", 102412740, 102511372)):
+        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_051351.1", 18770310, 18789699)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
 
             ###########################
@@ -288,7 +288,7 @@ def run_all_lifton_steps(args):
         
 
     ################################
-    # Step 6: Process miniprot transcripts
+    # Step 7: Process miniprot transcripts
     ################################
     for mtrans in m_feature_db.features_of_type('mRNA'):
         mtrans_id = mtrans.attributes["ID"][0]
@@ -297,10 +297,7 @@ def run_all_lifton_steps(args):
         is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
 
         if not is_overlapped:
-            ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]
-
-            # if ref_trans_id in ref_proteins.keys() and ref_trans_id in ref_trans.keys():
-            
+            ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
             ###########################
             # Link the reference trans ID to feature
             ###########################
@@ -335,9 +332,6 @@ def run_all_lifton_steps(args):
     fw_unmapped.close()
     fw_extra_copy.close()
 
-
-
 def main(arglist=None):
     args = parse_args(arglist)
-    print("Run Lifton!!")
     run_all_lifton_steps(args)

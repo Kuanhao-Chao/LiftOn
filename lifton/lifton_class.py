@@ -246,12 +246,6 @@ class Lifton_TRANS:
     # def __update_trans_extra_copy_attrs(self, trans_copy_num_dict):
     #     self.entry.attributes["extra_copy_number"] = [str(trans_copy_num_dict[self.ref_tran_id])]
 
-
-
-
-
-
-
     def add_lifton_status_attrs(self, lifton_status):
         self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton:.3f}"]
         self.entry.attributes["status"] = [lifton_status.annotation]

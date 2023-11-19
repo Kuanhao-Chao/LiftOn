@@ -259,22 +259,20 @@ def get_ref_liffover_features(features, ref_db):
     ref_features_dict["LiftOn-gene"] = new_gene_feature
 
     for f_itr in features:
-        for locus in ref_db.db_connection.features_of_type(f_itr):#, limit=("CM033155.1", 0, 
-            # loci
+        for locus in ref_db.db_connection.features_of_type(f_itr):
             feature = lifton_class.Lifton_feature(locus.id)
-            children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
-            if len(children) == 0:
+            exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
+
+            if len(exon_children) > 0:
+                process_ref_liffover_features(locus, ref_db, None)
+            else:
                 transcripts = ref_db.db_connection.children(locus, level=1)
                 for transcript in list(transcripts):
                     # print(transcript)
                     process_ref_liffover_features(transcript, ref_db, feature)
                     ref_features_reverse_dict[transcript.id] = locus.id
-            else:
-                process_ref_liffover_features(locus, ref_db, None)
-
             ref_features_dict[locus.id] = feature
-    # print("ref gene count : ", len(ref_features_dict), "(", len(gene_info_dict), ")")
-    # print("ref trans count: ", len(trans_info_dict))
+
     return ref_features_dict, ref_features_reverse_dict
 
 
@@ -314,26 +312,6 @@ def extract_ref_ids(ref_features_dict, liftoff_id):
             return ref_id
         else:
             return None
-
-
-# def get_ref_trans_id_liftoff(ref_features_dict, ref_gene_id, liftoff_trans_id):
-#     if len(ref_features_dict[ref_gene_id].children) == 0:
-#         # This is for the trans level.
-#         return ref_gene_id
-    
-#     if liftoff_trans_id == None:
-#         # This is for the gene level.
-#         return liftoff_trans_id
-    
-#     if liftoff_trans_id in ref_features_dict[ref_gene_id].children:
-#         # This is for the gene level.
-#         return liftoff_trans_id
-    
-#     ref_trans_id = get_ID_base(liftoff_trans_id)
-#     if ref_trans_id in ref_features_dict[ref_gene_id].children:
-#         return ref_trans_id
-#     else:
-#         return None
 
 
 def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_ref_id_trans_dict):

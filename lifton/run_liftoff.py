@@ -205,27 +205,31 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
 
                         mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
                         is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, 0.7, tree_dict)
+                        print("is_overlapped: ", is_overlapped)
 
                         if is_overlapped:
                             lifton_gene, transcript_id, lifton_status = run_miniprot.lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG)
                             lifton_trans = lifton_gene.transcripts[transcript_id]
+                        else:
+                            lifton_status.annotation = "Liftoff_no_protein"
+                            lifton_status.status = ["no_protein"]
             else:
                 ###########################
                 # Condition 4: LiftOn does not have proteins & miniprot does not have proteins
                 ###########################
                 if (ref_trans_id in ref_proteins.keys()) :
-                    logger.log("\t* No CDS & valid miniprot but have ref protein", debug=DEBUG)
+                    logger.log("\t* No CDS & no miniprot but have ref protein", debug=DEBUG)
                     lifton_status.annotation = "Liftoff_no_ref_protein"
                     lifton_status.status = ["no_ref_protein"]
-                
                 else:
-                    logger.log("\t* No CDS & valid miniprot & no ref protein", debug=DEBUG)
+                    logger.log("\t* No CDS & no miniprot & no ref protein", debug=DEBUG)
                     lifton_status.annotation = "Liftoff_nc_transcript"
                     lifton_status.status = ["nc_transcript"]
 
         lifton_utils.write_lifton_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
 
-
+        lifton_gene.add_lifton_status_attrs(lifton_trans.entry.id, lifton_status)
+        
         ###########################
         # Truncated reference proteins
         ###########################
@@ -233,7 +237,5 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         #     print("Reference proteins is truncated.")
         #     lifton_status.annotation = "Reference_protein_truncated"
         #     lifton_status.status = ["truncated_ref_protein"]
-
-        lifton_gene.add_lifton_status_attrs(lifton_trans.entry.id, lifton_status)
         
     return lifton_gene
