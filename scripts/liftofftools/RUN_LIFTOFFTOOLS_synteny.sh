@@ -111,7 +111,7 @@ else
     exit -1
 fi
 
-LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3_db"
+LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3"
 MINIPROT_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/miniprot/miniprot.gff3_db"
 
 intermediate_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/intermediate_files/"
@@ -119,10 +119,9 @@ output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3"
 ref_proteins="${intermediate_dir}proteins.fa"
 ref_trans="${intermediate_dir}transcripts.fa"
 log_file="/ccb/salz2/kh.chao/Lifton/results/$TARGET/output.log"
+output_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftofftools_output/"
 
-echo "lifoff annotation: $LIFTOFF_gff"
-echo "miniprot annotation: $MINIPROT_gff"
-echo "intermediate_dir: $intermediate_dir"
-echo "lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG"
+echo "liftofftools synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir
 
-lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG
+liftofftools synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff -dir $output_dir
+
