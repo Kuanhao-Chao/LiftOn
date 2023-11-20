@@ -1,7 +1,7 @@
 from collections import defaultdict
 import warnings
 from Bio.Seq import Seq
-from liftoff import liftoff_utils
+from lifton.liftoff  import liftoff_utils
 import parasail
 from itertools import groupby
 import numpy as np
