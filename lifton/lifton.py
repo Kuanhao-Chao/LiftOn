@@ -1,5 +1,5 @@
-from lifton import extract_features, mapping, intervals, extra_copy, align, adjust_cds_boundaries, fix_trans_annotation, lifton_class, lifton_utils, annotation, extract_sequence, sequence, stats, logger, run_miniprot, run_liftoff, __version__
-from intervaltree import Interval, IntervalTree
+from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, __version__
+from intervaltree import Interval
 import argparse
 from argparse import Namespace
 from pyfaidx import Fasta, Faidx
@@ -278,7 +278,7 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_051351.1", 18770310, 18789699)):
+        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
 
             ###########################
