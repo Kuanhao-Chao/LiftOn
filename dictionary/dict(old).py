@@ -19,9 +19,6 @@ The function should be able to handle various scenarios, including direct mappin
 performing protein_ID to transcript_ID mapping (relevant for proteins directly downloaded from NCBI).
 '''
 
-
-'''------------------------------------- MAIN '''
-
 def create_id_mapping(liftoff_annotations, miniprot_annotations):
     """
     Create an ID mapping dictionary between LiftOff and miniprot annotations.
@@ -114,6 +111,80 @@ def get_files_in_directory(directory_path):
         if os.path.isfile(os.path.join(directory_path, file_name)):
             file_list.append(file_name)
     return sorted(file_list)
+
+
+def get_db(file_path, db_file=''):
+    """
+    Read data from a GFF file and return a list of features.
+
+    Parameters:
+    - file_path: Path to the GFF file.
+    - db_file: Path to the SQLite database file (if none given, will create in a /db/ subdir)
+
+    Returns:
+    - db: The database generatd form gffutils
+    - db_file: The path to the database
+
+    """    
+    # create an output for the database file
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    if db_file == '':
+        db_dir = os.path.join(os.path.dirname(file_path), 'db/')
+        db_name = base_name + '.db'
+        os.makedirs(db_dir, exist_ok=True)
+        db_file = db_dir+db_name
+        print(f'[Info] No database name given, creating at: {db_file}')
+
+    # get path of the input file
+    fin = os.path.abspath(file_path)
+
+    # generate database if empty (~5 mins / 3.42 mil features), 
+    if not os.path.exists(db_file):
+        try:
+            db = gffutils.create_db(fin, db_file, merge_strategy="create_unique", force=True, \
+                disable_infer_transcripts=True, disable_infer_genes=True, verbose=True)
+        except:
+            print('[Info] Error creating database, searching for line error...')
+            find_problem_lines(file_path, f'./results/{base_name}_PROBLEM_LINES.out', quit=False) # DEBUGGING
+    else: 
+        print(f'[Info] Database already on file at {db_file}, reading from here.')
+        db = gffutils.FeatureDB(db_file)
+
+    return db, db_file
+
+
+def find_problem_lines(gff_file, outfile='', quit=True):
+    '''
+    Finds the line in the GFF file causing error for gffutils.
+    
+    Parameters:
+    - gff_file: filepath to the GFF file
+    - output: output file with error, only if given
+    - quit: if true, will stop running program when problem lines found 
+
+    '''
+    f = open(gff_file, 'r')
+    lines = f.readlines()
+    problem_lines = []
+    pbar = Bar('Searching GFF file... ', max=len(lines))
+    for i in range(len(lines)):
+        line = lines[i]
+        if line[0] != "#":
+            try:
+                gffutils.create_db(line, ":memory:", from_string=True, force=True)
+            except:
+                problem_lines.append(i+1)
+
+        pbar.next()
+    pbar.finish()
+
+    if len(problem_lines) != 0:
+        if outfile != '':
+            with (open(outfile), 'w') as f:
+                for l in problem_lines:
+                    f.write(str(l) + '\n')
+        if quit:
+            raise ValueError("ERROR: Incorrect GFF/GTF syntax on line(s) " + str(list(problem_lines)))
 
 
 ''' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ MAIN DRIVER FUNCTION ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
