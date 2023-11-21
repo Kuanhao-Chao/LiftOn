@@ -1,0 +1,64 @@
+Previewing: ./annotations/liftoff/ASM1932182v1_liftoff_from_HAv3.1.gff_polished
+##gff-version 3
+# Liftoff v1.6.3
+# /ccb/sw/python3/bin/liftoff -g /ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic.gff -p 4 -copies -sc 0.95 -polish -o /ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_liftoff_HAv3.1.gff -u /ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_liftoff_HAv3.1_unmapped.txt /ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_genomic.fna /ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic.fna
+CM033155.1	Liftoff	gene	176496	177531	.	+	.	ID=gene-LOC113219036_7;Dbxref=GeneID:113219036;Name=LOC113219036;gbkey=Gene;gene=LOC113219036;gene_biotype=lncRNA;coverage=0.985;sequence_ID=0.963;extra_copy_number=7;copy_num_ID=gene-LOC113219036_7
+CM033155.1	Liftoff	lnc_RNA	176496	177531	.	+	.	ID=rna-XR_003305427.1_7;Parent=gene-LOC113219036_7;Dbxref=GeneID:113219036,Genbank:XR_003305427.1;Name=XR_003305427.1;gbkey=ncRNA;gene=LOC113219036;model_evidence=Supporting evidence includes similarity to: 100%25 coverage of the annotated genomic feature by RNAseq alignments%2C including 33 samples with support for all annotated introns;product=uncharacterized LOC113219036%2C transcript variant X1;transcript_id=XR_003305427.1_7;extra_copy_number=7
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Previewing: ./annotations/miniprot/ASM1932182v1_from_miniprot_HAv3.1.gff
+##gff-version 3
+CM033161.1	miniprot	mRNA	3532328	3534777	1551	+	.	ID=MP000001;Rank=1;Identity=1.0000;Positive=1.0000;Target=NP_001010975.1 1 300
+CM033161.1	miniprot	CDS	3532328	3532490	266	+	0	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001010975.1 1 54
+CM033161.1	miniprot	CDS	3533853	3534114	464	+	2	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001010975.1 55 141
+CM033161.1	miniprot	CDS	3534217	3534451	412	+	1	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001010975.1 142 220
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+Previewing: ./annotations/liftoff/ASM2616768v1_liftoff_from_IRGSP.gff_polished
+##gff-version 3
+# Liftoff v1.6.3
+# /ccb/sw/python3/bin/liftoff -g /ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.gff -p 4 -copies -sc 0.95 -polish -o /ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_IRGSP.gff -u /ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_IRGSP_unmapped.txt /ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_genomic.fna /ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.fna
+CP101141.1	Liftoff	gene	13772	26176	.	-	.	ID=gene-LOC4347935;Dbxref=GeneID:4347935;Name=LOC4347935;gbkey=Gene;gene=LOC4347935;gene_biotype=protein_coding;coverage=1.0;sequence_ID=1.0;valid_ORFs=1;extra_copy_number=0;copy_num_ID=gene-LOC4347935_0
+CP101141.1	Liftoff	mRNA	13772	26176	.	-	.	ID=rna-XM_015757354.2;Parent=gene-LOC4347935;Dbxref=GeneID:4347935,GenBank:XM_015757354.2;Name=XM_015757354.2;gbkey=mRNA;gene=LOC4347935;model_evidence=Supporting evidence includes similarity to: 2 mRNAs%2C 97 ESTs%2C 4 Proteins%2C and 100%25 coverage of the annotated genomic feature by RNAseq alignments%2C including 57 samples with support for all annotated introns;product=protein TIC 62%2C chloroplastic-like;transcript_id=XM_015757354.2;matches_ref_protein=True;valid_ORF=True;extra_copy_number=0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Previewing: ./annotations/miniprot/ASM2616768v1_from_miniprot_IRGSP.gff
+##gff-version 3
+CP101150.1	miniprot	mRNA	9245861	9246661	436	-	.	ID=MP000001;Rank=1;Identity=1.0000;Positive=1.0000;Target=NP_039359.1 39 124
+CP101150.1	miniprot	CDS	9246430	9246661	392	-	0	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_039359.1 39 115
+CP101150.1	miniprot	CDS	9245864	9245889	44	-	2	Parent=MP000001;Rank=1;Identity=1.0000;Acceptor=AC;Target=NP_039359.1 116 124
+CP101150.1	miniprot	stop_codon	9245861	9245863	0	-	0	Parent=MP000001;Rank=1
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+Previewing: ./annotations/liftoff/Tanz-1_liftoff_from_TAIR10.gff_polished
+##gff-version 3
+# Liftoff v1.6.3
+# /ccb/sw/python3/bin/liftoff -g /ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff -p 4 -copies -sc 0.95 -polish -o /ccb/salz2/jheinz3/shared/lifton/arabadop/Tanz-1_liftoff_TAIR10.gff /ccb/salz2/jheinz3/shared/lifton/arabadop/Tanz-1.fna /ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.fna
+OX291666.1	Liftoff	gene	6724	8986	.	+	.	ID=gene-AT1G01010;Dbxref=Araport:AT1G01010,TAIR:AT1G01010,GeneID:839580;Name=NAC001;gbkey=Gene;gene=NAC001;gene_biotype=protein_coding;gene_synonym=ANAC001,NAC domain containing protein 1,T25K16.1,T25K16_1;locus_tag=AT1G01010;coverage=0.996;sequence_ID=0.995;valid_ORFs=1;extra_copy_number=0;copy_num_ID=gene-AT1G01010_0
+OX291666.1	Liftoff	mRNA	6724	8986	.	+	.	ID=rna-NM_099983.2;Parent=gene-AT1G01010;Dbxref=Araport:AT1G01010,TAIR:AT1G01010,GeneID:839580,GenBank:NM_099983.2;Name=NM_099983.2;gbkey=mRNA;gene=NAC001;inference=similar to RNA sequence%2C mRNA:INSD:BT001115.1%2CINSD:AF439834.1%2CINSD:AK226863.1;locus_tag=AT1G01010;orig_protein_id=gnl|JCVI|AT1G01010.1;orig_transcript_id=gnl|JCVI|mRNA.AT1G01010.1;product=NAC domain containing protein 1;transcript_id=NM_099983.2;matches_ref_protein=True;valid_ORF=True;extra_copy_number=0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Previewing: ./annotations/miniprot/Tanz-1_from_miniprot_TAIR10.gff
+##gff-version 3
+OX291668.1	miniprot	mRNA	39929	42289	3011	-	.	ID=MP000001;Rank=1;Identity=0.9882;Positive=0.9916;Target=NP_001030613.1 1 595
+OX291668.1	miniprot	CDS	42006	42289	477	-	0	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001030613.1 1 94
+OX291668.1	miniprot	CDS	41780	41929	255	-	1	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001030613.1 95 144
+OX291668.1	miniprot	CDS	41628	41691	119	-	1	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001030613.1 145 166
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
+Previewing: ./annotations/liftoff/mMusMuc1.1_liftoff_from_GRCm39.gff_polished
+##gff-version 3
+# Liftoff v1.6.3
+# /ccb/sw/python3/bin/liftoff -g /ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.gff -p 4 -copies -sc 0.95 -polish -o /ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_liftoff_GRCm39.gff -u /ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_liftoff_GRCm39_unmapped.txt /ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_genomic.fna /ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna
+CASGGP010000001.1	Liftoff	gene	18891	38041	.	-	.	ID=gene-LOC108168681;Dbxref=GeneID:108168681;Name=LOC108168681;description=PRAME family member 8-like;gbkey=Gene;gene=LOC108168681;gene_biotype=protein_coding;coverage=1.0;sequence_ID=1.0;valid_ORFs=1;extra_copy_number=0;copy_num_ID=gene-LOC108168681_0
+CASGGP010000001.1	Liftoff	mRNA	18891	38041	.	-	.	ID=rna-XM_017318912.1;Parent=gene-LOC108168681;Dbxref=GeneID:108168681,GenBank:XM_017318912.1;Name=XM_017318912.1;gbkey=mRNA;gene=LOC108168681;model_evidence=Supporting evidence includes similarity to: 3 Proteins%2C and 75%25 coverage of the annotated genomic feature by RNAseq alignments;product=PRAME family member 8-like;transcript_id=XM_017318912.1;matches_ref_protein=True;valid_ORF=True;extra_copy_number=0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Previewing: ./annotations/miniprot/mMusMuc1.1_from_miniprot_GRCm39.gff
+##gff-version 3
+OX439026.1	miniprot	mRNA	74174614	74178604	2671	-	.	ID=MP000001;Rank=1;Identity=0.9958;Positive=0.9979;Target=NP_001001130.1 1 473
+OX439026.1	miniprot	CDS	74178472	74178604	228	-	0	Parent=MP000001;Rank=1;Identity=0.9556;Target=NP_001001130.1 1 44
+OX439026.1	miniprot	CDS	74177694	74177789	165	-	2	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001001130.1 45 76
+OX439026.1	miniprot	CDS	74174617	74175806	2278	-	2	Parent=MP000001;Rank=1;Identity=1.0000;Target=NP_001001130.1 77 473
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+
+
