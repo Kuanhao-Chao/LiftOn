@@ -1,7 +1,8 @@
 from Bio.Seq import Seq
 from collections import defaultdict
 import numpy as np
-# from liftofftools.annotation import merge_children_intervals
+from annotation import merge_children_intervals
+
 
 class FeatureDict(defaultdict):
     def __init__(self, annotation, feature_type):
@@ -49,22 +50,11 @@ class SequenceDict(dict):
             parent_to_child = self.annotation.make_parent_to_child_dict(self.is_protein, gene)
             if len(parent_to_child) > 0:
                 longest_isoform = get_longest_isoform(parent_to_child)
+                print("gene: ", gene)
+                print("longest_isoform: ", longest_isoform)
                 longest_isoform_dict[gene] = self[longest_isoform]
         return longest_isoform_dict
 
-def merge_children_intervals(children):
-    if len(children) == 0:
-        return []
-    intervals = [[child.start, child.end] for child in children]
-    intervals.sort(key=lambda interval: interval[0])
-    merged = [intervals[0]]
-    for current in intervals:
-        previous = merged[-1]
-        if current[0] <= previous[1]:
-            previous[1] = max(previous[1], current[1])
-        else:
-            merged.append(current)
-    return merged
 
 def get_longest_isoform(child_dict):
     max_length = 0
@@ -82,10 +72,6 @@ def get_dna_sequence(fasta, features):
     strand = features[0].strand
     merged_features = merge_children_intervals(features)
     sequence =''
-
-    if chrom not in fasta.keys():
-        return sequence
-
     for start, end in merged_features:
         sequence += str(fasta[chrom][start -1: end])
     if strand == "-":

@@ -6,7 +6,7 @@ TARGET = sys.argv[1]
 
 protein_fa = ""
 
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
     print("Running with ", TARGET)
     genome = ""
 
@@ -65,10 +65,13 @@ table = pd.read_csv(fname, sep="\t", header=None)
 print("table: ", table)
 
 mutation_ls = [
+    "nc_transcript",
+    "no_ref_protein",
     "identical",
     "synonymous",
     "nonsynonymous",
     "inframe_insertion",
+    "inframe_deletion",
     "frameshift",
     "5'_truncated",
     "3'_truncated",
@@ -77,7 +80,8 @@ mutation_ls = [
     "stop_codon_gain"
 ]
 
-threasholds = [0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 1]
+# 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 
+threasholds = [0.8]
 
 for threashold in threasholds:
 
@@ -86,6 +90,8 @@ for threashold in threasholds:
     for type in ["repeat", "non_repeat"]:
 
         dict_mutation_count = {
+            "nc_transcript": 0,
+            "no_ref_protein": 0, 
             "identical": 0,
             "synonymous": 0,
             "frameshift": 0,
@@ -93,6 +99,7 @@ for threashold in threasholds:
             "3'_truncated": 0,
             "start_lost": 0,
             "inframe_insertion": 0,
+            "inframe_deletion": 0,
             "nonsynonymous": 0,
             "stop_missing": 0,
             "stop_codon_gain": 0
@@ -100,6 +107,8 @@ for threashold in threasholds:
 
 
         dict_mutation_scores = {
+            "nc_transcript": [],
+            "no_ref_protein": [], 
             "identical": [],
             "synonymous": [],
             "frameshift": [],
@@ -107,12 +116,15 @@ for threashold in threasholds:
             "3'_truncated": [],
             "start_lost": [],
             "inframe_insertion": [],
+            "inframe_deletion": [],
             "nonsynonymous": [],
             "stop_missing": [],
             "stop_codon_gain": []
         }
 
         dict_mutation_fw = {
+            "nc_transcript": None,
+            "no_ref_protein": None, 
             "identical": None,
             "synonymous": None,
             "frameshift": None,
@@ -120,6 +132,7 @@ for threashold in threasholds:
             "3'_truncated": None,
             "start_lost": None,
             "inframe_insertion": None,
+            "inframe_deletion": None,
             "nonsynonymous": None,
             "stop_missing": None,
             "stop_codon_gain": None
@@ -137,6 +150,7 @@ for threashold in threasholds:
         for index, row in table_lcl.iterrows():
             mutations = row[5]
             eles = mutations.split(";")
+            # if eles[0] == "nc_transcript":
 
             if type == "non_repeat":
                 max_mutation_idx = 0
