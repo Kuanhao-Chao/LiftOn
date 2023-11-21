@@ -17,7 +17,7 @@ elif [[ "$TARGET" == "human_mane_to_mouse" || "$TARGET" == "human_mane_to_mouse_
 
 elif [[ "$TARGET" == "human_refseq_to_mouse" || "$TARGET" == "human_refseq_to_mouse_test" ]]; then
     echo "running LiftOn on human_refseq_to_mouse"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff_db"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff"
     # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
     # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna"
@@ -102,7 +102,7 @@ elif [[ "$TARGET" == "drosophila" || "$TARGET" == "drosophila_test" ]]; then
 
 elif [[ "$TARGET" == "drosophila_erecta" || "$TARGET" == "drosophila_erecta_test" ]]; then
     echo "running drosophila erecta"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.erecta_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
 
@@ -111,18 +111,11 @@ else
     exit -1
 fi
 
-LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3_db"
-MINIPROT_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/miniprot/miniprot.gff3_db"
 
-intermediate_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/intermediate_files/"
 output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3"
-ref_proteins="${intermediate_dir}proteins.fa"
-ref_trans="${intermediate_dir}transcripts.fa"
-log_file="/ccb/salz2/kh.chao/Lifton/results/$TARGET/output.log"
+output_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftofftools_output/"
 
-echo "lifoff annotation: $LIFTOFF_gff"
-echo "miniprot annotation: $MINIPROT_gff"
-echo "intermediate_dir: $intermediate_dir"
-echo "lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG"
+echo "python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir
 
-lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG
+python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff -dir $output_dir
+

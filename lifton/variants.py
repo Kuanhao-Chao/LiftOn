@@ -90,6 +90,16 @@ def is_frameshift(s):
 def find_variants(align_dna, align_protein, lifton_status, peps):
     mutation_type = []
 
+    if align_dna == None:
+        mutation_type.append('full_transcript_loss')
+        lifton_status.status = mutation_type
+        return 
+    
+    if align_protein == None:
+        mutation_type.append('full_protein_loss')
+        lifton_status.status = mutation_type
+        return 
+
     # 1. return cases
     if align_dna.identity == 1.0:
         mutation_type.append('identical')

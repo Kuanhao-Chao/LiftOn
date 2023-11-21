@@ -1,6 +1,6 @@
 from lifton import lifton_class
 
-def create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, fw, miniprot_is_better):
+def create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_last, l_lifton_aln, fai, miniprot_is_better):
     cds_list = []
     if miniprot_is_better:
         # print(">> miniprot is better!")
@@ -21,7 +21,6 @@ def create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_
 
             # print(lifton_cds)
             # print(lifton_cds.attributes)
-            # write_lifton_entry.write_lifton_entry(fw, lifton_cds)
     else:
         # print(">> liftoff is better!")
         for c_idx in range(l_c_idx_last, l_c_idx):

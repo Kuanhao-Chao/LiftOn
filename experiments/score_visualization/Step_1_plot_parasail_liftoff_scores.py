@@ -18,7 +18,7 @@ def randrange(n, vmin, vmax):
 TARGET = sys.argv[1]
 
 protein_fa = ""
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "drosophila" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "human_to_chimp_test" or TARGET == "mouse_to_rat_test" or TARGET == "drosophila_test" or TARGET == "yeast_test" or TARGET == "arabadop_test" or TARGET == "bee_test" or TARGET == "mouse_test" or TARGET == "rice_test" or TARGET == "human_mane_test" or TARGET == "human_chess_test"  or TARGET == "human_refseq_test" or TARGET == "drosophila_erecta_test" or TARGET == "human_mane_to_mouse_test" or TARGET == "human_refseq_to_mouse_test" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1":
     print("Running with ", TARGET)
     genome = ""
 
@@ -104,6 +104,42 @@ for target in ["Liftoff", "miniprot"]:
     plt.savefig(figure_out, dpi=300)
     plt.close()
     plt.clf()
+
+
+
+# Combined dot plots
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+# 2D scatter plot for Liftoff
+select_table_liftoff = table[(table[1] > 0.0) | (table[3] > 0.0)]
+axes[0].scatter(select_table_liftoff[1], select_table_liftoff[3], s=2)
+axes[0].axline((0, 0), (1, 1), linewidth=1, color='r')
+axes[0].axis('square')
+axes[0].set_xlim(-0.1, 1.1)
+axes[0].set_ylim(-0.1, 1.1)
+axes[0].set_xlabel('Liftoff score')
+axes[0].set_ylabel('LiftOn score')
+axes[0].set_title('Comparing LiftOn vs Liftoff protein searching scores')
+
+# 2D scatter plot for miniprot
+select_table_miniprot = table[(table[2] > 0.0) | (table[3] > 0.0)]
+axes[1].scatter(select_table_miniprot[2], select_table_miniprot[3], s=2)
+axes[1].axline((0, 0), (1, 1), linewidth=1, color='r')
+axes[1].axis('square')
+axes[1].set_xlim(-0.1, 1.1)
+axes[1].set_ylim(-0.1, 1.1)
+axes[1].set_xlabel('miniprot score')
+axes[1].set_ylabel('LiftOn score')
+axes[1].set_title('Comparing LiftOn vs miniprot protein searching scores')
+
+# Adjust layout
+plt.tight_layout()
+
+# Save or show the figure
+plt.savefig(f"{outdir_root}combined_scatter_plots.png", dpi=300)
+plt.show()
+
+
 
 
 
