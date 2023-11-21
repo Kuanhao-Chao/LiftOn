@@ -1,4 +1,4 @@
-from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants, extra_copy
+from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants
 import copy, os
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
@@ -516,17 +516,23 @@ class Lifton_TRANS:
         ################################
         # Step 2: Translate the DNA sequence & get the reference protein sequence.
         ################################
-        protein_seq = coding_seq.translate()
-        peps = protein_seq.split("*")
+        if coding_seq == "":
+            lifton_aa_aln = None
+            peps = None
+        else:
+            protein_seq = coding_seq.translate()
+            peps = protein_seq.split("*")
 
-        lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
-        # Update lifton sequence identity
-        lifton_status.lifton = max(lifton_status.lifton, lifton_aa_aln.identity)
+            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
+            # Update lifton sequence identity
+            lifton_status.lifton = max(lifton_status.lifton, lifton_aa_aln.identity)
 
-        lifton_tran_aln = align.trans_align(coding_seq, ref_trans_seq)
+        if trans_seq == "":
+            lifton_tran_aln = None
+        else:
+            lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
-
-        # self.entry.attributes["mutation"] 
 
         ORF_search = False
         for mutation in lifton_status.status:
