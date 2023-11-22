@@ -6,8 +6,8 @@ slides/
 .DS_Store
 docs/.vscode/
 paper/
-comparison/
-igv_viewer/
+comparison/results
+comparison/test/
 dictionary/annotations/
 
 >>>>>>> 1d7850b1a7d6b338a2ba316f342cc2d4bfe6c5cf
