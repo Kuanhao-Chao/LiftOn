@@ -26,6 +26,9 @@ def infer_chrom_and_gene_order(ref_fa, target_fa, ref_db, target_db, feature_typ
         default_chrom_order = order_chroms(less_contigs_fa)
         default_gene_order = order_genes(default_chrom_order, more_contigs_fa.keys(), less_contigs_db, more_contigs_db, feature_types)
         matched_chrom_order = match_chrom_order(default_gene_order, more_contigs_db, feature_types)
+
+        print(f"Target chromosomes ordering  : {len(less_contigs_fa.keys())}\t{less_contigs_fa.keys()}" )
+        print(f"Reference chromsome ordering : {len(matched_chrom_order)}\t{matched_chrom_order}")
         matched_gene_order = order_genes(matched_chrom_order , less_contigs_fa.keys(), more_contigs_db, less_contigs_db, feature_types)
         return get_ref_and_target_gene_order(default_gene_order, matched_gene_order,ref_fa == more_contigs_fa)
 
@@ -157,7 +160,6 @@ def get_scores(args, ref_features_dict):
             lifton_score = float(eles[3])
             trans_scores[trans_id] = lifton_score
 
-    # print("trans_scores: ", trans_scores)
     gene_scores = {}
 
     for gene, transs in ref_features_dict.items():

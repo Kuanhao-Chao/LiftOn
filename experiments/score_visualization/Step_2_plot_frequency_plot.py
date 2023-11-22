@@ -77,11 +77,11 @@ for target in ["lifton", "miniprot", "liftoff"]:
     figure_path = f"{outdir_root}{target}_frequency.png"
 
     if target == "liftoff":
-        select_scores = table[1][(table[1] < upper_threshold) & (table[1] > 0.0)]
+        select_scores = table[1][(table[1] <= upper_threshold) & (table[1] > 0.0)]
     elif target == "miniprot":
-        select_scores = table[2][(table[2] < upper_threshold) & (table[2] > 0.0)]
+        select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
     elif target == "lifton":
-        select_scores = table[3][(table[3] < upper_threshold) & (table[3] > 0.0)]
+        select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
 
     plt.hist(select_scores, bins=100)
     plt.gca().set(title='Score frequency histogram', ylabel='Frequency')
@@ -104,8 +104,15 @@ for target in ["lifton", "miniprot", "liftoff"]:
 
 upper_threshold = 1.00
 
+
+
+
+
+################################################
 # Create a subplot with 1 row and 3 columns
-fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharex='col', sharey='row')
+#   taking LOG 
+################################################
+fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex='col', sharey='row')
 
 for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
     select_scores = None
@@ -132,8 +139,13 @@ plt.savefig(figure_path, dpi=300)
 plt.show()
 
 
+
+
+################################################
 # Create a subplot with 1 row and 3 columns
-fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharex='col', sharey='row')
+#   not taking LOG 
+################################################
+fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex='col', sharey='row')
 
 for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
     select_scores = None
