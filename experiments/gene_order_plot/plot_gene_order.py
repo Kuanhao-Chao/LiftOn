@@ -1,10 +1,10 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import matplotlib as mpl
+from matplotlib.axis import Axis 
 import argparse
 from liftofftools import filepaths
 import warnings
-
 
 COLOR_MAP = 'RdYlGn'
 FIG_SIZE = [10, 10]
@@ -60,13 +60,32 @@ def plot_gene_order(order_arr, args):
         cbar = fig.colorbar(cplot, ticks=color_boundaries, label='Protein Sequence Identity')
         cbar.ax.set_yticklabels([str(min(boundary, 1.0)) for boundary in color_boundaries])
         plt.xlim([-5, np.max(x) + 5])
-        plt.ylim([-5, np.max(y) + 1])
+
+        # Adjust x-axis labels to avoid overlapping
+        plt.xlim([-5, np.max(x) + 5])
+        plt.xticks(rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
+
+
+        # Axis.set_major_locator(ax.xaxis, years)  
+
+        # x_labels = [x_label for x_label in x_labels if len(x_label) > 5 else ""]
+
+        # x_labels = [x_label if len(x_label) < 7 else "" for x_label in x_labels]
+
+        # ax.xaxis.set_major_locator(plt.FixedLocator(x_locs))
+        # ax.xaxis.set_major_formatter(plt.FixedFormatter(x_labels))
         plt.xticks(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
+        # ax.set_major_locator(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
+
+
+
+        plt.ylim([-5, np.max(y) + 1])
         plt.yticks(y_locs, y_labels, fontsize=TICK_FONT_SIZE)
         plt.xlabel(X_LABEL, fontsize = LABEL_SIZE)
         plt.ylabel(Y_LABEL, fontsize = LABEL_SIZE)
         plt.savefig(output_file, transparent=True)
 
+        # plt.xticks(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
 
 def get_scatter_points(order_arr):
     x,y,c = [],[],[]
@@ -80,6 +99,7 @@ def get_scatter_points(order_arr):
 
 def get_color_spacing():
     boundaries = 1 - np.linspace(0, 1, 10)
+    # boundaries = 1 - np.logspace(-2.5, 0, 10)
     boundaries.sort()
     return np.around(boundaries,3)
     # return np.append(np.around(boundaries,3),1.001)
