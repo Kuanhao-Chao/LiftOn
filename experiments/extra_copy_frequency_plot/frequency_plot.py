@@ -9,6 +9,7 @@ import subprocess
 import matplotlib.pyplot as plt
 import pandas as pd
 
+import numpy as np
 
 TARGET = sys.argv[1]
 
@@ -85,13 +86,80 @@ select_scores = table[1] - 1
 # elif target == "lifton":
 #     select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
 
-plt.hist(select_scores, bins=100)
-plt.gca().set(title='Extra copy frequency histogram')
+# plt.hist(select_scores, bins=100)
+
+
+
+
+# # Create the histogram
+# plt.hist(select_scores, bins=60, edgecolor='black', alpha=0.7)
+
+
+# breakpoint_value = 150
+
+# # Add a break in the y-axis
+# plt.axhline(breakpoint_value, color='red', linestyle='dashed', linewidth=2)
+
+
+
+# 30 points between [0, 0.2) originally made using np.random.rand(30)*.2
+f, (ax, ax2) = plt.subplots(2, 1, sharex=True)
+
+# plot the same data on both axes
+ax.hist(select_scores, bins=60, edgecolor='black', alpha=0.7)
+ax2.hist(select_scores, bins=60, edgecolor='black', alpha=0.7)
+
+# ax.plot(select_scores)
+# ax2.plot(select_scores)
+
+# zoom-in / limit the view to different portions of the data
+ax.set_ylim(490, 525)  # outliers only
+ax2.set_ylim(0, 35)  # most of the data
+
+# hide the spines between ax and ax2
+ax.spines['bottom'].set_visible(False)
+ax2.spines['top'].set_visible(False)
+ax.xaxis.tick_top()
+ax.tick_params(labeltop=False)  # don't put tick labels at the top
+ax2.xaxis.tick_bottom()
+
+# This looks pretty good, and was fairly painless, but you can get that
+# cut-out diagonal lines look with just a bit more work. The important
+# thing to know here is that in axes coordinates, which are always
+# between 0-1, spine endpoints are at these locations (0,0), (0,1),
+# (1,0), and (1,1).  Thus, we just need to put the diagonals in the
+# appropriate corners of each of our axes, and so long as we use the
+# right transform and disable clipping.
+
+d = .015  # how big to make the diagonal lines in axes coordinates
+# arguments to pass to plot, just so we don't keep repeating them
+kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+ax.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
+ax.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
+
+kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
+ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
+ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
+
+# What's cool about this is that now if we vary the distance between
+# ax and ax2 via f.subplots_adjust(hspace=...) or plt.subplot_tool(),
+# the diagonal lines will move accordingly, and stay right at the tips
+# of the spines they are 'breaking'
+
+
+
+# plt.gca().set(title='Extra copy frequency histogram')
+ax.set_title('Extra copy frequency histogram', pad=20)
+
+# # Add y-axis label to the left subplot (ax)
+# ax.set_ylabel('Frequency', labelpad=15)
+
+
+# Add y-axis label between subplots
+f.text(0.02, 0.5, 'Frequency', va='center', rotation='vertical')
 
 plt.xlabel('Additional copy count')
-plt.ylabel('Frequency')
-# plt.title('Comparing lifton vs miniprot protein searching scores')
-plt.tight_layout()
+# plt.tight_layout()
 plt.savefig(figure_path, dpi=300)
 plt.close()
 plt.clf()

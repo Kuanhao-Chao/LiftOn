@@ -83,7 +83,7 @@ for target in ["lifton", "miniprot", "liftoff"]:
     elif target == "lifton":
         select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
 
-    plt.hist(select_scores, bins=100)
+    plt.hist(select_scores, bins=100, alpha=0.9)
     plt.gca().set(title='Score frequency histogram', ylabel='Frequency')
 
     # plt.xlabel('lifton score')
@@ -125,7 +125,7 @@ for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
         select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
 
     # Plot the histogram on the corresponding subplot
-    axes[idx].hist(select_scores, bins=100, log=True)
+    axes[idx].hist(select_scores, bins=100, log=True, alpha=0.9)
     axes[idx].set(title=f'{target.capitalize()} Score Frequency Histogram (Log)', xlabel='Log(Score)', ylabel='Frequency')
 
 # Adjust layout
@@ -158,7 +158,7 @@ for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
         select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
 
     # Plot the histogram on the corresponding subplot
-    axes[idx].hist(select_scores, bins=100)
+    axes[idx].hist(select_scores, bins=100, alpha=0.9)
     axes[idx].set(title=f'{target.capitalize()} Score Frequency Histogram', xlabel='Score', ylabel='Frequency')
 
 # Adjust layout
