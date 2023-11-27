@@ -154,8 +154,6 @@ def parse_args(arglist):
 
     parser._positionals.title = '* Required input (sequences)'
     parser._optionals.title = '* Miscellaneous settings'
-    # parser._action_groups = [referencegrp, parser_outgrp, parser._optionals]
-
     parser._action_groups = [parser._positionals, referencegrp, liftoffrefrgrp, miniprotrefrgrp, parser_outgrp, parser._optionals, parser_aligngrp]
     args = parser.parse_args(arglist)
 
@@ -212,8 +210,6 @@ def run_all_lifton_steps(args):
     ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_reverse_dict = lifton_utils.get_ref_liffover_features(features, ref_db)
-    # print("ref_features_dict         : ", len(ref_features_dict))
-    # print("ref_features_reverse_dict : ", len(ref_features_reverse_dict))
 
 
     ################################
@@ -284,8 +280,7 @@ def run_all_lifton_steps(args):
             ###########################
             # Writing out LiftOn entries
             ###########################
-            lifton_gene.write_entry(fw)
-        
+            lifton_gene.write_entry(fw)   
 
     ################################
     # Step 7: Process miniprot transcripts
