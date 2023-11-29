@@ -272,7 +272,6 @@ def get_ref_liffover_features(features, ref_db):
                     process_ref_liffover_features(transcript, ref_db, feature)
                     ref_features_reverse_dict[transcript.id] = locus.id
             ref_features_dict[locus.id] = feature
-
     return ref_features_dict, ref_features_reverse_dict
 
 

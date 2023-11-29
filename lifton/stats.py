@@ -17,10 +17,14 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
     EXTRA_COPY_CHILDREN = 0
     EXTRA_COPY_CHILDREN_NUM = 0
 
+    fw_gene = open("gene.txt", "w")
+    fw_trans = open("trans.txt", "w")
+
     for feature in ref_features_dict.keys():
         if feature == "LiftOn-gene":
             continue
         
+        fw_gene.write(f"{feature}\n")
         copy_num = ref_features_dict[feature].copy_num 
         if copy_num > 1:
             print(f"{copy_num}\t{feature}")
@@ -37,6 +41,10 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
             fw_unmapped.write(f"{feature}\n")
 
         children_num = len(ref_features_dict[feature].children)
+
+        for child in ref_features_dict[feature].children:
+            fw_trans.write(f"{child}\n")
+
         if children_num > 0:
             TOTOAL_CHILDREN += children_num
             if copy_num > 1:
@@ -56,7 +64,7 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
         print("*********************************************", file=sys.stderr)
         # print("LiftOn report:", file=sys.stderr)
         print("* Transcript level", file=sys.stderr)
-        print(f"\t* Total transcript         : {len(ref_features_dict.keys())}", file=sys.stderr)
+        print(f"\t* Total transcript         : {len(ref_features_dict.keys())-1}", file=sys.stderr)
         print(f"\t* Lifted transcript        : {LIFTED_FEATURES}", file=sys.stderr)
         print(f"\t* Missed transcript        : {MISSED_FEATURES}", file=sys.stderr)
         print(f"\t* Single copy transcript   : {SINGLE_COPY_FEATURES}", file=sys.stderr)
@@ -69,7 +77,7 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
         print("*********************************************", file=sys.stderr)
         # print("LiftOn report:", file=sys.stderr)
         print("* Gene level", file=sys.stderr)
-        print(f"\t* Total gene                : {len(ref_features_dict.keys())}", file=sys.stderr)
+        print(f"\t* Total gene                : {len(ref_features_dict.keys())-1}", file=sys.stderr)
         print(f"\t* Lifted gene               : {LIFTED_FEATURES}", file=sys.stderr)
         print(f"\t* Missed gene               : {MISSED_FEATURES}", file=sys.stderr)
         print(f"\t* Single copy gene          : {SINGLE_COPY_FEATURES}", file=sys.stderr)
@@ -89,4 +97,3 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
         print(f"\t   Total extra transcript   : {EXTRA_COPY_CHILDREN_NUM}", file=sys.stderr)
         print(f"\t* Novel LiftOn transcript   : {ref_features_dict['LiftOn-gene'].copy_num}", file=sys.stderr)
         print(f"*********************************************")
-    
