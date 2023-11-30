@@ -6,7 +6,7 @@ TARGET = sys.argv[1]
 
 protein_fa = ""
 
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "drosophila" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "human_to_chimp_test" or TARGET == "mouse_to_rat_test" or TARGET == "drosophila_test" or TARGET == "yeast_test" or TARGET == "arabadop_test" or TARGET == "bee_test" or TARGET == "mouse_test" or TARGET == "rice_test" or TARGET == "human_mane_test" or TARGET == "human_chess_test"  or TARGET == "human_refseq_test" or TARGET == "drosophila_erecta_test" or TARGET == "human_mane_to_mouse_test" or TARGET == "human_refseq_to_mouse_test" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1":
     print("Running with ", TARGET)
     genome = ""
 
@@ -81,7 +81,7 @@ mutation_ls = [
 ]
 
 # 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 
-threasholds = [0.8]
+threasholds = [0.95]
 
 for threashold in threasholds:
 
@@ -176,11 +176,15 @@ for threashold in threasholds:
 
 
         fw = open(mutation_dir + "summary.txt", "w")
+
+        all_scores = []
         for ele in dict_mutation_count:
             dict_mutation_fw[ele].close()
 
             fw.write(f"{ele}\t{dict_mutation_count[ele]}\n")
 
+            if ele not in ["nc_transcript", "no_ref_protein", "identical"]:
+                all_scores += dict_mutation_scores[ele]
 
             if threashold == 1:
                 figure_path = f"{mutation_dir}/{ele}.png"
@@ -195,5 +199,21 @@ for threashold in threasholds:
                 plt.savefig(figure_path, dpi=300)
                 plt.close()
                 plt.clf()
+        
+        
+        figure_path = f"{outdir_root}mutations/{str(threashold)}/frequency.png"
+        plt.hist(all_scores, bins=100)
+        plt.gca().set(title='Score frequency histogram', ylabel='Frequency')
+
+        # plt.xlabel('lifton score')
+        # plt.ylabel('miniprot score')
+        # plt.title('Comparing lifton vs miniprot protein searching scores')
+        plt.tight_layout()
+        plt.savefig(figure_path, dpi=300)
+        plt.close()
+        plt.clf()
+
 
         fw.close()
+
+        print("Total number of mutated proteins: ", len(all_scores))
