@@ -106,6 +106,7 @@ upper_threshold = 1.00
 
 
 
+count_threshold = 0.4
 
 
 ################################################
@@ -117,16 +118,31 @@ fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex='col', sharey='row')
 for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
     select_scores = None
 
+    target_idx = None
     if target == "liftoff":
-        select_scores = table[1][(table[1] <= upper_threshold) & (table[1] > 0.0)]
+        target_idx = 1
     elif target == "miniprot":
-        select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
+        target_idx = 2
+        # select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
+        # selected_count= len(table[2][(table[2] <= count_threshold) & (table[2] > 0.0)])
     elif target == "lifton":
-        select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
+        target_idx = 3
+        # select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
+        # selected_count= len(table[1][(table[1] <= count_threshold) & (table[1] > 0.0)])
+
+    select_scores = table[target_idx][(table[target_idx] <= upper_threshold) & (table[target_idx] > 0.0)]
+    selected_count= len(table[target_idx][(table[target_idx] <= count_threshold) & (table[target_idx] > 0.0)])
 
     # Plot the histogram on the corresponding subplot
     axes[idx].hist(select_scores, bins=100, log=True, alpha=0.9)
+    axes[idx].axvline(x = count_threshold, color = 'r', linestyle='--', linewidth=2)
+
+    axes[idx].annotate(str(selected_count), xy=(0.4, 1000),
+                        xytext =(0.2, 850), fontsize=18,   
+                       arrowprops = dict(facecolor ='red',  arrowstyle="<-", linewidth=2),) 
+    
     axes[idx].set(title=f'{target.capitalize()} Score Frequency Histogram (Log)', xlabel='Log(Score)', ylabel='Frequency')
+
 
 # Adjust layout
 plt.tight_layout()
@@ -138,6 +154,14 @@ plt.savefig(figure_path, dpi=300)
 # Show the plot
 plt.show()
 
+print(f"Length for liftoff: {len(table[1])}")
+print(f"Length for miniprot: {len(table[2])}")
+print(f"Length for lifton: {len(table[3])}")
+
+
+print(f"Length for liftoff: {len(table[1][(table[1] <= count_threshold) & (table[1] > 0.0)])}")
+print(f"Length for miniprot: {len(table[2][(table[2] <= count_threshold) & (table[2] > 0.0)])}")
+print(f"Length for lifton: {len(table[3][(table[3] <= count_threshold) & (table[3] > 0.0)])}")
 
 
 
