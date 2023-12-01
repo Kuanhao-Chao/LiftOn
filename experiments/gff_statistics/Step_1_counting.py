@@ -201,6 +201,25 @@ def count_features(ref_db):
 #         feature.children.add(locus.id)
 
 
+def build_database(infer_genes = True):
+    disable_genes = False
+    try:
+        # transform_func = self.get_transform_func()
+        feature_db = gffutils.create_db(args.gff_file, args.gff_file + "_db", 
+                                    merge_strategy="create_unique", 
+                                        # merge_strategy="create_unique", 
+                                    # id_spec='ID',
+                                    force=True,
+                                    verbose=True, disable_infer_transcripts=True, disable_infer_genes=disable_genes)
+        # , transform=transform_func)
+        
+                                    # id_spec={"gene": ['ID', 'Name'], "mRNA": ['ID', 'Name'], "transcript": ['ID', 'Name'], "lnc_RNA": ['ID', 'Name'], "nc_RNA": ['ID', 'Name']},
+
+    except Exception as e:
+        print("gffutils database build failed with", e)
+        sys.exit()
+    return feature_db
+
 
 
 if __name__ == '__main__':
@@ -209,8 +228,21 @@ if __name__ == '__main__':
     parser.add_argument('gff_file', help='Input GFF file')
     args = parser.parse_args()
 
-    db = gffutils.FeatureDB(args.gff_file, keep_order=True)    
-    count_features(db)
+    # db = gffutils.FeatureDB(args.gff_file, keep_order=True)    
+
+
+
+    try:
+        feature_db = gffutils.FeatureDB(args.gff_file, keep_order=True)
+    except:
+        feature_db = build_database(args.gff_file)
+    
+    # # print("feature_db: ", feature_db)
+    # # feature_db.execute('ANALYZE features')
+    # self.db_connection = feature_db
+
+
+    count_features(feature_db)
 
     print(f'Total number of genes: {gene_count}')
     print(f'Total number of transcripts: {trans_count}')
