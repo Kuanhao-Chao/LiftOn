@@ -59,7 +59,6 @@ class Lifton_GENE:
         self.copy_num = self.__get_gene_copy(ref_features_dict)
         # This is used for retrieving the copy num & attributes info
         if holder:
-            # ref_gene_id_in, ref_trans_id_in = lifton_utils.get_ref_ids_liftoff(ref_features_dict, self.entry.id, None)
             attributes = {}
             # if "Parent" in self.entry.attributes.keys():
             attributes["ID"] = self.entry.attributes["Parent"] if "Parent" in self.entry.attributes.keys() else ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
@@ -209,7 +208,6 @@ class Lifton_TRANS:
         self.entry.id = trans_id
         self.entry.attributes["ID"] = [trans_id]
         self.entry.source = "LiftOn"
-        self.entry.featuretype = "transcript"
         self.exons = []
         self.exon_dic = {}
 
@@ -721,8 +719,6 @@ class Lifton_EXON:
         self.entry = gffutil_entry_exon
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
         self.cds = None
-
-        # print("self.entry: ", self.entry.featuretype)
 
     def update_exon_info(self, start, end):
         self.cds = None
