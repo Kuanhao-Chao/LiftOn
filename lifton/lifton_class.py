@@ -44,10 +44,11 @@ class Lifton_feature:
     def __init__(self, id):
         self.id = id
         self.copy_num = 0
+        self.is_protein_coding = False
         self.children = set()
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, holder = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, holder = False, tmp = False):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -57,11 +58,23 @@ class Lifton_GENE:
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
         self.copy_num = self.__get_gene_copy(ref_features_dict)
-        # This is used for retrieving the copy num & attributes info
+        self.holder = holder
+        self.tmp = tmp
+        
+        # # This is for Liftoff
+        # if self.tmp:
+        #     self.entry.attributes = ref_gene_attrs
+        #     self.entry.attributes["ID"] = self.ref_gene_id + "_" + str(self.copy_num) if self.copy_num > 0 else self.ref_gene_id
+        #     if self.copy_num > 0:
+        #         self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
+
+
+        # This is for miniprot
         if holder:
             attributes = {}
-            # if "Parent" in self.entry.attributes.keys():
-            attributes["ID"] = self.entry.attributes["Parent"] if "Parent" in self.entry.attributes.keys() else ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
+            # attributes["ID"] = self.entry.attributes["Parent"] if "Parent" in self.entry.attributes.keys() else ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
+            attributes["ID"] = ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
+
             ref_features_dict["LiftOn-gene"].copy_num += 1
             self.entry.attributes = attributes
             # print("Holder self.entry.attributes: ", self.entry.attributes)
@@ -151,7 +164,8 @@ class Lifton_GENE:
         self.transcripts[trans_id].add_lifton_status_attrs(lifton_status)
 
     def write_entry(self, fw):
-        fw.write(str(self.entry) + "\n")
+        if not self.tmp:
+            fw.write(str(self.entry) + "\n")
         for key, trans in self.transcripts.items():
             trans.write_entry(fw)
 
@@ -221,8 +235,11 @@ class Lifton_TRANS:
         # Update gene copy number dictionary
         ###########################
         # self.__update_trans_copy(self.ref_gene_id)
-        self.entry.attributes['Parent'] = [gene_id]
-        self.entry.attributes['transcript_id'] = [self.entry.id]
+        if 'Parent' in self.entry.attributes:
+            self.entry.attributes['Parent'] = [gene_id]
+
+        if 'transcript_id' in self.entry.attributes:
+            self.entry.attributes['transcript_id'] = [self.entry.id]
 
 
     # def __update_trans_copy(self, ref_gene_id, gene_copy_num_dict, trans_copy_num_dict):
@@ -687,10 +704,6 @@ class Lifton_TRANS:
 
 
     def write_entry(self, fw):
-        # print("Inside 'write_entry'!")
-        # print(self.entry)
-        # print(f"(write_entry) update_boundaries, exon length: {len(self.exons)};  {self.entry.start} - {self.entry.end}")
-
         fw.write(str(self.entry) + "\n")
         # Write out the exons first
         for exon in self.exons:
