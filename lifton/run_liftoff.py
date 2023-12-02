@@ -60,14 +60,12 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             ###########################
             # These are gene (1st) features with direct exons 
             #   => lifton_gene is None & there are direct exon children 
-            #   => (transcript level)
             ###########################
-            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, None, locus.id)
-            ###########################
-            # There are no gene features => 
-            # Create a fake gene => repeat the transcript
-            # Setting the ref_gene_id to ref_trans_id
-            lifton_gene = lifton_class.Lifton_GENE(ref_trans_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_trans_id].attributes), tree_dict, ref_features_dict, holder = True)
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
+            ref_trans_id = ref_gene_id
+
+            lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, tmp = True)
+
 
         else:
             ###########################

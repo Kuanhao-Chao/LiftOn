@@ -252,15 +252,19 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
 def get_ref_liffover_features(features, ref_db):
     ref_features_dict = {}
     ref_features_reverse_dict = {}
-    # ref_trans_2_gene_dict = {}
-    # gene_info_dict = {}
-    # trans_info_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
 
     for f_itr in features:
         for locus in ref_db.db_connection.features_of_type(f_itr):
+
+            CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
+
             feature = lifton_class.Lifton_feature(locus.id)
+            if len(CDS_children) > 0:
+                # This is the protien-coding gene
+                feature.is_protein_coding = True
+                
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
 
             if len(exon_children) > 0:

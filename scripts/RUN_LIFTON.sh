@@ -1,7 +1,7 @@
 TARGET=$1
 if [[ "$TARGET" == "human_to_chimp" || "$TARGET" == "human_to_chimp_test" ]]; then
     echo "running LiftOn on human_to_chimp"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna"
@@ -40,7 +40,7 @@ elif [[ "$TARGET" == "yeast" || "$TARGET" == "yeast_test" ]]; then
 
 elif [[ "$TARGET" == "arabadop" || "$TARGET" == "arabadop_test" ]]; then
     echo "running LiftOn on arabadop"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_liftoff_from_TAIR10.gff"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_miniprot_from_TAIR10.gff"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_genomic.fna"
@@ -48,7 +48,7 @@ elif [[ "$TARGET" == "arabadop" || "$TARGET" == "arabadop_test" ]]; then
 
 elif [[ "$TARGET" == "bee" || "$TARGET" == "bee_test" ]]; then
     echo "running LiftOn on bee"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_liftoff_from_HAv3.1_no_alts.gff_polished_db"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_from_miniprot_HAv3.1.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_genomic.fna"
@@ -102,7 +102,7 @@ elif [[ "$TARGET" == "drosophila" || "$TARGET" == "drosophila_test" ]]; then
 
 elif [[ "$TARGET" == "drosophila_erecta" || "$TARGET" == "drosophila_erecta_test" ]]; then
     echo "running drosophila erecta"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.erecta_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
 
