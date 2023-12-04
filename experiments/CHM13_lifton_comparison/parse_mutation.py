@@ -2,59 +2,8 @@ import sys, os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-TARGET = sys.argv[1]
-
 protein_fa = ""
-
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "drosophila" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "human_to_chimp_test" or TARGET == "mouse_to_rat_test" or TARGET == "drosophila_test" or TARGET == "yeast_test" or TARGET == "arabadop_test" or TARGET == "bee_test" or TARGET == "mouse_test" or TARGET == "rice_test" or TARGET == "human_mane_test" or TARGET == "human_chess_test"  or TARGET == "human_refseq_test" or TARGET == "drosophila_erecta_test" or TARGET == "human_mane_to_mouse_test" or TARGET == "human_refseq_to_mouse_test" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1":
-    print("Running with ", TARGET)
-    genome = ""
-
-    if TARGET == "human_to_chimp": 
-        genome = "/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna"
-    
-    elif TARGET == "mouse_to_rat": 
-        genome = "/ccb/salz2/jheinz3/shared/lifton/cross_species/mouse_to_rat/mRatBN7.2_genomic.fna"
-
-    elif TARGET == "yeast": 
-        genome = "/ccb/salz2/kh.chao/Lifton/data/yeast/S288C_reference_genome_R64-4-1_20230830/S288C_reference_sequence_R64-4-1_20230830.fsa"
-
-    elif TARGET == "arabadop": 
-        genome = "/ccb/salz2/jheinz3/shared/lifton/arabadop/Tanz-1.fna"
-
-    elif TARGET == "bee": 
-        genome = "/ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_genomic.fna"
-
-    elif TARGET == "mouse": 
-        genome = "/ccb/salz2/jheinz3/shared/lifton/mouse/mMusMuc1.1_genomic.fna"
-
-    elif TARGET == "rice": 
-        genome = "/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_genomic.fna"
-
-
-    elif TARGET == "GRCh38_RefSeq":
-        genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
-
-    elif TARGET == "CHM13_MANE": 
-        genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
-
-    elif TARGET == "CHM13_RefSeq":
-        genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
-
-    elif TARGET == "Han1":
-        genome = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/Han1/v1.0/Assembly/Han1_v1.2.fasta"
-
-    elif TARGET == "Ash1":
-        genome = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/Ash1/v2.2/Assembly/Ash1_v2.2.fa"
-
-    elif TARGET == "PR1":
-        genome = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/PR1/v3.0/Assembly/PR1.fa"
-
-    elif TARGET == "Mus_musculus_MANE":
-        genome = "/ccb/salz3/kh.chao/ref_genome/mus_musculus/NCBI_Refseq/GCF_000001635.27_GRCm39_genomic.fna"
-else:
-    sys.exit(-1)
-
+TARGET == "human_to_chimp"
 
 outdir_root = f"/ccb/salz2/kh.chao/Lifton/results/{TARGET}/"
 fname = f"{outdir_root}score.txt"

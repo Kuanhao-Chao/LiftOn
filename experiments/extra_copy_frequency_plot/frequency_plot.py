@@ -106,15 +106,15 @@ select_scores = table[1] - 1
 f, (ax, ax2) = plt.subplots(2, 1, sharex=True)
 
 # plot the same data on both axes
-ax.hist(select_scores, bins=60, edgecolor='black', alpha=0.7)
-ax2.hist(select_scores, bins=60, edgecolor='black', alpha=0.7)
+ax.hist(select_scores, bins=40, edgecolor='black', alpha=0.7)
+ax2.hist(select_scores, bins=40, edgecolor='black', alpha=0.7)
 
 # ax.plot(select_scores)
 # ax2.plot(select_scores)
 
 # zoom-in / limit the view to different portions of the data
-ax.set_ylim(490, 525)  # outliers only
-ax2.set_ylim(0, 35)  # most of the data
+ax.set_ylim(520, 600)  # outliers only
+ax2.set_ylim(0, 80)  # most of the data
 
 # hide the spines between ax and ax2
 ax.spines['bottom'].set_visible(False)

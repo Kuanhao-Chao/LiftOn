@@ -23,29 +23,17 @@ def get_ref_liffover_features(features, ref_db):
 
     for f_itr in features:
         for locus in ref_db.features_of_type(f_itr):                
-            exon_children = list(ref_db.children(locus, featuretype='exon', level=1, order_by='start'))
+            # exon_children = list(ref_db.children(locus, featuretype='exon', level=1, order_by='start'))
 
-            if len(exon_children) > 0:
-                process_ref_liffover_features(locus, ref_db, None)
-            else:
-                transcripts = ref_db.children(locus, level=1)
-                for transcript in list(transcripts):
+            CDS_children = list(ref_db.children(locus, featuretype='CDS'))
+            feature = Lifton_feature(locus.id)
 
-                    CDS_children = list(ref_db.children(transcript, featuretype='CDS'))
-                    feature = Lifton_feature(transcript.id)
-                    if len(CDS_children) > 0:
-                        # This is the protien-coding gene
-                        feature.is_protein_coding = True
-
-                    process_ref_liffover_features(transcript, ref_db, feature)
-                    # ref_features_reverse_dict[transcript.id] = locus.id
-                    ref_features_dict[transcript.id] = feature
+            ref_features_dict[locus.id] = feature
+            
+            if len(CDS_children) > 0:
+                # This is the protien-coding gene
+                feature.is_protein_coding = True
     return ref_features_dict, ref_features_reverse_dict
-
-
-def process_ref_liffover_features(locus, ref_db, feature):
-    if feature != None:
-        feature.children.add(locus.id)
 
 
 def build_database(infer_genes = True):
@@ -96,6 +84,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Count features in a GFF file')
     parser.add_argument('gff_file', help='Input GFF file')
+    parser.add_argument('ref_gff_file', help='Input GFF file')
+
     args = parser.parse_args()
 
     # db = gffutils.FeatureDB(args.gff_file, keep_order=True)    
@@ -111,8 +101,7 @@ if __name__ == '__main__':
     # # feature_db.execute('ANALYZE features')
     # self.db_connection = feature_db
 
-    ref_annotation = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/rRNA_removed/NCBI_RefSeq_no_rRNA.gff_db"
-
+    ref_annotation = args.ref_gff_file
     # ref_annotation = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/MANE_RefSeq/MANE.GRCh38.v1.2.refseq_genomic.cleaned.gff_db"
 
     ref_feature_db = gffutils.FeatureDB(ref_annotation, keep_order=True)
@@ -124,64 +113,71 @@ if __name__ == '__main__':
     print("ref_features_dict         : ", len(ref_features_dict))
     print("tgt_features_dict         : ", len(tgt_features_dict))
 
+    ref_gene_count = len(ref_features_dict)
+    tgt_gene_count = len(tgt_features_dict)
 
+    lifted_gene_coding_count = 0
+    lifted_gene_noncoding_count = 0
 
-    ref_trans_count = len(ref_features_dict)
-    tgt_trans_count = len(tgt_features_dict)
-
-    lifted_trans_coding_count = 0
-    lifted_trans_noncoding_count = 0
-
-    missed_trans_coding_count = 0
-    missed_trans_noncoding_count = 0
-
+    missed_gene_coding_count = 0
+    missed_gene_noncoding_count = 0
 
     for ref_key, ref_val in ref_features_dict.items():
         if ref_key in tgt_features_dict:
             tgt_val = tgt_features_dict[ref_key]
             if tgt_val.is_protein_coding:
-                lifted_trans_coding_count += 1
+                lifted_gene_coding_count += 1
             else:
-                lifted_trans_noncoding_count += 1
+                lifted_gene_noncoding_count += 1
             #     print("ref_key: ", ref_key)
             #     print("ref_val: ", ref_val.is_protein_coding)
             #     print("tgt_val: ", tgt_val.is_protein_coding)
             #     print("")
         else:
-            ref_val = ref_features_dict[ref_key]
             if ref_val.is_protein_coding:
-                missed_trans_coding_count += 1
+                missed_gene_coding_count += 1
             else:
-                missed_trans_noncoding_count += 1
+                missed_gene_noncoding_count += 1
 
 
 
-    tgt_trans_coding_single_cp = 0
-    tgt_trans_coding_multi_cp = 0
-    tgt_trans_coding_multi_cp_count = 0
+
+    tgt_gene_coding_single_cp = 0
+    tgt_gene_coding_multi_cp = 0
+    tgt_gene_coding_multi_cp_count = 0
     tgt_coding_lifted = {}
-    
 
-    tgt_trans_noncoding_single_cp = 0
-    tgt_trans_noncoding_multi_cp = 0
-    tgt_trans_noncoding_multi_cp_count = 0
+    tgt_gene_coding_lost = 0
+
+
+    tgt_gene_noncoding_single_cp = 0
+    tgt_gene_noncoding_multi_cp = 0
+    tgt_gene_noncoding_multi_cp_count = 0
     tgt_noncoding_lifted = {}
 
     for tgt_key, tgt_val in tgt_features_dict.items():
-        tgt_key = get_ID(tgt_key, ref_features_dict)
-        if tgt_key in ref_features_dict.keys():
+        tgt_key_base = get_ID(tgt_key, ref_features_dict)
+
+        if tgt_key_base in ref_features_dict.keys():
+            
             if tgt_val.is_protein_coding:
-                if tgt_key in tgt_coding_lifted.keys():
-                    tgt_coding_lifted[tgt_key] += 1
+                if tgt_key_base in tgt_coding_lifted.keys():
+                    tgt_coding_lifted[tgt_key_base] += 1
                 else:
-                    tgt_coding_lifted[tgt_key] = 1
+                    tgt_coding_lifted[tgt_key_base] = 1
             else:
-                if tgt_key in tgt_noncoding_lifted.keys():
-                    tgt_noncoding_lifted[tgt_key] += 1
+                
+                # if ref_features_dict[tgt_key_base].is_protein_coding:
+                #     print(f"CDS lost! {tgt_key_base}")
+                #     tgt_gene_coding_lost += 1
+
+                if tgt_key_base in tgt_noncoding_lifted.keys():
+                    tgt_noncoding_lifted[tgt_key_base] += 1                    
                 else:
-                    tgt_noncoding_lifted[tgt_key] = 1
+                    tgt_noncoding_lifted[tgt_key_base] = 1
         else:
-            pass
+            print("Error!")
+            print(tgt_key, tgt_val)
 
         
         # if tgt_key in ref_features_dict.keys():
@@ -208,20 +204,20 @@ if __name__ == '__main__':
         #     # ref_val = ref_features_dict[tgt_key]
             
         #     if tgt_val.is_protein_coding:
-        #         lifted_trans_coding_count += 1
+        #         lifted_gene_coding_count += 1
         #     else:
-        #         lifted_trans_noncoding_count += 1
+        #         lifted_gene_noncoding_count += 1
 
         # else:
         #     if tgt_val.is_protein_coding:
-        #         missed_trans_coding_count += 1
+        #         missed_gene_coding_count += 1
         #     else:
-        #         missed_trans_noncoding_count += 1
+        #         missed_gene_noncoding_count += 1
 
 
             
-    print(f'lifted_trans_coding_count    : {lifted_trans_coding_count}')
-    print(f'missed_trans_coding_count    : {missed_trans_coding_count}')
+    print(f'lifted_gene_coding_count    : {lifted_gene_coding_count}')
+    print(f'missed_gene_coding_count    : {missed_gene_coding_count}')
     
     print(f'tgt_coding_lifted            : {len(tgt_coding_lifted)}')
 
@@ -240,10 +236,11 @@ if __name__ == '__main__':
     print(f'\ttgt_coding_lifted extra      : {tgt_coding_lifted_extra}')
     print(f'\ttgt_coding_lifted extra sum  : {tgt_coding_lifted_extra_sum}')
 
+    # print(f'\ttgt_gene_coding_lost         : {tgt_gene_coding_lost}')
 
 
-    print(f'lifted_trans_noncoding_count : {lifted_trans_noncoding_count}')
-    print(f'missed_trans_noncoding_count : {missed_trans_noncoding_count}')
+    print(f'lifted_gene_noncoding_count : {lifted_gene_noncoding_count}')
+    print(f'missed_gene_noncoding_count : {missed_gene_noncoding_count}')
     print(f'tgt_noncoding_lifted         : {len(tgt_noncoding_lifted)}')
 
     tgt_noncoding_lifted_single= 0

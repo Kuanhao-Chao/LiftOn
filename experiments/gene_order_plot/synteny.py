@@ -6,6 +6,45 @@ import nltk
 import warnings
 
 
+def flip_gene_order_for_chromosome(chrom_to_gene_order, chrom_to_gene_dict):
+    for chrom, gene_order_dict in chrom_to_gene_order.items():
+        gene_order_list = list(gene_order_dict.values())
+        # Check if almost all genes are in reverse order
+        if is_reverse_order(gene_order_list) and len(gene_order_list) > 1:
+            # Flip the gene order for this chromosome
+            max_order = max(gene_order_list)
+            for gene_id, order in gene_order_dict.items():
+                gene_order_dict[gene_id] = max_order - order
+
+# def is_reverse_order(order_list):
+#     # Check if the order list is in descending order
+#     return all(order_list[i] >= order_list[i+1] for i in range(len(order_list)-1))
+
+def is_reverse_order(order_list):
+    # Check if at least 50% of the order list is in descending order
+    reverse_count = sum(order_list[i] >= order_list[i+1] for i in range(len(order_list)-1))
+    return reverse_count >= 0.5 * len(order_list)
+
+def get_chrom_to_gene_order(gene_order, gene_db, feature_types):
+    chrom_to_gene_order = {}
+    all_genes = gene_db.get_features_of_type(feature_types)
+    for gene in all_genes:
+        if gene.seqid not in chrom_to_gene_order:
+            chrom_to_gene_order[gene.seqid] = {}
+        if gene.id in gene_order:
+            chrom_to_gene_order[gene.seqid][gene.id] = gene_order[gene.id]
+    return chrom_to_gene_order
+
+def concatenate_genes(chrom_to_gene_order):
+    concatenated_gene_order = {}
+    for chrom, gene_order_dict in chrom_to_gene_order.items():
+        # Concatenate genes for each chromosome
+        concatenated_gene_order.update(gene_order_dict)
+    return concatenated_gene_order
+
+
+
+
 def analyze_synteny(ref_db, target_db,  ref_fa, target_fa, args, ref_features_dict):
     print('Analyzing synteny')
     output_file = filepaths.build_filepath([args.dir, filepaths.SYNTENY_OUTPUTS['gene_order']])
@@ -18,7 +57,24 @@ def analyze_synteny(ref_db, target_db,  ref_fa, target_fa, args, ref_features_di
             target_gene_order = order_genes(target_chrom_order, ref_chrom_order, target_db, ref_db, args.ft)
         else:
             ref_gene_order, target_gene_order = infer_chrom_and_gene_order(ref_fa, target_fa, ref_db, target_db, args.ft, score_dict)
-        output_rows = print_order_output(ref_gene_order, target_gene_order, ref_db,target_db, output_file, args, ref_features_dict, score_dict)
+
+
+
+
+        # Create dictionaries to store gene order for each chromosome
+        chrom_to_ref_gene_order = get_chrom_to_gene_order(ref_gene_order, ref_db, args.ft)
+        chrom_to_target_gene_order = get_chrom_to_gene_order(target_gene_order, target_db, args.ft)
+
+        print("chrom_to_target_gene_order: ", chrom_to_target_gene_order)
+        
+        # Flip gene order for affected chromosomes
+        flip_gene_order_for_chromosome(chrom_to_target_gene_order, target_db.get_feature_dict(args.ft))
+
+        # Concatenate genes corresponding to the chromosome orders
+        concatenated_target_gene_order = concatenate_genes(chrom_to_target_gene_order)
+
+        print("concatenated_target_gene_order: ", concatenated_target_gene_order)
+        output_rows = print_order_output(ref_gene_order, concatenated_target_gene_order, ref_db,target_db, output_file, args, ref_features_dict, score_dict)
         plot_gene_order(output_rows, args)
 
 

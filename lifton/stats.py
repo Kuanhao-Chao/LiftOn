@@ -47,7 +47,7 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
                 fw_extra_copy.write(f"{feature}\t{copy_num}\tcoding\n")
                 print(f"{copy_num}\t{feature}")
                 LIFTED_EXTRA_CODING_FEATURES += 1
-                LIFTED_EXTRA_CODING_SUM_FEATURES += (copy_num-1)
+                LIFTED_EXTRA_CODING_SUM_FEATURES += (copy_num)
 
             elif not ref_features_dict[feature].is_protein_coding and copy_num == 1:
                 LIFTED_SINGLE_NONCODING_FEATURES += 1
@@ -55,7 +55,7 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
                 fw_extra_copy.write(f"{feature}\t{copy_num}\tnon-coding\n")
                 print(f"{copy_num}\t{feature}")
                 LIFTED_EXTRA_NONCODING_FEATURES += 1
-                LIFTED_EXTRA_NONCODING_SUM_FEATURES += (copy_num-1)
+                LIFTED_EXTRA_NONCODING_SUM_FEATURES += (copy_num)
 
         elif copy_num == 0:
             MISSED_FEATURES += 1

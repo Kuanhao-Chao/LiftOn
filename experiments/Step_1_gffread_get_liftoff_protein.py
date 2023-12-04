@@ -9,11 +9,15 @@ import subprocess
 
 TARGET = sys.argv[1]
 
-if TARGET == "CHM13_MANE" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "CHM13_MANE" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE" or TARGET == "human_refseq_test":
     print("Running with ", TARGET)
     genome = ""
+
     if TARGET == "GRCh38_RefSeq":
         genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
+
+    elif TARGET == "human_refseq_test":
+        genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
 
     elif TARGET == "CHM13_MANE": 
         genome = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
@@ -35,13 +39,14 @@ if TARGET == "CHM13_MANE" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSe
 else:
     sys.exit(-1)
 
-refernece_gff3 = f"/ccb/salz2/kh.chao/Lifton/results/{TARGET}/{TARGET}_lifton.gff3" 
-output_protein_fa = f"/ccb/salz2/kh.chao/Lifton/results/{TARGET}/{TARGET}_lifton_protein.fa"
+refernece_gff3 = f"/ccb/salz2/kh.chao/Lifton/results/{TARGET}/lifton.gff3" 
+output_protein_fa = f"/ccb/salz2/kh.chao/Lifton/results/{TARGET}/lifton_protein.fa"
 
 
 print("refernece_gff3: ", refernece_gff3)
 print("output_protein_fa: ", output_protein_fa)
 
 command = ['gffread', '-S', '-y', output_protein_fa, '-g', genome, refernece_gff3]
+print(command)
 
 gffread_extract = subprocess.call(command)
