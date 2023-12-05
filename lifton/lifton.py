@@ -1,4 +1,4 @@
-from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, __version__
+from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, evaluation, __version__
 from intervaltree import Interval
 import argparse
 from argparse import Namespace
@@ -107,6 +107,8 @@ def parse_args(arglist):
     parser.add_argument('target', help='target fasta genome to lift genes to')
     parser.add_argument('reference', help='reference fasta genome to lift genes from')
     
+    parser.add_argument('-E', '--evaluation', help='Run LiftOn in evaluation mode', action='store_true', default = False)
+
     parser_outgrp = args_outgrp(parser)
     parser_aligngrp = args_aligngrp(parser)
     args_optional(parser)
@@ -130,7 +132,7 @@ def parse_args(arglist):
     )
 
     ###################################
-    # START for the LiftOn algorithm
+    # START for the LiftOn params
     ###################################
     liftoffrefrgrp = parser.add_argument_group('* Optional input (Liftoff annotation)')
     liftoffrefrgrp.add_argument(
@@ -149,7 +151,7 @@ def parse_args(arglist):
     )
 
     ###################################
-    # END for the LiftOn algorithm
+    # END for the LiftOn params
     ###################################
 
     parser._positionals.title = '* Required input (sequences)'
@@ -176,6 +178,7 @@ def parse_args(arglist):
 
 
 def run_all_lifton_steps(args):
+
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -235,6 +238,41 @@ def run_all_lifton_steps(args):
     logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
 
 
+    ################################
+    # Evaluation mode
+    ################################
+    if args.evaluation:
+        tgt_annotation = args.output
+        ref_annotation = args.reference_annotation
+
+        print("Run LiftOn in evaluation mode")
+        print("Ref genome        : ", ref_genome)
+        print("Target genome     : ", tgt_genome)
+
+        print("Ref annotation    : ", args.reference_annotation)
+        print("Target annotation : ", args.output)
+
+        logger.log(">> Creating target database : ", tgt_annotation, debug=True)
+        tgt_feature_db = annotation.Annotation(tgt_annotation+"_db", args.infer_genes).db_connection
+
+        for feature in features:
+            for locus in tgt_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
+                evaluation.tgt_evaluate(locus)
+                # lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
+
+                ###########################
+                # Writing out LiftOn entries
+                ###########################
+                # lifton_gene.write_entry(fw)       
+        return
+
+
+
+
+
+    ################################
+    # Normal LiftOn mode
+    ################################    
     ################################
     # Step 4: Run liftoff & miniprot
     ################################
