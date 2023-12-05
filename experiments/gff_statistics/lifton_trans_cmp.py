@@ -96,6 +96,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Count features in a GFF file')
     parser.add_argument('gff_file', help='Input GFF file')
+    parser.add_argument('ref_gff_file', help='Input GFF file')
+
+
     args = parser.parse_args()
 
     # db = gffutils.FeatureDB(args.gff_file, keep_order=True)    
@@ -111,11 +114,11 @@ if __name__ == '__main__':
     # # feature_db.execute('ANALYZE features')
     # self.db_connection = feature_db
 
-    ref_annotation = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/rRNA_removed/NCBI_RefSeq_no_rRNA.gff_db"
+    # ref_annotation = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/rRNA_removed/NCBI_RefSeq_no_rRNA.gff_db"
 
     # ref_annotation = "/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/MANE_RefSeq/MANE.GRCh38.v1.2.refseq_genomic.cleaned.gff_db"
 
-    ref_feature_db = gffutils.FeatureDB(ref_annotation, keep_order=True)
+    ref_feature_db = gffutils.FeatureDB(args.ref_gff_file, keep_order=True)
 
     ref_features_dict, ref_features_reverse_dict = get_ref_liffover_features(["gene"], ref_feature_db)
 
@@ -219,9 +222,8 @@ if __name__ == '__main__':
         #         missed_trans_noncoding_count += 1
 
 
-            
-    print(f'lifted_trans_coding_count    : {lifted_trans_coding_count}')
-    print(f'missed_trans_coding_count    : {missed_trans_coding_count}')
+    print(f'Reference coding count    : {lifted_trans_coding_count + missed_trans_coding_count}')
+    # print(f'missed_trans_coding_count    : {missed_trans_coding_count}')
     
     print(f'tgt_coding_lifted            : {len(tgt_coding_lifted)}')
 
@@ -239,11 +241,16 @@ if __name__ == '__main__':
     print(f'\ttgt_coding_lifted single     : {tgt_coding_lifted_single}')
     print(f'\ttgt_coding_lifted extra      : {tgt_coding_lifted_extra}')
     print(f'\ttgt_coding_lifted extra sum  : {tgt_coding_lifted_extra_sum}')
+    print(f'\ttgt_coding_lifted total      : {tgt_coding_lifted_single + tgt_coding_lifted_extra_sum}')
+
+    # print(f'\ttgt_trans_coding_lost         : {tgt_trans_coding_lost}')
 
 
+    # print(f'lifted_trans_noncoding_count : {lifted_trans_noncoding_count}')
+    # print(f'missed_trans_noncoding_count : {missed_trans_noncoding_count}')
+    print("\n\n")
 
-    print(f'lifted_trans_noncoding_count : {lifted_trans_noncoding_count}')
-    print(f'missed_trans_noncoding_count : {missed_trans_noncoding_count}')
+    print(f'Reference noncoding count    : {lifted_trans_noncoding_count + missed_trans_noncoding_count}')
     print(f'tgt_noncoding_lifted         : {len(tgt_noncoding_lifted)}')
 
     tgt_noncoding_lifted_single= 0
@@ -260,3 +267,9 @@ if __name__ == '__main__':
     print(f'\ttgt_noncoding_lifted single     : {tgt_noncoding_lifted_single}')
     print(f'\ttgt_noncoding_lifted extra      : {tgt_noncoding_lifted_extra}')
     print(f'\ttgt_noncoding_lifted extra sum  : {tgt_noncoding_lifted_extra_sum}')
+    print(f'\ttgt_noncoding_lifted total      : {tgt_noncoding_lifted_single + tgt_noncoding_lifted_extra_sum}')
+
+    print("\n\n")
+
+    print(f'Reference total count    : {lifted_trans_coding_count + missed_trans_coding_count + lifted_trans_noncoding_count + missed_trans_noncoding_count}')
+    print(f'Target total count    : {tgt_coding_lifted_single + tgt_coding_lifted_extra_sum + tgt_noncoding_lifted_single + tgt_noncoding_lifted_extra_sum}')

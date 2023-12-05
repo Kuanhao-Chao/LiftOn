@@ -6,24 +6,66 @@ import nltk
 import warnings
 
 
-def flip_gene_order_for_chromosome(chrom_to_gene_order, chrom_to_gene_dict):
+def flip_gene_order_for_chromosome(chrom_to_gene_order, ref_gene_order, chrom_to_gene_dict):
     for chrom, gene_order_dict in chrom_to_gene_order.items():
-        gene_order_list = list(gene_order_dict.values())
-        # Check if almost all genes are in reverse order
-        if is_reverse_order(gene_order_list) and len(gene_order_list) > 1:
-            # Flip the gene order for this chromosome
+        if len(gene_order_dict) > 1:
+            gene_order_list = list(gene_order_dict.values())
             max_order = max(gene_order_list)
-            for gene_id, order in gene_order_dict.items():
-                gene_order_dict[gene_id] = max_order - order
+            min_order = min(gene_order_list)
 
-# def is_reverse_order(order_list):
-#     # Check if the order list is in descending order
-#     return all(order_list[i] >= order_list[i+1] for i in range(len(order_list)-1))
+            gene_order_list = list(gene_order_dict.values())
+            # Check if almost all genes are in reverse order
+            
+            print("Check the reverse chromosome order: ", chrom)
+            if is_reverse_order(gene_order_dict, max_order, min_order, ref_gene_order):
+            
+                # Flip the gene order for this chromosome
+                print(f"Reverse {chrom}")
+                for gene_id, order in gene_order_dict.items():
+                    print("Before: ", gene_order_dict[gene_id])
+                    gene_order_dict[gene_id] = max_order - order + min_order
+                    print("After: ", gene_order_dict[gene_id])
+                
 
-def is_reverse_order(order_list):
+def is_reverse_order(order_dict, max_order, min_order, ref_gene_order):
     # Check if at least 50% of the order list is in descending order
-    reverse_count = sum(order_list[i] >= order_list[i+1] for i in range(len(order_list)-1))
-    return reverse_count >= 0.5 * len(order_list)
+    sum_fwd_diff = 0
+    sum_rvs_diff = 0
+
+    # min_ref_order = 0
+    # gene_count = 0
+    tgt_ordering = []
+    ref_ordering = []
+    for geneid, tgt_order in order_dict.items():
+        ref_order = ref_gene_order[geneid]
+        tgt_ordering.append(tgt_order)
+        ref_ordering.append(ref_order)
+        print(f"{tgt_order};  {ref_order}")
+    
+
+    correlation_coefficient = np.corrcoef(tgt_ordering, ref_ordering)[0, 1]
+
+    # Interpret the correlation coefficient
+    if correlation_coefficient > 0:
+        print("Positive correlation")
+        return False
+    elif correlation_coefficient < 0:
+        print("Negative correlation")
+        return True
+
+    #     # # min_ref_order = min(min_ref_order, ref_order)
+    #     # # gene_count += 1
+
+    #     # sum_fwd_diff += (abs(tgt_order - min_order - ref_order))
+    #     # sum_rvs_diff += (abs(abs(max_order - tgt_order) - min_order - ref_order))   
+    #     # print(f"tgt_order: {tgt_order}; ref_order: {ref_order}")
+    
+    # if sum_fwd_diff > sum_rvs_diff:
+    #     print("is_reverse_order: ", True)
+    #     return True
+    # else:
+    #     print("is_reverse_order: ", False)
+    #     return False
 
 def get_chrom_to_gene_order(gene_order, gene_db, feature_types):
     chrom_to_gene_order = {}
@@ -35,12 +77,28 @@ def get_chrom_to_gene_order(gene_order, gene_db, feature_types):
             chrom_to_gene_order[gene.seqid][gene.id] = gene_order[gene.id]
     return chrom_to_gene_order
 
+# def get_tgt_2_ref_gene_order_diff(chrom_to_target_gene_order, ref_gene_order):
+
 def concatenate_genes(chrom_to_gene_order):
     concatenated_gene_order = {}
     for chrom, gene_order_dict in chrom_to_gene_order.items():
         # Concatenate genes for each chromosome
         concatenated_gene_order.update(gene_order_dict)
     return concatenated_gene_order
+
+def calculate_chromosome_gene_ratio(chrom_to_gene_order, total_gene):
+    chr_gene_ratio = {}
+    for chrom, gene_order_dict in chrom_to_gene_order.items():
+        gene_on_chrom = len(gene_order_dict)
+        ratio = gene_on_chrom / total_gene
+        chr_gene_ratio[chrom] = ratio
+        # if total_genes > 0:
+        #     reverse_genes = sum(1 for order in gene_order_dict.values() if order != 0)
+        #     forward_genes = total_genes - reverse_genes
+        #     ratio = forward_genes / total_genes
+
+        #     print(f"Chromosome {chrom} - Forward Genes: {forward_genes}, Reverse Genes: {reverse_genes}, Ratio: {ratio:.2f}")
+    return chr_gene_ratio
 
 
 
@@ -65,30 +123,40 @@ def analyze_synteny(ref_db, target_db,  ref_fa, target_fa, args, ref_features_di
         chrom_to_ref_gene_order = get_chrom_to_gene_order(ref_gene_order, ref_db, args.ft)
         chrom_to_target_gene_order = get_chrom_to_gene_order(target_gene_order, target_db, args.ft)
 
-        print("chrom_to_target_gene_order: ", chrom_to_target_gene_order)
+        ref_chr_gene_ratio = calculate_chromosome_gene_ratio(chrom_to_ref_gene_order, len(ref_gene_order))
+        tgt_chr_gene_ratio = calculate_chromosome_gene_ratio(chrom_to_target_gene_order, len(target_gene_order))
+
+        # get_tgt_2_ref_gene_order_diff(chrom_to_target_gene_order, ref_gene_order)
+
+        print("chrom_to_ref_gene_order    : ", chrom_to_ref_gene_order)
+        print("chrom_to_target_gene_order : ", chrom_to_target_gene_order)
         
         # Flip gene order for affected chromosomes
-        flip_gene_order_for_chromosome(chrom_to_target_gene_order, target_db.get_feature_dict(args.ft))
+        flip_gene_order_for_chromosome(chrom_to_target_gene_order, ref_gene_order, target_db.get_feature_dict(args.ft))
 
         # Concatenate genes corresponding to the chromosome orders
         concatenated_target_gene_order = concatenate_genes(chrom_to_target_gene_order)
 
         print("concatenated_target_gene_order: ", concatenated_target_gene_order)
         output_rows = print_order_output(ref_gene_order, concatenated_target_gene_order, ref_db,target_db, output_file, args, ref_features_dict, score_dict)
-        plot_gene_order(output_rows, args)
+
+        # print("ref_gene_order    : ", ref_gene_order)
+        # print("target_gene_order : ", target_gene_order)
+        # output_rows = print_order_output(ref_gene_order, target_gene_order, ref_db,target_db, output_file, args, ref_features_dict, score_dict)
+        plot_gene_order(output_rows, args, ref_chr_gene_ratio, tgt_chr_gene_ratio)
 
 
 def infer_chrom_and_gene_order(ref_fa, target_fa, ref_db, target_db, feature_types, score_dict):
-        less_contigs_fa, more_contigs_fa, less_contigs_db, more_contigs_db = find_most_contiguous_genome(ref_fa, target_fa, ref_db, target_db)
-        default_chrom_order = order_chroms(less_contigs_fa)
+    less_contigs_fa, more_contigs_fa, less_contigs_db, more_contigs_db = find_most_contiguous_genome(ref_fa, target_fa, ref_db, target_db)
+    default_chrom_order = order_chroms(less_contigs_fa)
 
-        default_gene_order = order_genes(default_chrom_order, more_contigs_fa.keys(), less_contigs_db, more_contigs_db, feature_types, score_dict)
-        matched_chrom_order = match_chrom_order(default_gene_order, more_contigs_db, feature_types)
+    default_gene_order = order_genes(default_chrom_order, more_contigs_fa.keys(), less_contigs_db, more_contigs_db, feature_types, score_dict)
+    matched_chrom_order = match_chrom_order(default_gene_order, more_contigs_db, feature_types)
 
-        print(f"Target chromosomes ordering  : {len(less_contigs_fa.keys())}\t{less_contigs_fa.keys()}" )
-        print(f"Reference chromsome ordering : {len(matched_chrom_order)}\t{matched_chrom_order}")
-        matched_gene_order = order_genes(matched_chrom_order , less_contigs_fa.keys(), more_contigs_db, less_contigs_db, feature_types, score_dict)
-        return get_ref_and_target_gene_order(default_gene_order, matched_gene_order,ref_fa == more_contigs_fa)
+    print(f"Target chromosomes ordering  : {len(less_contigs_fa.keys())}\t{less_contigs_fa.keys()}" )
+    print(f"Reference chromsome ordering : {len(matched_chrom_order)}\t{matched_chrom_order}")
+    matched_gene_order = order_genes(matched_chrom_order , less_contigs_fa.keys(), more_contigs_db, less_contigs_db, feature_types, score_dict)
+    return get_ref_and_target_gene_order(default_gene_order, matched_gene_order,ref_fa == more_contigs_fa)
 
 
 def find_most_contiguous_genome(ref_fa, target_fa, ref_db, target_db):

@@ -35,7 +35,7 @@ def parse_input_file(input_file):
     return order_arr
 
 
-def plot_gene_order(order_arr, args):
+def plot_gene_order(order_arr, args, ref_chr_gene_ratio, tgt_chr_gene_ratio):
     print(">> plot_gene_order ...")
     output_file = filepaths.build_filepath([args.dir, filepaths.SYNTENY_OUTPUTS['plot']])
     if filepaths.make_file(output_file, args.force):
@@ -66,23 +66,25 @@ def plot_gene_order(order_arr, args):
         plt.xticks(rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
 
 
+        # Set aspect ratio to be equal (make the figure square)
+        ax.set_aspect('equal', adjustable='box')
+
         # Axis.set_major_locator(ax.xaxis, years)  
 
         # x_labels = [x_label for x_label in x_labels if len(x_label) > 5 else ""]
-
-        # x_labels = [x_label if len(x_label) < 7 else "" for x_label in x_labels]
-
+        x_labels = [x_label if ref_chr_gene_ratio[x_label] > 0.025 else "" for x_label in x_labels]
+        y_labels = [y_label if tgt_chr_gene_ratio[y_label] > 0.025 else "" for y_label in y_labels]
         # ax.xaxis.set_major_locator(plt.FixedLocator(x_locs))
         # ax.xaxis.set_major_formatter(plt.FixedFormatter(x_labels))
         plt.xticks(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
         # ax.set_major_locator(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
 
-
-
         plt.ylim([-5, np.max(y) + 1])
         plt.yticks(y_locs, y_labels, fontsize=TICK_FONT_SIZE)
         plt.xlabel(X_LABEL, fontsize = LABEL_SIZE)
         plt.ylabel(Y_LABEL, fontsize = LABEL_SIZE)
+
+        plt.tight_layout()
         plt.savefig(output_file, transparent=True)
 
         # plt.xticks(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')

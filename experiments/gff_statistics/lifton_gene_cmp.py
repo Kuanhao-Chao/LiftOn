@@ -216,8 +216,13 @@ if __name__ == '__main__':
 
 
             
-    print(f'lifted_gene_coding_count    : {lifted_gene_coding_count}')
-    print(f'missed_gene_coding_count    : {missed_gene_coding_count}')
+    # print(f'lifted_gene_coding_count    : {lifted_gene_coding_count}')
+    # print(f'missed_gene_coding_count    : {missed_gene_coding_count}')
+
+
+
+    print(f'Reference coding count    : {lifted_gene_coding_count + missed_gene_coding_count}')
+    # print(f'missed_gene_coding_count    : {missed_gene_coding_count}')
     
     print(f'tgt_coding_lifted            : {len(tgt_coding_lifted)}')
 
@@ -235,12 +240,16 @@ if __name__ == '__main__':
     print(f'\ttgt_coding_lifted single     : {tgt_coding_lifted_single}')
     print(f'\ttgt_coding_lifted extra      : {tgt_coding_lifted_extra}')
     print(f'\ttgt_coding_lifted extra sum  : {tgt_coding_lifted_extra_sum}')
+    print(f'\ttgt_coding_lifted total      : {tgt_coding_lifted_single + tgt_coding_lifted_extra_sum}')
 
     # print(f'\ttgt_gene_coding_lost         : {tgt_gene_coding_lost}')
 
 
-    print(f'lifted_gene_noncoding_count : {lifted_gene_noncoding_count}')
-    print(f'missed_gene_noncoding_count : {missed_gene_noncoding_count}')
+    # print(f'lifted_gene_noncoding_count : {lifted_gene_noncoding_count}')
+    # print(f'missed_gene_noncoding_count : {missed_gene_noncoding_count}')
+    print("\n\n")
+
+    print(f'Reference noncoding count    : {lifted_gene_noncoding_count + missed_gene_noncoding_count}')
     print(f'tgt_noncoding_lifted         : {len(tgt_noncoding_lifted)}')
 
     tgt_noncoding_lifted_single= 0
@@ -257,3 +266,9 @@ if __name__ == '__main__':
     print(f'\ttgt_noncoding_lifted single     : {tgt_noncoding_lifted_single}')
     print(f'\ttgt_noncoding_lifted extra      : {tgt_noncoding_lifted_extra}')
     print(f'\ttgt_noncoding_lifted extra sum  : {tgt_noncoding_lifted_extra_sum}')
+    print(f'\ttgt_noncoding_lifted total      : {tgt_noncoding_lifted_single + tgt_noncoding_lifted_extra_sum}')
+
+    print("\n\n")
+
+    print(f'Reference total count    : {lifted_gene_coding_count + missed_gene_coding_count + lifted_gene_noncoding_count + missed_gene_noncoding_count}')
+    print(f'Target total count    : {tgt_coding_lifted_single + tgt_coding_lifted_extra_sum + tgt_noncoding_lifted_single + tgt_noncoding_lifted_extra_sum}')
