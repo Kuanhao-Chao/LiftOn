@@ -186,5 +186,8 @@ def parasail_align(tool, db, db_entry, fai, ref_proteins, ref_trans_id, lifton_s
     elif tool == "miniprot":
         # SETTING miniprot identity score
         lifton_status.miniprot = lifton_aln.identity
+    elif tool == "lifton":
+        # SETTING miniprot identity score
+        lifton_status.lifton = lifton_aln.identity
 
     return lifton_aln
