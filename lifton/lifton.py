@@ -253,17 +253,24 @@ def run_all_lifton_steps(args):
         print("Target annotation : ", args.output)
 
         logger.log(">> Creating target database : ", tgt_annotation, debug=True)
-        tgt_feature_db = annotation.Annotation(tgt_annotation+"_db", args.infer_genes).db_connection
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
+
+        fw_score = open(outdir+"/eval.txt", "w")
+        tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
 
         for feature in features:
             for locus in tgt_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
-                evaluation.tgt_evaluate(locus, tgt_feature_db, tgt_fai, ref_features_dict, ref_proteins, ref_trans, DEBUG)
+                # evaluation.tgt_evaluate(locus, tgt_feature_db, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
+
+                evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
+
                 # lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
 
                 ###########################
                 # Writing out LiftOn entries
                 ###########################
                 # lifton_gene.write_entry(fw)       
+        fw_score.close()
         return
 
 
