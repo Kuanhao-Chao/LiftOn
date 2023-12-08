@@ -87,7 +87,6 @@ def liftoff_get_id_locus(locus, l_feature_db):
         transcripts = l_feature_db.children(locus, level=1)
         for transcript in list(transcripts):
             liftoff_get_id_locus(transcript, l_feature_db)
-        print("\n")
 
     else:
         # locus is in transcript level: exons are in its children

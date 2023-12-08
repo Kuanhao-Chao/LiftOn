@@ -13,6 +13,10 @@ class Lifton_Status:
         self.liftoff = 0
         self.miniprot = 0
         self.lifton = 0
+
+        self.eval_dna = 0
+        self.eval_aa = 0
+
         self.annotation = None
         self.status = []
 
@@ -210,6 +214,8 @@ class LiftOn_FEATURE:
 
 class Lifton_TRANS:
     def __init__(self, ref_trans_id, ref_gene_id, gene_id, copy_num, gffutil_entry_trans, ref_trans_attrs):
+
+        print("")
         ###########################
         # Assigning the reference transcripts & attributes
         ###########################
@@ -527,6 +533,9 @@ class Lifton_TRANS:
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
                     cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+
+        # print("coding_seq: ", coding_seq)
+        # print("trans_seq : ", trans_seq)
 
         ################################
         # Step 2: Translate the DNA sequence & get the reference protein sequence.
