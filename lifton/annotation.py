@@ -31,15 +31,14 @@ class Annotation():
         try:
             transform_func = self.get_transform_func()
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
-                                        merge_strategy="create_unique", 
+                                        # merge_strategy="create_unique", 
+                                        merge_strategy="warning",
                                             # merge_strategy="create_unique", 
-                                        # id_spec='ID',
+                                        id_spec='ID',
                                         force=True,
                                         verbose=True, disable_infer_transcripts=True,
                                             disable_infer_genes=disable_genes, transform=transform_func)
             
-                                        # id_spec={"gene": ['ID', 'Name'], "mRNA": ['ID', 'Name'], "transcript": ['ID', 'Name'], "lnc_RNA": ['ID', 'Name'], "nc_RNA": ['ID', 'Name']},
-
         except Exception as e:
             print("gffutils database build failed with", e)
             sys.exit()
