@@ -12,11 +12,20 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
             # These are gene (1st) features without direct exons 
             #   => Create LifOn gene instance
             ########################### 
+            logger.log(f"Before locus.id\t: {locus.id}\n", debug=DEBUG)
+
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
             
-            # logger.log(f"Before Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:", debug=DEBUG)
-            lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
-            # logger.log(f"Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:{lifton_gene.copy_num}", debug=DEBUG)
+            logger.log(f"Before Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:", debug=DEBUG)
+
+
+            try:
+                attributes = copy.deepcopy(ref_db[ref_gene_id].attributes)
+            except:
+                attributes = {}
+
+            lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), attributes, tree_dict, ref_features_dict)
+            logger.log(f"Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:{lifton_gene.copy_num}", debug=DEBUG)
 
             transcripts = db.children(locus, level=1)
             for transcript in list(transcripts):
@@ -45,7 +54,12 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
             ref_trans_id = ref_gene_id
 
-            lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, tmp = True)
+            try:
+                attributes = copy.deepcopy(ref_db[ref_gene_id].attributes)
+            except:
+                attributes = {}
+
+            lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), attributes, tree_dict, ref_features_dict, tmp = True)
 
 
         else:
