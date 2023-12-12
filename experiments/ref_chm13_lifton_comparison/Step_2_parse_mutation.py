@@ -7,8 +7,8 @@ outdir_root = f"/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cm
 # fname = f"{outdir_root}score.txt"
 # outdir_root = f"{outdir_root}visualization/"
 
-# fname = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/eval.txt"
-fname = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/eval.txt"
+fname = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/eval.txt"
+# fname = "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/eval.txt"
 
 table = pd.read_csv(fname, sep="\t", header=None)
 

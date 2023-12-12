@@ -67,17 +67,10 @@ def main():
 
 
     targets = ["LiftOn", "Reference"]
-    for target in targets:
-        for type in ["dna", "protein"]:
-            # nums = []
-            # with open(fname, "r") as fr:
-            #     lines = fr.read().splitlines()
-            #     for line in lines:
-            #         eles = line.split("\t")
-            #         nums.append(float(eles[idx+1]))
-            #         # print(eles[1])
 
-            # figure_path = outdir_root + "images/"+targets[idx]+"_frequency.png"
+    for type in ["dna", "protein"]:
+        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 6), sharey=True)  # Adjust figsize as needed
+        for i, target in enumerate(targets):
             figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
 
             if target == "LiftOn" and type == "dna":
@@ -89,50 +82,73 @@ def main():
             elif target == "Reference" and type == "protein":
                 select_score = merged_df["2_y"]
 
-            select_score = select_score[(select_score > 0) & (select_score < 0.98) ]
-            plt.hist(select_score, bins=100)
-            plt.gca().set(title=f'{target} {type} score frequency histogram', ylabel='Frequency', xlabel='Protein pairwise alignment identity score')
+            select_score = select_score[(select_score > 0) & (select_score < 0.98)]
+            # select_score = select_score[(select_score > 0)]
+            axes[i].hist(select_score, bins=100)
+            axes[i].set(title=f'{target} {type} score frequency histogram',
+                        ylabel='Frequency', xlabel=f'{type} pairwise alignment identity score')
 
-            # plt.xlabel('liftoff score')
-            # plt.ylabel('lifton score')
-            # plt.title('Comparing liftoff vs lifton protein searching scores')
-            plt.tight_layout()
-            plt.savefig(f"{figure_out}/{target}_{type}_frequency.png", dpi=300)
-            plt.close()
-            plt.clf()
+        plt.tight_layout()
+        plt.savefig(f"{figure_out}/combined_{type}_frequency.png", dpi=300)
+        plt.clf()
+
+    # for target in targets:
+    #     for type in ["dna", "protein"]:
+    #         figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
+
+    #         if target == "LiftOn" and type == "dna":
+    #             select_score = merged_df["1_x"]
+    #         elif target == "LiftOn" and type == "protein":
+    #             select_score = merged_df["1_y"]
+    #         elif target == "Reference" and type == "dna":
+    #             select_score = merged_df["2_x"]
+    #         elif target == "Reference" and type == "protein":
+    #             select_score = merged_df["2_y"]
+
+    #         select_score = select_score[(select_score > 0) & (select_score < 0.98) ]
+    #         plt.hist(select_score, bins=100)
+    #         plt.gca().set(title=f'{target} {type} score frequency histogram', ylabel='Frequency', xlabel='Protein pairwise alignment identity score')
+
+    #         # plt.xlabel('liftoff score')
+    #         # plt.ylabel('lifton score')
+    #         # plt.title('Comparing liftoff vs lifton protein searching scores')
+    #         plt.tight_layout()
+    #         plt.savefig(f"{figure_out}/{target}_{type}_frequency.png", dpi=300)
+    #         plt.close()
+    #         plt.clf()
 
 
-    # # Plot scatter plot:
-    # figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
-    # for type in ["dna", "protein"]:
-    #     print(f"type: {type}")
-    #     if type == "dna":
-    #         plt.scatter(merged_df["1_x"], merged_df["2_x"], s=2)
-    #         print("\tLiftOn > ref: ", len(merged_df[merged_df["1_x"] > merged_df["2_x"]]))
-    #         print("\tLiftOn = ref: ", len(merged_df[merged_df["1_x"] == merged_df["2_x"]]))
-    #         print("\tLiftOn < ref: ", len(merged_df[merged_df["1_x"] < merged_df["2_x"]]))
+    # Plot scatter plot:
+    figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
+    for type in ["dna", "protein"]:
+        print(f"type: {type}")
+        if type == "dna":
+            plt.scatter(merged_df["1_x"], merged_df["1_y"], s=2)
+            print("\tLiftOn > ref: ", len(merged_df[merged_df["1_x"] > merged_df["1_y"]]))
+            print("\tLiftOn = ref: ", len(merged_df[merged_df["1_x"] == merged_df["1_y"]]))
+            print("\tLiftOn < ref: ", len(merged_df[merged_df["1_x"] < merged_df["1_y"]]))
 
-    #     elif type == "protein":
-    #         plt.scatter(merged_df["1_y"], merged_df["2_y"], s=2)
-    #         print("\tLiftOn > ref: ", len(merged_df[merged_df["1_y"] > merged_df["2_y"]]))
-    #         print("\tLiftOn = ref: ", len(merged_df[merged_df["1_y"] == merged_df["2_y"]]))
-    #         print("\tLiftOn < ref: ", len(merged_df[merged_df["1_y"] < merged_df["2_y"]]))
-    #     # # Add labels to the points
-    #     # for i, row in table.iterrows():
-    #     #     if (abs(row[1] - row[2]) > 0.2):
-    #     #         plt.text(row[1], row[2], row[0], fontsize=4, ha='center', va='bottom')
+        elif type == "protein":
+            plt.scatter(merged_df["2_x"], merged_df["2_y"], s=2)
+            print("\tLiftOn > ref: ", len(merged_df[merged_df["2_x"] > merged_df["2_y"]]))
+            print("\tLiftOn = ref: ", len(merged_df[merged_df["2_x"] == merged_df["2_y"]]))
+            print("\tLiftOn < ref: ", len(merged_df[merged_df["2_x"] < merged_df["2_y"]]))
+        # # Add labels to the points
+        # for i, row in table.iterrows():
+        #     if (abs(row[1] - row[2]) > 0.2):
+        #         plt.text(row[1], row[2], row[0], fontsize=4, ha='center', va='bottom')
 
-    #     plt.axline((0, 0), (1, 1), linewidth=1, color='r')
-    #     plt.axis('square')
-    #     plt.xlim(-0.1, 1.1)
-    #     plt.ylim(-0.1, 1.1)
-    #     plt.xlabel('liftoff score')
-    #     plt.ylabel('Lifton score')
-    #     plt.title('Comparing liftoff vs lifton protein searching scores')
-    #     plt.tight_layout()
-    #     plt.savefig(f"{figure_out}/scatter_{type}.png", dpi=300)
-    #     plt.close()
-    #     plt.clf()
+        plt.axline((0, 0), (1, 1), linewidth=1, color='r')
+        plt.axis('square')
+        plt.xlim(-0.1, 1.1)
+        plt.ylim(-0.1, 1.1)
+        plt.xlabel('LiftOn score')
+        plt.ylabel('Reference T2T-CHM13 score')
+        plt.title('Comparing liftoff vs lifton protein searching scores')
+        plt.tight_layout()
+        plt.savefig(f"{figure_out}/scatter_{type}.png", dpi=300)
+        plt.close()
+        plt.clf()
 
 
 
