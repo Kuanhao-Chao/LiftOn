@@ -52,7 +52,7 @@ class Lifton_feature:
         self.children = set()
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, holder = False, tmp = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, miniprot_holder = False, tmp = False):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -62,19 +62,11 @@ class Lifton_GENE:
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
         self.copy_num = self.__get_gene_copy(ref_features_dict)
-        self.holder = holder
+        self.miniprot_holder = miniprot_holder
         self.tmp = tmp
-        
-        # # This is for Liftoff
-        # if self.tmp:
-        #     self.entry.attributes = ref_gene_attrs
-        #     self.entry.attributes["ID"] = self.ref_gene_id + "_" + str(self.copy_num) if self.copy_num > 0 else self.ref_gene_id
-        #     if self.copy_num > 0:
-        #         self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
-
 
         # This is for miniprot
-        if holder:
+        if self.miniprot_holder:
             attributes = {}
             # attributes["ID"] = self.entry.attributes["Parent"] if "Parent" in self.entry.attributes.keys() else ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
             attributes["ID"] = ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
@@ -214,8 +206,6 @@ class LiftOn_FEATURE:
 
 class Lifton_TRANS:
     def __init__(self, ref_trans_id, ref_gene_id, gene_id, copy_num, gffutil_entry_trans, ref_trans_attrs):
-
-        print("")
         ###########################
         # Assigning the reference transcripts & attributes
         ###########################
