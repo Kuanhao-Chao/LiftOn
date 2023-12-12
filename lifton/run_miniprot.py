@@ -45,7 +45,7 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
     ###########################
     if ref_gene_id is None:
         # This is a place holder gene
-        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, holder=True)
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, miniprot_holder=True)
     else:
         lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
 
