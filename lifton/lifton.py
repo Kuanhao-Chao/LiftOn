@@ -259,7 +259,7 @@ def run_all_lifton_steps(args):
         tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
 
         for feature in features:
-            for locus in tgt_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
+            for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
                 evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
         fw_score.close()
         return
@@ -306,7 +306,7 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
+        for locus in l_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
 
             ###########################

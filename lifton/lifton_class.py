@@ -12,7 +12,8 @@ class Lifton_Status:
     def __init__(self):
         self.liftoff = 0
         self.miniprot = 0
-        self.lifton = 0
+        self.lifton_dna = 0
+        self.lifton_aa = 0
 
         self.eval_dna = 0
         self.eval_aa = 0
@@ -151,7 +152,22 @@ class Lifton_GENE:
             return None, False
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
         return lifton_aln, good_trans
-               
+
+
+    def align_trans_dna(self, trans_id, ref_trans_id, fai, fai_trans, lifton_status):
+        ref_trans_seq = fai_trans[ref_trans_id]
+        if trans_id not in self.transcripts.keys():
+            return None
+        lifton_tran_aln = self.transcripts[trans_id].align_trans_dna(fai, ref_trans_seq, lifton_status)
+        if lifton_tran_aln.identity == 1:
+            lifton_status.annotation = "Liftoff_identical"
+            lifton_status.status = ["identical"]
+        elif lifton_tran_aln.identity < 1:
+            lifton_status.annotation = "Liftoff_synonymous"
+            lifton_status.status = ["synonymous"]
+        return lifton_tran_aln
+
+
     def update_cds_list(self, trans_id, cds_list):
         self.transcripts[trans_id].update_cds_list(cds_list)
         self.update_boundaries()
@@ -258,7 +274,8 @@ class Lifton_TRANS:
     #     self.entry.attributes["extra_copy_number"] = [str(trans_copy_num_dict[self.ref_tran_id])]
 
     def add_lifton_status_attrs(self, lifton_status):
-        self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton:.3f}"]
+        self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton_aa:.3f}"]
+        self.entry.attributes["dna_identity"] = [f"{lifton_status.lifton_dna:.3f}"]
         self.entry.attributes["status"] = [lifton_status.annotation]
 
     def add_exon(self, gffutil_entry_exon):
@@ -493,15 +510,30 @@ class Lifton_TRANS:
         self.update_boundaries()
 
 
-    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
-        # Need to output which type of mutation it is.
-        ################################
-        # Step 1: Iterate through the children and chain the DNA sequence
-        ################################
+    def get_coding_seq(self, fai):
         coding_seq = ""
         cdss_lens = []
+        cds_children = []
+        for exon in self.exons:
+            if exon.cds is not None:
+                cds_children.append(copy.deepcopy(exon.cds.entry))
+                # Chaining the CDS features
+                p_seq = exon.cds.entry.sequence(fai)
+                p_seq = Seq(p_seq).upper()
+                if exon.cds.entry.strand == '-':
+                    coding_seq = p_seq + coding_seq
+                    cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
+                elif exon.cds.entry.strand == '+':
+                    coding_seq = coding_seq + p_seq
+                    cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+        return coding_seq, cds_children, cdss_lens
+    
+
+    def get_coding_trans_seq(self, fai):
         trans_seq = ""
         exon_lens = []
+        coding_seq = ""
+        cdss_lens = []
         for exon in self.exons:
             # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
@@ -523,48 +555,72 @@ class Lifton_TRANS:
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
                     cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+        return coding_seq, cdss_lens, trans_seq, exon_lens
 
-        # print("coding_seq: ", coding_seq)
-        # print("trans_seq : ", trans_seq)
 
-        ################################
-        # Step 2: Translate the DNA sequence & get the reference protein sequence.
-        ################################
-        if coding_seq == "":
+    def translate_coding_seq(self, coding_seq):
+        protein_seq = None
+        if coding_seq != "":
+            protein_seq = coding_seq.translate()
+        return protein_seq
+
+    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
+        if protein_seq == None:
             lifton_aa_aln = None
             peps = None
         else:
-            protein_seq = coding_seq.translate()
             peps = protein_seq.split("*")
-
             lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
             # Update lifton sequence identity
-            lifton_status.lifton = max(lifton_status.lifton, lifton_aa_aln.identity)
+            lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aa_aln.identity)
+        return lifton_aa_aln, peps
 
+    def align_trans_seq(self, trans_seq, ref_trans_seq, lifton_status):
         if trans_seq == "":
             lifton_tran_aln = None
         else:
             lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+        lifton_status.lifton_dna = lifton_tran_aln.identity
+        return lifton_tran_aln
 
+    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
+        # Need to output which type of mutation it is.
+        ################################
+        # Step 1: Getting translated sequences
+        ################################
+        coding_seq, cdss_lens, trans_seq, exon_lens = self.get_coding_trans_seq(fai)
+        protein_seq = self.translate_coding_seq(coding_seq)
+        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
+        lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
+        # print("coding_seq: ", coding_seq)
+        # print("trans_seq : ", trans_seq)
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
-
         ORF_search = False
         for mutation in lifton_status.status:
-            # identical
-            # synonymous # inframe_insertion # inframe_deletion # nonsynonymous # frameshift # start_lost # stop_missing # stop_codon_gain            
+            # identical # synonymous 
+            # # inframe_insertion # inframe_deletion # nonsynonymous 
+            # frameshift # start_lost # stop_missing # stop_codon_gain            
             # Adding mutations in to entry.attributes
             if mutation != "identical":
                 if "mutation" not in self.entry.attributes:
                     self.entry.attributes["mutation"] = [mutation]
                 else:
                     self.entry.attributes["mutation"].append(mutation)
-            # ORF searching
-            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift" or mutation == "start_lost":
+            
+            # ORF searching for these four types of mutations
+            # frameshift_orf_threshold = 0.8
+            # and lifton_aa_aln.identity < frameshift_orf_threshold)
+            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
-
         if ORF_search:
             self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
         return lifton_tran_aln, lifton_aa_aln
+
+
+    def align_trans_dna(self, fai, ref_trans_seq, lifton_status):
+        coding_seq, cdss_lens, trans_seq, exon_lens = self.get_coding_trans_seq(fai)
+        lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
+        return lifton_tran_aln
 
 
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status):
@@ -599,6 +655,7 @@ class Lifton_TRANS:
 
         # Print the ORFs
         final_orf = None
+        update_orf = False
         max_identity = 0
         for i, orf in enumerate(orf_list):
             orf_DNA_seq = trans_seq[orf.start:orf.end]
@@ -608,24 +665,26 @@ class Lifton_TRANS:
             # print(f"\torf_protein_seq: {orf_protein_seq}")
             extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_protein_base(orf_protein_seq, str(ref_protein_seq))        
 
-            alignment_score = extracted_parasail_res.score
-            alignment_query = extracted_parasail_res.traceback.query
-            alignment_comp = extracted_parasail_res.traceback.comp
-            alignment_ref = extracted_parasail_res.traceback.ref
+            # alignment_score = extracted_parasail_res.score
+            # alignment_query = extracted_parasail_res.traceback.query
+            # alignment_comp = extracted_parasail_res.traceback.comp
+            # alignment_ref = extracted_parasail_res.traceback.ref
 
-            extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
-
+            extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
             extracted_identity = extracted_matches/extracted_length
-
-
-            # print(f"\textracted_identity: {extracted_identity}")
+            
+            # Select the largest among 3 orfs.
             if extracted_identity > max_identity:
                 max_identity = extracted_identity
                 final_orf = orf
-                lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
-                lifton_status.lifton = max(lifton_status.lifton, lifton_aln.identity)
+                # lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+                # lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aln.identity)                
 
-        if final_orf is not None:
+        # Only update orf if at least one frame similarity is larger than the original lifton_aa
+        if max_identity > lifton_status.lifton_aa:
+            lifton_status.lifton_aa = max_identity
+            update_orf = True
+        if final_orf is not None and update_orf:
             self.__update_cds_boundary(final_orf)
         
 
@@ -642,10 +701,11 @@ class Lifton_TRANS:
         for exon_idx, exon in enumerate(exons):
             curr_exon_len = exon.entry.end - exon.entry.start + 1
             # print(f"\t>> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-
             if accum_exon_length <= final_orf.start:
                 if final_orf.start < accum_exon_length+curr_exon_len:
+                    ################################
                     # Create first partial CDS
+                    ################################
                     if exon.cds is not None:
                         if strand == "+":
                             exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
@@ -687,9 +747,11 @@ class Lifton_TRANS:
                     # print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
 
                 else:
-                    # Keep the original full CDS
+                    # Keep the original full CDS / extend the CDS to full exon length
                     if exon.cds is None:
                         exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
+                    else:
+                        exon.cds.update_CDS_info(exon.entry.start, exon.entry.end)
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
 
@@ -777,6 +839,11 @@ class Lifton_CDS:
         gffutil_entry_cds.featuretype = "CDS"
         self.entry = gffutil_entry_cds
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
+
+    def update_CDS_info(self, start, end):
+        self.entry.source = "LiftOn"
+        self.entry.start = start
+        self.entry.end = end
 
     def write_entry(self, fw):
         fw.write(str(self.entry) + "\n")

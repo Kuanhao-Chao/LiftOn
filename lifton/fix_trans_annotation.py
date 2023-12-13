@@ -84,9 +84,6 @@ def process_m_l_children(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_l
 def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
     l_children = l_lifton_aln.cds_children
     m_children = m_lifton_aln.cds_children
-
-    # print("number of children, m: ", len(m_children))
-    # print("number of children, l: ", len(l_children))
     
     m_c_idx = 0
     l_c_idx = 0
