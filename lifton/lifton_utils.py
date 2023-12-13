@@ -196,7 +196,7 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
-def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
+def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
     m_lifton_aln = None
     has_valid_miniprot = False
 
@@ -209,7 +209,7 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             m_entry = m_feature_db[m_id]
             overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
             if not overlap or m_entry.seqid != transcript.seqid:
-                # print("Not overlapped")
+                # "Not overlapped"
                 continue
 
             ##################################################
@@ -241,11 +241,13 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             ################################
             has_valid_miniprot = True
 
-            if m_lifton_aln == None or m_lifton_aln.identity > lifton_status.miniprot:
-                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
+            tmp_m_lifton_aln = align.parasail_align("miniprot", lifton_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
+            if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
+
+                m_lifton_aln = tmp_m_lifton_aln
                 # SETTING miniprot identity score                
                 lifton_status.miniprot = m_lifton_aln.identity
-        
+
     return m_lifton_aln, has_valid_miniprot
 
 
@@ -331,10 +333,13 @@ def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status)
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.eval_dna}\t{lifton_status.eval_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
+def print_lifton_status(transcript_id, transcript, lifton_status):
+    final_status = ";".join(lifton_status.status)
+    print(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
-    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
 def segments_overlap_length(segment1, segment2):
     # Check if the segments have valid endpoints

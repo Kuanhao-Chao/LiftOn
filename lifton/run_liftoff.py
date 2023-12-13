@@ -15,7 +15,6 @@ from intervaltree import Interval, IntervalTree
 
 
 def run_liftoff(args):
-    print(">> run_liftoff")
     liftoff_args = copy.deepcopy(args)
     liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
     os.makedirs(liftoff_outdir, exist_ok=True)
@@ -89,24 +88,24 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         exons = l_feature_db.children(locus, featuretype='exon', order_by='start')
         for exon in list(exons):
             lifton_gene.add_exon(lifton_trans.entry.id, exon)
-        logger.log(f"\tAfter adding exons\n", debug=DEBUG)
+        # logger.log(f"\tAfter adding exons\n", debug=DEBUG)
         ###########################
         # Add LiftOn CDS
         ###########################
-        cdss = l_feature_db.children(locus, featuretype='CDS', order_by='start') 
+        cdss = l_feature_db.children(locus, featuretype=('CDS', 'stop_codon'), order_by='start') 
         cds_num = 0
         for cds in list(cdss):
             cds_num += 1
             lifton_gene.add_cds(lifton_trans.entry.id, cds)
-        logger.log(f"\tAfter adding CDSs\n", debug=DEBUG)
+        # logger.log(f"\tAfter adding CDSs\n", debug=DEBUG)
         
-        miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(locus.seqid, locus, lifton_status, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id)
+        # miniprot alignment
+        miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(lifton_trans, locus.seqid, locus, lifton_status, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id)
 
         if (cds_num > 0):
-            #############################################
-            # Liftoff has protein
-            #############################################                
-            liftoff_aln = align.parasail_align("liftoff", l_feature_db, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
+            # Liftoff alignment                  
+            liftoff_aln = align.parasail_align("liftoff", lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
+
             if liftoff_aln is None:
                 #############################################
                 # There is no reference protein -> just keep Liftoff annotation
@@ -114,14 +113,20 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 logger.log("\t* Has CDS but no ref protein", debug=DEBUG)
                 lifton_status.annotation = "Liftoff_no_ref_protein"
                 lifton_status.status = ["no_ref_protein"]
+            
+
+            elif liftoff_aln.identity == 1:
+                #############################################
+                # Liftoff protein annotation is perfect
+                #############################################
+                logger.log("\t* Liftoff protein identical", debug=DEBUG)
+                lifton_status.lifton_aa = 1
+                # DNA level alignment
+                lifton_trans_aln = lifton_gene.align_trans_dna(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_trans, lifton_status)
 
             elif liftoff_aln.identity < 1:
                 #############################################
-                # Liftoff annotation is not perfect
-                #############################################
-            
-                #############################################
-                # Running chaining algorithm if there are valid miniprot alignments
+                # Liftoff protein annotation is not perfect
                 #############################################
                 if has_valid_miniprot:
                     logger.log("\t* Has CDS and valid miniprot", debug=DEBUG)
@@ -138,15 +143,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 # Step 3.6.1.2: Check if there are mutations in the transcript
                 #############################################
                 lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
-                
-            elif liftoff_aln.identity == 1:
-                #############################################
-                # Step 3.6.2: Liftoff annotation is perfect
-                #############################################
-                lifton_status.annotation = "Liftoff_identical"
-                # SETTING LiftOn identity score => Same as Liftoff
-                lifton_status.lifton = liftoff_aln.identity
-                lifton_status.status = ["identical"]
+
         else:
             #############################################
             # Liftoff no protein
@@ -156,7 +153,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 # Condition 3: LiftOn does not have proteins & miniprot has proteins
                 ###########################
                 logger.log("\t* No CDS; miniprot has ref protein", debug=DEBUG)
-                print(f"ref_trans_id: {ref_trans_id}; \t ref_id_2_m_id_trans_dict[ref_trans_id]: {ref_id_2_m_id_trans_dict[ref_trans_id]}")
+                logger.log(f"ref_trans_id: {ref_trans_id}; \t ref_id_2_m_id_trans_dict[ref_trans_id]: {ref_id_2_m_id_trans_dict[ref_trans_id]}", debug=DEBUG)
 
                 if ref_trans_id in ref_id_2_m_id_trans_dict.keys():
                     for mtrans_id in ref_id_2_m_id_trans_dict[ref_trans_id]:
@@ -164,8 +161,6 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
 
                         mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
                         is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, 0.7, tree_dict)
-                        print("is_overlapped: ", is_overlapped)
-
                         if is_overlapped:
                             lifton_gene, transcript_id, lifton_status = run_miniprot.lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG)
                             lifton_trans = lifton_gene.transcripts[transcript_id]
@@ -186,15 +181,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                     lifton_status.status = ["nc_transcript"]
 
         lifton_utils.write_lifton_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
-
+        lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status)
         lifton_gene.add_lifton_status_attrs(lifton_trans.entry.id, lifton_status)
-        
-        ###########################
-        # Truncated reference proteins
-        ###########################
-        # if transcript_id_base in trunc_ref_proteins.keys() or transcript_id in trunc_ref_proteins.keys():
-        #     print("Reference proteins is truncated.")
-        #     lifton_status.annotation = "Reference_protein_truncated"
-        #     lifton_status.status = ["truncated_ref_protein"]
         
     return lifton_gene
