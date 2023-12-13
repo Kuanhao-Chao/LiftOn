@@ -13,8 +13,10 @@ def get_id_fraction(reference, target, start, end):
         return matches, 1
     return matches, end-start
 
+
 def get_DNA_id_fraction(reference, target):
     matches = 0
+    # BLAST identity
     reference = reference.upper()
     target = target.upper()
     for i, letter in enumerate(reference):

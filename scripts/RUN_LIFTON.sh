@@ -2,11 +2,11 @@ TARGET=$1
 EVALUATION=$2
 if [[ "$TARGET" == "human_to_chimp" || "$TARGET" == "human_to_chimp_test" ]]; then
     echo "running LiftOn on human_to_chimp"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff_db"
-    LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
-    MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
+    REFERENCE_gff="/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/rRNA_removed/NCBI_RefSeq_no_rRNA.gff_db"
+    # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
+    # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna"
-    REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.fna"
+    REFERENCE_genome="/ccb/salz2/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
 
 elif [[ "$TARGET" == "human_mane_to_mouse" || "$TARGET" == "human_mane_to_mouse_test" ]]; then
     echo "running LiftOn on human_mane_to_mouse"

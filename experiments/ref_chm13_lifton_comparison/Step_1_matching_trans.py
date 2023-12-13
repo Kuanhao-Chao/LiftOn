@@ -39,58 +39,78 @@ def main():
 
 
     # Merge based on the values in the first column
-    merged_df = pd.merge(lifton_filtered, ref_filtered, on=0, how='inner')
+    merged_df = pd.merge(lifton_filtered, ref_filtered, on=0, how='inner')    
+
+    # Use the mask to filter out rows with chrY
+    mask = (merged_df['5_x'].str.contains('chrY') | merged_df['5_y'].str.contains('chrY'))
+    merged_df = merged_df[~mask]
 
     # Print the merged result
     print("Merged DataFrame:")
     print(merged_df)
     print("Merged DataFrame Length:", len(merged_df))
 
-    # for trans in intersection_values:
-    #     lifton_selected = lifton_filtered[lifton_filtered[0] == trans]
-    #     if len(lifton_selected) > 1:
-    #         print("Lifton selected")
-    #         print(lifton_selected)
+    targets = ["JHU RefSeqv110 + Liftoff v5.1", "LiftOn v1.0.0"]
 
+    THRESHOLD = 0.98   
 
-    #     ref_selected = ref_filtered[ref_filtered[0] == trans]
-    #     if len(ref_selected) > 1:
-    #         print("Ref selected")
-    #         print(ref_selected)
+    # Filtering by DNA scores
+    # select_score = merged_df["1_x"]
+    # merged_df = merged_df[((merged_df["1_x"] > 0) & (merged_df["1_y"] > 0)) & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
 
+    # print(f"Filter 0 & {THRESHOLD} => Merged DataFrame Length:", len(merged_df))
 
+    for type in ["DNA", "Protein"]:
+        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 6), sharey=True)  # Adjust figsize as needed
+        # for i, target in enumerate(targets):
+        #     figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
 
-    # print("lifton_table (filtered): ", lifton_filtered)
-    # print("ref_filtered (filtered): ", ref_filtered)
+        #     if target == "LiftOn" and type == "dna":
+        #         select_score = merged_df["1_x"]
+        #     elif target == "LiftOn" and type == "protein":
+        #         select_score = merged_df["1_y"]
+        #     elif target == "Reference" and type == "dna":
+        #         select_score = merged_df["2_x"]
+        #     elif target == "Reference" and type == "protein":
+        #         select_score = merged_df["2_y"]
 
+        #     select_score = select_score[(select_score > 0) & (select_score < 0.98)]
+        #     # select_score = select_score[(select_score > 0)]
+        #     axes[i].hist(select_score, bins=100)
+        #     axes[i].set(title=f'{target} {type} score frequency histogram',
+        #                 ylabel='Frequency', xlabel=f'{type} pairwise alignment identity score')
 
+        # plt.tight_layout()
+        # plt.savefig(f"{figure_out}/combined_{type}_frequency.png", dpi=300)
+        # plt.clf()
 
-
-    targets = ["LiftOn", "Reference"]
-
-    for type in ["dna", "protein"]:
-        fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 6), sharey=True)  # Adjust figsize as needed
         for i, target in enumerate(targets):
             figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
 
-            if target == "LiftOn" and type == "dna":
+            if target == "LiftOn v1.0.0" and type == "DNA":
                 select_score = merged_df["1_x"]
-            elif target == "LiftOn" and type == "protein":
-                select_score = merged_df["1_y"]
-            elif target == "Reference" and type == "dna":
+            elif target == "LiftOn v1.0.0" and type == "Protein":
                 select_score = merged_df["2_x"]
-            elif target == "Reference" and type == "protein":
+            elif target == "JHU RefSeqv110 + Liftoff v5.1" and type == "DNA":
+                select_score = merged_df["1_y"]
+            elif target == "JHU RefSeqv110 + Liftoff v5.1" and type == "Protein":
                 select_score = merged_df["2_y"]
 
-            select_score = select_score[(select_score > 0) & (select_score < 0.98)]
-            # select_score = select_score[(select_score > 0)]
-            axes[i].hist(select_score, bins=100)
-            axes[i].set(title=f'{target} {type} score frequency histogram',
-                        ylabel='Frequency', xlabel=f'{type} pairwise alignment identity score')
+            # select_score = select_score[(select_score > 0) & (select_score < THRESHOLD)]
 
+            # Use alpha to make the histograms semi-transparent
+            plt.hist(select_score, bins=100, alpha=0.65, label=target, log=True)#, color=colors[i])
+
+
+        # plt.axvline(THRESHOLD, linestyle='--', color='r', label=f'Threshold {THRESHOLD}')  # Add mean line
+        plt.title(f'{type} sequence identity score frequency histogram')
+        plt.ylabel('Frequency')
+        plt.xlabel(f'{type} sequence identity score')
+        plt.legend()  # Show legend with target labels
         plt.tight_layout()
-        plt.savefig(f"{figure_out}/combined_{type}_frequency.png", dpi=300)
+        plt.savefig(f"{figure_out}/log_combined_{type}_frequency_ovp.png", dpi=300)
         plt.clf()
+
 
     # for target in targets:
     #     for type in ["dna", "protein"]:
@@ -149,6 +169,9 @@ def main():
         plt.savefig(f"{figure_out}/scatter_{type}.png", dpi=300)
         plt.close()
         plt.clf()
+
+
+    merged_df.to_csv(f'{figure_out}/merged_eval.txt', header=False,  index=False, sep="\t") 
 
 
 
