@@ -1,7 +1,24 @@
 import parasail
 from Bio.Seq import Seq
 from cigar import Cigar
-from lifton import adjust_cds_boundaries, get_id_fraction, lifton_class
+from lifton import get_id_fraction, lifton_class
+
+def adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, length):
+    cds_boundary_shift = 0
+    for i in range(len(cdss_protein_aln_boundary)):
+        cdss_start = cdss_protein_aln_boundary[i][0] + cds_boundary_shift
+        cdss_end = cdss_protein_aln_boundary[i][1] + cds_boundary_shift
+
+        if (cdss_start <= cigar_accum_len) and (cdss_end >= cigar_accum_len):
+            # print("### cdss_start: ", cdss_start)
+            # print("### cigar_accum_len: ", cigar_accum_len)
+            # print("### cdss_end: ", cdss_end)
+            # print("### cigar_accum_len: ", cigar_accum_len)
+            cds_boundary_shift += length
+            cdss_end += length
+        cdss_protein_aln_boundary[i] = (cdss_start, cdss_end)
+    return cdss_protein_aln_boundary
+
 
 def get_cdss_protein_boundary(cdss_lens):
     cdss_cumulative = [sum(cdss_lens[:i+1]) for i in range(len(cdss_lens))]
@@ -27,7 +44,6 @@ def parasail_align_protein_base(protein_seq, ref_protein_seq):
     extracted_seq = str(protein_seq)
     reference_seq = str(ref_protein_seq)
     extracted_seq = "*" if extracted_seq == "" else extracted_seq
-
     # (Query, Reference)
     extracted_parasail_res = parasail.nw_trace_scan_sat(extracted_seq, reference_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res, extracted_seq, reference_seq
@@ -163,7 +179,7 @@ def parasail_align(tool, db, db_entry, fai, ref_proteins, ref_trans_id, lifton_s
     for length, symbol in cigar_ls:
         if symbol == "D":
             # print(length, symbol)
-            cdss_protein_aln_boundary = adjust_cds_boundaries.adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, length)
+            cdss_protein_aln_boundary = adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, length)
         # else:
         #     print("cigar_accum_len: ", cigar_accum_len)
         cigar_accum_len += length

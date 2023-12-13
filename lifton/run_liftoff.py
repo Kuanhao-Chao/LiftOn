@@ -35,11 +35,8 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             #   => Create LifOn gene instance
             ########################### 
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
-            
-            logger.log(f"Before Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:", debug=DEBUG)
-            
+            # logger.log(f"Before Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:", debug=DEBUG)            
             lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
-            
             logger.log(f"Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:{lifton_gene.copy_num}", debug=DEBUG)
             
             transcripts = l_feature_db.children(locus, level=1)
@@ -65,7 +62,6 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             ref_trans_id = ref_gene_id
 
             lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, tmp = True)
-
 
         else:
             ###########################
@@ -111,9 +107,6 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             # Liftoff has protein
             #############################################                
             liftoff_aln = align.parasail_align("liftoff", l_feature_db, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
-
-            logger.log(f"After liftoff parasail_align\n", debug=DEBUG)
-
             if liftoff_aln is None:
                 #############################################
                 # There is no reference protein -> just keep Liftoff annotation
@@ -146,12 +139,6 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 #############################################
                 lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
                 
-
-                    # for mutation in lifton_status.status:
-                    #     if mutation != "synonymous" and mutation != "identical" and mutation != "nonsynonymous":
-                    #         lifton_aa_aln.write_alignment(intermediate_dir, "lifton_AA", mutation, transcript_id)
-                    #         lifton_trans_aln.write_alignment(intermediate_dir, "lifton_DNA", mutation, transcript_id)
-
             elif liftoff_aln.identity == 1:
                 #############################################
                 # Step 3.6.2: Liftoff annotation is perfect

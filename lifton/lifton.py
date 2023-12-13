@@ -261,9 +261,6 @@ def run_all_lifton_steps(args):
         for feature in features:
             for locus in tgt_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
                 evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
-
-                # lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
-
         fw_score.close()
         return
 
@@ -277,7 +274,6 @@ def run_all_lifton_steps(args):
     liftoff_annotation = lifton_utils.exec_liftoff(outdir, args)
     miniprot_annotation = lifton_utils.exec_miniprot(outdir, args, tgt_genome, ref_proteins_file)
 
-
     ################################
     # Step 5: Run LiftOn algorithm
     ################################
@@ -289,9 +285,9 @@ def run_all_lifton_steps(args):
     logger.log(">> Creating miniprot database : ", miniprot_annotation, debug=True)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
     fw = open(args.output, "w")
-    fw_score = open(outdir+"/score.txt", "w")
-    fw_unmapped = open(outdir+"/unmapped_features.txt", "w")
-    fw_extra_copy = open(outdir+"/extra_copy_features.txt", "w")
+    fw_score = open(f"{outdir}/score.txt", "w")
+    fw_unmapped = open(f"{outdir}/unmapped_features.txt", "w")
+    fw_extra_copy = open(f"{outdir}/extra_copy_features.txt", "w")
 
 
     ################################
