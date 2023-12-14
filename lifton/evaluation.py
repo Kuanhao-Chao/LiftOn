@@ -13,9 +13,9 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
             ########################### 
             # logger.log(f"Before locus.id\t: {locus.id}", debug=DEBUG)
 
-            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(locus.id),None)
+            # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(locus.id),None)
 
-            # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, (locus.id),None)
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, (locus.id),None)
 
             # logger.log(f"Before Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:\n", debug=DEBUG)
             if ref_gene_id is None:
@@ -48,9 +48,9 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
             #   => lifton_gene is None & there are direct exon children 
             ###########################
 
-            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(locus.id), None)
+            # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(locus.id), None)
 
-            # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, (locus.id), None)
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, (locus.id), None)
 
             ref_trans_id = ref_gene_id
 
@@ -67,9 +67,9 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
             #   => (transcript level)
             ###########################
 
-            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(lifton_gene.entry.id), "rna-"+(locus.id))
+            # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(lifton_gene.entry.id), "rna-"+(locus.id))
 
-            # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, (locus.id))
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, (locus.id))
 
 
         logger.log(f"\tTranscript level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id}", debug=DEBUG)

@@ -82,11 +82,11 @@ for target in ["Liftoff", "miniprot"]:
 
     if target == "Liftoff":
 
-        select_table = table[(table[1] > 0.0) | (table[3] > 0.0)]
-        plt.scatter(select_table[1], select_table[3], s=2)
+        select_table = table[(table[1] > 0.0) | (table[4] > 0.0)]
+        plt.scatter(select_table[1], select_table[4], s=2)
     elif target == "miniprot":
-        select_table = table[(table[2] > 0.0) | (table[3] > 0.0)]
-        plt.scatter(table[2], table[3], s=2)
+        select_table = table[(table[2] > 0.0) | (table[4] > 0.0)]
+        plt.scatter(table[2], table[4], s=2)
     print(table)
     # # Add labels to the points
     # for i, row in table.iterrows():
@@ -141,17 +141,18 @@ fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
 
 # 2D scatter plot for Liftoff
-select_table_liftoff = table[(table[1] > 0.0) | (table[3] > 0.0)]
-axes[0].scatter(select_table_liftoff[1], select_table_liftoff[3], s=2)
+# select_table_liftoff = table[(table[1] > 0.0) | (table[4] > 0.0)]
+select_table_liftoff = table
+
+# LiftOn 1 but Liftoff not 1:
+selected_dots = len(select_table_liftoff[(select_table_liftoff[4] == 1) & (select_table_liftoff[1] != 1)])
+# print("selected_dots: ", selected_dots)
+axes[0].annotate(str(selected_dots), (0.5, 1.03), color = 'black', fontsize=14)
+axes[0].axhline(y = 1.008, color = 'black', linestyle = '--') 
 axes[0].axline((0, 0), (1, 1), linewidth=1, color='r')
 
-axes[0].axhline(y = 1, color = 'black', linestyle = '--') 
-# LiftOn 1 but Liftoff not 1:
-selected_dots = len(select_table_liftoff[(select_table_liftoff[3] == 1) & (select_table_liftoff[1] != 1)])
-print("selected_dots: ", selected_dots)
 
-axes[0].annotate(str(selected_dots), (0.5, 1.03), color = 'black', fontsize=14)
-
+axes[0].scatter(select_table_liftoff[1], select_table_liftoff[4], s=2)
 axes[0].axis('square')
 axes[0].set_xlim(-0.1, 1.1)
 axes[0].set_ylim(-0.1, 1.1)
@@ -163,15 +164,17 @@ axes[0].set_title('LiftOn vs Liftoff protein sequence identity scores')
 
 
 # 2D scatter plot for miniprot
-select_table_miniprot = table[(table[2] > 0.0) | (table[3] > 0.0)]
-axes[1].scatter(select_table_miniprot[2], select_table_miniprot[3], s=2)
+# select_table_miniprot = table[(table[2] > 0.0) | (table[4] > 0.0)]
+select_table_miniprot = table
+
+# LiftOn 1 but Liftoff not 1:
+# selected_dots = len(select_table_miniprot[(select_table_miniprot[4] == 1)])
+selected_dots = len(select_table_liftoff[(select_table_liftoff[4] == 1) & (select_table_liftoff[2] != 1)])
+axes[1].annotate(str(selected_dots), (0.5, 1.03), color = 'black', fontsize=14)
+axes[1].axhline(y = 1.008, color = 'black', linestyle = '--') 
 axes[1].axline((0, 0), (1, 1), linewidth=1, color='r')
 
-axes[1].axhline(y = 1, color = 'black', linestyle = '--') 
-# LiftOn 1 but Liftoff not 1:
-selected_dots = len(select_table_liftoff[(select_table_liftoff[3] == 1) & (select_table_liftoff[2] != 1)])
-axes[1].annotate(str(selected_dots), (0.5, 1.03), color = 'black', fontsize=14)
-
+axes[1].scatter(select_table_miniprot[2], select_table_miniprot[4], s=2)
 
 axes[1].axis('square')
 axes[1].set_xlim(-0.1, 1.1)
@@ -205,7 +208,7 @@ n = 100
 labels = ['Liftoff score', 'miniprot score', 'LiftOn score']
 xs = table[1]
 ys = table[2]
-zs = table[3]
+zs = table[4]
 
 # ax.plot_surface(1, 0, 0, alpha=0.2)
 
