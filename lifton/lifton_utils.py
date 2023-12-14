@@ -241,7 +241,29 @@ def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton
             ################################
             has_valid_miniprot = True
 
-            tmp_m_lifton_aln = align.parasail_align("miniprot", lifton_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
+
+            ###########################
+            # Add LifOn transcript instance
+            ###########################
+            miniprot_trans = lifton_class.Lifton_TRANS(m_id, "", "", 0, m_entry, {})
+            ###########################
+            # Add LiftOn exons
+            ###########################
+            exons = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start')
+            for exon in list(exons):
+                miniprot_trans.add_exon(exon)
+            # logger.log(f"\tAfter adding exons\n", debug=DEBUG)
+            ###########################
+            # Add LiftOn CDS
+            ###########################
+            cdss = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start') 
+            cds_num = 0
+            for cds in list(cdss):
+                cds_num += 1
+                miniprot_trans.add_cds(cds)
+
+
+            tmp_m_lifton_aln = align.parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
             if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
 
                 m_lifton_aln = tmp_m_lifton_aln

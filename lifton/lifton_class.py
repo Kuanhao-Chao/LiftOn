@@ -610,6 +610,8 @@ class Lifton_TRANS:
             # ORF searching for these four types of mutations
             # frameshift_orf_threshold = 0.8
             # and lifton_aa_aln.identity < frameshift_orf_threshold)
+                    
+            print("mutation: ", mutation)
             if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
         if ORF_search:
@@ -624,6 +626,8 @@ class Lifton_TRANS:
 
 
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status):
+
+
         trans_seq = trans_seq.upper()
         # Find ORFs manually
         start_codon = "ATG"
@@ -658,6 +662,7 @@ class Lifton_TRANS:
         update_orf = False
         max_identity = 0
         for i, orf in enumerate(orf_list):
+            print(f"\tORF {i+1}: {orf.start}-{orf.end}")
             orf_DNA_seq = trans_seq[orf.start:orf.end]
             orf_protein_seq = orf_DNA_seq.translate()
             
@@ -673,6 +678,7 @@ class Lifton_TRANS:
             extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
             extracted_identity = extracted_matches/extracted_length
             
+            print(f"\t\textracted_identity: {extracted_identity}")
             # Select the largest among 3 orfs.
             if extracted_identity > max_identity:
                 max_identity = extracted_identity
@@ -680,11 +686,13 @@ class Lifton_TRANS:
                 # lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
                 # lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aln.identity)                
 
-        # Only update orf if at least one frame similarity is larger than the original lifton_aa
-        if max_identity > lifton_status.lifton_aa:
-            lifton_status.lifton_aa = max_identity
-            update_orf = True
-        if final_orf is not None and update_orf:
+        # # Only update orf if at least one frame similarity is larger than the original lifton_aa
+        # if max_identity > lifton_status.lifton_aa:
+        #     lifton_status.lifton_aa = max_identity
+        #     update_orf = True
+        # if final_orf is not None and update_orf:
+        if final_orf is not None:
+
             self.__update_cds_boundary(final_orf)
         
 

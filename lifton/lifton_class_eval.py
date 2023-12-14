@@ -200,6 +200,8 @@ class Lifton_TRANS_EVAL:
         final_orf = None
         max_identity = 0
         for i, orf in enumerate(orf_list):
+            print(f"\tORF {i+1}: {orf.start}-{orf.end}")
+
             orf_DNA_seq = trans_seq[orf.start:orf.end]
             orf_protein_seq = orf_DNA_seq.translate()
             
@@ -221,7 +223,8 @@ class Lifton_TRANS_EVAL:
                 max_identity = extracted_identity
                 final_orf = orf
                 lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
-                lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aln.identity)
+                lifton_status.lifton_aa = lifton_aln.identity
+                # max(lifton_status.lifton_aa, lifton_aln.identity)
 
         if final_orf is not None:
             self.__update_cds_boundary(final_orf)

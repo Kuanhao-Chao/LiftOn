@@ -111,6 +111,8 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
 
         # print(">> ref_aa_miniprot_count: ", ref_aa_miniprot_count)
         # print(">> ref_aa_liftoff_count: ", ref_aa_liftoff_count)
+        # print(">>> len(m_children): ", len(m_children))
+        # print(">>> len(l_children): ", len(l_children))
 
         if m_lifton_aln.db_entry.strand == "+":
             # print(">>> m_c_idx: ", m_c_idx)
@@ -139,6 +141,9 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
 
 
         elif m_lifton_aln.db_entry.strand == "-":
+            # print(">>> m_c_idx: ", len(m_children) - m_c_idx - 1)
+            # print(">>> l_c_idx: ", len(l_children) - l_c_idx - 1)
+
             m_c = m_children[len(m_children) - m_c_idx - 1]
             l_c = l_children[len(l_children) - l_c_idx - 1]
 

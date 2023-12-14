@@ -117,7 +117,8 @@ def parasail_align(tool, lifton_trans, db_entry, fai, ref_proteins, ref_trans_id
     ################################
     # Step 4: Protein alignment
     ################################
-    protein_seq = protein_seq.upper()
+    if protein_seq != None:
+        protein_seq = protein_seq.upper()
     extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, ref_protein_seq)
 
     ################################

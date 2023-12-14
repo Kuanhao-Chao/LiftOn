@@ -81,7 +81,7 @@ for target in ["lifton", "miniprot", "liftoff"]:
     elif target == "miniprot":
         select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
     elif target == "lifton":
-        select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
+        select_scores = table[4][(table[4] <= upper_threshold) & (table[4] > 0.0)]
 
     plt.hist(select_scores, bins=100, alpha=0.9)
     plt.gca().set(title='Score frequency histogram', ylabel='Frequency')
@@ -126,8 +126,8 @@ for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
         # select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
         # selected_count= len(table[2][(table[2] <= count_threshold) & (table[2] > 0.0)])
     elif target == "lifton":
-        target_idx = 3
-        # select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
+        target_idx = 4
+        # select_scores = table[4][(table[4] <= upper_threshold) & (table[4] > 0.0)]
         # selected_count= len(table[1][(table[1] <= count_threshold) & (table[1] > 0.0)])
 
     select_scores = table[target_idx][(table[target_idx] <= upper_threshold) & (table[target_idx] > 0.0)]
@@ -156,12 +156,12 @@ plt.show()
 
 print(f"Length for liftoff: {len(table[1])}")
 print(f"Length for miniprot: {len(table[2])}")
-print(f"Length for lifton: {len(table[3])}")
+print(f"Length for lifton: {len(table[4])}")
 
 
 print(f"Length for liftoff: {len(table[1][(table[1] <= count_threshold) & (table[1] > 0.0)])}")
 print(f"Length for miniprot: {len(table[2][(table[2] <= count_threshold) & (table[2] > 0.0)])}")
-print(f"Length for lifton: {len(table[3][(table[3] <= count_threshold) & (table[3] > 0.0)])}")
+print(f"Length for lifton: {len(table[4][(table[4] <= count_threshold) & (table[4] > 0.0)])}")
 
 
 
@@ -179,7 +179,7 @@ for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
     elif target == "miniprot":
         select_scores = table[2][(table[2] <= upper_threshold) & (table[2] > 0.0)]
     elif target == "lifton":
-        select_scores = table[3][(table[3] <= upper_threshold) & (table[3] > 0.0)]
+        select_scores = table[4][(table[4] <= upper_threshold) & (table[4] > 0.0)]
 
     # Plot the histogram on the corresponding subplot
     axes[idx].hist(select_scores, bins=100, alpha=0.9)
