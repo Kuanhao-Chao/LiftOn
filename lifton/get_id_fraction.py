@@ -7,7 +7,7 @@ def get_id_fraction(reference, target, start, end):
     for i, letter in enumerate(reference[start:end]):
         if letter == target[i+start]:
             matches += 1
-        if target[i] == "*":
+        if target[i+start] == "*":
             break
     if (end-start) == 0:
         return matches, 1
