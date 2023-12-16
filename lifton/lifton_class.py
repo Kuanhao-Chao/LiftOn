@@ -297,6 +297,11 @@ class Lifton_TRANS:
         for key, atr in gffutil_entry_trans.attributes.items():
             self.entry.attributes[key] = atr
 
+    def mv_exon_idx(self, exon_idx):
+        if exon_idx < len(self.exons)-1:
+            exon_idx += 1
+        return exon_idx
+
     def update_cds_list(self, cds_list):
         idx_exon_itr = 0
         new_exons = []
@@ -304,6 +309,7 @@ class Lifton_TRANS:
         # Update frame in CDS first! => CDSs are in the protein translation order
         accum_cds_length = 0
         for cds_idx, cds in enumerate(cds_list):
+            print("\t CDS stats", cds.entry.start, cds.entry.end, cds.entry.frame)
             cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
             accum_cds_length = cds.entry.end - cds.entry.start + 1
 
@@ -316,23 +322,33 @@ class Lifton_TRANS:
         ########################
         if len(cds_list) == 1:
             only_cds = cds_list[0]
+            processed_ovp_exons = False
+            ovp_exons = []
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
-                idx_exon_itr += 1
                 # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
-                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end)):
-
-                    if exon.entry.start >= only_cds.entry.start:
-                        exon.entry.start = only_cds.entry.start
-                    
-                    elif exon.entry.end <= only_cds.entry.end:
-                        exon.entry.end = only_cds.entry.end
-                    
-                    exon.add_lifton_cds(only_cds)
+                # |eeeeee| |ccccc|
+                if exon.entry.end < only_cds.entry.start:
                     new_exons.append(exon)
-                else:
-                    exon.add_lifton_cds(None)
+                elif lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end)):
+                    cp_exon = copy.deepcopy(exon)
+                    ovp_exons.append(cp_exon)
+                # |cccc|  |eeee|
+                elif exon.entry.start > only_cds.entry.end: 
+                    processed_ovp_exons = True
+                    merged_exon = copy.deepcopy(exon)
+                    merged_exon.entry.start = ovp_exons[0].entry.start
+                    merged_exon.entry.end = ovp_exons[-1].entry.end
+                    merged_exon.add_lifton_cds(only_cds)
+                    new_exons.append(merged_exon)
                     new_exons.append(exon)
+                idx_exon_itr += 1
+            if not processed_ovp_exons:
+                merged_exon = copy.deepcopy(exon)
+                merged_exon.entry.start = ovp_exons[0].entry.start
+                merged_exon.entry.end = ovp_exons[-1].entry.end
+                merged_exon.add_lifton_cds(only_cds)
+                new_exons.append(merged_exon)
 
         ########################
         # Case 2: only 1 exon, and >1 CDSs
@@ -370,76 +386,61 @@ class Lifton_TRANS:
             #      => finding the first overlapping CDS and exons
             #      => processing all exons / CDS ahead of the first overlapping
             ################################################
-            init_head_order = None
+            init_head_order = False
+            
+            # |ccccc||eeeeee|
             if exon.entry.start >= cds.entry.end:
-                init_head_order = 0
-            elif exon.entry.end <= cds.entry.start:
-                init_head_order = 1
+                init_head_order = False
+            # |eeeeee| |ccccc|
+            elif exon.entry.start > cds.entry.start:
+                init_head_order = True
                 
-            # print(">> Step 1: find the first overlapping exon & CDS")
-            while not lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
-                if exon.entry.start >= cds.entry.end:
-                    # print("Order: ", 0)
-                    if init_head_order != 0:
-                        # print(">> Change head break! 0")
-                        break
+            if init_head_order:
+                # Find the first overlapping exon with CDS
+                while exon_idx < len(self.exons) and cds_idx < len(cds_list):
+                    exon_start, exon_end = self.exons[exon_idx].entry.start, self.exons[exon_idx].entry.end
+                    cds_start, cds_end = cds_list[cds_idx].entry.start, cds_list[cds_idx].entry.end
+                    # print("len(self.exons): ", len(self.exons))
+                    print(exon_idx, cds_idx, exon_start, exon_end, cds_start, cds_end)
+                    # |eeeeee| |ccccc|
+                    if exon_end < cds_start:
+                        # Create a new exon using exon boundary
+                        new_exon = copy.deepcopy(self.exons[exon_idx])
+                        new_exon.update_exon_info(exon_start, exon_end)
+                        new_exons.append(new_exon)
 
-                    # |ccccc| |eeeee|
-                    # print("|ccccc| |eeeee|:")
-                    # Step 1: create a new exon using CDS boundary
-                    new_exon = copy.deepcopy(exon)
-                    new_exon.update_exon_info(cds.entry.start, cds.entry.end)
-                    # print(">> New exon!!")
-                    # new_exon.print_exon()
+                        # Move to the next exon
+                        exon_idx += 1
                     
-                    # Step 2: add the CDS into the exon
-                    new_exon.add_lifton_cds(cds)
-                    new_exons.append(new_exon)
+                    # |eeee|--|cccc|
+                    elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
+                        # Stop if exon and CDS overlap
+                        # Create a new exon using exon boundary
+                        new_exon = copy.deepcopy(self.exons[exon_idx])
+                        new_exon.update_exon_info(min(exon_start, cds_start), cds_end)
+                        new_exon.add_lifton_cds(cds_list[0])
+                        new_exons.append(new_exon)
+                        # Move to the next exon
+                        exon_idx += 1
 
-                    # Step 3: push the first CDS to the next CDS
-                    cds_idx += 1
-                    cds = cds_list[cds_idx]
-                elif exon.entry.end <= cds.entry.start:
-                    # print("Order: ", 1)
-                    if init_head_order != 1:
-                        # print(">> Change head break! 1")
+                        # Move to the next CDS
+                        cds_idx += 1
                         break
 
-                    # |eeeee| |ccccc|
-                    # print("|eeeee| |ccccc|:")
-                    # Step 1: create a new exon using exon boundary
-                    new_exon = copy.deepcopy(exon)
-                    new_exon.update_exon_info(exon.entry.start, exon.entry.end)
-                    # print(">> New exon!!")
-                    # new_exon.print_exon()
-                    new_exons.append(new_exon)
+                    # |cccc|  |eeee|
+                    elif exon_start > cds_end: 
+                        # Create a new exon using CDS boundary
+                        new_exon = copy.deepcopy(self.exons[exon_idx])
+                        new_exon.update_exon_info(cds_start, cds_end)
+                        new_exon.add_lifton_cds(cds_list[0])
+                        new_exons.append(new_exon)
 
-                    # Step 2: push the first exon to the next exon
-                    exon_idx += 1
-                    exon = self.exons[exon_idx]
-
-            ################################################
-            # Step 2: parse the first overlapping exon & CDS
-            ################################################
-            if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                # print(">> Step 2: parse the first overlapping exon & CDS")
-                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
-
-                new_exon = copy.deepcopy(exon)
-                if exon.entry.start > cds.entry.start:
-                    new_exon.entry.start = cds.entry.start
-                if exon.entry.end is not cds.entry.end:
-                    new_exon.entry.end = cds.entry.end
-                
-                new_exon.add_lifton_cds(cds)
-                new_exons.append(new_exon)
-                # Move to the next CDS if it is not the last CDS
-                if cds_idx < len(cds_list)-1:
-                    cds_idx += 1
+                        # Move to the next CDS
+                        cds_idx += 1
+                        break
 
             ################################################
-            # Step 3: parse the inner exons and CDSs
+            # Step 2: parse the inner exons and CDSs
             ################################################
             # Handle the CDSs in the middle
             # Leave the last CDS not processed.
@@ -451,63 +452,78 @@ class Lifton_TRANS:
                 new_exon = copy.deepcopy(exon)
                 new_exon.update_exon_info(cds.entry.start, cds.entry.end)
                 # print(">> New exon!!")
-                # new_exon.print_exon()
-
                 new_exon.add_lifton_cds(cds)
                 new_exons.append(new_exon)
                 cds_idx += 1
-            
+        
 
             ################################################
-            # Step 4: parse the last CDS & its overlapping exon
+            # Step 3: parse the last CDS & its overlapping exon
             ################################################
+            last_cds_processed = False
             cds = cds_list[cds_idx]
-            exon = self.exons[exon_idx]
-            
-            # print(">> Step 4: parse the last CDS & its overlapping exon")
+            cds_start, cds_end = cds_list[cds_idx].entry.start, cds_list[cds_idx].entry.end
             while exon_idx < len(self.exons):
                 exon = self.exons[exon_idx]
-                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
+                exon_start, exon_end = exon.entry.start, exon.entry.end
+                print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
 
-                # Step 1. Create a new exon, and add cds into the exon
-                new_exon = copy.deepcopy(exon)
-                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                    # Step 2. Exon & CDS overlapping. If the exon is further then 
-                    if new_exon.entry.end < cds.entry.end:
-                        new_exon.entry.end = cds.entry.end
-                    if new_exon.entry.start is not cds.entry.start:
-                        new_exon.entry.start = cds.entry.start
-
-                    # print(">>>>>>>>>>> segments_overlap")
-                    # new_exon.print_exon()
-                    # cds.print_cds()
-
+                # |eeeeee| |ccccc|
+                if exon_end < cds_start:
+                    # exon_idx = self.mv_exon_idx(exon_idx)
+                    exon_idx += 1
+                    continue
+                elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
+                    print(">>>>>>>>>>> segments_overlap")
+                    # Create a new exon using exon boundary
+                    last_cds_processed = True
+                    new_exon = copy.deepcopy(exon)
+                    new_exon.update_exon_info(cds_start, max(cds_end, exon_end))
                     new_exon.add_lifton_cds(cds)
                     new_exons.append(new_exon)
+                    # Move to the next exon
+                    # exon_idx = self.mv_exon_idx(exon_idx)
+                    exon_idx += 1
+                    break
+                # |cccc|  |eeee|
+                elif exon_start > cds_end: 
+                    # Create a new exon using CDS boundary
+                    last_cds_processed = True
+                    new_exon = copy.deepcopy(exon)
+                    new_exon.update_exon_info(cds_start, cds_end)
+                    new_exon.add_lifton_cds(cds)
+                    new_exons.append(new_exon)
+                    break
 
-                else:
-                    # Step 2. No overlapping. If the exon is further then 
-                    # print(">>>>>>>>>>> segments do not overlap")
-                    if new_exon.entry.start >= cds.entry.end:
-                        # |ccccc| |eeeee|
-                        # All the subsequent exons are after the last CDS => create new exon & CDS for all of them!
-
-                        # print("#############")
-                        # new_exon.print_exon()
-                        new_exon.add_lifton_cds(None)
-                        new_exons.append(new_exon)
-                    elif exon_idx == len(self.exons)-1 and cds.entry.start >= new_exon.entry.end:
-                        # |eeeee| |ccccc| 
-                        # All the last exons are after before the last CDS => create the last CDS!
-                        new_exon.update_exon_info(cds.entry.start, cds.entry.end)
-                        # print(">> !!New exon!!")
-                        new_exon.add_lifton_cds(cds)
-                        new_exons.append(new_exon)
-                # new_exon.print_exon()
+            ################################################
+            # Step 4: parse the remaining exons
+            ################################################
+            # print(">> Step 3: parse the remaining exons")
+            while exon_idx < len(self.exons):
+                exon = self.exons[exon_idx]
+                # Step 1. Create a new exon
+                # Step 2. Add the CDS in the new exon
+                new_exon = copy.deepcopy(exon)
+                new_exon.update_exon_info(new_exon.entry.start, new_exon.entry.end)
+                new_exons.append(new_exon)
                 exon_idx += 1
 
+            ################################################
+            # Step 5: parse the last CDS if it does not overlap with any exon
+            ################################################
+            if not last_cds_processed:
+                # print(">> Step 4: parse the last CDS")
+                # Step 1. Create a new exon
+                # Step 2. Add the CDS in the new exon
+                new_exon = copy.deepcopy(exon)
+                new_exon.update_exon_info(cds.entry.start, cds.entry.end)
+                new_exon.add_lifton_cds(cds)
+                new_exons.append(new_exon)
+            
+        
         self.exons = new_exons
         self.update_boundaries()
+
 
 
     def get_coding_seq(self, fai):
@@ -686,13 +702,13 @@ class Lifton_TRANS:
                 # lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
                 # lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aln.identity)                
 
-        # # Only update orf if at least one frame similarity is larger than the original lifton_aa
-        # if max_identity > lifton_status.lifton_aa:
-        #     lifton_status.lifton_aa = max_identity
-        #     update_orf = True
+        # Only update orf if at least one frame similarity is larger than the original lifton_aa by the threshold
+        threshold_orf = 0.1
+        if max_identity > (lifton_status.lifton_aa - threshold_orf):
+            lifton_status.lifton_aa = max_identity
+            update_orf = True
         # if final_orf is not None and update_orf:
-        if final_orf is not None:
-
+        if final_orf is not None and update_orf:
             self.__update_cds_boundary(final_orf)
         
 

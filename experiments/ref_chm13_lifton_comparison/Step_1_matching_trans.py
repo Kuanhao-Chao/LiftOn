@@ -56,7 +56,7 @@ def main():
 
     # Filtering by DNA scores
     # select_score = merged_df["1_x"]
-    # merged_df = merged_df[((merged_df["1_x"] > 0) & (merged_df["1_y"] > 0)) & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
+    merged_df = merged_df[((merged_df["1_x"] > 0) & (merged_df["1_y"] > 0))]# & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
 
     # print(f"Filter 0 & {THRESHOLD} => Merged DataFrame Length:", len(merged_df))
 
@@ -115,7 +115,6 @@ def main():
     # for target in targets:
     #     for type in ["dna", "protein"]:
     #         figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
-
     #         if target == "LiftOn" and type == "dna":
     #             select_score = merged_df["1_x"]
     #         elif target == "LiftOn" and type == "protein":
