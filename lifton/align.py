@@ -80,6 +80,11 @@ def trans_align(trans_seq, ref_trans_seq):
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
+
+    # print("alignment_query: ", alignment_query) 
+    # print("alignment_comp: ", alignment_comp) 
+    # print("alignment_ref: ", alignment_ref) 
+
     extracted_matches, extracted_length = get_id_fraction.get_DNA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
     extracted_identity = extracted_matches/extracted_length
     lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)

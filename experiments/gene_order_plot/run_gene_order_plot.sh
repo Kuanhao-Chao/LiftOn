@@ -67,7 +67,7 @@ elif [[ "$TARGET" == "rice" || "$TARGET" == "rice_test" ]]; then
     REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff"
-    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_genomic.fna"
+    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/rice/ASM3414082v1_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.fna"
 
 elif [[ "$TARGET" == "human_chess" || "$TARGET" == "human_chess_test" ]]; then
@@ -118,5 +118,3 @@ output_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftofftools_output/"
 echo "python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir -force
 
 python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff -dir $output_dir -force
-
-

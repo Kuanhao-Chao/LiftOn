@@ -24,8 +24,30 @@ def flip_gene_order_for_chromosome(chrom_to_gene_order, ref_gene_order, chrom_to
                 for gene_id, order in gene_order_dict.items():
                     print("Before: ", gene_order_dict[gene_id])
                     gene_order_dict[gene_id] = max_order - order + min_order
+                    print("\tref_gene_order: ", ref_gene_order[gene_id])
                     print("After: ", gene_order_dict[gene_id])
+                    print("\n")
                 
+
+def remove_outliers(list1, list2, threshold=0.4):
+    # Calculate the mean and standard deviation for each list
+    mean1 = sum(list1) / len(list1)
+    mean2 = sum(list2) / len(list2)
+    std1 = (sum((x - mean1) ** 2 for x in list1) / len(list1)) ** 0.5
+    std2 = (sum((x - mean2) ** 2 for x in list2) / len(list2)) ** 0.5
+
+    # Identify outliers based on the threshold (e.g., 2 standard deviations)
+    outliers1 = [index for index, value in enumerate(list1) if abs(value - mean1) > threshold * std1]
+    outliers2 = [index for index, value in enumerate(list2) if abs(value - mean2) > threshold * std2]
+
+    # Combine outlier indices from both lists
+    outlier_indices = set(outliers1 + outliers2)
+
+    # Remove outliers at the same indices from both lists
+    filtered_list1 = [value for index, value in enumerate(list1) if index not in outlier_indices]
+    filtered_list2 = [value for index, value in enumerate(list2) if index not in outlier_indices]
+
+    return filtered_list1, filtered_list2
 
 def is_reverse_order(order_dict, max_order, min_order, ref_gene_order):
     # Check if at least 50% of the order list is in descending order
@@ -42,8 +64,10 @@ def is_reverse_order(order_dict, max_order, min_order, ref_gene_order):
         ref_ordering.append(ref_order)
         print(f"{tgt_order};  {ref_order}")
     
-
-    correlation_coefficient = np.corrcoef(tgt_ordering, ref_ordering)[0, 1]
+    sub_tgt_ordering, sub_ref_ordering = remove_outliers(tgt_ordering, ref_ordering)
+    print("sub_tgt_ordering: ", sub_tgt_ordering)
+    print("sub_ref_ordering: ", sub_ref_ordering)
+    correlation_coefficient = np.corrcoef(sub_tgt_ordering, sub_ref_ordering)[0, 1]
 
     # Interpret the correlation coefficient
     if correlation_coefficient > 0:

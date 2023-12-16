@@ -57,7 +57,7 @@ def plot_gene_order(order_arr, args, ref_chr_gene_ratio, tgt_chr_gene_ratio):
         ax.hlines(y=hlines, xmin=0, xmax=np.max(x), color=GRID_COLOR, linestyle='--', linewidth=GRID_WIDTH)
         ax.set_axisbelow(True)
         cplot = ax.scatter(x, y, c=c, s=POINT_SIZE, cmap=cmap, norm=norm, zorder=5)
-        cbar = fig.colorbar(cplot, ticks=color_boundaries, label='Protein Sequence Identity')
+        cbar = fig.colorbar(cplot, ticks=color_boundaries, label='Protein Sequence Identity', shrink=0.8)
         cbar.ax.set_yticklabels([str(min(boundary, 1.0)) for boundary in color_boundaries])
         plt.xlim([-5, np.max(x) + 5])
 
@@ -100,11 +100,11 @@ def get_scatter_points(order_arr):
 
 
 def get_color_spacing():
-    boundaries = 1 - np.linspace(0, 1, 10)
-    # boundaries = 1 - np.logspace(-2.5, 0, 10)
+    # boundaries = 1 - np.linspace(0, 1, 10)
+    boundaries = 1 - np.logspace(-2.5, 0, 10)
     boundaries.sort()
-    return np.around(boundaries,3)
-    # return np.append(np.around(boundaries,3),1.001)
+    # return np.around(boundaries,3)
+    return np.append(np.around(boundaries,3),1.001)
 
 
 def get_grid_and_ticks(order_arr, sort_by_idx, seq_idx):
