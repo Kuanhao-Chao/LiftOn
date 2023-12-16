@@ -56,12 +56,11 @@ def main():
 
     # Filtering by DNA scores
     # select_score = merged_df["1_x"]
-    merged_df = merged_df[((merged_df["1_x"] > 0) & (merged_df["1_y"] > 0))]# & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
 
     # print(f"Filter 0 & {THRESHOLD} => Merged DataFrame Length:", len(merged_df))
 
     for type in ["DNA", "Protein"]:
-        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 6), sharey=True)  # Adjust figsize as needed
+        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(7.1, 6), sharey=True)  # Adjust figsize as needed
         # for i, target in enumerate(targets):
         #     figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
 
@@ -84,17 +83,23 @@ def main():
         # plt.savefig(f"{figure_out}/combined_{type}_frequency.png", dpi=300)
         # plt.clf()
 
+        if type == "DNA":
+            select_merged_df = merged_df[((merged_df["1_x"] > 0) & (merged_df["1_y"] > 0))]# & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
+        elif type == "Protein":
+            select_merged_df = merged_df[((merged_df["2_x"] > 0) & (merged_df["2_y"] > 0))]# & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
+
         for i, target in enumerate(targets):
             figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
 
+
             if target == "LiftOn v1.0.0" and type == "DNA":
-                select_score = merged_df["1_x"]
+                select_score = select_merged_df["1_x"]
             elif target == "LiftOn v1.0.0" and type == "Protein":
-                select_score = merged_df["2_x"]
+                select_score = select_merged_df["2_x"]
             elif target == "JHU RefSeqv110 + Liftoff v5.1" and type == "DNA":
-                select_score = merged_df["1_y"]
+                select_score = select_merged_df["1_y"]
             elif target == "JHU RefSeqv110 + Liftoff v5.1" and type == "Protein":
-                select_score = merged_df["2_y"]
+                select_score = select_merged_df["2_y"]
 
             # select_score = select_score[(select_score > 0) & (select_score < THRESHOLD)]
 
@@ -103,10 +108,10 @@ def main():
 
 
         # plt.axvline(THRESHOLD, linestyle='--', color='r', label=f'Threshold {THRESHOLD}')  # Add mean line
-        plt.title(f'{type} sequence identity score frequency histogram')
-        plt.ylabel('Frequency')
-        plt.xlabel(f'{type} sequence identity score')
-        plt.legend()  # Show legend with target labels
+        plt.title(f'{type} sequence identity score frequency histogram', fontsize=17)
+        plt.ylabel('Frequency', fontsize=16)
+        plt.xlabel(f'{type} sequence identity score', fontsize=16)
+        plt.legend(fontsize=16)  # Show legend with target labels
         plt.tight_layout()
         plt.savefig(f"{figure_out}/log_combined_{type}_frequency_ovp.png", dpi=300)
         plt.clf()
@@ -145,7 +150,9 @@ def main():
             plt.scatter(merged_df["1_x"], merged_df["1_y"], s=2)
             print("\tLiftOn > ref: ", len(merged_df[merged_df["1_x"] > merged_df["1_y"]]))
             print("\tLiftOn = ref: ", len(merged_df[merged_df["1_x"] == merged_df["1_y"]]))
-            print("\tLiftOn < ref: ", len(merged_df[merged_df["1_x"] < merged_df["1_y"]]))
+            print("\tLiftOn < ref: ", len(merged_df[merged_df["1_x"] < merged_df["1_y"] -0.4]))
+            print("\tLiftOn < ref: ", merged_df[merged_df["1_x"] < merged_df["1_y"] -0.4])
+
 
         elif type == "protein":
             plt.scatter(merged_df["2_x"], merged_df["2_y"], s=2)

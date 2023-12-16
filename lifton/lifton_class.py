@@ -571,6 +571,10 @@ class Lifton_TRANS:
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
                     cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+        if trans_seq != None:
+            trans_seq = trans_seq.upper()
+        if coding_seq != None:
+            coding_seq = coding_seq.upper()
         return coding_seq, cdss_lens, trans_seq, exon_lens
 
 
@@ -592,6 +596,8 @@ class Lifton_TRANS:
         return lifton_aa_aln, peps
 
     def align_trans_seq(self, trans_seq, ref_trans_seq, lifton_status):
+        if ref_trans_seq != None:
+            ref_trans_seq = ref_trans_seq.upper()
         if trans_seq == "":
             lifton_tran_aln = None
         else:
@@ -703,11 +709,10 @@ class Lifton_TRANS:
                 # lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aln.identity)                
 
         # Only update orf if at least one frame similarity is larger than the original lifton_aa by the threshold
-        threshold_orf = 0.1
+        threshold_orf = 0.01
         if max_identity > (lifton_status.lifton_aa - threshold_orf):
             lifton_status.lifton_aa = max_identity
             update_orf = True
-        # if final_orf is not None and update_orf:
         if final_orf is not None and update_orf:
             self.__update_cds_boundary(final_orf)
         

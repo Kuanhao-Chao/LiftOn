@@ -8,7 +8,7 @@ from Bio import SeqIO
 import subprocess
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import numpy as np
 
 TARGET = sys.argv[1]
 
@@ -103,6 +103,7 @@ for target in ["lifton", "miniprot", "liftoff"]:
     print(f"* < 1: {len(select_scores)}")
 
 upper_threshold = 1.00
+# upper_threshold = 0.6
 
 
 
@@ -113,7 +114,7 @@ count_threshold = 0.4
 # Create a subplot with 1 row and 3 columns
 #   taking LOG 
 ################################################
-fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex='col', sharey='row')
+fig, axes = plt.subplots(1, 3, figsize=(21, 5), sharex='col', sharey='row')
 
 for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
     select_scores = None
@@ -131,10 +132,21 @@ for idx, target in enumerate(["liftoff", "lifton", "miniprot"]):
         # selected_count= len(table[1][(table[1] <= count_threshold) & (table[1] > 0.0)])
 
     select_scores = table[target_idx][(table[target_idx] <= upper_threshold) & (table[target_idx] > 0.0)]
+
     selected_count= len(table[target_idx][(table[target_idx] <= count_threshold) & (table[target_idx] > 0.0)])
 
+    print("selected_count: ", selected_count)
+
     # Plot the histogram on the corresponding subplot
-    axes[idx].hist(select_scores, bins=100, log=True, alpha=0.9)
+    # axes[idx].hist(select_scores, bins=100, log=True, alpha=0.9)
+    axes[idx].hist(select_scores, bins=100, alpha=0.9)
+
+    # Set logarithmic scale for the y-axis
+    axes[idx].set_yscale('log')
+
+    # axes[idx].hist(select_scores, bins=np.logspace(np.log10(0.1),np.log10(1.0), 50))
+
+
     axes[idx].axvline(x = count_threshold, color = 'r', linestyle='--', linewidth=2)
 
     axes[idx].annotate(str(selected_count), xy=(0.4, 1000),
