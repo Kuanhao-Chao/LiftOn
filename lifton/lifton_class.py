@@ -466,7 +466,7 @@ class Lifton_TRANS:
             while exon_idx < len(self.exons):
                 exon = self.exons[exon_idx]
                 exon_start, exon_end = exon.entry.start, exon.entry.end
-                print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
+                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
 
                 # |eeeeee| |ccccc|
                 if exon_end < cds_start:
@@ -474,7 +474,7 @@ class Lifton_TRANS:
                     exon_idx += 1
                     continue
                 elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
-                    print(">>>>>>>>>>> segments_overlap")
+                    # print(">>>>>>>>>>> segments_overlap")
                     # Create a new exon using exon boundary
                     last_cds_processed = True
                     new_exon = copy.deepcopy(exon)
