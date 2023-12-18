@@ -226,6 +226,8 @@ def match_chrom_order(ref_gene_order, target_db, feature_types):
     chrom_to_ref_gene_order = get_default_order_of_target_genes(target_db, ref_gene_order, feature_types)
     target_positions = get_median_default_gene_order(chrom_to_ref_gene_order)
     target_positions.sort(key = lambda x: x[1])
+
+    print("target_positions:" , target_positions)
     ordered_chroms = np.array(target_positions)[:,0]
     return get_chrom_order_dict(ordered_chroms)
 

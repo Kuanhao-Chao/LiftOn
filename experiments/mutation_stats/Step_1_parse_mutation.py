@@ -81,11 +81,11 @@ mutation_ls = [
 ]
 
 # 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 
-threasholds = [1]
+threasholds = [0.95]
 
 for threashold in threasholds:
 
-    table_lcl = table[table[3] <= threashold]
+    table_lcl = table[table[4] <= threashold]
 
     for type in ["repeat", "non_repeat"]:
 
@@ -148,7 +148,7 @@ for threashold in threasholds:
 
 
         for index, row in table_lcl.iterrows():
-            mutations = row[5]
+            mutations = row[6]
             eles = mutations.split(";")
             # if eles[0] == "nc_transcript":
 
@@ -161,7 +161,7 @@ for threashold in threasholds:
                     # dict_mutation_fw[ele].write(row[0] + "\n")
 
                 dict_mutation_count[mutation_ls[max_mutation_idx]] += 1
-                dict_mutation_scores[mutation_ls[max_mutation_idx]].append(float(row[3]))
+                dict_mutation_scores[mutation_ls[max_mutation_idx]].append(float(row[4]))
 
                 dict_mutation_fw[mutation_ls[max_mutation_idx]].write(row[0] + "\n")
             
@@ -169,7 +169,7 @@ for threashold in threasholds:
                 for ele in eles:
 
                     dict_mutation_count[ele] += 1
-                    dict_mutation_scores[ele].append(float(row[3]))
+                    dict_mutation_scores[ele].append(float(row[4]))
                     dict_mutation_fw[ele].write(row[0] + "\n")
 
 
