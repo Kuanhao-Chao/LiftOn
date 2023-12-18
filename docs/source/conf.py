@@ -19,10 +19,10 @@
 master_doc = 'index'
 project = 'LiftOn'
 # release = '0.3.0'
-copyright = '2023, Kuan-Hao Chao'
+copyright = '2024, Kuan-Hao Chao'
 author = 'Kuan-Hao Chao'
 
-copyright = u'Copyright (c) 2023 Kuan-Hao Chao. All rights reserved.'
+copyright = u'Copyright (c) 2024 Kuan-Hao Chao. All rights reserved.'
 
 
 
@@ -117,18 +117,18 @@ html_theme_options = {
 #       "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/brands.min.css",
 # ]
 
-# html_sidebars = {
-#     "**": [
-#         "sidebar/initial.html",
-#         "sidebar/scroll-start.html",
-#         "sidebar/brand.html",
-#         "sidebar/search.html",
-#         "sidebar/navigation.html",
-#         "sidebar/ethical-ads.html",
-#         "sidebar/scroll-end.html",
-#         "sidebar/sidebarlogo.html",
-#     ]
-# }
+html_sidebars = {
+    "**": [
+        "sidebar/initial.html",
+        "sidebar/scroll-start.html",
+        "sidebar/brand.html",
+        "sidebar/search.html",
+        "sidebar/navigation.html",
+        "sidebar/ethical-ads.html",
+        "sidebar/scroll-end.html",
+        "sidebar/sidebarlogo.html",
+    ]
+}
 
 html_context = {
    "default_mode": "light"
