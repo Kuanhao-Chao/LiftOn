@@ -112,7 +112,7 @@ else
 fi
 
 
-output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3"
+output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3_db"
 output_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftofftools_output/"
 
 echo "python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir -force

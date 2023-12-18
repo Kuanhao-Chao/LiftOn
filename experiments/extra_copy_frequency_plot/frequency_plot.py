@@ -92,14 +92,14 @@ select_scores = table[1] - 1
 
 
 # Create the histogram
-plt.hist(select_scores, bins=50, edgecolor='black', alpha=0.7)
+plt.hist(select_scores, bins=8, edgecolor='black', alpha=0.7)
 plt.ylabel('Frequency')
 plt.title('Extra copy frequency histogram', pad=20)
 
 
-# # breakpoint_value = 150
-# # # Add a break in the y-axis
-# # plt.axhline(breakpoint_value, color='red', linestyle='dashed', linewidth=2)
+# breakpoint_value = 150
+# # Add a break in the y-axis
+# plt.axhline(breakpoint_value, color='red', linestyle='dashed', linewidth=2)
 
 
 
@@ -107,15 +107,15 @@ plt.title('Extra copy frequency histogram', pad=20)
 # f, (ax, ax2) = plt.subplots(2, 1, sharex=True)
 
 # # plot the same data on both axes
-# ax.hist(select_scores, bins=40, edgecolor='black', alpha=0.7)
-# ax2.hist(select_scores, bins=40, edgecolor='black', alpha=0.7)
+# ax.hist(select_scores, bins=47, edgecolor='black', alpha=0.7)
+# ax2.hist(select_scores, bins=47, edgecolor='black', alpha=0.7)
 
 # # ax.plot(select_scores)
 # # ax2.plot(select_scores)
 
 # # zoom-in / limit the view to different portions of the data
-# ax.set_ylim(520, 600)  # outliers only
-# ax2.set_ylim(0, 80)  # most of the data
+# ax.set_ylim(530, 600)  # outliers only
+# ax2.set_ylim(0, 70)  # most of the data
 
 # # hide the spines between ax and ax2
 # ax.spines['bottom'].set_visible(False)
@@ -152,8 +152,8 @@ plt.title('Extra copy frequency histogram', pad=20)
 # # plt.gca().set(title='Extra copy frequency histogram')
 # ax.set_title('Extra copy frequency histogram', pad=20)
 
-# # # Add y-axis label to the left subplot (ax)
-# # ax.set_ylabel('Frequency', labelpad=15)
+# # Add y-axis label to the left subplot (ax)
+# ax.set_ylabel('Frequency', labelpad=15)
 
 
 # Add y-axis label between subplots
