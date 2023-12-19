@@ -69,34 +69,33 @@ bibtex_default_style = 'unsrt'
 html_theme = 'furo'
 # html_theme = 'scrolls'
 
+pygments_style = "sphinx"
+pygments_dark_style = "monokai"
 
 html_logo = "./_static/logo.png"
 html_theme_options = {
     "announcement": "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.",
     "sidebar_hide_name": True,
+    
     "source_repository": "https://github.com/Kuanhao-Chao/LiftOn",
     "source_branch": "main",
     "source_directory": "docs/",
 
     "prefers-color-scheme": "light",
+    
+    "navigation_with_keys": True,
+    "top_of_page_button": "edit",
 
-    # "footer_start": ["test.html"],
-    # "footer_end": ["test.html"],
+    # "sidebar_collapse": "true",  # Enable sidebar collapsing
+    # "navigation_depth": 2,       # Set the initial navigation depth
+    
+    'collapse_navigation': True,
+    # 'sticky_navigation': True,
+    # 'navigation_depth': 4,
+    # 'includehidden': True,
 
-    # "secondary_sidebar_items": ["page-toc", "edit-this-page", "sourcelink"],
-    # "secondary_sidebar_items": [],
-    # "footer_start": ["copyright", "sphinx-version", "theme-version"],
-    # "footer_end": ["copyright", "sphinx-version", "theme-version"],
 
-    # "light_css_variables": {
-    #     "color-brand-primary": "#7C4DFF",
-    #     "color-brand-content": "#7C4DFF",
-    # },
-    # "light_css_variables": {
-    #     "font-stack": "Arial, sans-serif",
-    #     "font-stack--monospace": "Courier, monospace",
-    # },
-
+    'navigation_depth': -1,
 
     "footer_icons": [
         {
@@ -111,12 +110,6 @@ html_theme_options = {
         },
     ],
 }
-# html_css_files = [
-#       "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/fontawesome.min.css",
-#       "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/solid.min.css",
-#       "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/brands.min.css",
-# ]
-
 html_sidebars = {
     "**": [
         "sidebar/initial.html",

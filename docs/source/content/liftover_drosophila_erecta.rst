@@ -1,6 +1,6 @@
 .. _annotation-detailed-section:
 
-Annotation file / assembled transcripts evaluation (:code:`GFF`)
+Lift-over from *Drosophila melanogaster* to *Drosophila erecta*
 =========================================================================
 
 
