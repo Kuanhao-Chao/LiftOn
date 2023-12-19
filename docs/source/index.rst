@@ -151,9 +151,7 @@ https://github.com/Kuanhao-Chao/LiftOn/issues
 Key contributors
 ================
 
-LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_. 
-
-This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_.
+LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_.
 
 |
 
@@ -165,22 +163,42 @@ Table of contents
 .. toctree::
    :maxdepth: 2
 
+   content/test/test_installation
+   content/test/test_installation_2
    content/installation
    content/quickstart
-   content/alignment_evaluation
-   content/annotation_evaluation
-   content/generalization
+   content/liftover_GRCh38_2_T2TCHM13
+   content/liftover_bee_insect
+   content/liftover_arabidopsis_plant
+   content/liftover_drosophila_erecta
+   content/liftover_mouse_2_rat
    content/behind_scenes
    content/how_to_page
    content/function_manual
    content/license
    content/contact
+   
+   
+   
 
 |
 |
 |
 |
 |
+
+.. content/installation
+..    content/quickstart
+..    content/liftover_GRCh38_2_T2TCHM13
+..    content/liftover_bee_insect
+..    content/liftover_arabidopsis_plant
+..    content/liftover_drosophila_erecta
+..    content/liftover_mouse_2_rat
+..    content/behind_scenes
+..    content/how_to_page
+..    content/function_manual
+..    content/license
+..    content/contact
 
 
 .. image:: ./_images/jhu-logo-dark.png

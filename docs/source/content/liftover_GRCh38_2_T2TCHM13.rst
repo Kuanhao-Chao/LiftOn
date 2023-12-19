@@ -1,7 +1,7 @@
 .. _alignment-detailed-section:
 
-Alignment file evaluation & cleanup (:code:`BAM`)
-=================================================
+Lift-over from *GRCh38* to *T2T-CHM13*
+===================================================================
 
 
 .. _alignment-introduction:
