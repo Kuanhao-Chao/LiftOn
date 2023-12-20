@@ -160,26 +160,33 @@ LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  Th
 Table of contents
 ==================
 
-.. toctree::
-   :maxdepth: 2
+.. hide-toc:: true
 
-   content/test/test_installation
-   content/test/test_installation_2
-   content/installation
-   content/quickstart
-   content/liftover_GRCh38_2_T2TCHM13
-   content/liftover_bee_insect
-   content/liftover_arabidopsis_plant
-   content/liftover_drosophila_erecta
-   content/liftover_mouse_2_rat
-   content/behind_scenes
-   content/how_to_page
-   content/function_manual
-   content/license
-   content/contact
-   
-   
-   
+.. toctree::
+    :maxdepth: 2
+    
+    content/installation
+    content/quickstart
+
+.. toctree::
+    :caption: Examples
+    :maxdepth: 2
+    
+    content/same_species_liftover/index
+    content/close_species_liftover/index
+    content/distant_species_liftover/index
+
+
+.. toctree::
+    :caption: Info
+    :maxdepth: 2
+    
+    content/behind_scenes
+    content/how_to_page
+    content/function_manual
+    content/changelog
+    content/license
+    content/contact
 
 |
 |
