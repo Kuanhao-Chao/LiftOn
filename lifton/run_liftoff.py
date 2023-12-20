@@ -15,9 +15,10 @@ from intervaltree import Interval, IntervalTree
 
 
 def run_liftoff(args):
+    print("args.output: ", args.output)
     liftoff_args = copy.deepcopy(args)
     liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
-    os.makedirs(liftoff_outdir, exist_ok=True)
+    # os.makedirs(liftoff_outdir, exist_ok=True)
     liftoff_args.output = liftoff_outdir + "/liftoff.gff3"
     liftoff_main.run_all_liftoff_steps(liftoff_args)
     # test_basic.test_yeast(liftoff_outdir + "test_basic/")

@@ -362,7 +362,6 @@ def run_all_lifton_steps(args):
     fw_extra_copy.close()
 
 def main(arglist=None):
-
     banner = '''
 ====================================================================
 An accurate homology lift-over tool between assemblies
