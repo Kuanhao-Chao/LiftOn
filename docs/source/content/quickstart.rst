@@ -3,7 +3,7 @@
 Quick Start Guide
 =================
 
-This page provides simple quick-start information for using LiftOn to lift-over annotations from GRCh38 to T2T
+This page provides simple quick-start information for using LiftOn to lift-over annotations from chr21 GRCh38 to T2T-CHM13.
 
 .. with :code:`BAM` and :code:`GFF` files. Please read the :ref:`alignment-detailed-section` or :ref:`annotation-detailed-section` page for more details on each step.
 
