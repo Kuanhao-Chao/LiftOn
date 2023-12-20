@@ -10,15 +10,23 @@ System requirements
 
 .. admonition:: Software dependency
 
-   * python >= 3.6.0
+   * python >= 3.8.0
+   * numpy >= 1.22.0
    * gffutils >= 0.10.0
+   * cigar >= 0.1.3
+   * parasail>=1.2.4
+   * intervaltree>=3.1.0
+   * biopython
    * miniprot >= 0.10.0
 
-.. .. admonition:: Version warning
-..    :class: important
+.. admonition:: Version warning
+   :class: important
 
-..    LiftOn is currently not compatible with the latest version of :code:`python=3.11.4` due to a dependency issue with :code:`pybedtools`. We are currently investigating and will patch in a future update. In the meantime, we recommend running in a :code:`python=3.10` environment, as shown below
+   If your numpy version is >= 1.25.0, then it requires Python version >= 3.9. 
+   
+   Check out the scientific python ecosystem coordination guideline SPEC 0 — Minimum Supported Versions to configure the package version compatibility.
 
+   
 ..       $ conda create -n myenv python=3.10
 
 |

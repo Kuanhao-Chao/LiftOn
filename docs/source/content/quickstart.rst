@@ -32,13 +32,8 @@ Example 1: clean up alignment files  (:code:`BAM`)
     $ cd test
 
     # Step 1: extract splice junctions in the alignment file
-    $ LiftOn extract -P SRR1352129_chr9_sub.bam -o tmp_out_alignment
+    $ lifton -g GRCh38_chr22.gff3 -dir GRCh38_2_CHM13 -o GRCh38_2_CHM13_lifton.gff3 -copies chm13_chr22.fa GRCh38_chr22.fa
 
-    # Step 2: score all the extracted splice junctions
-    $ LiftOn score -G chr9_subset.fa -m ../model/LiftOn_script.pt -o tmp_out_alignment tmp_out_alignment/junction.bed
-
-    #Step 3: output a cleaned and sorted alignment file
-    $ LiftOn clean -P -o tmp_out_alignment -@ 5   
 
 | 
 
