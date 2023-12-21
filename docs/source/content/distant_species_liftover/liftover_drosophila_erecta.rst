@@ -1,6 +1,6 @@
 .. _annotation-detailed-section:
 
-Lift-over from *Drosophila melanogaster* to *Drosophila erecta*
+*Drosophila melanogaster* to *Drosophila erecta*
 =========================================================================
 
 

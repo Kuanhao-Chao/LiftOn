@@ -1,3 +1,5 @@
+.. _close_species-section:
+
 Closely-related species lift-over
 ====================================
 

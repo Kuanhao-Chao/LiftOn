@@ -1,3 +1,5 @@
+.. _same_species-section:
+
 Same species lift-over
 ====================================
 

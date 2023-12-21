@@ -1,6 +1,6 @@
 .. _alignment-detailed-section:
 
-Lift-over from *GRCh38* to *T2T-CHM13*
+Human (*GRCh38* to *T2T-CHM13*)
 ===================================================================
 
 

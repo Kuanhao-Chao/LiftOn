@@ -1,3 +1,5 @@
+.. _distant_species-section:
+
 Distant species lift-over
 ====================================
 
