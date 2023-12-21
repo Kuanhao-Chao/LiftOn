@@ -69,8 +69,8 @@ bibtex_default_style = 'unsrt'
 html_theme = 'furo'
 # html_theme = 'scrolls'
 
-pygments_style = "sphinx"
-pygments_dark_style = "monokai"
+# pygments_style = "sphinx"
+# pygments_dark_style = "monokai"
 
 html_logo = "./_static/logo.png"
 html_theme_options = {

@@ -3,79 +3,50 @@
 Quick Start Guide
 =================
 
-This page provides simple quick-start information for using LiftOn to lift-over annotations from chr21 GRCh38 to T2T-CHM13.
+This page offers straightforward quick-start information on using LiftOn to lift over annotations from chr21 GRCh38 to T2T-CHM13. If you haven't already, please follow the steps outlined on the :ref:`Installation` page to install and load LiftOn.
 
-.. with :code:`BAM` and :code:`GFF` files. Please read the :ref:`alignment-detailed-section` or :ref:`annotation-detailed-section` page for more details on each step.
+Before you get started, make sure you have already cloned the `LiftOn GitHub repository <https://github.com/Kuanhao-Chao/LiftOn>`_. We provide an example in `test/lifton_chr22_example.sh <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/lifton_chr22_example.sh>`_.
 
-If you haven't already, please follow the steps in the :ref:`Installation` page to install and load LiftOn.
 
 |
 
 .. _super-quick-start:
 
-Super-Quick Start (3 lines of code)
+Super-Quick Start (one-liner)
 +++++++++++++++++++++++++++++++++++
 
-There are two main use case scenarios of LiftOn. The first one is :ref:`running with an alignment file <LiftOn-bam-quick>` and second one is :ref:`running with an annotation file or assembled transcripts <LiftOn-gff-quick>`. Both of them can be done in three lines of code. 
 
-Before you get started, make sure you have already cloned the :ref:`LiftOn GitHub repository <install-from-source>`. We provide a few examples below:
+LiftOn maps annotations from one assembly to another. To run LiftOn, all you need are three files:
 
-|
+1. A reference assembly (FASTA Format): `test/GRCh38_chr22.fa <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/GRCh38_chr22.fa>`_
+2. A reference annotation (GFF3 Format): `test/GRCh38_chr22.gff3 <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/GRCh38_chr22.gff3>`_
+3. A target assembly for the annotation lift-over (FASTA Format):  `test/chm13_chr22.fa <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/chm13_chr22.fa>`_
 
-.. _LiftOn-bam-quick:
 
-Example 1: clean up alignment files  (:code:`BAM`)
------------------------------------------------------
 
 .. code-block:: bash
 
     $ cd test
 
-    # Step 1: extract splice junctions in the alignment file
     $ lifton -g GRCh38_chr22.gff3 -dir GRCh38_2_CHM13 -o GRCh38_2_CHM13_lifton.gff3 -copies chm13_chr22.fa GRCh38_chr22.fa
 
 
-| 
+After this step, you will get a directory containing
 
-.. _LiftOn-gff-quick:
+GRCh38_2_CHM13_lifton.gff3
 
-Example 2: evaluate annotation files / assembled transcripts (:code:`GFF`)
------------------------------------------------------------------------------
+extra_copy_features.txt
+unmapped_features.txt
+score.txt
+gene.txt
+miniprot
+liftoff
+intermediate_files
+GRCh38_chr22.gff3_db
+GRCh38_2_CHM13
 
-.. code-block:: bash
 
-    $ cd test
-
-    # Step 1: extract introns in the annotation
-    $ LiftOn extract refseq_40_GRCh38.p14_chr_fixed.gff -o tmp_out_annotation
-
-    # Step 2: score introns in the annotation
-    $ LiftOn score -G chr9_subset.fa -m ../model/LiftOn_script.pt -o tmp_out_annotation tmp_out_annotation/junction.bed
-
-    #Step 3: output statistics of each transcript
-    $ LiftOn clean -o tmp_out_annotation -t 0.8
-
-| 
-
-LiftOn can also :ref:`run on non-human species <generalization-introduction>`. 
-
-.. _LiftOn-generalization-example:
-
-Example of evaluating mouse annotation files (:code:`GFF`)
-----------------------------------------------------------------------
-
-.. code-block:: bash
-
-    $ cd test
-
-    # Step 1: extract introns in the annotation
-    LiftOn extract mouse_chr19_subset.gff -o tmp_out_generalization
-
-    # Step 2: score introns in the annotation
-    LiftOn score -A GRCm39_assembly_report.txt -G mouse_chr19.fa -m ../model/LiftOn_script.pt -o tmp_out_generalization tmp_out_generalization/junction.bed
-
-    #Step 3: output statistics of each transcript
-    LiftOn clean -o tmp_out_generalization -t 0.8
+We will further explain in .
 
 |
 
@@ -84,7 +55,7 @@ Example of evaluating mouse annotation files (:code:`GFF`)
 Try LiftOn on Google Colab
 +++++++++++++++++++++++++++++++++++
 
-We created some reproducible and easy-to-run LiftOn examples on Google Colab. It's a good starting point, so go ahead and check them out!
+We created a reproducible and easy-to-run LiftOn example on Google Colab. It's a good starting point, so go ahead and check them out!
 
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
@@ -93,14 +64,15 @@ We created some reproducible and easy-to-run LiftOn examples on Google Colab. It
 
 |
 
-For more detailed analysis steps, please check :
+Congratulations! You have successfully run LiftON. For more detailed analysis explaination and file format, please check:
 
 .. seealso::
     
-    * :ref:`alignment-detailed-section`
+    * :ref:`same_species-section`
 
-    * :ref:`annotation-detailed-section`
+    * :ref:`close_species-section`
 
+    * :ref:`distant_species-section`
 
 |
 |
