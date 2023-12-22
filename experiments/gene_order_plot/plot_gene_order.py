@@ -1,10 +1,10 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import matplotlib as mpl
+from matplotlib.axis import Axis 
 import argparse
 from liftofftools import filepaths
 import warnings
-
 
 COLOR_MAP = 'RdYlGn'
 FIG_SIZE = [10, 10]
@@ -35,7 +35,7 @@ def parse_input_file(input_file):
     return order_arr
 
 
-def plot_gene_order(order_arr, args):
+def plot_gene_order(order_arr, args, ref_chr_gene_ratio, tgt_chr_gene_ratio):
     print(">> plot_gene_order ...")
     output_file = filepaths.build_filepath([args.dir, filepaths.SYNTENY_OUTPUTS['plot']])
     if filepaths.make_file(output_file, args.force):
@@ -57,16 +57,37 @@ def plot_gene_order(order_arr, args):
         ax.hlines(y=hlines, xmin=0, xmax=np.max(x), color=GRID_COLOR, linestyle='--', linewidth=GRID_WIDTH)
         ax.set_axisbelow(True)
         cplot = ax.scatter(x, y, c=c, s=POINT_SIZE, cmap=cmap, norm=norm, zorder=5)
-        cbar = fig.colorbar(cplot, ticks=color_boundaries, label='Protein Sequence Identity')
+        cbar = fig.colorbar(cplot, ticks=color_boundaries, label='Protein Sequence Identity', shrink=0.8)
         cbar.ax.set_yticklabels([str(min(boundary, 1.0)) for boundary in color_boundaries])
         plt.xlim([-5, np.max(x) + 5])
-        plt.ylim([-5, np.max(y) + 1])
+
+        # Adjust x-axis labels to avoid overlapping
+        plt.xlim([-5, np.max(x) + 5])
+        plt.xticks(rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
+
+
+        # Set aspect ratio to be equal (make the figure square)
+        ax.set_aspect('equal', adjustable='box')
+
+        # Axis.set_major_locator(ax.xaxis, years)  
+
+        # x_labels = [x_label for x_label in x_labels if len(x_label) > 5 else ""]
+        x_labels = [x_label if ref_chr_gene_ratio[x_label] > 0.025 else "" for x_label in x_labels]
+        y_labels = [y_label if tgt_chr_gene_ratio[y_label] > 0.025 else "" for y_label in y_labels]
+        # ax.xaxis.set_major_locator(plt.FixedLocator(x_locs))
+        # ax.xaxis.set_major_formatter(plt.FixedFormatter(x_labels))
         plt.xticks(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
+        # ax.set_major_locator(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
+
+        plt.ylim([-5, np.max(y) + 1])
         plt.yticks(y_locs, y_labels, fontsize=TICK_FONT_SIZE)
         plt.xlabel(X_LABEL, fontsize = LABEL_SIZE)
         plt.ylabel(Y_LABEL, fontsize = LABEL_SIZE)
+
+        plt.tight_layout()
         plt.savefig(output_file, transparent=True)
 
+        # plt.xticks(x_locs, x_labels, rotation=45, fontsize=TICK_FONT_SIZE, ha='right')
 
 def get_scatter_points(order_arr):
     x,y,c = [],[],[]
@@ -79,10 +100,11 @@ def get_scatter_points(order_arr):
 
 
 def get_color_spacing():
-    boundaries = 1 - np.linspace(0, 1, 10)
+    # boundaries = 1 - np.linspace(0, 1, 10)
+    boundaries = 1 - np.logspace(-2.5, 0, 10)
     boundaries.sort()
-    return np.around(boundaries,3)
-    # return np.append(np.around(boundaries,3),1.001)
+    # return np.around(boundaries,3)
+    return np.append(np.around(boundaries,3),1.001)
 
 
 def get_grid_and_ticks(order_arr, sort_by_idx, seq_idx):

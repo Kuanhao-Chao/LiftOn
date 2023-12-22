@@ -196,7 +196,7 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
-def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
+def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
     m_lifton_aln = None
     has_valid_miniprot = False
 
@@ -209,7 +209,7 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             m_entry = m_feature_db[m_id]
             overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
             if not overlap or m_entry.seqid != transcript.seqid:
-                # print("Not overlapped")
+                # "Not overlapped"
                 continue
 
             ##################################################
@@ -241,26 +241,54 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             ################################
             has_valid_miniprot = True
 
-            if m_lifton_aln == None or m_lifton_aln.identity > lifton_status.miniprot:
-                m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
+
+            ###########################
+            # Add LifOn transcript instance
+            ###########################
+            miniprot_trans = lifton_class.Lifton_TRANS(m_id, "", "", 0, m_entry, {})
+            ###########################
+            # Add LiftOn exons
+            ###########################
+            exons = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start')
+            for exon in list(exons):
+                miniprot_trans.add_exon(exon)
+            # logger.log(f"\tAfter adding exons\n", debug=DEBUG)
+            ###########################
+            # Add LiftOn CDS
+            ###########################
+            cdss = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start') 
+            cds_num = 0
+            for cds in list(cdss):
+                cds_num += 1
+                miniprot_trans.add_cds(cds)
+
+
+            tmp_m_lifton_aln = align.parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
+            if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
+
+                m_lifton_aln = tmp_m_lifton_aln
                 # SETTING miniprot identity score                
                 lifton_status.miniprot = m_lifton_aln.identity
-        
+
     return m_lifton_aln, has_valid_miniprot
 
 
 def get_ref_liffover_features(features, ref_db):
     ref_features_dict = {}
     ref_features_reverse_dict = {}
-    # ref_trans_2_gene_dict = {}
-    # gene_info_dict = {}
-    # trans_info_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
 
     for f_itr in features:
         for locus in ref_db.db_connection.features_of_type(f_itr):
+
+            CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
+
             feature = lifton_class.Lifton_feature(locus.id)
+            if len(CDS_children) > 0:
+                # This is the protien-coding gene
+                feature.is_protein_coding = True
+                
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
 
             if len(exon_children) > 0:
@@ -272,7 +300,6 @@ def get_ref_liffover_features(features, ref_db):
                     process_ref_liffover_features(transcript, ref_db, feature)
                     ref_features_reverse_dict[transcript.id] = locus.id
             ref_features_dict[locus.id] = feature
-
     return ref_features_dict, ref_features_reverse_dict
 
 
@@ -303,7 +330,6 @@ def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
 
 
 def extract_ref_ids(ref_features_dict, liftoff_id):
-    print("\t\tliftoff_id: ", liftoff_id)
     if liftoff_id in ref_features_dict.keys():
         return liftoff_id
     else:
@@ -325,9 +351,17 @@ def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_re
     return ref_features_reverse_dict[ref_trans_id], ref_trans_id
 
 
+def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status):
+    final_status = ";".join(lifton_status.status)
+    fw_score.write(f"{transcript_id}\t{lifton_status.eval_dna}\t{lifton_status.eval_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+
+def print_lifton_status(transcript_id, transcript, lifton_status):
+    final_status = ";".join(lifton_status.status)
+    print(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
-    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+    fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
 def segments_overlap_length(segment1, segment2):
     # Check if the segments have valid endpoints

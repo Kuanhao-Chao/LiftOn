@@ -68,22 +68,33 @@ LiftOn's tutorial
 .. What is LiftOn?
 .. ==================
 
-LiftOn is a lift-over annotator that takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_!
+
+LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. This tool is constructed on the foundation of the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and integrates `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ protein alignment for an improved homology-based lift-over process.
+
+LiftOn improves the protein-coding gene annotations, 
+
+
+
+.. lift-over annotator that takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_!
 
 Why LiftOn❓
 ==================
 
-1. The current approach to generate the annotation of `T2T-CHM13 <https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_009914755.1/>`_ is to run Liftoff to lift-over annotations from GRCh38 to T2T-CHM13. However, Liftoff is not perfect. T2T-CHM13 annotation is far from perfect. **We need a tool to accurately generates T2T-CHM13 annotations**.
-2. More and more high quality assemblies are generated. **We need to annotate them**.
-3. The current lift-over tools mainly depend on either DNA aligners (`Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_, `minimap2 <https://academic.oup.com/bioinformatics/article/34/18/3094/4994778>`_) or protein aligner (`miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_). They are not perfect, as there are instances where they make mistakes. **We need a tool to generate a more accurate annotation**.
+1. **Burgeoning number of genome assemblies**: As of December 2023, among the 15,578 distinct eukaryotic genomes, only 1,111 have been annotated (`Eukaryotic Genome Annotation at NCBI <https://www.ncbi.nlm.nih.gov/genome/annotation_euk/#graphs>`_). More and more high quality assemblies are generated. We need to accurately annotate them!
+
+2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over annotation! LiftOn is able to improve the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_). 
+
+3. **Improved distant species lift-over**: See mapping from *Mus musculus* to *Rattus norvegicus* and *Drosophila melanogaster* to *Drosophila erecta*.
 
 |
 
 Who is it for❓
 ====================================
 
-1. If you have sequenced and assembled a new human genome and need to annotate it, LiftOn is the ideal choice for generating annotations.
-2. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the [T2T_CHM13_LiftOn.gff3](https://khchao.com) file for your convenience.
+1. If you have sequenced and assembled a new genome and need to annotate it, LiftOn is the ideal choice for generating annotations.
+2. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the `T2T_CHM13_LiftOn.gff3 <https://khchao.com>`_ file for your convenience.
+
+
 |
 
 What does LiftOn do❓
@@ -102,11 +113,12 @@ First, LiftOn extracts protein sequences annotated by Liftoff and miniprot, and 
 
 Next, LiftOn employs an algorithm that compares each section of the protein alignments from Liftoff and miniprot, corrects errors in exon and CDS boundaries, and produces the optimal protein annotations.
 
-LiftOn is free, it's open source, it's fast, and it's in Python!
+LiftOn is free, it's open source, it's easy to install , and it's in Python!
 
 .. It was trained on donor and acceptor pairs combined and focuses on a narrow window of 400 basepairs surrounding each splice site, inspired by the understanding that the splicing process primarily depends on signals within this specific region.
 
 |
+
 
 .. Main features
 .. =============
@@ -118,13 +130,13 @@ LiftOn is free, it's open source, it's fast, and it's in Python!
 .. * **Pytorch implementation**: LiftOn is implemented and trained using the popular and reliable PyTorch framework.
 
 
+|
 
-.. |
+LiftOn's limitation
+==================================
+LiftOn's chaining algorithm currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it has the potential to expand its capabilities to chain together multiple protein-based annotation files. 
 
-.. What LiftOn doesn't do
-.. ==================================
-
-.. LiftOn does not have the feature to scan through the genome and score every potential splice site. Some splice site prediction tools take a DNA sequence and predict the splice sites within it, such as `SpliceAI <https://github.com/Illumina/SpliceAI>`_. However, SpliceAI was only trained on a single canonical transcript for each protein-coding gene while disregarding alternative isoforms. LiftOn takes a different approach, focusing on predicting at the "splice junction level" rather than the "transcript level." LiftOn was trained on a large collection of human splices sites taken from both "canonical" and alternative isoforms.
+The LiftOn chaining algorithm now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!
 
 |
 
@@ -139,7 +151,7 @@ https://github.com/Kuanhao-Chao/LiftOn/issues
 Key contributors
 ================
 
-LiftOn was designed and developed by Kuan-Hao Chao. This documentation was written by Kuan-Hao Chao.
+LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_.
 
 |
 
@@ -148,14 +160,52 @@ LiftOn was designed and developed by Kuan-Hao Chao. This documentation was writt
 Table of contents
 ==================
 
+.. hide-toc:: true
+
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 2
+    
+    content/installation
+    content/quickstart
+
+.. toctree::
+    :caption: Examples
+    :maxdepth: 2
+    
+    content/same_species_liftover/index
+    content/close_species_liftover/index
+    content/distant_species_liftover/index
+
+
+.. toctree::
+    :caption: Info
+    :maxdepth: 2
+    
+    content/behind_scenes
+    content/how_to_page
+    content/function_manual
+    content/changelog
+    content/license
+    content/contact
 
 |
 |
 |
 |
 |
+
+.. content/installation
+..    content/quickstart
+..    content/liftover_GRCh38_2_T2TCHM13
+..    content/liftover_bee_insect
+..    content/liftover_arabidopsis_plant
+..    content/liftover_drosophila_erecta
+..    content/liftover_mouse_2_rat
+..    content/behind_scenes
+..    content/how_to_page
+..    content/function_manual
+..    content/license
+..    content/contact
 
 
 .. image:: ./_images/jhu-logo-dark.png

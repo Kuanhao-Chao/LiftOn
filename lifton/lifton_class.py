@@ -12,7 +12,12 @@ class Lifton_Status:
     def __init__(self):
         self.liftoff = 0
         self.miniprot = 0
-        self.lifton = 0
+        self.lifton_dna = 0
+        self.lifton_aa = 0
+
+        self.eval_dna = 0
+        self.eval_aa = 0
+
         self.annotation = None
         self.status = []
 
@@ -44,10 +49,11 @@ class Lifton_feature:
     def __init__(self, id):
         self.id = id
         self.copy_num = 0
+        self.is_protein_coding = False
         self.children = set()
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, holder = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, miniprot_holder = False, tmp = False):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -57,12 +63,15 @@ class Lifton_GENE:
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
         self.copy_num = self.__get_gene_copy(ref_features_dict)
-        # This is used for retrieving the copy num & attributes info
-        if holder:
-            # ref_gene_id_in, ref_trans_id_in = lifton_utils.get_ref_ids_liftoff(ref_features_dict, self.entry.id, None)
+        self.miniprot_holder = miniprot_holder
+        self.tmp = tmp
+
+        # This is for miniprot
+        if self.miniprot_holder:
             attributes = {}
-            # if "Parent" in self.entry.attributes.keys():
-            attributes["ID"] = self.entry.attributes["Parent"] if "Parent" in self.entry.attributes.keys() else ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
+            # attributes["ID"] = self.entry.attributes["Parent"] if "Parent" in self.entry.attributes.keys() else ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
+            attributes["ID"] = ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
+
             ref_features_dict["LiftOn-gene"].copy_num += 1
             self.entry.attributes = attributes
             # print("Holder self.entry.attributes: ", self.entry.attributes)
@@ -143,7 +152,22 @@ class Lifton_GENE:
             return None, False
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
         return lifton_aln, good_trans
-               
+
+
+    def align_trans_dna(self, trans_id, ref_trans_id, fai, fai_trans, lifton_status):
+        ref_trans_seq = fai_trans[ref_trans_id]
+        if trans_id not in self.transcripts.keys():
+            return None
+        lifton_tran_aln = self.transcripts[trans_id].align_trans_dna(fai, ref_trans_seq, lifton_status)
+        if lifton_tran_aln.identity == 1:
+            lifton_status.annotation = "Liftoff_identical"
+            lifton_status.status = ["identical"]
+        elif lifton_tran_aln.identity < 1:
+            lifton_status.annotation = "Liftoff_synonymous"
+            lifton_status.status = ["synonymous"]
+        return lifton_tran_aln
+
+
     def update_cds_list(self, trans_id, cds_list):
         self.transcripts[trans_id].update_cds_list(cds_list)
         self.update_boundaries()
@@ -152,7 +176,8 @@ class Lifton_GENE:
         self.transcripts[trans_id].add_lifton_status_attrs(lifton_status)
 
     def write_entry(self, fw):
-        fw.write(str(self.entry) + "\n")
+        if not self.tmp:
+            fw.write(str(self.entry) + "\n")
         for key, trans in self.transcripts.items():
             trans.write_entry(fw)
 
@@ -209,7 +234,6 @@ class Lifton_TRANS:
         self.entry.id = trans_id
         self.entry.attributes["ID"] = [trans_id]
         self.entry.source = "LiftOn"
-        self.entry.featuretype = "transcript"
         self.exons = []
         self.exon_dic = {}
 
@@ -223,8 +247,11 @@ class Lifton_TRANS:
         # Update gene copy number dictionary
         ###########################
         # self.__update_trans_copy(self.ref_gene_id)
-        self.entry.attributes['Parent'] = [gene_id]
-        self.entry.attributes['transcript_id'] = [self.entry.id]
+        if 'Parent' in self.entry.attributes:
+            self.entry.attributes['Parent'] = [gene_id]
+
+        if 'transcript_id' in self.entry.attributes:
+            self.entry.attributes['transcript_id'] = [self.entry.id]
 
 
     # def __update_trans_copy(self, ref_gene_id, gene_copy_num_dict, trans_copy_num_dict):
@@ -247,7 +274,8 @@ class Lifton_TRANS:
     #     self.entry.attributes["extra_copy_number"] = [str(trans_copy_num_dict[self.ref_tran_id])]
 
     def add_lifton_status_attrs(self, lifton_status):
-        self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton:.3f}"]
+        self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton_aa:.3f}"]
+        self.entry.attributes["dna_identity"] = [f"{lifton_status.lifton_dna:.3f}"]
         self.entry.attributes["status"] = [lifton_status.annotation]
 
     def add_exon(self, gffutil_entry_exon):
@@ -269,6 +297,11 @@ class Lifton_TRANS:
         for key, atr in gffutil_entry_trans.attributes.items():
             self.entry.attributes[key] = atr
 
+    def mv_exon_idx(self, exon_idx):
+        if exon_idx < len(self.exons)-1:
+            exon_idx += 1
+        return exon_idx
+
     def update_cds_list(self, cds_list):
         idx_exon_itr = 0
         new_exons = []
@@ -276,6 +309,7 @@ class Lifton_TRANS:
         # Update frame in CDS first! => CDSs are in the protein translation order
         accum_cds_length = 0
         for cds_idx, cds in enumerate(cds_list):
+            print("\t CDS stats", cds.entry.start, cds.entry.end, cds.entry.frame)
             cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
             accum_cds_length = cds.entry.end - cds.entry.start + 1
 
@@ -288,23 +322,33 @@ class Lifton_TRANS:
         ########################
         if len(cds_list) == 1:
             only_cds = cds_list[0]
+            processed_ovp_exons = False
+            ovp_exons = []
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
-                idx_exon_itr += 1
                 # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
-                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end)):
-
-                    if exon.entry.start >= only_cds.entry.start:
-                        exon.entry.start = only_cds.entry.start
-                    
-                    elif exon.entry.end <= only_cds.entry.end:
-                        exon.entry.end = only_cds.entry.end
-                    
-                    exon.add_lifton_cds(only_cds)
+                # |eeeeee| |ccccc|
+                if exon.entry.end < only_cds.entry.start:
                     new_exons.append(exon)
-                else:
-                    exon.add_lifton_cds(None)
+                elif lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end)):
+                    cp_exon = copy.deepcopy(exon)
+                    ovp_exons.append(cp_exon)
+                # |cccc|  |eeee|
+                elif exon.entry.start > only_cds.entry.end: 
+                    processed_ovp_exons = True
+                    merged_exon = copy.deepcopy(exon)
+                    merged_exon.entry.start = ovp_exons[0].entry.start
+                    merged_exon.entry.end = ovp_exons[-1].entry.end
+                    merged_exon.add_lifton_cds(only_cds)
+                    new_exons.append(merged_exon)
                     new_exons.append(exon)
+                idx_exon_itr += 1
+            if not processed_ovp_exons:
+                merged_exon = copy.deepcopy(exon)
+                merged_exon.entry.start = ovp_exons[0].entry.start
+                merged_exon.entry.end = ovp_exons[-1].entry.end
+                merged_exon.add_lifton_cds(only_cds)
+                new_exons.append(merged_exon)
 
         ########################
         # Case 2: only 1 exon, and >1 CDSs
@@ -342,76 +386,61 @@ class Lifton_TRANS:
             #      => finding the first overlapping CDS and exons
             #      => processing all exons / CDS ahead of the first overlapping
             ################################################
-            init_head_order = None
+            init_head_order = False
+            
+            # |ccccc||eeeeee|
             if exon.entry.start >= cds.entry.end:
-                init_head_order = 0
-            elif exon.entry.end <= cds.entry.start:
-                init_head_order = 1
+                init_head_order = False
+            # |eeeeee| |ccccc|
+            elif exon.entry.start > cds.entry.start:
+                init_head_order = True
                 
-            # print(">> Step 1: find the first overlapping exon & CDS")
-            while not lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
-                if exon.entry.start >= cds.entry.end:
-                    # print("Order: ", 0)
-                    if init_head_order != 0:
-                        # print(">> Change head break! 0")
-                        break
+            if init_head_order:
+                # Find the first overlapping exon with CDS
+                while exon_idx < len(self.exons) and cds_idx < len(cds_list):
+                    exon_start, exon_end = self.exons[exon_idx].entry.start, self.exons[exon_idx].entry.end
+                    cds_start, cds_end = cds_list[cds_idx].entry.start, cds_list[cds_idx].entry.end
+                    # print("len(self.exons): ", len(self.exons))
+                    print(exon_idx, cds_idx, exon_start, exon_end, cds_start, cds_end)
+                    # |eeeeee| |ccccc|
+                    if exon_end < cds_start:
+                        # Create a new exon using exon boundary
+                        new_exon = copy.deepcopy(self.exons[exon_idx])
+                        new_exon.update_exon_info(exon_start, exon_end)
+                        new_exons.append(new_exon)
 
-                    # |ccccc| |eeeee|
-                    # print("|ccccc| |eeeee|:")
-                    # Step 1: create a new exon using CDS boundary
-                    new_exon = copy.deepcopy(exon)
-                    new_exon.update_exon_info(cds.entry.start, cds.entry.end)
-                    # print(">> New exon!!")
-                    # new_exon.print_exon()
+                        # Move to the next exon
+                        exon_idx += 1
                     
-                    # Step 2: add the CDS into the exon
-                    new_exon.add_lifton_cds(cds)
-                    new_exons.append(new_exon)
+                    # |eeee|--|cccc|
+                    elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
+                        # Stop if exon and CDS overlap
+                        # Create a new exon using exon boundary
+                        new_exon = copy.deepcopy(self.exons[exon_idx])
+                        new_exon.update_exon_info(min(exon_start, cds_start), cds_end)
+                        new_exon.add_lifton_cds(cds_list[0])
+                        new_exons.append(new_exon)
+                        # Move to the next exon
+                        exon_idx += 1
 
-                    # Step 3: push the first CDS to the next CDS
-                    cds_idx += 1
-                    cds = cds_list[cds_idx]
-                elif exon.entry.end <= cds.entry.start:
-                    # print("Order: ", 1)
-                    if init_head_order != 1:
-                        # print(">> Change head break! 1")
+                        # Move to the next CDS
+                        cds_idx += 1
                         break
 
-                    # |eeeee| |ccccc|
-                    # print("|eeeee| |ccccc|:")
-                    # Step 1: create a new exon using exon boundary
-                    new_exon = copy.deepcopy(exon)
-                    new_exon.update_exon_info(exon.entry.start, exon.entry.end)
-                    # print(">> New exon!!")
-                    # new_exon.print_exon()
-                    new_exons.append(new_exon)
+                    # |cccc|  |eeee|
+                    elif exon_start > cds_end: 
+                        # Create a new exon using CDS boundary
+                        new_exon = copy.deepcopy(self.exons[exon_idx])
+                        new_exon.update_exon_info(cds_start, cds_end)
+                        new_exon.add_lifton_cds(cds_list[0])
+                        new_exons.append(new_exon)
 
-                    # Step 2: push the first exon to the next exon
-                    exon_idx += 1
-                    exon = self.exons[exon_idx]
-
-            ################################################
-            # Step 2: parse the first overlapping exon & CDS
-            ################################################
-            if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                # print(">> Step 2: parse the first overlapping exon & CDS")
-                # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
-
-                new_exon = copy.deepcopy(exon)
-                if exon.entry.start > cds.entry.start:
-                    new_exon.entry.start = cds.entry.start
-                if exon.entry.end is not cds.entry.end:
-                    new_exon.entry.end = cds.entry.end
-                
-                new_exon.add_lifton_cds(cds)
-                new_exons.append(new_exon)
-                # Move to the next CDS if it is not the last CDS
-                if cds_idx < len(cds_list)-1:
-                    cds_idx += 1
+                        # Move to the next CDS
+                        cds_idx += 1
+                        break
 
             ################################################
-            # Step 3: parse the inner exons and CDSs
+            # Step 2: parse the inner exons and CDSs
             ################################################
             # Handle the CDSs in the middle
             # Leave the last CDS not processed.
@@ -423,74 +452,104 @@ class Lifton_TRANS:
                 new_exon = copy.deepcopy(exon)
                 new_exon.update_exon_info(cds.entry.start, cds.entry.end)
                 # print(">> New exon!!")
-                # new_exon.print_exon()
-
                 new_exon.add_lifton_cds(cds)
                 new_exons.append(new_exon)
                 cds_idx += 1
-            
+        
 
             ################################################
-            # Step 4: parse the last CDS & its overlapping exon
+            # Step 3: parse the last CDS & its overlapping exon
             ################################################
+            last_cds_processed = False
             cds = cds_list[cds_idx]
-            exon = self.exons[exon_idx]
-            
-            # print(">> Step 4: parse the last CDS & its overlapping exon")
+            cds_start, cds_end = cds_list[cds_idx].entry.start, cds_list[cds_idx].entry.end
             while exon_idx < len(self.exons):
                 exon = self.exons[exon_idx]
+                exon_start, exon_end = exon.entry.start, exon.entry.end
                 # print(f"cds_idx: {cds_idx}; {cds.entry.start}-{cds.entry.end} (len: {len(cds_list)});  exon_idx: {exon_idx}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
 
-                # Step 1. Create a new exon, and add cds into the exon
-                new_exon = copy.deepcopy(exon)
-                if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (cds.entry.start, cds.entry.end)):
-                    # Step 2. Exon & CDS overlapping. If the exon is further then 
-                    if new_exon.entry.end < cds.entry.end:
-                        new_exon.entry.end = cds.entry.end
-                    if new_exon.entry.start is not cds.entry.start:
-                        new_exon.entry.start = cds.entry.start
-
+                # |eeeeee| |ccccc|
+                if exon_end < cds_start:
+                    # exon_idx = self.mv_exon_idx(exon_idx)
+                    exon_idx += 1
+                    continue
+                elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
                     # print(">>>>>>>>>>> segments_overlap")
-                    # new_exon.print_exon()
-                    # cds.print_cds()
-
+                    # Create a new exon using exon boundary
+                    last_cds_processed = True
+                    new_exon = copy.deepcopy(exon)
+                    new_exon.update_exon_info(cds_start, max(cds_end, exon_end))
                     new_exon.add_lifton_cds(cds)
                     new_exons.append(new_exon)
+                    # Move to the next exon
+                    # exon_idx = self.mv_exon_idx(exon_idx)
+                    exon_idx += 1
+                    break
+                # |cccc|  |eeee|
+                elif exon_start > cds_end: 
+                    # Create a new exon using CDS boundary
+                    last_cds_processed = True
+                    new_exon = copy.deepcopy(exon)
+                    new_exon.update_exon_info(cds_start, cds_end)
+                    new_exon.add_lifton_cds(cds)
+                    new_exons.append(new_exon)
+                    break
 
-                else:
-                    # Step 2. No overlapping. If the exon is further then 
-                    # print(">>>>>>>>>>> segments do not overlap")
-                    if new_exon.entry.start >= cds.entry.end:
-                        # |ccccc| |eeeee|
-                        # All the subsequent exons are after the last CDS => create new exon & CDS for all of them!
-
-                        # print("#############")
-                        # new_exon.print_exon()
-                        new_exon.add_lifton_cds(None)
-                        new_exons.append(new_exon)
-                    elif exon_idx == len(self.exons)-1 and cds.entry.start >= new_exon.entry.end:
-                        # |eeeee| |ccccc| 
-                        # All the last exons are after before the last CDS => create the last CDS!
-                        new_exon.update_exon_info(cds.entry.start, cds.entry.end)
-                        # print(">> !!New exon!!")
-                        new_exon.add_lifton_cds(cds)
-                        new_exons.append(new_exon)
-                # new_exon.print_exon()
+            ################################################
+            # Step 4: parse the remaining exons
+            ################################################
+            # print(">> Step 3: parse the remaining exons")
+            while exon_idx < len(self.exons):
+                exon = self.exons[exon_idx]
+                # Step 1. Create a new exon
+                # Step 2. Add the CDS in the new exon
+                new_exon = copy.deepcopy(exon)
+                new_exon.update_exon_info(new_exon.entry.start, new_exon.entry.end)
+                new_exons.append(new_exon)
                 exon_idx += 1
 
+            ################################################
+            # Step 5: parse the last CDS if it does not overlap with any exon
+            ################################################
+            if not last_cds_processed:
+                # print(">> Step 4: parse the last CDS")
+                # Step 1. Create a new exon
+                # Step 2. Add the CDS in the new exon
+                new_exon = copy.deepcopy(exon)
+                new_exon.update_exon_info(cds.entry.start, cds.entry.end)
+                new_exon.add_lifton_cds(cds)
+                new_exons.append(new_exon)
+            
+        
         self.exons = new_exons
         self.update_boundaries()
 
 
-    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
-        # Need to output which type of mutation it is.
-        ################################
-        # Step 1: Iterate through the children and chain the DNA sequence
-        ################################
+
+    def get_coding_seq(self, fai):
         coding_seq = ""
         cdss_lens = []
+        cds_children = []
+        for exon in self.exons:
+            if exon.cds is not None:
+                cds_children.append(copy.deepcopy(exon.cds.entry))
+                # Chaining the CDS features
+                p_seq = exon.cds.entry.sequence(fai)
+                p_seq = Seq(p_seq).upper()
+                if exon.cds.entry.strand == '-':
+                    coding_seq = p_seq + coding_seq
+                    cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
+                elif exon.cds.entry.strand == '+':
+                    coding_seq = coding_seq + p_seq
+                    cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+        return coding_seq, cds_children, cdss_lens
+    
+
+    def get_coding_trans_seq(self, fai):
         trans_seq = ""
         exon_lens = []
+        coding_seq = ""
+        cdss_lens = []
         for exon in self.exons:
             # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
@@ -512,48 +571,85 @@ class Lifton_TRANS:
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
                     cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+        if trans_seq != None:
+            trans_seq = trans_seq.upper()
+        if coding_seq != None:
+            coding_seq = coding_seq.upper()
+        return coding_seq, cdss_lens, trans_seq, exon_lens
 
-        ################################
-        # Step 2: Translate the DNA sequence & get the reference protein sequence.
-        ################################
-        if coding_seq == "":
+
+    def translate_coding_seq(self, coding_seq):
+        protein_seq = None
+        if coding_seq != "":
+            protein_seq = coding_seq.translate()
+        return protein_seq
+
+    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
+        if protein_seq == None:
             lifton_aa_aln = None
             peps = None
         else:
-            protein_seq = coding_seq.translate()
             peps = protein_seq.split("*")
-
             lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
             # Update lifton sequence identity
-            lifton_status.lifton = max(lifton_status.lifton, lifton_aa_aln.identity)
+            lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aa_aln.identity)
+        return lifton_aa_aln, peps
 
+    def align_trans_seq(self, trans_seq, ref_trans_seq, lifton_status):
+        if ref_trans_seq != None:
+            ref_trans_seq = ref_trans_seq.upper()
         if trans_seq == "":
             lifton_tran_aln = None
         else:
             lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+        lifton_status.lifton_dna = lifton_tran_aln.identity
+        return lifton_tran_aln
 
+    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
+        # Need to output which type of mutation it is.
+        ################################
+        # Step 1: Getting translated sequences
+        ################################
+        coding_seq, cdss_lens, trans_seq, exon_lens = self.get_coding_trans_seq(fai)
+        protein_seq = self.translate_coding_seq(coding_seq)
+        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
+        lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
+        # print("coding_seq: ", coding_seq)
+        # print("trans_seq : ", trans_seq)
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
-
         ORF_search = False
         for mutation in lifton_status.status:
-            # identical
-            # synonymous # inframe_insertion # inframe_deletion # nonsynonymous # frameshift # start_lost # stop_missing # stop_codon_gain            
+            # identical # synonymous 
+            # # inframe_insertion # inframe_deletion # nonsynonymous 
+            # frameshift # start_lost # stop_missing # stop_codon_gain            
             # Adding mutations in to entry.attributes
             if mutation != "identical":
                 if "mutation" not in self.entry.attributes:
                     self.entry.attributes["mutation"] = [mutation]
                 else:
                     self.entry.attributes["mutation"].append(mutation)
-            # ORF searching
-            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift" or mutation == "start_lost":
+            
+            # ORF searching for these four types of mutations
+            # frameshift_orf_threshold = 0.8
+            # and lifton_aa_aln.identity < frameshift_orf_threshold)
+                    
+            print("mutation: ", mutation)
+            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
-
         if ORF_search:
             self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
         return lifton_tran_aln, lifton_aa_aln
 
 
+    def align_trans_dna(self, fai, ref_trans_seq, lifton_status):
+        coding_seq, cdss_lens, trans_seq, exon_lens = self.get_coding_trans_seq(fai)
+        lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
+        return lifton_tran_aln
+
+
     def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status):
+
+
         trans_seq = trans_seq.upper()
         # Find ORFs manually
         start_codon = "ATG"
@@ -585,8 +681,10 @@ class Lifton_TRANS:
 
         # Print the ORFs
         final_orf = None
+        update_orf = False
         max_identity = 0
         for i, orf in enumerate(orf_list):
+            print(f"\tORF {i+1}: {orf.start}-{orf.end}")
             orf_DNA_seq = trans_seq[orf.start:orf.end]
             orf_protein_seq = orf_DNA_seq.translate()
             
@@ -594,24 +692,28 @@ class Lifton_TRANS:
             # print(f"\torf_protein_seq: {orf_protein_seq}")
             extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_protein_base(orf_protein_seq, str(ref_protein_seq))        
 
-            alignment_score = extracted_parasail_res.score
-            alignment_query = extracted_parasail_res.traceback.query
-            alignment_comp = extracted_parasail_res.traceback.comp
-            alignment_ref = extracted_parasail_res.traceback.ref
+            # alignment_score = extracted_parasail_res.score
+            # alignment_query = extracted_parasail_res.traceback.query
+            # alignment_comp = extracted_parasail_res.traceback.comp
+            # alignment_ref = extracted_parasail_res.traceback.ref
 
-            extracted_matches, extracted_length = get_id_fraction.get_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, 0, len(extracted_parasail_res.traceback.ref))
-
+            extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
             extracted_identity = extracted_matches/extracted_length
-
-
-            # print(f"\textracted_identity: {extracted_identity}")
+            
+            print(f"\t\textracted_identity: {extracted_identity}")
+            # Select the largest among 3 orfs.
             if extracted_identity > max_identity:
                 max_identity = extracted_identity
                 final_orf = orf
-                lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
-                lifton_status.lifton = max(lifton_status.lifton, lifton_aln.identity)
+                # lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+                # lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aln.identity)                
 
-        if final_orf is not None:
+        # Only update orf if at least one frame similarity is larger than the original lifton_aa by the threshold
+        threshold_orf = 0.01
+        if max_identity > (lifton_status.lifton_aa - threshold_orf):
+            lifton_status.lifton_aa = max_identity
+            update_orf = True
+        if final_orf is not None and update_orf:
             self.__update_cds_boundary(final_orf)
         
 
@@ -628,10 +730,11 @@ class Lifton_TRANS:
         for exon_idx, exon in enumerate(exons):
             curr_exon_len = exon.entry.end - exon.entry.start + 1
             # print(f"\t>> {exon.entry.seqid} {exon.entry.strand}; exon_idx: {exon_idx}: {exon.entry.start}-{exon.entry.end} (len: {len(exons)});  accum_exon_length: {accum_exon_length}; curr_exon_len: {curr_exon_len}; final_orf.start: {final_orf.start}; final_orf.end: {final_orf.end}")
-
             if accum_exon_length <= final_orf.start:
                 if final_orf.start < accum_exon_length+curr_exon_len:
+                    ################################
                     # Create first partial CDS
+                    ################################
                     if exon.cds is not None:
                         if strand == "+":
                             exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
@@ -673,9 +776,11 @@ class Lifton_TRANS:
                     # print(f"\t\t >> exon.cds.entry.frame: {exon.cds.entry.frame}")
 
                 else:
-                    # Keep the original full CDS
+                    # Keep the original full CDS / extend the CDS to full exon length
                     if exon.cds is None:
                         exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
+                    else:
+                        exon.cds.update_CDS_info(exon.entry.start, exon.entry.end)
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
 
@@ -689,10 +794,6 @@ class Lifton_TRANS:
 
 
     def write_entry(self, fw):
-        # print("Inside 'write_entry'!")
-        # print(self.entry)
-        # print(f"(write_entry) update_boundaries, exon length: {len(self.exons)};  {self.entry.start} - {self.entry.end}")
-
         fw.write(str(self.entry) + "\n")
         # Write out the exons first
         for exon in self.exons:
@@ -721,8 +822,6 @@ class Lifton_EXON:
         self.entry = gffutil_entry_exon
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
         self.cds = None
-
-        # print("self.entry: ", self.entry.featuretype)
 
     def update_exon_info(self, start, end):
         self.cds = None
@@ -769,6 +868,11 @@ class Lifton_CDS:
         gffutil_entry_cds.featuretype = "CDS"
         self.entry = gffutil_entry_cds
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
+
+    def update_CDS_info(self, start, end):
+        self.entry.source = "LiftOn"
+        self.entry.start = start
+        self.entry.end = end
 
     def write_entry(self, fw):
         fw.write(str(self.entry) + "\n")

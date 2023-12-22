@@ -10,8 +10,8 @@ comparison/results
 comparison/test/
 comparison/igv_viewer/
 dictionary/annotations/
+*.txt
 
->>>>>>> 1d7850b1a7d6b338a2ba316f342cc2d4bfe6c5cf
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
