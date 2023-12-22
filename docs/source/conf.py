@@ -72,7 +72,7 @@ html_theme = 'furo'
 # pygments_style = "sphinx"
 # pygments_dark_style = "monokai"
 
-html_logo = "./_static/logo.png"
+# html_logo = "./_static/logo.png"
 html_theme_options = {
     "announcement": "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.",
     "sidebar_hide_name": True,
@@ -141,6 +141,14 @@ numfig_format = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_theme_options = {
+    "light_logo": "LiftOn_color.png",
+    "dark_logo": "LiftOn_white.png",
+}
+
+
+# html_logo = "./_static/logo.png"
 
 # html_extra_path = ['image']
 

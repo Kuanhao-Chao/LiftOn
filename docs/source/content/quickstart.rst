@@ -64,7 +64,7 @@ We created a reproducible and easy-to-run LiftOn example on Google Colab. It's a
 
 |
 
-Congratulations! You have successfully run LiftON. For more detailed analysis explaination and file format, please check:
+Congratulations! You have successfully run LiftOn. For more detailed analysis explaination and file format, please check:
 
 .. seealso::
     

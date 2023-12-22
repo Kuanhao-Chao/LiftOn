@@ -42,9 +42,9 @@ LiftOn's tutorial
 *************************
 
 .. _LiftOn-logo:
-.. figure::  ./_static/logo.png
+.. figure::  ./_static/LiftOn_color.png
    :align:   center
-   :scale:   13 %
+   :scale:   20 %
 
 |
 
