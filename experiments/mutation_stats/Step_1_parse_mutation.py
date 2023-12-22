@@ -6,7 +6,7 @@ TARGET = sys.argv[1]
 
 protein_fa = ""
 
-if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "CHM13_MANE" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "CHM13_RefSeq" or TARGET == "GRCh38_RefSeq" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1" or TARGET == "Mus_musculus_MANE":
+if TARGET == "human_to_chimp" or TARGET == "mouse_to_rat" or TARGET == "drosophila" or TARGET == "yeast" or TARGET == "arabadop" or TARGET == "bee" or TARGET == "mouse" or TARGET == "rice" or TARGET == "human_mane" or TARGET == "human_chess"  or TARGET == "human_refseq" or TARGET == "human_to_chimp_test" or TARGET == "mouse_to_rat_test" or TARGET == "drosophila_test" or TARGET == "yeast_test" or TARGET == "arabadop_test" or TARGET == "bee_test" or TARGET == "mouse_test" or TARGET == "rice_test" or TARGET == "human_mane_test" or TARGET == "human_chess_test"  or TARGET == "human_refseq_test" or TARGET == "drosophila_erecta_test" or TARGET == "human_mane_to_mouse_test" or TARGET == "human_refseq_to_mouse_test" or TARGET == "Han1" or TARGET == "Ash1" or TARGET == "PR1":
     print("Running with ", TARGET)
     genome = ""
 
@@ -81,11 +81,11 @@ mutation_ls = [
 ]
 
 # 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 
-threasholds = [0.8]
+threasholds = [0.95]
 
 for threashold in threasholds:
 
-    table_lcl = table[table[3] <= threashold]
+    table_lcl = table[table[4] <= threashold]
 
     for type in ["repeat", "non_repeat"]:
 
@@ -148,7 +148,7 @@ for threashold in threasholds:
 
 
         for index, row in table_lcl.iterrows():
-            mutations = row[5]
+            mutations = row[6]
             eles = mutations.split(";")
             # if eles[0] == "nc_transcript":
 
@@ -161,7 +161,7 @@ for threashold in threasholds:
                     # dict_mutation_fw[ele].write(row[0] + "\n")
 
                 dict_mutation_count[mutation_ls[max_mutation_idx]] += 1
-                dict_mutation_scores[mutation_ls[max_mutation_idx]].append(float(row[3]))
+                dict_mutation_scores[mutation_ls[max_mutation_idx]].append(float(row[4]))
 
                 dict_mutation_fw[mutation_ls[max_mutation_idx]].write(row[0] + "\n")
             
@@ -169,18 +169,22 @@ for threashold in threasholds:
                 for ele in eles:
 
                     dict_mutation_count[ele] += 1
-                    dict_mutation_scores[ele].append(float(row[3]))
+                    dict_mutation_scores[ele].append(float(row[4]))
                     dict_mutation_fw[ele].write(row[0] + "\n")
 
 
 
 
         fw = open(mutation_dir + "summary.txt", "w")
+
+        all_scores = []
         for ele in dict_mutation_count:
             dict_mutation_fw[ele].close()
 
             fw.write(f"{ele}\t{dict_mutation_count[ele]}\n")
 
+            if ele not in ["nc_transcript", "no_ref_protein", "identical"]:
+                all_scores += dict_mutation_scores[ele]
 
             if threashold == 1:
                 figure_path = f"{mutation_dir}/{ele}.png"
@@ -195,5 +199,70 @@ for threashold in threasholds:
                 plt.savefig(figure_path, dpi=300)
                 plt.close()
                 plt.clf()
+        
+        
+        figure_path = f"{outdir_root}mutations/{str(threashold)}/frequency.png"
+
+
+
+
+
+        # 30 points between [0, 0.2) originally made using np.random.rand(30)*.2
+        f, (ax, ax2) = plt.subplots(2, 1, sharex=True)
+
+        # plot the same data on both axes
+        ax.hist(all_scores, bins=100, edgecolor='black', alpha=0.7)
+        ax2.hist(all_scores, bins=100, edgecolor='black', alpha=0.7)
+
+        # ax.plot(select_scores)
+        # ax2.plot(select_scores)
+
+        # zoom-in / limit the view to different portions of the data
+        ax.set_ylim(29300, 29500)  # outliers only
+        ax2.set_ylim(0, 80)  # most of the data
+
+        # hide the spines between ax and ax2
+        ax.spines['bottom'].set_visible(False)
+        ax2.spines['top'].set_visible(False)
+        ax.xaxis.tick_top()
+        ax.tick_params(labeltop=False)  # don't put tick labels at the top
+        ax2.xaxis.tick_bottom()
+
+        # This looks pretty good, and was fairly painless, but you can get that
+        # cut-out diagonal lines look with just a bit more work. The important
+        # thing to know here is that in axes coordinates, which are always
+        # between 0-1, spine endpoints are at these locations (0,0), (0,1),
+        # (1,0), and (1,1).  Thus, we just need to put the diagonals in the
+        # appropriate corners of each of our axes, and so long as we use the
+        # right transform and disable clipping.
+
+        d = .015  # how big to make the diagonal lines in axes coordinates
+        # arguments to pass to plot, just so we don't keep repeating them
+        kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+        ax.plot((-d, +d), (-d, +d), **kwargs)        # top-left diagonal
+        ax.plot((1 - d, 1 + d), (-d, +d), **kwargs)  # top-right diagonal
+
+        kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
+        ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)  # bottom-left diagonal
+        ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)  # bottom-right diagonal
+
+
+
+
+
+
+        # plt.hist(all_scores, bins=100)
+        # plt.gca().set(title='Score frequency histogram', ylabel='Frequency')
+
+        # # plt.xlabel('lifton score')
+        # # plt.ylabel('miniprot score')
+        # # plt.title('Comparing lifton vs miniprot protein searching scores')
+        plt.tight_layout()
+        plt.savefig(figure_path, dpi=300)
+        plt.close()
+        plt.clf()
+
 
         fw.close()
+
+        print("Total number of mutated proteins: ", len(all_scores))

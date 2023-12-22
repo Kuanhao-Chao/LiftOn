@@ -34,10 +34,5 @@ def create_lifton_entries(m_c_idx, m_c_idx_last, m_lifton_aln, l_c_idx, l_c_idx_
             cds = lifton_class.Lifton_CDS(lifton_cds)
 
             cds_list.append(cds)
-
-            # print(lifton_cds)
-
-    # print("Done! Printing cds!!!")
-    # for cds in cds_list:
-    #     cds.print_cds()
+            
     return cds_list

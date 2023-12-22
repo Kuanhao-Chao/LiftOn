@@ -1,4 +1,4 @@
-from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, __version__
+from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, evaluation, __version__
 from intervaltree import Interval
 import argparse
 from argparse import Namespace
@@ -107,6 +107,8 @@ def parse_args(arglist):
     parser.add_argument('target', help='target fasta genome to lift genes to')
     parser.add_argument('reference', help='reference fasta genome to lift genes from')
     
+    parser.add_argument('-E', '--evaluation', help='Run LiftOn in evaluation mode', action='store_true', default = False)
+
     parser_outgrp = args_outgrp(parser)
     parser_aligngrp = args_aligngrp(parser)
     args_optional(parser)
@@ -130,7 +132,7 @@ def parse_args(arglist):
     )
 
     ###################################
-    # START for the LiftOn algorithm
+    # START for the LiftOn params
     ###################################
     liftoffrefrgrp = parser.add_argument_group('* Optional input (Liftoff annotation)')
     liftoffrefrgrp.add_argument(
@@ -149,13 +151,11 @@ def parse_args(arglist):
     )
 
     ###################################
-    # END for the LiftOn algorithm
+    # END for the LiftOn params
     ###################################
 
     parser._positionals.title = '* Required input (sequences)'
     parser._optionals.title = '* Miscellaneous settings'
-    # parser._action_groups = [referencegrp, parser_outgrp, parser._optionals]
-
     parser._action_groups = [parser._positionals, referencegrp, liftoffrefrgrp, miniprotrefrgrp, parser_outgrp, parser._optionals, parser_aligngrp]
     args = parser.parse_args(arglist)
 
@@ -178,6 +178,7 @@ def parse_args(arglist):
 
 
 def run_all_lifton_steps(args):
+
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -212,8 +213,6 @@ def run_all_lifton_steps(args):
     ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_reverse_dict = lifton_utils.get_ref_liffover_features(features, ref_db)
-    # print("ref_features_dict         : ", len(ref_features_dict))
-    # print("ref_features_reverse_dict : ", len(ref_features_reverse_dict))
 
 
     ################################
@@ -240,11 +239,40 @@ def run_all_lifton_steps(args):
 
 
     ################################
+    # Evaluation mode
+    ################################
+    if args.evaluation:
+        tgt_annotation = args.output
+        ref_annotation = args.reference_annotation
+
+        print("Run LiftOn in evaluation mode")
+        print("Ref genome        : ", ref_genome)
+        print("Target genome     : ", tgt_genome)
+
+        print("Ref annotation    : ", args.reference_annotation)
+        print("Target annotation : ", args.output)
+
+        logger.log(">> Creating target database : ", tgt_annotation, debug=True)
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
+
+        fw_score = open(outdir+"/eval.txt", "w")
+        tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
+
+        for feature in features:
+            for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
+                evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
+        fw_score.close()
+        return
+
+
+    ################################
+    # Normal LiftOn mode
+    ################################    
+    ################################
     # Step 4: Run liftoff & miniprot
     ################################
     liftoff_annotation = lifton_utils.exec_liftoff(outdir, args)
     miniprot_annotation = lifton_utils.exec_miniprot(outdir, args, tgt_genome, ref_proteins_file)
-
 
     ################################
     # Step 5: Run LiftOn algorithm
@@ -257,9 +285,9 @@ def run_all_lifton_steps(args):
     logger.log(">> Creating miniprot database : ", miniprot_annotation, debug=True)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
     fw = open(args.output, "w")
-    fw_score = open(outdir+"/score.txt", "w")
-    fw_unmapped = open(outdir+"/unmapped_features.txt", "w")
-    fw_extra_copy = open(outdir+"/extra_copy_features.txt", "w")
+    fw_score = open(f"{outdir}/score.txt", "w")
+    fw_unmapped = open(f"{outdir}/unmapped_features.txt", "w")
+    fw_extra_copy = open(f"{outdir}/extra_copy_features.txt", "w")
 
 
     ################################
@@ -278,14 +306,14 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_000069.7", 115801985, 115821598)):
+        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_051341.1", 25905292, 25922938)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
-
             ###########################
             # Writing out LiftOn entries
             ###########################
-            lifton_gene.write_entry(fw)
-        
+            lifton_gene.write_entry(fw)   
+
+
 
     ################################
     # Step 7: Process miniprot transcripts
@@ -326,6 +354,7 @@ def run_all_lifton_steps(args):
             lifton_gene.add_lifton_status_attrs(transcript_id, lifton_status)
             lifton_gene.write_entry(fw)
 
+
     stats.print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=DEBUG)
     fw.close()
     fw_score.close()
@@ -333,5 +362,19 @@ def run_all_lifton_steps(args):
     fw_extra_copy.close()
 
 def main(arglist=None):
+    banner = '''
+====================================================================
+An accurate homology lift-over tool between assemblies
+====================================================================
+
+
+    ██╗     ██╗███████╗████████╗ ██████╗ ███╗   ██╗
+    ██║     ██║██╔════╝╚══██╔══╝██╔═══██╗████╗  ██║
+    ██║     ██║█████╗     ██║   ██║   ██║██╔██╗ ██║
+    ██║     ██║██╔══╝     ██║   ██║   ██║██║╚██╗██║
+    ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
+    ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
+    '''
+    print(banner)
     args = parse_args(arglist)
     run_all_lifton_steps(args)

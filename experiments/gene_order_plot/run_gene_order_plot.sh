@@ -1,7 +1,7 @@
 TARGET=$1
 if [[ "$TARGET" == "human_to_chimp" || "$TARGET" == "human_to_chimp_test" ]]; then
     echo "running LiftOn on human_to_chimp"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna"
@@ -17,7 +17,7 @@ elif [[ "$TARGET" == "human_mane_to_mouse" || "$TARGET" == "human_mane_to_mouse_
 
 elif [[ "$TARGET" == "human_refseq_to_mouse" || "$TARGET" == "human_refseq_to_mouse_test" ]]; then
     echo "running LiftOn on human_refseq_to_mouse"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff_db"
     # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_liftoff_from_GRCh38_no_alt.gff_polished_db"
     # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3_miniprot_from_GRCh38.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna"
@@ -40,7 +40,7 @@ elif [[ "$TARGET" == "yeast" || "$TARGET" == "yeast_test" ]]; then
 
 elif [[ "$TARGET" == "arabadop" || "$TARGET" == "arabadop_test" ]]; then
     echo "running LiftOn on arabadop"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_liftoff_from_TAIR10.gff"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_miniprot_from_TAIR10.gff"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_genomic.fna"
@@ -67,7 +67,7 @@ elif [[ "$TARGET" == "rice" || "$TARGET" == "rice_test" ]]; then
     REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.gff_db"
     LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished"
     MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff"
-    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_genomic.fna"
+    TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/rice/ASM3414082v1_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.fna"
 
 elif [[ "$TARGET" == "human_chess" || "$TARGET" == "human_chess_test" ]]; then
@@ -112,10 +112,9 @@ else
 fi
 
 
-output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3"
+output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3_db"
 output_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftofftools_output/"
 
-echo "python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir
+echo "python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff" -dir $output_dir -force
 
-python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff -dir $output_dir
-
+python gene_order_plot.py synteny -r $REFERENCE_genome -t $TARGET_genome -rg $REFERENCE_gff -tg $output_LIFTON_gff -dir $output_dir -force

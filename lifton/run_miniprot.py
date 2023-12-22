@@ -7,22 +7,18 @@ def check_miniprot_installed():
     installed = False
     try:
         res = subprocess.run(command)
-        print(res)
         installed = True
     except: 
         pass
     return installed
 
 def run_miniprot(args, tgt_genome, ref_proteins_file):
-    # print(">> run_miniprot")
-
     miniprot_outdir = os.path.dirname(args.output) + "/miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     
     miniprot_path = "miniprot"
     command = [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file]
-    print("miniprot command: ", command)
     try:
         fw = open(miniprot_output, "w")
         subprocess.run(command, stdout=fw)
@@ -36,16 +32,13 @@ def run_miniprot(args, tgt_genome, ref_proteins_file):
 
 def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
     logger.log("\tminiprot with reference protein", debug=DEBUG)
-
-
-
     mtrans_id = m_feature.attributes["ID"][0]
     ###########################
     # Create LifOn gene instance
     ###########################
     if ref_gene_id is None:
         # This is a place holder gene
-        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, holder=True)
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, miniprot_holder=True)
     else:
         lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
 
@@ -70,11 +63,9 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
     # Update LiftOn status
     #######################################
     lifton_status = lifton_class.Lifton_Status()                
-
-    print("mtrans_id: ", mtrans_id)
     m_entry = m_feature_db[mtrans_id]
-    m_lifton_aln = align.parasail_align("miniprot", m_feature_db, m_entry, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
-    lifton_status.lifton = m_lifton_aln.identity
+    m_lifton_aln = align.parasail_align("miniprot", Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
+    lifton_status.lifton_aa = m_lifton_aln.identity
 
     if m_lifton_aln.identity == 1:
         lifton_status.annotation =  "miniprot_identical"
@@ -82,9 +73,6 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
         lifton_status.annotation =  "miniprot_truncated"
     
     lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(Lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
-
-    # lifton_gene.print_gene()
-
     return lifton_gene, Lifton_trans.entry.id, lifton_status
 
 
