@@ -3,6 +3,9 @@ from Bio.Seq import Seq
 from cigar import Cigar
 from lifton import get_id_fraction, lifton_class
 
+################################################
+# Change the CDS protein boundaries based on CIGAR string
+################################################
 def adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, length):
     cds_boundary_shift = 0
     for i in range(len(cdss_protein_aln_boundary)):
@@ -20,6 +23,9 @@ def adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, len
     return cdss_protein_aln_boundary
 
 
+################################################
+# Map the CDSs boundaries on to the protein alignment.
+################################################
 def get_cdss_protein_boundary(cdss_lens):
     cdss_cumulative = [sum(cdss_lens[:i+1]) for i in range(len(cdss_lens))]
     cdss_cumulative_div = [x / 3 for x in cdss_cumulative]
@@ -56,6 +62,9 @@ def protein_align(protein_seq, ref_protein_seq):
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
+    # print("alignment_query: ", alignment_query)
+    # print("alignment_comp : ", alignment_comp)
+    # print("alignment_ref  : ", alignment_ref)
     extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
     extracted_identity = extracted_matches/extracted_length
     lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
@@ -122,8 +131,10 @@ def parasail_align(tool, lifton_trans, db_entry, fai, ref_proteins, ref_trans_id
     ################################
     # Step 4: Protein alignment
     ################################
-    if protein_seq != None:
-        protein_seq = protein_seq.upper()
+    if protein_seq == None:
+        return aln
+    
+    protein_seq = protein_seq.upper()
     extracted_parasail_res, extracted_seq, reference_seq = parasail_align_protein_base(protein_seq, ref_protein_seq)
 
     ################################
@@ -158,6 +169,7 @@ def parasail_align(tool, lifton_trans, db_entry, fai, ref_proteins, ref_trans_id
     
     extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
     extracted_identity = extracted_matches/extracted_length
+
     aln = lifton_class.Lifton_Alignment(extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry)
 
     if tool == "liftoff":

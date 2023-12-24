@@ -1,3 +1,5 @@
+import sys 
+
 def log(*argv, debug=False):
     if debug:
-        print(*argv)
+        print(*argv, file=sys.stderr)

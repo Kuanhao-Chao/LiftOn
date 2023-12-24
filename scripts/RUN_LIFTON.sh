@@ -33,11 +33,11 @@ elif [[ "$TARGET" == "mouse_to_rat" || "$TARGET" == "mouse_to_rat_test" ]]; then
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna"
 
 elif [[ "$TARGET" == "yeast" || "$TARGET" == "yeast_test" ]]; then
-    REFERENCE_gff="/ccb/salz2/kh.chao/Lifton/data/yeast/GCA_000146045.2_R64_genomic.gff.gz_db"
-    LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/yeast/liftoff/liftoff.gff3_db"
-    MINIPROT_gff="/ccb/salz2/kh.chao/Lifton/results/yeast/miniprot/miniprot.gff3_db"
-    TARGET_genome="/ccb/salz2/kh.chao/Lifton/data/yeast/S288C_reference_genome_R64-4-1_20230830/S288C_reference_sequence_R64-4-1_20230830.fsa"
-    REFERENCE_genome="/ccb/salz2/kh.chao/Lifton/data/yeast/GCA_000146045.2_R64_genomic.fna.gz"
+    REFERENCE_gff="/ccb/salz2/kh.chao/LiftOn/data/yeast/GCA_000146045.2_R64_genomic.gff.gz_db"
+    LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/yeast/liftoff/liftoff.gff3_db"
+    MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/yeast/miniprot/miniprot.gff3_db"
+    TARGET_genome="/ccb/salz2/kh.chao/LiftOn/data/yeast/S288C_reference_genome_R64-4-1_20230830/S288C_reference_sequence_R64-4-1_20230830.fsa"
+    REFERENCE_genome="/ccb/salz2/kh.chao/LiftOn/data/yeast/GCA_000146045.2_R64_genomic.fna.gz"
 
 elif [[ "$TARGET" == "arabadop" || "$TARGET" == "arabadop_test" ]]; then
     echo "running LiftOn on arabadop"
@@ -78,7 +78,7 @@ elif [[ "$TARGET" == "human_chess" || "$TARGET" == "human_chess_test" ]]; then
     # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff_db"
     TARGET_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
     REFERENCE_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/chess/hg38_p12_ucsc.no_alts.no_fixs.fa"
-    ADDITIONAL_ARG="-f /ccb/salz2/kh.chao/Lifton/data/features_chess.txt"
+    ADDITIONAL_ARG="-f /ccb/salz2/kh.chao/LiftOn/data/features_chess.txt"
 
 elif [[ "$TARGET" == "human_mane" || "$TARGET" == "human_mane_test" ]]; then
     echo "running LiftOn on human_mane"
@@ -112,15 +112,15 @@ else
     exit -1
 fi
 
-LIFTOFF_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/liftoff/liftoff.gff3_db"
-MINIPROT_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/miniprot/miniprot.gff3_db"
+LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/liftoff/liftoff.gff3_db"
+MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/miniprot/miniprot.gff3_db"
 
-intermediate_dir="/ccb/salz2/kh.chao/Lifton/results/$TARGET/intermediate_files/"
-output_LIFTON_gff="/ccb/salz2/kh.chao/Lifton/results/$TARGET/lifton.gff3"
+intermediate_dir="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/intermediate_files/"
+output_LIFTON_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton.gff3"
 
 ref_proteins="${intermediate_dir}proteins.fa"
 ref_trans="${intermediate_dir}transcripts.fa"
-log_file="/ccb/salz2/kh.chao/Lifton/results/$TARGET/output.log"
+log_file="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/output.log"
 
 echo "lifoff annotation: $LIFTOFF_gff"
 echo "miniprot annotation: $MINIPROT_gff"
