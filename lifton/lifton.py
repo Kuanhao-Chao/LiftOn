@@ -203,7 +203,7 @@ def run_all_lifton_steps(args):
         os.makedirs(outdir, exist_ok=True)
 
     lifton_outdir = f"{outdir}/lifton_output/"
-    intermediate_dir = f"{outdir}/lifton_output/{os.path.dirname(args.directory)}/"
+    intermediate_dir = f"{outdir}/lifton_output/{os.path.basename(args.directory)}/"
     os.makedirs(intermediate_dir, exist_ok=True)
     args.directory = intermediate_dir
     
@@ -311,7 +311,7 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("chr13", 112947175, 113046196)):
+        for locus in l_feature_db.features_of_type(feature):#, limit=("chr7", 75237205, 75317429)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG)
 
 

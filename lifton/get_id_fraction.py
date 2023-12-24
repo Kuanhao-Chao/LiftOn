@@ -12,11 +12,12 @@ def get_partial_id_fraction(reference, target, start, end):
             matches += 1
         if target[i+start] == "*":
             break
-    if (end-start) == 0:
-        return matches, 1
     
     # Modify the region length by considering gaps in the reference (as long as it's a open reading frame)
     total_length = (end-start) - gaps_in_ref
+    if total_length == 0:
+        return matches, 1
+
     return matches, total_length
 
 
