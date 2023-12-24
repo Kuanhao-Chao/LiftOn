@@ -75,7 +75,7 @@ html_theme = 'furo'
 # html_logo = "./_static/logo.png"
 html_theme_options = {
     "announcement": "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.",
-    "sidebar_hide_name": True,
+    # "sidebar_hide_name": True,
     
     "source_repository": "https://github.com/Kuanhao-Chao/LiftOn",
     "source_branch": "main",
