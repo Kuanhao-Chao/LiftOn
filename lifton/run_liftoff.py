@@ -5,27 +5,21 @@ from lifton.liftoff import liftoff_main
 from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
 
-# def check_liftoff_installed():
-#     installed = False
-#     try:
-#         installed = liftoff.__version__ >= "1.6.3"
-#     except:
-#         pass
-#     return installed
+def run_liftoff(output_dir, args):
 
-
-def run_liftoff(args):
-    print("args.output: ", args.output)
     liftoff_args = copy.deepcopy(args)
-    liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
-    # os.makedirs(liftoff_outdir, exist_ok=True)
-    liftoff_args.output = liftoff_outdir + "/liftoff.gff3"
+    liftoff_outdir = output_dir + "liftoff/"    
+
+    os.makedirs(liftoff_outdir, exist_ok=True)
+    liftoff_annotation = liftoff_outdir + "liftoff.gff3"
+    liftoff_args.output = liftoff_annotation
     liftoff_main.run_all_liftoff_steps(liftoff_args)
     # test_basic.test_yeast(liftoff_outdir + "test_basic/")
     # test_advanced.test_yeast(liftoff_outdir + "test_advance/")
+    return liftoff_annotation
 
 
-def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG):
+def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG):
     # Check if there are exons in the children
     exon_children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
     if len(exon_children) == 0:
@@ -35,23 +29,21 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             #   => Create LifOn gene instance
             ########################### 
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
-            # logger.log(f"Before Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:", debug=DEBUG)            
             lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
             logger.log(f"Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:{lifton_gene.copy_num}", debug=DEBUG)
-            
             transcripts = l_feature_db.children(locus, level=1)
             for transcript in list(transcripts):
-                process_liftoff(lifton_gene, transcript, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
+                process_liftoff(lifton_gene, transcript, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG)
         else:
             ###########################
             # These are middle features without exons
             #   => lifton_gene is not None & there are no exon children
             ###########################
             lifton_feature = lifton_gene.add_feature(copy.deepcopy(locus))                
-            logger.log(f"\tMiddle other feature level lifton_feature\t: {lifton_feature.entry.id};", debug=DEBUG)
+            logger.log(f"\tother feature middle level lifton_feature\t: {lifton_feature.entry.id};", debug=DEBUG)
             features = l_feature_db.children(locus, level=1)
             for feature in list(features):
-                process_liftoff(lifton_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, DEBUG)
+                process_liftoff(lifton_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG)
     else:
         if lifton_gene is None:
             ###########################
@@ -60,9 +52,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             ###########################
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
             ref_trans_id = ref_gene_id
-
             lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, tmp = True)
-
         else:
             ###########################
             # These are transcript features with direct exons 
@@ -72,33 +62,25 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, locus.id)
 
         logger.log(f"\tTranscript level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id}", debug=DEBUG)
-
         ###########################
         # Processing transcript (feature with exon features)
         ###########################
         lifton_status = lifton_class.Lifton_Status()                
 
-        ###########################
         # Add LifOn transcript instance
-        ###########################
         lifton_trans = lifton_gene.add_transcript(ref_trans_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_trans_id].attributes))
 
-        ###########################
         # Add LiftOn exons
-        ###########################
         exons = l_feature_db.children(locus, featuretype='exon', order_by='start')
         for exon in list(exons):
             lifton_gene.add_exon(lifton_trans.entry.id, exon)
-        # logger.log(f"\tAfter adding exons\n", debug=DEBUG)
-        ###########################
+            
         # Add LiftOn CDS
-        ###########################
         cdss = l_feature_db.children(locus, featuretype=('CDS', 'stop_codon'), order_by='start') 
         cds_num = 0
         for cds in list(cdss):
             cds_num += 1
             lifton_gene.add_cds(lifton_trans.entry.id, cds)
-        # logger.log(f"\tAfter adding CDSs\n", debug=DEBUG)
         
         # miniprot alignment
         miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(lifton_trans, locus.seqid, locus, lifton_status, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id)
@@ -115,7 +97,6 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 lifton_status.annotation = "Liftoff_no_ref_protein"
                 lifton_status.status = ["no_ref_protein"]
             
-
             elif liftoff_aln.identity == 1:
                 #############################################
                 # Liftoff protein annotation is perfect
@@ -159,7 +140,6 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 if ref_trans_id in ref_id_2_m_id_trans_dict.keys():
                     for mtrans_id in ref_id_2_m_id_trans_dict[ref_trans_id]:
                         mtrans = m_feature_db[mtrans_id]
-
                         mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
                         is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, 0.7, tree_dict)
                         if is_overlapped:
@@ -181,8 +161,13 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                     lifton_status.annotation = "Liftoff_nc_transcript"
                     lifton_status.status = ["nc_transcript"]
 
-        lifton_utils.write_lifton_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
-        lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status)
+        lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=DEBUG)
         lifton_gene.add_lifton_status_attrs(lifton_trans.entry.id, lifton_status)
+
+        ######################################
+        # Writing out LiftOn entries & scores
+        ######################################
+        lifton_utils.write_lifton_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
+        lifton_gene.write_entry(fw)
         
     return lifton_gene

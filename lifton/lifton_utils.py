@@ -1,26 +1,14 @@
 import re, sys, os, copy
 from Bio.Seq import Seq
-from lifton import align, lifton_class, run_liftoff, run_miniprot
+from lifton import align, lifton_class, run_liftoff, run_miniprot, logger
 from lifton.liftoff import liftoff_main
-
-def check_liftoff_installed():
-    ################################
-    # Checkk if liftoff and miniprot are installed
-    ################################
-    liftoff_installed = run_liftoff.check_liftoff_installed()
-    print("liftoff_installed : ", liftoff_installed)
-    if not liftoff_installed:
-        if not liftoff_installed:
-            print("Liftoff is not properly installed.")
-        return sys.exit(1)
-
 
 def check_miniprot_installed():
     ################################
     # Checkk if liftoff and miniprot are installed
     ################################
     miniprot_installed = run_miniprot.check_miniprot_installed()
-    print("miniprot_installed: ", miniprot_installed)
+    # print("miniprot_installed: ", miniprot_installed)
     if not miniprot_installed:
         if not miniprot_installed:
             print("miniprot is not properly installed.")
@@ -75,6 +63,7 @@ def check_protein_valid(protein):
         return False
     return True
     
+
 def exec_liftoff(outdir, args):
     # Run liftoff with no extra-copies
     ################################
@@ -88,14 +77,10 @@ def exec_liftoff(outdir, args):
     ################################
     liftoff_annotation = args.liftoff
     if liftoff_annotation is None or not os.path.exists(liftoff_annotation):
-        print(">> Running Liftoff ...")
-        liftoff_args = copy.deepcopy(args)
-        liftoff_outdir = os.path.dirname(args.output) + "/liftoff/"
-        os.makedirs(liftoff_outdir, exist_ok=True)
-        liftoff_annotation = liftoff_outdir + "liftoff.gff3"
-        liftoff_args.output = liftoff_annotation
-        liftoff_main.run_all_liftoff_steps(liftoff_args)
-        run_liftoff.run_liftoff(args)
+        print("\n*********************")
+        print("** Running Liftoff **")
+        print("*********************")
+        liftoff_annotation = run_liftoff.run_liftoff(outdir, args)
     return liftoff_annotation
 
 
@@ -111,8 +96,10 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     check_miniprot_installed()
     miniprot_annotation = args.miniprot
     if miniprot_annotation is None or not os.path.exists(miniprot_annotation):
-        print(">> Running miniprot ...")
-        miniprot_annotation = run_miniprot.run_miniprot(args, tgt_genome, ref_proteins_file)
+        print("\n**********************")
+        print("** Running miniprot **")
+        print("**********************")
+        miniprot_annotation = run_miniprot.run_miniprot(outdir, args, tgt_genome, ref_proteins_file)
     return miniprot_annotation
 
 
@@ -133,19 +120,12 @@ def get_child_types(parent_types, db):
 def segments_overlap(segment1, segment2):
     # Check if the segments have valid endpoints
     # print("Checking two segments overlapping.!")
-
-    # print(segment1, segment2)
-
     if len(segment1) != 2 or len(segment2) != 2:
         raise ValueError("Segments must have exactly 2 endpoints")
     
     # Sort the segments by their left endpoints
     segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-
-
     # Check if the right endpoint of the first segment is greater than or equal to the left endpoint of the second segment
-    # print(segment1[1] >= segment2[0])
-
     return segment1[1] >= segment2[0]
 
 
@@ -159,14 +139,8 @@ def custom_bisect_insert(sorted_list, element_to_insert):
             low = mid + 1
         else:
             high = mid
-
     sorted_list.insert(low, element_to_insert)
 
-# def get_ID_base(id):
-#     id_base = id.split("_")[0]
-
-#     id_base.split("-")[:-1]
-#     return id_base
 
 def get_ID_base(id):
     # # Regular expression pattern to match the desired substrings
@@ -241,7 +215,6 @@ def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton
             ################################
             has_valid_miniprot = True
 
-
             ###########################
             # Add LifOn transcript instance
             ###########################
@@ -262,10 +235,8 @@ def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton
                 cds_num += 1
                 miniprot_trans.add_cds(cds)
 
-
             tmp_m_lifton_aln = align.parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
             if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
-
                 m_lifton_aln = tmp_m_lifton_aln
                 # SETTING miniprot identity score                
                 lifton_status.miniprot = m_lifton_aln.identity
@@ -355,9 +326,9 @@ def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status)
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.eval_dna}\t{lifton_status.eval_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
-def print_lifton_status(transcript_id, transcript, lifton_status):
+def print_lifton_status(transcript_id, transcript, lifton_status, DEBUG=False):
     final_status = ";".join(lifton_status.status)
-    print(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+    logger.log(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n", debug=DEBUG)
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
