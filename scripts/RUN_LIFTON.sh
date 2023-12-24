@@ -90,7 +90,7 @@ elif [[ "$TARGET" == "human_mane" || "$TARGET" == "human_mane_test" ]]; then
 
 elif [[ "$TARGET" == "human_refseq" || "$TARGET" == "human_refseq_test" ]]; then
     echo "running LiftOn on human_refseq"
-    REFERENCE_gff="/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/rRNA_removed/NCBI_RefSeq_no_rRNA.gff"
+    REFERENCE_gff="/ccb/salz3/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/rRNA_removed/NCBI_RefSeq_no_rRNA.gff_db"
     # LIFTOFF_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_liftoff_from_IRGSP_no_alts.gff_polished_db"
     # MINIPROT_gff="/ccb/salz2/jheinz3/shared/lifton/rice/ASM2616768v1_from_miniprot_IRGSP.gff_db"
     TARGET_genome="/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/chm13v2.0.fa"
@@ -112,10 +112,11 @@ else
     exit -1
 fi
 
-LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/liftoff/liftoff.gff3_db"
-MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/miniprot/miniprot.gff3_db"
+LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/liftoff/liftoff.gff3_db"
+MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/miniprot/miniprot.gff3_db"
 
-intermediate_dir="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/intermediate_files/"
+intermediate_dir="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/intermediate_files/"
+
 output_LIFTON_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton.gff3"
 
 ref_proteins="${intermediate_dir}proteins.fa"
