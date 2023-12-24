@@ -97,7 +97,7 @@ elif [[ "$TARGET" == "human_refseq" || "$TARGET" == "human_refseq_test" ]]; then
     REFERENCE_genome="/ccb/salz2/kh.chao/PR_liftoff_protein_search/data/NCBI_Refseq_chr_fixed/GCF_000001405.40_GRCh38.p14_genomic.fna"
 elif [[ "$TARGET" == "drosophila" || "$TARGET" == "drosophila_test" ]]; then
     echo "running drosophila"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff_db"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.simulans_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
 
