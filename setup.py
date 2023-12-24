@@ -1,5 +1,7 @@
 import setuptools
+from pathlib import Path
 
+this_directory = Path(__file__).resolve().parent
 long_description = (this_directory / "./README.md").read_text()
 setuptools.setup(
 	name="Lifton",

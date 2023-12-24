@@ -407,5 +407,6 @@ An accurate homology lift-over tool between assemblies
     ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
     '''
     print(banner)
+    print(f"{__version__}\n")
     args = parse_args(arglist)
     run_all_lifton_steps(args)
