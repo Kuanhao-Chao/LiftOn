@@ -1,41 +1,41 @@
 -------------- SCENARIOS ------------
-LiftOn best						565
-Liftoff best					3
-miniprot best					0
-LiftOn worse than Liftoff only	2
-LiftOn worse than miniprot only	0
-LiftOn worst					1
-LiftOn equal to Liftoff only	7514
-LiftOn equal to miniprot only	264
-All equal						19823
+LiftOn best						6834
+Liftoff best					20
+miniprot best					682
+LiftOn worse than Liftoff only	16
+LiftOn worse than miniprot only	680
+LiftOn worst					6
+LiftOn equal to Liftoff only	13803
+LiftOn equal to miniprot only	766
+All equal						6271
 Total counts					28167
 
 ----------------- ALL ---------------
-lifton=liftoff=miniprot	19823
-lifton>liftoff=miniprot	248
-lifton>liftoff>miniprot	244
-lifton>miniprot>liftoff	73
-lifton=liftoff>miniprot	7514
-lifton=miniprot>liftoff	262
-liftoff>lifton>miniprot	0
-miniprot>lifton>liftoff	0
-liftoff>lifton=miniprot	2
-miniprot>lifton=liftoff	0
+lifton=liftoff=miniprot	6271
+lifton>liftoff=miniprot	0
+lifton>liftoff>miniprot	1566
+lifton>miniprot>liftoff	5268
+lifton=liftoff>miniprot	13594
+lifton=miniprot>liftoff	766
+liftoff>lifton>miniprot	16
+miniprot>lifton>liftoff	471
+liftoff>lifton=miniprot	0
+miniprot>lifton=liftoff	209
 liftoff=miniprot>lifton	0
-liftoff>miniprot>lifton	1
-miniprot>liftoff>lifton	0
+liftoff>miniprot>lifton	4
+miniprot>liftoff>lifton	2
 all						28167
 
 ----------------- RAW ---------------
-liftoff_score>miniprot_score	7761
-liftoff_score=miniprot_score	20071
-liftoff_score>lifton_score	3
-liftoff_score=lifton_score	27337
-miniprot_score>liftoff_score	335
-miniprot_score=liftoff_score	20071
-miniprot_score>lifton_score	1
-miniprot_score=lifton_score	20087
-lifton_score>liftoff_score	827
-lifton_score=liftoff_score	27337
-lifton_score>miniprot_score	8079
-lifton_score=miniprot_score	20087
+liftoff_score>miniprot_score	15180
+liftoff_score=miniprot_score	6271
+liftoff_score>lifton_score	22
+liftoff_score=lifton_score	20074
+miniprot_score>liftoff_score	6716
+miniprot_score=liftoff_score	6271
+miniprot_score>lifton_score	686
+miniprot_score=lifton_score	7037
+lifton_score>liftoff_score	8071
+lifton_score=liftoff_score	20074
+lifton_score>miniprot_score	20444
+lifton_score=miniprot_score	7037
