@@ -1,6 +1,6 @@
 import setuptools
 
-
+long_description = (this_directory / "./README.md").read_text()
 setuptools.setup(
 	name="Lifton",
 	version="0.0.1",
@@ -12,4 +12,6 @@ setuptools.setup(
 	python_requires='>=3.6',
 	packages=setuptools.find_packages(),
 	entry_points={'console_scripts': ['lifton = lifton.lifton:main'], },
+        long_description=long_description,
+        long_description_content_type='text/markdown'
 )
