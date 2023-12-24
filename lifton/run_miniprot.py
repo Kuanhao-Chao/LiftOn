@@ -12,8 +12,8 @@ def check_miniprot_installed():
         pass
     return installed
 
-def run_miniprot(args, tgt_genome, ref_proteins_file):
-    miniprot_outdir = os.path.dirname(args.output) + "/miniprot/"
+def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
+    miniprot_outdir = outdir + "miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     
