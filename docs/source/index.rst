@@ -41,12 +41,15 @@
 LiftOn's tutorial
 *************************
 
-.. _LiftOn-logo:
-.. figure::  ./_static/LiftOn_color.png
-   :align:   center
-   :scale:   20 %
 
-|
+.. raw:: html
+
+    <embed>
+        <div class="sidebar-logo-container" style="padding-bottom:-10px">
+            <img class="sidebar-logo only-light" src="_static/LiftOn_color.png" alt="Light Logo">
+            <img class="sidebar-logo only-dark" src="_static/LiftOn_white.png" alt="Dark Logo">
+        </div>
+    </embed>
 
 .. image:: https://img.shields.io/badge/License-MIT-yellow.svg
     :target: https://img.shields.io/badge/License-MIT-yellow.svg

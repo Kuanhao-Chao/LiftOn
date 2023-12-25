@@ -112,10 +112,11 @@ else
     exit -1
 fi
 
-LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/liftoff/liftoff.gff3_db"
-MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/miniprot/miniprot.gff3_db"
+LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/liftoff/liftoff.gff3_db"
+MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/miniprot/miniprot.gff3_db"
 
-intermediate_dir="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/intermediate_files/"
+intermediate_dir="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/intermediate_files/"
+
 output_LIFTON_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton.gff3"
 
 ref_proteins="${intermediate_dir}proteins.fa"
