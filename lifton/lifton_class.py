@@ -323,7 +323,9 @@ class Lifton_TRANS:
             ovp_exons = []
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
-                # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
+                print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
+
+                print(f"cds_idx: {cds_idx}; {only_cds.entry.start}-{only_cds.entry.end} (len: {len(cds_list)});  exon_idx: {idx_exon_itr}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
                 # |eeeeee| |ccccc|
                 if exon.entry.end < only_cds.entry.start:
                     new_exons.append(exon)
