@@ -12,6 +12,7 @@ When you intend to annotate your recently assembled genome and find that there i
 
 LiftOver is particularly effective in mapping annotation between closely-related species. Here is an example of using LiftOver to transfer annotations from *Homo sapiens* GRCh38 to *Pan troglodytes* (chimpanzee).
 
+|
 
 .. toctree::
     :maxdepth: 1

@@ -12,6 +12,7 @@ When working with a recently assembled genome, users frequently face the necessi
 
 LiftOn excels in performing lift-over on annotations within the same species. Here ase some examples of running LiftOn on *Homo sapiens*, *Arabidopsis thaliana*, and *Apis mellifera*.
 
+|
 
 .. toctree::
     :maxdepth: 1
