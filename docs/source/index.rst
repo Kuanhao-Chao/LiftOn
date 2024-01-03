@@ -51,8 +51,8 @@ LiftOn's tutorial
         </div>
     </embed>
 
-.. image:: https://img.shields.io/badge/License-MIT-yellow.svg
-    :target: https://img.shields.io/badge/License-MIT-yellow.svg
+.. image:: https://img.shields.io/badge/License-GPLv3-yellow.svg
+    :target: https://img.shields.io/badge/License-GPLv3-yellow.svg
 
 .. image:: https://img.shields.io/badge/version-v.0.0.1-blue
     :target: https://img.shields.io/badge/version-v.0.0.1-blue

@@ -75,8 +75,11 @@ html_theme = 'furo'
 # html_logo = "./_static/logo.png"
 html_theme_options = {
     "announcement": "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.",
-    # "sidebar_hide_name": True,
     
+    "display_version": True,
+    "logo_only": True,
+    "sidebar_hide_name": True,
+
     "source_repository": "https://github.com/Kuanhao-Chao/LiftOn",
     "source_branch": "main",
     "source_directory": "docs/",
@@ -84,18 +87,12 @@ html_theme_options = {
     "prefers-color-scheme": "light",
     
     "navigation_with_keys": True,
-    "top_of_page_button": "edit",
-
-    # "sidebar_collapse": "true",  # Enable sidebar collapsing
-    # "navigation_depth": 2,       # Set the initial navigation depth
-    
+    "top_of_page_button": "edit",    
     'collapse_navigation': True,
-    # 'sticky_navigation': True,
-    # 'navigation_depth': 4,
-    # 'includehidden': True,
-
-
     'navigation_depth': -1,
+
+    "light_logo": "LiftOn_color.png",
+    "dark_logo": "LiftOn_white.png",
 
     "footer_icons": [
         {
@@ -110,6 +107,7 @@ html_theme_options = {
         },
     ],
 }
+
 html_sidebars = {
     "**": [
         "sidebar/initial.html",
@@ -128,7 +126,6 @@ html_context = {
 }
 
 numfig = True
-
 numfig_format = {
     "figure": "Figure %s",
     "table": "Table %s",
@@ -142,14 +139,7 @@ numfig_format = {
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-html_theme_options = {
-    "light_logo": "LiftOn_color.png",
-    "dark_logo": "LiftOn_white.png",
-}
-
-
 # html_logo = "./_static/logo.png"
-
 # html_extra_path = ['image']
 
 def setup(app):
