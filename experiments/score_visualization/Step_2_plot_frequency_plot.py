@@ -64,7 +64,7 @@ else:
 
 
 
-outdir_root = f"/ccb/salz2/kh.chao/Lifton/results/{TARGET}/"
+outdir_root = f"/ccb/salz2/kh.chao/LiftOn/results/{TARGET}/lifton_output/"
 fname = f"{outdir_root}score.txt"
 outdir_root = f"{outdir_root}visualization/"
 
