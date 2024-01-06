@@ -31,8 +31,8 @@ class Annotation():
         try:
             transform_func = self.get_transform_func()
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
-                                        # merge_strategy="create_unique", 
-                                        merge_strategy="warning",
+                                        merge_strategy="create_unique", 
+                                        # merge_strategy="warning",
                                             # merge_strategy="create_unique", 
                                         id_spec='ID',
                                         force=True,
