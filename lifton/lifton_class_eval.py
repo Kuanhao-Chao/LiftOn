@@ -135,8 +135,10 @@ class Lifton_TRANS_EVAL:
         else:
             protein_seq = coding_seq.translate()
             peps = protein_seq.split("*")
-
-            lifton_aa_aln, parasail_res = align.protein_align(protein_seq, ref_protein_seq)
+            
+            # print("protein_seq: ", protein_seq)
+            # print("ref_protein_seq: ", ref_protein_seq)
+            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
             # Update lifton sequence identity
             lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aa_aln.identity)
 

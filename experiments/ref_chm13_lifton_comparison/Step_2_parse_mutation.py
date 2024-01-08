@@ -2,12 +2,13 @@ import sys, os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-outdir_root = f"/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
+outdir_root = f"/ccb/salz2/kh.chao/LiftOn/results/human_refseq/ref_chm13_cmp/"
 
 # fname = f"{outdir_root}score.txt"
 # outdir_root = f"{outdir_root}visualization/"
 
-fnames = ["/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/eval.txt", "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/eval.txt"]
+fnames = ["/ccb/salz2/kh.chao/LiftOn/results/human_refseq/lifton_output/eval.txt", "/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/lifton_output/eval.txt"]
+
 
 for idx, fname in enumerate(fnames):
     print("idx, fname: ", idx, fname)

@@ -335,6 +335,9 @@ class Lifton_TRANS:
                 elif exon.entry.start > only_cds.entry.end: 
                     processed_ovp_exons = True
                     merged_exon = copy.deepcopy(exon)
+                    if len(ovp_exons) == 0:
+                        cp_exon = copy.deepcopy(exon)
+                        ovp_exons.append(cp_exon)
                     merged_exon.entry.start = ovp_exons[0].entry.start
                     merged_exon.entry.end = ovp_exons[-1].entry.end
                     merged_exon.add_lifton_cds(only_cds)

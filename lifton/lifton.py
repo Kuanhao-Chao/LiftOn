@@ -256,6 +256,9 @@ def run_all_lifton_steps(args):
         print("Target genome     : ", tgt_genome)
         print("Ref annotation    : ", args.reference_annotation)
         print("Target annotation : ", args.output)
+        print("ref_trans_file    : ", ref_trans_file)
+        print("ref_proteins_file : ", ref_proteins_file)
+
         logger.log(">> Creating target database : ", tgt_annotation, debug=True)
         tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
         fw_score = open(lifton_outdir+"/eval.txt", "w")
@@ -310,10 +313,9 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        print("feature: ", feature)
-        for locus in l_feature_db.features_of_type(feature):#, limit=("chr13", 112968205, 113025166)):
-            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, fw_chain, DEBUG)
-            
+        for locus in l_feature_db.features_of_type(feature):#, limit=("NW_020825194.1", 28072487, 28072684)):
+            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG)
+
             ######################################
             # Writing out LiftOn entries
             ######################################

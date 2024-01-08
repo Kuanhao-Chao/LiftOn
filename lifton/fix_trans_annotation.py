@@ -1,4 +1,4 @@
-from lifton import get_id_fraction, lifton_entry
+from lifton import get_id_fraction, lifton_entry, lifton_class
 import math
 
 def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx):
@@ -88,8 +88,15 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
     cds_list = []
     ref_aa_liftoff_count = 0
     ref_aa_miniprot_count = 0
-
     chains = []
+
+    # # Directly adopting Liftoff's annptation. Miniprot is likely to be pseudogene.
+    # if len(m_children) == 1 and len(l_children) > 1:
+    #     chains = ['liftoff']
+    #     for liftoff_cds in l_children:
+    #         cds = lifton_class.Lifton_CDS(liftoff_cds)
+    #         cds_list.append(cds)
+    #     return cds_list, chains
 
     while m_c_idx != (len(m_children)-1) or l_c_idx != (len(l_children)-1):
         if (m_c_idx == len(m_children)-1) and (l_c_idx < (len(l_children)-1)):
@@ -100,10 +107,10 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai):
             continue
 
         # print("m_lifton_aln.db_entry.strand: ", m_lifton_aln.db_entry.strand)
-        # ref_aa_miniprot_lcl_count = get_protein_reference_length_single(m_lifton_aln, m_c_idx)
-        # ref_aa_miniprot_count += ref_aa_miniprot_lcl_count
-        # ref_aa_liftoff_lcl_count = get_protein_reference_length_single(l_lifton_aln, l_c_idx)
-        # ref_aa_liftoff_count += ref_aa_liftoff_lcl_count
+        ref_aa_miniprot_lcl_count = get_protein_reference_length_single(m_lifton_aln, m_c_idx)
+        ref_aa_miniprot_count += ref_aa_miniprot_lcl_count
+        ref_aa_liftoff_lcl_count = get_protein_reference_length_single(l_lifton_aln, l_c_idx)
+        ref_aa_liftoff_count += ref_aa_liftoff_lcl_count
 
         # print(">> ref_aa_miniprot_count: ", ref_aa_miniprot_count)
         # print(">> ref_aa_liftoff_count: ", ref_aa_liftoff_count)

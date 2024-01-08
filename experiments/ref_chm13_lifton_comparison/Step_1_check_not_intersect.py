@@ -2,9 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def main():
-    lifton_table = pd.read_csv("/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/eval.txt", sep="\t", header=None)
+    lifton_table = pd.read_csv("/ccb/salz2/kh.chao/LiftOn/results/human_refseq/lifton_output/eval.txt", sep="\t", header=None)
 
-    ref_table = pd.read_csv("/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/eval.txt", sep="\t", header=None)
+    ref_table = pd.read_csv("/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/lifton_output/eval.txt", sep="\t", header=None)
     
     print("lifton_table: ", len(lifton_table))
     print("ref_table   : ", len(ref_table))

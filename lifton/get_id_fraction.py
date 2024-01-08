@@ -28,6 +28,20 @@ def get_AA_id_fraction(reference, target):
     target = target.upper()
     gaps_in_ref = 0
 
+    for i, letter in enumerate(reference):
+        if letter == '-':
+            gaps_in_ref += 1
+
+        if letter == target[i]:
+            matches += 1
+        if target[i] == "*":
+            break        
+    if max(len(reference), len(target)) == 0:  
+        return matches, 1
+    
+    # Modify the region length by considering gaps in the reference (as long as it's a open reading frame)
+    total_length = max(len(reference), len(target)) - gaps_in_ref
+
     # # Count leading '-' characters
     # leading_gaps = 0
     # for i in range(min(len(reference), len(target))):
@@ -53,20 +67,8 @@ def get_AA_id_fraction(reference, target):
     # # Adjust total length by considering leading and trailing gaps
     # total_length = max(len(reference), len(target)) - leading_gaps - trailing_gaps
     
-    for i, letter in enumerate(reference):
-        if letter == '-':
-            gaps_in_ref += 1
-
-        if letter == target[i]:
-            matches += 1
-        if target[i] == "*":
-            break        
-    if max(len(reference), len(target)) == 0:  
-        return matches, 1
-    
-    # Modify the region length by considering gaps in the reference (as long as it's a open reading frame)
-    total_length = max(len(reference), len(target)) - gaps_in_ref
     return matches, total_length
+
 
 
 def get_DNA_id_fraction(reference, target):

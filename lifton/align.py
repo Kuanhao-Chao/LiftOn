@@ -24,7 +24,7 @@ def adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, len
 
 
 ################################################
-# Map the CDSs boundaries on to the protein alignment.
+# Map the CDSs boundaries on to the protein.
 ################################################
 def get_cdss_protein_boundary(cdss_lens):
     cdss_cumulative = [sum(cdss_lens[:i+1]) for i in range(len(cdss_lens))]

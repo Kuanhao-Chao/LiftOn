@@ -103,7 +103,7 @@ elif [[ "$TARGET" == "drosophila" || "$TARGET" == "drosophila_test" ]]; then
 
 elif [[ "$TARGET" == "drosophila_erecta" || "$TARGET" == "drosophila_erecta_test" ]]; then
     echo "running drosophila erecta"
-    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff"
+    REFERENCE_gff="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff_db"
     TARGET_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.erecta_genomic.fna"
     REFERENCE_genome="/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
 
@@ -113,7 +113,7 @@ else
 fi
 
 LIFTOFF_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/liftoff/liftoff.gff3_db"
-MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/miniprot/miniprot.gff3_db"
+MINIPROT_gff="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/miniprot/miniprot.gff3"
 
 intermediate_dir="/ccb/salz2/kh.chao/LiftOn/results/$TARGET/lifton_output/intermediate_files/"
 
