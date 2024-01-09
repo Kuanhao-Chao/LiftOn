@@ -114,7 +114,7 @@ LiftOn is designed for individuals who would like to annotate a new assembly, re
 
 The first step is to select a well-annotated genome along with its annotation, denoted as reference **Genome** :math:`R` and **Annotation** :math:`R_A`. 
 
-The process begins by extracting protein sequences annotated by Liftoff and miniprot. These sequences are then aligned with full-length reference proteins. For each gene locus, LiftOn employs the chaining algorithm that compares each section of the protein alignments from Liftoff and miniprot. This algorithm corrects errors in exon and CDS boundaries, resulting in the better protein annotations that preserves the longest matching proteins.
+The process begins by extracting protein sequences annotated by Liftoff and miniprot. These sequences are then aligned with full-length reference proteins. For each gene locus, LiftOn employs the *chaining algorithm* that compares each section of the protein alignments from Liftoff and miniprot. This algorithm corrects errors in exon and CDS boundaries, resulting in the better protein annotations that preserves the longest matching proteins.
 
 * **Input**: 
     1. target **Genome** :math:`T` in FASTA 
@@ -128,9 +128,9 @@ The process begins by extracting protein sequences annotated by Liftoff and mini
 
 LiftOn's limitation
 ==================================
-LiftOn's chaining algorithm currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it has the potential to expand its capabilities to chain together multiple protein-based annotation files. 
+LiftOn's *chaining algorithm* currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it has the potential to expand its capabilities to chain together multiple protein-based annotation files or aasembled RNA-Seq transcripts. 
 
-The LiftOn chaining algorithm now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!
+The LiftOn *chaining algorithm* now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!
 
 |
 
