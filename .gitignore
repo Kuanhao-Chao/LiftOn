@@ -7,9 +7,11 @@ slides/
 .DS_Store
 docs/.vscode/
 paper/
-comparison/results
+comparison/results*
 comparison/test/
 comparison/igv_viewer/
+comparison/mouse_to_rat_results/fasta/
+comparison/mouse_to_rat_results/lifton_output/
 dictionary/annotations/
 *.txt
 
