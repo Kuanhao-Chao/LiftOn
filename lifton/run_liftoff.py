@@ -19,7 +19,7 @@ def run_liftoff(output_dir, args):
     return liftoff_annotation
 
 
-def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG):
+def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG):
     # Check if there are exons in the children
     exon_children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
     if len(exon_children) == 0:
@@ -33,7 +33,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             logger.log(f"Gene level ref_gene_id\t: {ref_gene_id}; ref_trans_id\t:{ref_trans_id};  lifton_gene.copy_number\t:{lifton_gene.copy_num}", debug=DEBUG)
             transcripts = l_feature_db.children(locus, level=1)
             for transcript in list(transcripts):
-                process_liftoff(lifton_gene, transcript, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG)
+                process_liftoff(lifton_gene, transcript, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG)
         else:
             ###########################
             # These are middle features without exons
@@ -43,7 +43,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             logger.log(f"\tother feature middle level lifton_feature\t: {lifton_feature.entry.id};", debug=DEBUG)
             features = l_feature_db.children(locus, level=1)
             for feature in list(features):
-                process_liftoff(lifton_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG)
+                process_liftoff(lifton_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG)
     else:
         if lifton_gene is None:
             ###########################
@@ -113,9 +113,10 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 if has_valid_miniprot:
                     logger.log("\t* Has CDS and valid miniprot", debug=DEBUG)
                     lifton_status.annotation = "LiftOn_chaining_algorithm" 
-                    cds_list = fix_trans_annotation.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai)
+                    cds_list, chains = fix_trans_annotation.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai)
                     lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
                     logger.log("\tHas cds & protein & valid miniprot annotation!", debug=DEBUG)
+                    lifton_utils.write_lifton_chains(fw_chain, lifton_trans.entry.id, chains)
                 else:
                     logger.log("\t* has CDS but invalid miniprot", debug=DEBUG)
                     lifton_status.annotation = "Liftoff_truncated"
@@ -168,6 +169,4 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         # Writing out LiftOn entries & scores
         ######################################
         lifton_utils.write_lifton_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
-        lifton_gene.write_entry(fw)
-        
     return lifton_gene

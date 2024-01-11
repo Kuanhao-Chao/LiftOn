@@ -1,0 +1,2 @@
+test/GRCh38_2_CHM13_lifton.gff3 filter=lfs diff=lfs merge=lfs -text
+test/chm13_chr22.fa.mmi filter=lfs diff=lfs merge=lfs -text

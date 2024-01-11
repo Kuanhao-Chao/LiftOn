@@ -16,7 +16,7 @@ Matching miniprot & Liftoff genome annotation
 
 .. The first step is to match the transcript annotations between Liftoff and miniprot
 
-Liftoff uses the '**gene – transcript – exon/CDS**' or '**transcript – exon/CDS**' hierarchy, while miniprot maps protein sequences to the genome, generating a '**mRNA-CDS/stop_codon**' hierarchy in GFF or GTF format at the transcript level. To run the chaining algorithm, LiftOn must first match annotations between Liftoff and miniprot at the transcript level.
+Liftoff uses the '**gene – transcript – exon/CDS**' or '**transcript – exon/CDS**' hierarchy, while miniprot maps protein sequences to the genome, generating a '**mRNA-CDS/stop_codon**' hierarchy in GFF or GTF format at the transcript level. To run the *chaining algorithm*, LiftOn must first match annotations between Liftoff and miniprot at the transcript level.
 
 LiftOn uses gene loci lifted by Liftoff as anchors to identify corresponding miniprot annotations, guided by two key reasons: 
 
@@ -28,7 +28,7 @@ LiftOn uses gene loci lifted by Liftoff as anchors to identify corresponding min
 In most cases, miniprot identifies a single transcript per protein, facilitating LiftOn's matching with Liftoff. In other scenarios with multiple miniprot copies overlapping Liftoff, we select the overlapped miniprot locus. If multiple transcripts share the same ID, we eliminate any spanning multiple loci to avoid gene fusion annotations. If multiple transcripts persist, we choose the one with a higher protein sequence identity score. Additionally, if miniprot annotations do not overlap with Liftoff, we prioritize Liftoff annotations.
 
 
-Using lift-over RefSeq v110 annotations from GRCh38 to T2T-CHM13 V2.0 as an example, the left circos plot (:ref:`Figure <liftoff-miniprot-map-circos>`) aligns 129,487 miniprot-identified protein-coding gene loci with Liftoff gene loci. Conversely, the right circos plot (:ref:`Figure <liftoff-miniprot-map-circos>`) shows 8,239 miniprot-identified loci, including extra copies, without overlap with Liftoff gene loci. Once a one-to-one mapping is established, LiftOn considers both Liftoff and miniprot CDS chains, initiating the chaining algorithm.
+Using lift-over RefSeq v110 annotations from GRCh38 to T2T-CHM13 V2.0 as an example, the left circos plot (:ref:`Figure <liftoff-miniprot-map-circos>`) aligns 129,487 miniprot-identified protein-coding gene loci with Liftoff gene loci. Conversely, the right circos plot (:ref:`Figure <liftoff-miniprot-map-circos>`) shows 8,239 miniprot-identified loci, including extra copies, without overlap with Liftoff gene loci. Once a one-to-one mapping is established, LiftOn considers both Liftoff and miniprot CDS chains, initiating the *chaining algorithm*.
 
 
 .. _liftoff-miniprot-map-circos:
@@ -44,10 +44,10 @@ Using lift-over RefSeq v110 annotations from GRCh38 to T2T-CHM13 V2.0 as an exam
 
 .. _model-architecture:
 
-Chaining algorithm
+*Chaining algorithm*
 +++++++++++++++++++++++++++++++++++
 
-The chaining algorithm extracts protein sequences from Liftoff and miniprot annotations, aligns them with a reference protein, and maps CDS boundaries by accumulating amino acids in the alignment. CDS groups are formed, and their partial protein sequence identity is compared. The CDS with the highest identity score in each group represents the LiftOn annotation. This approach effectively addresses issues like in-frame indels or mis-splicing. LiftOn then uses an interval tree to find overlapping miniprot-aligned protein-coding transcripts.
+The *chaining algorithm* extracts protein sequences from Liftoff and miniprot annotations, aligns them with a reference protein, and maps CDS boundaries by accumulating amino acids in the alignment. CDS groups are formed, and their partial protein sequence identity is compared. The CDS with the highest identity score in each group represents the LiftOn annotation. This approach effectively addresses issues like in-frame indels or mis-splicing. LiftOn then uses an interval tree to find overlapping miniprot-aligned protein-coding transcripts.
 (:ref:`Figure <lifton-chaining>`)
 
 .. _lifton-chaining:
@@ -55,7 +55,7 @@ The chaining algorithm extracts protein sequences from Liftoff and miniprot anno
     :align:   center
     :scale:   9 %
 
-    The ideogram depicts LiftOn's chaining algorithm. (A) Represents the expected lift-over of protein-coding transcript annotations from Liftoff (A.a) and miniprot (A.b). (B) Shows pairwise alignment results with variations. (C) Illustrates mapping CDS boundaries on protein-coding alignments. (D) Groups CDSs based on accumulated amino acids, iterates through each group, and chains those with higher protein sequence identity. In the example, CDSs L1, L2, M3, M4, L4, L5, and L6 are chained, forming the new protein-coding transcript CDS list in the LiftOn annotation.
+    The ideogram depicts LiftOn's *chaining algorithm*. (A) Represents the expected lift-over of protein-coding transcript annotations from Liftoff (A.a) and miniprot (A.b). (B) Shows pairwise alignment results with variations. (C) Illustrates mapping CDS boundaries on protein-coding alignments. (D) Groups CDSs based on accumulated amino acids, iterates through each group, and chains those with higher protein sequence identity. In the example, CDSs L1, L2, M3, M4, L4, L5, and L6 are chained, forming the new protein-coding transcript CDS list in the LiftOn annotation.
 
 
 |
@@ -82,6 +82,7 @@ Frameshift mutations, corrected by aligning annotated coding sequences with the 
 
 | 
 
+.. _lifton_sequence_identity:
 DNA & protein transcript sequence identity score calculation
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

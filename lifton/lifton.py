@@ -31,10 +31,6 @@ def args_outgrp(parser):
              'partial/low sequence identity mappings will be included in the gff file with '
              'partial_mapping=True, low_identity=True in comments'
     )
-    outgrp.add_argument(
-        '-dir', '--directory', default='intermediate_files', metavar='DIR',
-        help='name of directory to save intermediate fasta and SAM files; default is "intermediate_files"',
-    )
     return outgrp
 
 def args_aligngrp(parser):
@@ -203,7 +199,8 @@ def run_all_lifton_steps(args):
         os.makedirs(outdir, exist_ok=True)
 
     lifton_outdir = f"{outdir}/lifton_output/"
-    intermediate_dir = f"{outdir}/lifton_output/{os.path.basename(args.directory)}/"
+    args.directory = "intermediate_files/"
+    intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
     os.makedirs(intermediate_dir, exist_ok=True)
     args.directory = intermediate_dir
     
@@ -247,26 +244,30 @@ def run_all_lifton_steps(args):
     logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
 
 
-    # ################################
-    # # Evaluation mode
-    # ################################
-    # if args.evaluation:
-    #     tgt_annotation = args.output
-    #     ref_annotation = args.reference_annotation
-    #     print("Run LiftOn in evaluation mode")
-    #     print("Ref genome        : ", ref_genome)
-    #     print("Target genome     : ", tgt_genome)
-    #     print("Ref annotation    : ", args.reference_annotation)
-    #     print("Target annotation : ", args.output)
-    #     logger.log(">> Creating target database : ", tgt_annotation, debug=True)
-    #     tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
-    #     fw_score = open(lifton_outdir+"/eval.txt", "w")
-    #     tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
-    #     for feature in features:
-    #         for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
-    #             evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
-    #     fw_score.close()
-    #     return
+    ################################
+    # Evaluation mode
+    ################################
+    if args.evaluation:
+        tgt_annotation = args.output
+        ref_annotation = args.reference_annotation
+        print("Run LiftOn in evaluation mode")
+        print("lifton_outdir     : ", lifton_outdir)
+        print("Ref genome        : ", ref_genome)
+        print("Target genome     : ", tgt_genome)
+        print("Ref annotation    : ", args.reference_annotation)
+        print("Target annotation : ", args.output)
+        print("ref_trans_file    : ", ref_trans_file)
+        print("ref_proteins_file : ", ref_proteins_file)
+
+        logger.log(">> Creating target database : ", tgt_annotation, debug=True)
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
+        fw_score = open(lifton_outdir+"/eval.txt", "w")
+        tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
+        for feature in features:
+            for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
+                evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
+        fw_score.close()
+        return
 
 
     ################################
@@ -292,6 +293,7 @@ def run_all_lifton_steps(args):
     # Open output files
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
+    fw_chain = open(f"{lifton_outdir}/chain.txt", "w")
     fw_unmapped = open(f"{lifton_outdir}/unmapped_features.txt", "w")
     fw_extra_copy = open(f"{lifton_outdir}/extra_copy_features.txt", "w")
 
@@ -311,8 +313,15 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("chr7", 75237205, 75317429)):
-            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG)
+        for locus in l_feature_db.features_of_type(feature):#, limit=("NW_020825194.1", 28072487, 28072684)):
+            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG)
+
+            ######################################
+            # Writing out LiftOn entries
+            ######################################
+            lifton_gene.write_entry(fw)
+                
+
 
 
     # for feature in features:
@@ -344,11 +353,8 @@ def run_all_lifton_steps(args):
     # executor.shutdown()
 
 
-
-
-
-
-
+    
+    
     ################################
     # Step 5.4: Process miniprot transcripts
     ################################
@@ -372,7 +378,6 @@ def run_all_lifton_steps(args):
                 else:
                     ref_gene_id = "LiftOn-gene"
                     lifton_gene, transcript_id, lifton_status = run_miniprot.lifton_miniprot_no_ref_protein(mtrans, m_feature_db, ref_gene_id, ref_trans_id, ref_features_dict, tree_dict, DEBUG)
-
             lifton_gene.add_lifton_status_attrs(transcript_id, lifton_status)
             ###########################
             # Write scores for each transcript
@@ -384,11 +389,13 @@ def run_all_lifton_steps(args):
             lifton_gene.write_entry(fw)
 
 
+
     stats.print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=DEBUG)
 
     # Close output files
     fw.close()
     fw_score.close()
+    fw_chain.close()
     fw_unmapped.close()
     fw_extra_copy.close()
 

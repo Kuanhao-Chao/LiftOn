@@ -51,8 +51,8 @@ LiftOn's tutorial
         </div>
     </embed>
 
-.. image:: https://img.shields.io/badge/License-MIT-yellow.svg
-    :target: https://img.shields.io/badge/License-MIT-yellow.svg
+.. image:: https://img.shields.io/badge/License-GPLv3-yellow.svg
+    :target: https://img.shields.io/badge/License-GPLv3-yellow.svg
 
 .. image:: https://img.shields.io/badge/version-v.0.0.1-blue
     :target: https://img.shields.io/badge/version-v.0.0.1-blue
@@ -74,8 +74,9 @@ LiftOn's tutorial
 
 LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. This tool is constructed on the foundation of the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and integrates `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ protein alignment for an improved homology-based lift-over process.
 
-LiftOn improves the protein-coding gene annotations, 
+.. LiftOn improves the protein-coding gene annotations and improves same or closely-related species lift-over!
 
+.. LiftOn enhances protein-coding gene annotations and facilitates lift-over for the same or closely-related species.
 
 
 .. lift-over annotator that takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_!
@@ -88,6 +89,8 @@ Why LiftOn❓
 2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over annotation! LiftOn is able to improve the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_). 
 
 3. **Improved distant species lift-over**: See mapping from *Mus musculus* to *Rattus norvegicus* and *Drosophila melanogaster* to *Drosophila erecta*.
+
+LiftOn is free, it's open source, it's easy to install , and it's in Python!
 
 |
 
@@ -103,43 +106,31 @@ Who is it for❓
 What does LiftOn do❓
 ====================================
 
-LiftOn takes GFF files from Liftoff and miniprot and reference protein sequences in a FASTA file, and generates a new annotation file in GFF format. LiftOn works on the same and closely-related species. 
-<!-- We also tested LiftOn by lifting-over annotations from human to mouse, and it also does pretty good job to find the optimal protein annotations. However, there are false positives or -->
+.. LiftOn takes GFF files from Liftoff and miniprot and reference protein sequences in a FASTA file, and generates a new annotation file in GFF format. 
+.. LiftOn works on the same and closely-related species. 
+.. <!-- We also tested LiftOn by lifting-over annotations from human to mouse, and it also does pretty good job to find the optimal protein annotations. However, there are false positives or -->
 
+LiftOn is designed for individuals who would like to annotate a new assembly, referred to as target **Genome** :math:`T`.
 
-* **Input**:  Liftoff GFF file  /  miniprot GFF file  /  protein FASTA file
-* **Output**: LiftOn GFF file
+The first step is to select a well-annotated genome along with its annotation, denoted as reference **Genome** :math:`R` and **Annotation** :math:`R_A`. 
 
-LiftOn utilizes gene loci coordinates obtained from Liftoff, as Liftoff employs an overlapping fixing algorithm to determine the most suitable gene locus for each gene.
+The process begins by extracting protein sequences annotated by Liftoff and miniprot. These sequences are then aligned with full-length reference proteins. For each gene locus, LiftOn employs the *chaining algorithm* that compares each section of the protein alignments from Liftoff and miniprot. This algorithm corrects errors in exon and CDS boundaries, resulting in the better protein annotations that preserves the longest matching proteins.
 
-First, LiftOn extracts protein sequences annotated by Liftoff and miniprot, and aligns them to the reference proteins.
-
-Next, LiftOn employs an algorithm that compares each section of the protein alignments from Liftoff and miniprot, corrects errors in exon and CDS boundaries, and produces the optimal protein annotations.
-
-LiftOn is free, it's open source, it's easy to install , and it's in Python!
-
-.. It was trained on donor and acceptor pairs combined and focuses on a narrow window of 400 basepairs surrounding each splice site, inspired by the understanding that the splicing process primarily depends on signals within this specific region.
-
-|
-
-
-.. Main features
-.. =============
-
-.. * **Biologically inspired training process**: LiftOn was trained on combined donor and acceptor pairs, emulating the behavior of the spliceosome, with a specific emphasis on a narrow window of 400 base pairs surrounding each splice site. This approach is inspired by the understanding that the splicing process predominantly relies on signals within this specific region.
-.. * **Generalization to non-human species**: LiftOn was trained exclusively using human splice junctions; however, we have demonstrated that it performs well on chimpanzee, mouse, and even the flowering plant *Arabidopsis thaliana*.
-.. * **Python & C++ integration**: We have taken care of all the engineering work for you! LiftOn is easy to install and runs efficiently due to its underlying C++ implementation. You can install and run LiftOn with just one simple command.
-.. * **Run LiftOn in three steps**: With just three lines of code, you can obtain a new alignment file that is cleaned and sorted.
-.. * **Pytorch implementation**: LiftOn is implemented and trained using the popular and reliable PyTorch framework.
-
+* **Input**: 
+    1. target **Genome** :math:`T` in FASTA 
+    2. reference **Genome** :math:`R` in FASTA  
+    3. reference **Annotation** :math:`R_A` in GFF3  
+* **Output**: 
+    1. LiftOn annotation file in GFF3
+    2. Protein sequence identities
 
 |
 
 LiftOn's limitation
 ==================================
-LiftOn's chaining algorithm currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it has the potential to expand its capabilities to chain together multiple protein-based annotation files. 
+LiftOn's *chaining algorithm* currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it has the potential to expand its capabilities to chain together multiple protein-based annotation files or aasembled RNA-Seq transcripts. 
 
-The LiftOn chaining algorithm now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!
+The LiftOn *chaining algorithm* now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!
 
 |
 
@@ -184,6 +175,7 @@ Table of contents
     :caption: Info
     :maxdepth: 2
     
+    content/output_explanation
     content/behind_scenes
     content/how_to_page
     content/function_manual

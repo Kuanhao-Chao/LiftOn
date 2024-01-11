@@ -57,3 +57,9 @@
 .bottom-of-page {
     visibility: visible;
 } */
+
+
+pre {                                 
+    white-space: pre-wrap !important; 
+    word-break: break-all;            
+}

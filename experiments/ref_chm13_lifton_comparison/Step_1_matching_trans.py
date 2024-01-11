@@ -1,10 +1,11 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 def main():
-    lifton_table = pd.read_csv("/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/eval.txt", sep="\t", header=None)
+    lifton_table = pd.read_csv("/ccb/salz2/kh.chao/LiftOn/results/human_refseq/lifton_output/eval.txt", sep="\t", header=None)
 
-    ref_table = pd.read_csv("/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/eval.txt", sep="\t", header=None)
+    ref_table = pd.read_csv("/ccb/salz3/kh.chao/ref_genome/homo_sapiens/T2T-CHM13/lifton_output/eval.txt", sep="\t", header=None)
     
     print("lifton_table: ", len(lifton_table))
     print("ref_table   : ", len(ref_table))
@@ -89,8 +90,8 @@ def main():
             select_merged_df = merged_df[((merged_df["2_x"] > 0) & (merged_df["2_y"] > 0))]# & ((merged_df["1_x"] < THRESHOLD) & (merged_df["1_y"] < THRESHOLD))]
 
         for i, target in enumerate(targets):
-            figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
-
+            figure_out = "/ccb/salz2/kh.chao/LiftOn/results/human_refseq/ref_chm13_cmp/"
+            os.makedirs(figure_out, exist_ok=True)
 
             if target == "LiftOn v1.0.0" and type == "DNA":
                 select_score = select_merged_df["1_x"]
@@ -143,7 +144,7 @@ def main():
 
 
     # Plot scatter plot:
-    figure_out = "/ccb/salz2/kh.chao/Lifton/results/human_refseq_test/ref_chm13_cmp/"
+    figure_out = "/ccb/salz2/kh.chao/LiftOn/results/human_refseq/ref_chm13_cmp/"
     for type in ["dna", "protein"]:
         print(f"type: {type}")
         if type == "dna":

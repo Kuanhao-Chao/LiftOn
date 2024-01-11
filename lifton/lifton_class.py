@@ -323,9 +323,8 @@ class Lifton_TRANS:
             ovp_exons = []
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
-                print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
-
-                print(f"cds_idx: {cds_idx}; {only_cds.entry.start}-{only_cds.entry.end} (len: {len(cds_list)});  exon_idx: {idx_exon_itr}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
+                # print(f"Checking overlapping: {exon.entry.start}-{exon.entry.end}; {only_cds.entry.start}-{only_cds.entry.end}")
+                # print(f"cds_idx: {cds_idx}; {only_cds.entry.start}-{only_cds.entry.end} (len: {len(cds_list)});  exon_idx: {idx_exon_itr}; {exon.entry.start}-{exon.entry.end} (len: {len(self.exons)})")
                 # |eeeeee| |ccccc|
                 if exon.entry.end < only_cds.entry.start:
                     new_exons.append(exon)
@@ -336,6 +335,9 @@ class Lifton_TRANS:
                 elif exon.entry.start > only_cds.entry.end: 
                     processed_ovp_exons = True
                     merged_exon = copy.deepcopy(exon)
+                    if len(ovp_exons) == 0:
+                        cp_exon = copy.deepcopy(exon)
+                        ovp_exons.append(cp_exon)
                     merged_exon.entry.start = ovp_exons[0].entry.start
                     merged_exon.entry.end = ovp_exons[-1].entry.end
                     merged_exon.add_lifton_cds(only_cds)
@@ -572,14 +574,18 @@ class Lifton_TRANS:
             trans_seq = Seq(trans_seq).upper()
         if coding_seq != None:
             coding_seq = Seq(coding_seq).upper()
+
+        # print("coding_seq: ", coding_seq)
+        # print("trans_seq: ", trans_seq)
         return coding_seq, cdss_lens, trans_seq, exon_lens
 
 
     def translate_coding_seq(self, coding_seq):
         protein_seq = None
+
         if coding_seq != "":
             protein_seq = coding_seq.translate()
-        print("protein_seq: ", protein_seq)
+        # print("translate_coding_seq: ", protein_seq)
         return protein_seq
 
 
