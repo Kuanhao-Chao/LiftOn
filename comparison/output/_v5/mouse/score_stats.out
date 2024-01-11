@@ -1,0 +1,41 @@
+-------------- SCENARIOS ------------
+LiftOn best						1299
+Liftoff best					43
+miniprot best					14
+LiftOn worse than Liftoff only	29
+LiftOn worse than miniprot only	14
+LiftOn worst					26
+LiftOn equal to Liftoff only	20869
+LiftOn equal to miniprot only	1420
+All equal						111745
+Total counts					135393
+
+----------------- ALL ---------------
+lifton=liftoff=miniprot	111745
+lifton>liftoff=miniprot	728
+lifton>liftoff>miniprot	413
+lifton>miniprot>liftoff	158
+lifton=liftoff>miniprot	20867
+lifton=miniprot>liftoff	1413
+liftoff>lifton>miniprot	22
+miniprot>lifton>liftoff	12
+liftoff>lifton=miniprot	7
+miniprot>lifton=liftoff	2
+liftoff=miniprot>lifton	12
+liftoff>miniprot>lifton	14
+miniprot>liftoff>lifton	0
+all						135393
+
+----------------- RAW ---------------
+lifton_score>liftoff_score	2724
+lifton_score=liftoff_score	132614
+lifton_score>miniprot_score	22188
+lifton_score=miniprot_score	113165
+liftoff_score>lifton_score	55
+liftoff_score=lifton_score	132614
+liftoff_score>miniprot_score	21323
+liftoff_score=miniprot_score	112485
+miniprot_score>lifton_score	40
+miniprot_score=lifton_score	113165
+miniprot_score>liftoff_score	1585
+miniprot_score=liftoff_score	112485

@@ -7,11 +7,11 @@ LiftOn worse than miniprot only	9
 LiftOn worst					8
 LiftOn equal to Liftoff only	29217
 LiftOn equal to miniprot only	1009
-All equal						145426
-Total counts					176728
+All equal						145427
+Total counts					176729
 
 ----------------- ALL ---------------
-lifton=liftoff=miniprot	145426
+lifton=liftoff=miniprot	145427
 lifton>liftoff=miniprot	578
 lifton>liftoff>miniprot	376
 lifton>miniprot>liftoff	103
@@ -24,18 +24,18 @@ miniprot>lifton=liftoff	0
 liftoff=miniprot>lifton	7
 liftoff>miniprot>lifton	1
 miniprot>liftoff>lifton	0
-all						176728
+all						176729
 
 ----------------- RAW ---------------
 lifton_score>liftoff_score	2075
-lifton_score=liftoff_score	174643
+lifton_score=liftoff_score	174644
 lifton_score>miniprot_score	30276
-lifton_score=miniprot_score	146435
+lifton_score=miniprot_score	146436
 liftoff_score>lifton_score	10
-liftoff_score=lifton_score	174643
+liftoff_score=lifton_score	174644
 liftoff_score>miniprot_score	29596
-liftoff_score=miniprot_score	146011
+liftoff_score=miniprot_score	146012
 miniprot_score>lifton_score	17
-miniprot_score=lifton_score	146435
+miniprot_score=lifton_score	146436
 miniprot_score>liftoff_score	1121
-miniprot_score=liftoff_score	146011
+miniprot_score=liftoff_score	146012
