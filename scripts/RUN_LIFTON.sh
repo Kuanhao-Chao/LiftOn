@@ -128,4 +128,4 @@ echo "miniprot annotation: $MINIPROT_gff"
 echo "intermediate_dir: $intermediate_dir"
 echo "lifton -D -g $REFERENCE_gff -dir $intermediate_dir -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG $EVALUATION"
 
-lifton -D -g $REFERENCE_gff -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG $EVALUATION
+echo lifton -D -g $REFERENCE_gff -o $output_LIFTON_gff --liftoff $LIFTOFF_gff --miniprot $MINIPROT_gff --proteins $ref_proteins --transcripts $ref_trans -copies $TARGET_genome $REFERENCE_genome $ADDITIONAL_ARG $EVALUATION
