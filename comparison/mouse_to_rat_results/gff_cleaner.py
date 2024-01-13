@@ -10,9 +10,9 @@ def create_database(gff_filepath, db_filepath, overwrite=False, change_miniprot_
     
     def get_orig_id(feature): 
         try:
-            return feature["Target"][0].split()[0]       
+            return feature["Target"][0].split()[0] # gffutils gets confused by block numbers at end      
         except:
-            return feature["Parent"][0]
+            return feature["Parent"][0] # throwaway
     
     if not os.path.exists(db_filepath) or overwrite:
         try:

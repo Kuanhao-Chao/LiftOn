@@ -39,8 +39,7 @@ def main():
     lifton_db = gffutils.FeatureDB('./lifton_output/lifton/lifton.db', keep_order=True)
     targets = read_targets('./extracted_gff/targets.txt')
     
-    for feature in miniprot_db.all_features():
-        print(feature.id)
+    print(str(miniprot_db['rna-NM_001305875.1']))
 
     #extract_targets(liftoff_db, miniprot_db, lifton_db, targets)
 
