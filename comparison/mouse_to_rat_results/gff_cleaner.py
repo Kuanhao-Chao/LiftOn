@@ -6,11 +6,22 @@ from progress.bar import Bar
 import sqlite3
 import os
 
-def create_database(gff_filepath, db_filepath, overwrite=False):
+def create_database(gff_filepath, db_filepath, overwrite=False, change_miniprot_id=False):
+    
+    def get_orig_id(feature): 
+        try:
+            return feature["Target"][0].split()[0]       
+        except:
+            return feature["Parent"][0]
+    
     if not os.path.exists(db_filepath) or overwrite:
         try:
-            # Create the GFF database
-            db = gffutils.create_db(gff_filepath, dbfn=db_filepath, force=True, keep_order=True, merge_strategy='create_unique', sort_attribute_values=True, verbose=True)
+            if change_miniprot_id:
+                # Use the standard IDs instead of miniprot's ID
+                db = gffutils.create_db(gff_filepath, dbfn=db_filepath, id_spec=get_orig_id, force=True, keep_order=True, merge_strategy='create_unique', sort_attribute_values=True, verbose=True)
+            else: 
+                # Create the GFF database
+                db = gffutils.create_db(gff_filepath, dbfn=db_filepath, force=True, keep_order=True, merge_strategy='create_unique', sort_attribute_values=True, verbose=True)
         except sqlite3.IntegrityError as e:
             print(f"Error during database creation: {e}.\nRetrying with skipping merge strategy.")
             # Use warning strategy to ignore all duplicate IDs during creation
@@ -25,9 +36,6 @@ def create_database(gff_filepath, db_filepath, overwrite=False):
             # Force update the database
             db = create_database(gff_filepath, db_filepath, overwrite=True)
     return db
-
-def clean(db):
-    pass
     
 def write_to_gff(db, gff_filepath, overwrite=False):
     if not os.path.exists(gff_filepath) or overwrite:
@@ -73,7 +81,7 @@ def write_pc_only(db, gff_filepath, overwrite=False):
         gff_out.close()
 
     else: 
-        print(f'File exists at {gff_filepath}, skipping.')
+        print(f'File exists at {gff_filepath}, skipping.')  
 
 def main():
 
@@ -92,10 +100,12 @@ def main():
         new_gff_filepath = os.path.splitext(gff_filepath)[0] + '.cleaned.gff3'
         no_gene_filepath = os.path.splitext(gff_filepath)[0] + '.nogene.gff3'
         pc_only_filepath = os.path.splitext(gff_filepath)[0] + '.pconly.gff3'
-        clean(db)
-        write_to_gff(db, new_gff_filepath)
+        write_to_gff(db, new_gff_filepath) 
         write_no_gene(db, no_gene_filepath)
         write_pc_only(db, pc_only_filepath)
 
+
 if __name__ == '__main__':
-    main()
+    # main()
+
+    db = create_database('./lifton_output/miniprot/miniprot.sorted.gff3', './lifton_output/miniprot_target/miniprot_target.db', overwrite=True, change_miniprot_id=True)
