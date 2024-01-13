@@ -1,4 +1,5 @@
-scripts/unmapped_features.txt
+scripts/
+experiments/
 lifton_protein.gff3
 lifton.gff3
 results/
