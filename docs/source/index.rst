@@ -122,7 +122,9 @@ The process begins by extracting protein sequences annotated by Liftoff and mini
     3. reference **Annotation** :math:`R_A` in GFF3  
 * **Output**: 
     1. LiftOn annotation file in GFF3
-    2. Protein sequence identities
+    2. Protein sequence identities & mutation types
+    3. Features with extra copies
+    4. Unmapped features
 
 |
 

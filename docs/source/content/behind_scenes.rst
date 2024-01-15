@@ -42,9 +42,9 @@ Using lift-over RefSeq v110 annotations from GRCh38 to T2T-CHM13 V2.0 as an exam
 |
 
 
-.. _model-architecture:
+.. _protein-maximization_algorithm:
 
-*Chaining algorithm*
+*Protein-maximization algorithm*
 +++++++++++++++++++++++++++++++++++
 
 The *chaining algorithm* extracts protein sequences from Liftoff and miniprot annotations, aligns them with a reference protein, and maps CDS boundaries by accumulating amino acids in the alignment. CDS groups are formed, and their partial protein sequence identity is compared. The CDS with the highest identity score in each group represents the LiftOn annotation. This approach effectively addresses issues like in-frame indels or mis-splicing. LiftOn then uses an interval tree to find overlapping miniprot-aligned protein-coding transcripts.
@@ -60,7 +60,9 @@ The *chaining algorithm* extracts protein sequences from Liftoff and miniprot an
 
 |
 
-Mutation reporting
+.. _mutation-reporting:
+
+Mutation report
 +++++++++++++++++++++++++++++++++++
 
 LiftOn identifies biological differences between reference and target genomes by aligning DNA and protein sequences. It classifies protein-coding transcripts as "identical" or provides detailed reports for mutations, including "synonymous," "non-synonymous," "in-frame insertion," and "in-frame deletion." For severe mutations, it reports "frameshift," "start codon loss," "stop codon gain," and "stop codon loss," conducting an open reading frame search.

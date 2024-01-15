@@ -3,7 +3,7 @@
 Quick Start Guide
 =================
 
-This page offers straightforward quick-start information on using LiftOn to map annotations on :code:`chr22:1-50755568` from GRCh38 release 110  to T2T-CHM13 v2.0. If you haven't already, please follow the steps outlined on the :ref:`Installation` page to install and load LiftOn.
+This page offers straightforward quick-start information on using LiftOn to map RefSeq v110 annotations on :code:`chr22:1-50755568` from GRCh38 version 40 patch 14 to T2T-CHM13 v2.0. If you haven't already, please follow the steps outlined on the :ref:`Installation` page to install and load LiftOn.
 
 Before you get started, make sure you have already cloned the `LiftOn GitHub repository <https://github.com/Kuanhao-Chao/LiftOn>`_. We provide an example in `test/lifton_chr22_example.sh <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/lifton_chr22_example.sh>`_.
 

@@ -3,191 +3,109 @@
 Q & A ...
 ==========
 
-.. Q: What is Splam?
-.. -------------------------------------------
-
-.. <div style="padding-left:20px">
-
-.. dropdown:: Q: What is Splam?
+.. dropdown:: Q: What is LiftOn?
     :animate: fade-in-slide-down
     :container: + shadow
     :title: bg-dark font-weight-bolder howtoclass
     :body: bg-dark text-left
 
-    Splam stands for two things: **(1)** Splam refers to the deep grouped residual CNN model that we designed to accurately predict splice junctions (based solely on an input DNA sequence), and **(2)** it also stands for this software which can clean up alignment files and evaluate annotation files.
+    LiftOn is a homology-based lift-over annotation tool designed to map annotations in GFF or GTF between assemblies.
+
+    LiftOn is built upon the impressive tools, `Liftoff <https://github.com/agshumate/Liftoff>`_ (developed by `Dr. Alaina Shumate <https://scholar.google.com/citations?user=N3tXk7QAAAAJ&hl=en>`_) and `miniprot <https://github.com/lh3/miniprot>`_ (`Dr. Heng Li <http://liheng.org>`_). 
 
 |
 
 
-.. Q: Why do we need Splam?
-.. -------------------------------------------
-
-.. dropdown:: Q: Why do we need Splam?
+.. dropdown:: Q: Why do we need LiftOn?
     :animate: fade-in-slide-down
     :container: + shadow
     :title: bg-light font-weight-bolder
     :body: bg-light text-left
 
-    We are concerned about the method of training splice junction predictors by relying on splice junctions in solely canonical transcripts. Designing a splice site recognition method based only on one isoform per gene may result in mislabeling alternative splice sites even when they are perfectly valid. Therefore, 
+    Rather than repeatedly annotating novel genome assemblies, a more efficient strategy involves transferring genes from well-annotated organisms of the same or closely related species.
 
-        * **we designed a biologically realistic model.** Splam was trained on combined donor and acceptor pairs, with a focus on a narrow window of 400 base pairs surrounding each splice site. This approach is inspired by the understanding that the splicing process primarily relies on signals within this specific region.
+    `Liftoff <https://github.com/agshumate/Liftoff>`_, being entirely DNA-based, utilizes minimap2 to align gene loci DNA sequences to the genome and convert gene coordinates to the new assembly. However, when a newly assembled genome deviates significantly from the reference DNA sequence, the alignment may produce transcripts with incorrect protein-coding sequences or erroneous splice sites, posing challenges in annotation, particularly for more distantly related species.
 
+    `miniprot <https://github.com/lh3/miniprot>`_, on the other hand, is exclusively protein-based. This approach has limitations. (1) It cannot capture untranslated regions (UTRs), (2) may miss small exons in cases of long introns, (3) is susceptible to aligning proteins to pseudogenes due to the disregard of intronic sequences, and (4) may combine coding sequences (CDSs) from distinct genes when arranged in tandem along a genome. (5) Additionally, it solely applies to protein-coding transcripts, excluding non-coding genes or other features.
 
-    Furthermore, there are two applications of Splam: 
-
-    When inspecting an alignment file in IGV, it becomes apparent that some reads are spliced and aligned across different gene loci or intergenic regions. This raises the question, "Are these spliced alignments correct?" Therefore,
-
-        * **we need a trustworthy way to evaluate all the spliced alignments in the alignment file.** Splam learns splice junction patterns, and we have demonstrated that applying Splam to remove spurious spliced alignments improves transcript assembly! :ref:`alignment evaluation section <alignment-detailed-section>`.
-
-    Additionally, we acknowledge that annotation files are not perfect, and there are more errors in the assembled transcripts. The current approach to assessing assembled transcripts involves comparing them with the annotation.
-
-        * **we can utilize Splam to score all introns in transcripts and provide a reference-free evalutation.**  :ref:`annotation evaluation section <annotation-detailed-section>`.
-
-
-
-|
-
-.. Q: What makes Splam different from SpliceAI?
-.. -------------------------------------------
-
-.. dropdown:: Q: What makes Splam different from SpliceAI?
-    :animate: fade-in-slide-down
-    :container: + shadow
-    :title: bg-light font-weight-bolder
-    :body: bg-light text-left
-
-
-    Splam and SpliceAI are both frameworks used for predicting splice junctions in DNA sequences, but they have some key differences.
-
-
-    #. **Input constraints:**
- 
-       * **Splam**: Follows the design principle of using biologically realistic input constraints. It uses a window limited to 200 base pairs on each side of the donor and acceptor sites, totaling 800 base pairs. Furthermore, we pair each donor and acceptor as follows
-
-       .. figure::  ../_images/splam_input.png
-            :align:   center
-            :scale:   7%
-     
-       * **SpliceAI**: The previous state-of-the-art CNN-based system, SpliceAI, relies on a window of 10,000 base pairs flanking each splice site to obtain maximal accuracy. However, this window size is much larger than what the splicing machinery in cells can recognize.
-
-
-    #. **Training data**
+    To overcome these limitations, we created LiftOn, which combines the advantages of both DNA- and protein-based approaches and applies :ref:`protein-maximization (PM) algorithm <protein-maximization_algorithm>` leading to enhanced protein-coding gene annotation.
     
-       * **Splam**: Was trained using a high-quality dataset of human donor and acceptor sites. Check out the :ref:`data curation section <data-curation>`.
+|
+
+
+.. dropdown:: Q: How much does LiftOn improve over Liftoff and miniprot?
+    :animate: fade-in-slide-down
+    :container: + shadow
+    :title: bg-light font-weight-bolder
+    :body: bg-light text-left
+
+    Here is one example of improvement over human annotation lift-over from GRCh38 to T2T-CHM13. 
+
     
-       * **SpliceAI**: Was trained with canonical transcripts only, and does not consider alternative splicing.
+    .. _figure-qa-scatter-plots:
+
+    .. figure::  ../_images/human_refseq/combined_scatter_plots.png
+        :align:   center
+        :scale:   21 %
+
+    Each dot represents a protein-coding transcript. If it is above the x=y line, it indicates that the LiftOn annotation possesses a higher protein sequence identity score and corresponds to a longer protein that aligns with the proteins in the reference annotation.
+
+    In the LiftOn versus Liftoff comparison (Figure above, left), 2,075 transcripts exhibit higher protein sequence identity, with 460 achieving 100% identity. Similarly, the LiftOn versus miniprot comparison (Figure above, right) discloses better matches for 30,276 protein-coding transcripts, improving 22,616 to identical status relative to the reference. 
+
+    In summary, LiftOn effectively corrects quite a few protein-coding transcripts during human lift-over. The improvement is even more significant when it comes to more distant species!
+
+    Check out the :ref:`Same species lift-over section <same_species-section>`, :ref:`Closely related species lift-over section <close_species-section>`, and :ref:`Distantly related species lift-over section  <distant_species-section>` for more details.
+
 
 | 
 
-.. dropdown:: Q: What is the difference between two released model, :code:`splam.pt` and :code:`splam_script.pt`?
+
+
+.. dropdown:: Q: How do we interpret LiftOn output?
     :animate: fade-in-slide-down
     :container: + shadow
     :title: bg-light font-weight-bolder
     :body: bg-light text-left
 
-    You may have noticed that we have two released Splam models: ":code:`splam.pt`" and ":code:`splam_script.pt`".
-
-    * :code:`splam.pt` [`link <https://github.com/Kuanhao-Chao/splam/blob/main/model/splam.pt>`_] is the original model that requires the original model script to load and run.
-
-    * :code:`splam_script.pt` [`link <https://github.com/Kuanhao-Chao/splam/blob/main/model/splam_script.pt>`_] is the Torchscripted Splam model. Torchscript serializes and optimizes PyTorch code for improved performance and deployment. Essentially, it allows you to convert PyTorch code into a more efficient intermediate representation, which can be used for Just-In-Time (JIT) compilation and deployment without the need for the Python interpreter.
-
-    .. important::
-
-        In sum, we strongly recommend using :code:`splam_script.pt` for all users. It provides a faster, portable, and secure way of deploying the model.
+    Check out the :ref:`Output files section <output_files>`.
 
 
+| 
+
+.. dropdown:: Q: Can you explain the new protein-maximization (PM) algorithm in LiftOn?
+    :animate: fade-in-slide-down
+    :container: + shadow
+    :title: bg-light font-weight-bolder
+    :body: bg-light text-left
+
+    Check out the :ref:`Protein-maximization algorithm section <protein-maximization_algorithm>`.
 
 |
 
-.. Q: Which mode should I run Splam, :code:`cpu`, :code:`cuda`, or :code:`mps`?
-.. -------------------------------------------------------------------------------
-
-.. dropdown:: Q: Which mode should I run Splam, :code:`cpu`, :code:`cuda`, or :code:`mps`?
+.. dropdown:: Q: How to you evaluate the lift-over annotation?
     :animate: fade-in-slide-down
     :container: + shadow
     :title: bg-light font-weight-bolder
     :body: bg-light text-left
 
-
-    By default, Splam automatically detects your environment and runs in :code:`cuda` mode if CUDA is available. However, if your computer is running macOS, Splam will check if :code:`mps` mode is available. If neither :code:`cuda` nor :code:`mps` are available, Splam will run in :code:`cpu` mode. You can explicitly specify the mode using the :code:`-d / --device` argument.
-
-    .. important::
-
-        In sum, 
-
-        1. if you are using the Apple Silicon Mac, you should run Splam with :code:`mps` mode. 
-
-
-        2. If you are using Linux with CUDA installed, you should run Splam with :code:`cuda` mode.
-
-
-        3. If you are none of the above cases, then you can still run Splam with :code:`cpu`` mode.
-
-
-    You can check out the `Pytorch website <https://pytorch.org/docs/stable/tensor_attributes.html#torch.device>`_ for more explanation about the :code:`device` parameter.
+    Check out the :ref:`DNA & protein transcript sequence identity score calculation section <lifton_sequence_identity>`.
 
 
 | 
 
-.. Q: How do I interpret Splam scores?
-.. -------------------------------------
-
-.. dropdown:: Q: How do I interpret Splam scores?
+.. dropdown:: Q: How does LiftOn report mutated genes?
     :animate: fade-in-slide-down
     :container: + shadow
     :title: bg-light font-weight-bolder
     :body: bg-light text-left
 
-    Given an input of length 800nt, Splam outputs a Tensor with dimensions (3 x 800). The first channel represents the "acceptor scores", the second channel represents the "donor scores", and the third channel represents the "non-splice site scores". Each score is between 0 and 1, representing Splam's confidence in a given site being a splice site. A score closer to one indicates a higher level of confidence in its classification.
+    LiftOn compares reference and target transcripts, similar to `Liftofftools <https://github.com/agshumate/LiftoffTools>`_, generating a mutation report for mapped protein-coding transcripts. 
+    
+    Transcripts are considered "**identical**" if their target and reference gene DNA sequences match entirely. For mutated sequences, LiftOn categorizes changes as "**synonymous**", "**non-synonymous**", "**in-frame insertion**", "**in-frame deletion**", "**frameshift**", "**stop codon gain**", "**stop codon loss**", and "**start codon loss**".
+
+    Check out the :ref:`Mutation report section <mutation-reporting>`.
 
 |
-
-.. .. Q: What is canonical transcripts? 
-.. .. ------------------------------------------
-
-.. .. dropdown:: Q: What is canonical transcripts? 
-..     :animate: fade-in-slide-down
-..     :container: + shadow
-..     :title: bg-light font-weight-bolder
-..     :body: bg-light text-left
-
-
-.. |
-
-.. .. Q: What is alternative splicing?
-.. .. ------------------------------------------
-
-.. .. dropdown:: Q: What is alternative splicing?
-..     :animate: fade-in-slide-down
-..     :container: + shadow
-..     :title: bg-light font-weight-bolder
-..     :body: bg-light text-left
-
-
-.. Q: What is the model architecture of Splam?
-.. -----------------------------------------
-
-
-.. dropdown:: Q: What is the model architecture of Splam?
-    :animate: fade-in-slide-down
-    :container: + shadow
-    :title: bg-light font-weight-bolder
-    :body: bg-light text-left
-
-    Check out the :ref:`model architecture section <model-architecture>`.
-
-| 
-
-.. Q: How is Splam trained?
-.. --------------------------------
-
-.. dropdown:: Q: How is Splam trained?
-    :animate: fade-in-slide-down
-    :container: + shadow
-    :title: bg-light font-weight-bolder
-    :body: bg-light text-left
-
-    Check out the :ref:`splam training and testing section <splam-train-test>`.
 
 
 |
