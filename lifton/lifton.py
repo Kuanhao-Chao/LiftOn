@@ -120,11 +120,12 @@ def parse_args(arglist):
     ###################################
     # START for the LiftOn params
     ###################################
-    referencegrp.add_argument(
+    referenceseqgrp = parser.add_argument_group('* Optional input (Reference sequences)')
+    referenceseqgrp.add_argument(
         '-P', '--proteins', metavar='FASTA', required=False, default=None,
         help='the reference protein sequences.'
     )
-    referencegrp.add_argument(
+    referenceseqgrp.add_argument(
         '-T', '--transcripts', metavar='FASTA', required=False, default=None,
         help='the reference transcript sequences.'
     )
@@ -147,7 +148,7 @@ def parse_args(arglist):
     ###################################
     parser._positionals.title = '* Required input (sequences)'
     parser._optionals.title = '* Miscellaneous settings'
-    parser._action_groups = [parser._positionals, referencegrp, liftoffrefrgrp, miniprotrefrgrp, parser_outgrp, parser._optionals, parser_aligngrp]
+    parser._action_groups = [parser._positionals, referencegrp, referenceseqgrp, liftoffrefrgrp, miniprotrefrgrp, parser_outgrp, parser._optionals, parser_aligngrp]
     args = parser.parse_args(arglist)
     if '-a' not in args.mm2_options:
         args.mm2_options += ' -a'
