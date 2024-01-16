@@ -106,6 +106,7 @@ def parse_args(arglist):
     parser.add_argument('target', help='target fasta genome to lift genes to')
     parser.add_argument('reference', help='reference fasta genome to lift genes from')
     parser.add_argument('-E', '--evaluation', help='Run LiftOn in evaluation mode', action='store_true', default = False)
+    parser.add_argument('-c', '--write_chains', help='Write chaining files', action='store_true', default = True)
     parser_outgrp = args_outgrp(parser)
     parser_aligngrp = args_aligngrp(parser)
     args_optional(parser)
@@ -263,9 +264,12 @@ def run_all_lifton_steps(args):
     # Open output files
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
-    fw_chain = open(f"{lifton_outdir}/chain.txt", "w")
     fw_unmapped = open(f"{lifton_outdir}/unmapped_features.txt", "w")
     fw_extra_copy = open(f"{lifton_outdir}/extra_copy_features.txt", "w")
+    if args.write_chains:
+        fw_chain = open(f"{lifton_outdir}/chain.txt", "w")
+    else:
+        fw_chain = None
 
     ################################
     # Step 6: Creating miniprot 2 Liftoff ID mapping
@@ -284,7 +288,7 @@ def run_all_lifton_steps(args):
     ################################
     for feature in features:
         for locus in l_feature_db.features_of_type(feature):#, limit=("NW_020825194.1", 28072487, 28072684)):
-            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG)
+            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args.write_chains, DEBUG)
             # Writing out LiftOn entries
             lifton_gene.write_entry(fw)
 
@@ -318,9 +322,10 @@ def run_all_lifton_steps(args):
     # Close output files
     fw.close()
     fw_score.close()
-    fw_chain.close()
     fw_unmapped.close()
     fw_extra_copy.close()
+    if args.write_chains:
+        fw_chain.close()
 
 
 def main(arglist=None):

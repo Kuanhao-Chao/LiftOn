@@ -14,6 +14,7 @@ def check_miniprot_installed():
             print("miniprot is not properly installed.")
         return sys.exit(1)
 
+
 def get_truncated_protein(ref_proteins):
     truncated_proteins = {}
     for record in ref_proteins.keys():
@@ -33,13 +34,10 @@ def write_seq_2_file(outdir, ref_seqs, target):
         ref_seqs_file = outdir + "/proteins.fa"
     elif target == "transcripts":
         ref_seqs_file = outdir + "/transcripts.fa"
-
     fw = open(ref_seqs_file, 'w')
-
     # Iterate through the original FASTA and write the records to the new FASTA file
     for record in ref_seqs.keys():
         seq = ref_seqs[record]
-
         fw.write(f'>{record}\n{seq}\n')
     fw.close()
     return ref_seqs_file
@@ -49,15 +47,12 @@ def check_protein_valid(protein):
     # The length of the protein has to be greater than 0
     if len(protein) == 0:
         return False
-    
     # Start with M
     if protein[0] != "M":
         return False
-    
     # End with *
     if protein[-1] != "*":
         return False
-
     # Only 1 * in the string
     if protein.count("*") != 1:
         return False
@@ -65,16 +60,7 @@ def check_protein_valid(protein):
     
 
 def exec_liftoff(outdir, args):
-    # Run liftoff with no extra-copies
-    ################################
-    # Check if liftoff and miniprot results are generated
-    ################################
-    # liftoff_annotation = outdir + "/" + "liftoff.gff3"
-    # print("liftoff_annotation  : ", liftoff_annotation)
-    
-    ################################
     # Execute liftoff
-    ################################
     liftoff_annotation = args.liftoff
     if liftoff_annotation is None or not os.path.exists(liftoff_annotation):
         print("\n*********************")
@@ -85,14 +71,7 @@ def exec_liftoff(outdir, args):
 
 
 def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
-    ################################
-    # Check if liftoff and miniprot results are generated
-    ################################
-    # miniprot_annotation = outdir + "/" + "miniprot.gff3"
-    # print("miniprot_annotation : ", miniprot_annotation)
-    ################################
     # Execute miniprot
-    ################################
     check_miniprot_installed()
     miniprot_annotation = args.miniprot
     if miniprot_annotation is None or not os.path.exists(miniprot_annotation):
@@ -119,10 +98,8 @@ def get_child_types(parent_types, db):
 
 def segments_overlap(segment1, segment2):
     # Check if the segments have valid endpoints
-    # print("Checking two segments overlapping.!")
     if len(segment1) != 2 or len(segment2) != 2:
-        raise ValueError("Segments must have exactly 2 endpoints")
-    
+        raise ValueError("Segments must have exactly 2 endpoints")    
     # Sort the segments by their left endpoints
     segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
     # Check if the right endpoint of the first segment is greater than or equal to the left endpoint of the second segment
@@ -143,7 +120,7 @@ def custom_bisect_insert(sorted_list, element_to_insert):
 
 
 def get_ID_base(id):
-    # # Regular expression pattern to match the desired substrings
+    # Regular expression pattern to match the desired substrings
     splits = id.split("_")
     try:
         int(splits[-1])
@@ -152,6 +129,7 @@ def get_ID_base(id):
         id_base = id
     return id_base
 
+
 def get_ID(feature):
     # print("feature: ", feature)
 
@@ -159,6 +137,7 @@ def get_ID(feature):
     id = feature.id
     id_base = get_ID_base(id)
     return id, id_base
+
 
 def get_parent_features_to_lift(feature_types_file):
     feature_types = ["gene"]
@@ -173,7 +152,6 @@ def get_parent_features_to_lift(feature_types_file):
 def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
     m_lifton_aln = None
     has_valid_miniprot = False
-
     if (ref_trans_id in m_id_dict.keys()) and (ref_trans_id in ref_proteins.keys()):
         m_ids = m_id_dict[ref_trans_id]
         for m_id in m_ids:
@@ -185,7 +163,6 @@ def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton
             if not overlap or m_entry.seqid != transcript.seqid:
                 # "Not overlapped"
                 continue
-
             ##################################################
             # Check 2: reference overlapping status
             #   1. Check it the transcript overlapping with the next gene
@@ -196,12 +173,10 @@ def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton
             ##################################################
             ovps_liftoff = tree_dict[chromosome].overlap(transcript.start, transcript.end)
             ovps_miniprot = tree_dict[chromosome].overlap(m_entry.start, m_entry.end)
-
             miniprot_cross_gene_loci = False
             liftoff_set = set()
             for ovp_liftoff in ovps_liftoff:
                 liftoff_set.add(ovp_liftoff[2])
-            
             for ovp_miniprot in ovps_miniprot:
                 if ovp_miniprot[2] not in liftoff_set:
                     # Miniprot overlap to more genes
@@ -209,38 +184,21 @@ def LiftOn_check_miniprot_alignment(lifton_trans, chromosome, transcript, lifton
                     break
             if miniprot_cross_gene_loci:
                 continue
-
-            ################################
-            # Step 3: valid miniprot transcript exists => check if the miniprot transcript is valid
-            ################################
+            # Valid miniprot transcript exists => check if the miniprot transcript is valid
             has_valid_miniprot = True
-
-            ###########################
-            # Add LifOn transcript instance
-            ###########################
             miniprot_trans = lifton_class.Lifton_TRANS(m_id, "", "", 0, m_entry, {})
-            ###########################
-            # Add LiftOn exons
-            ###########################
             exons = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start')
             for exon in list(exons):
                 miniprot_trans.add_exon(exon)
-            # logger.log(f"\tAfter adding exons\n", debug=DEBUG)
-            ###########################
-            # Add LiftOn CDS
-            ###########################
             cdss = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start') 
             cds_num = 0
             for cds in list(cdss):
                 cds_num += 1
                 miniprot_trans.add_cds(cds)
-
             tmp_m_lifton_aln = align.parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
             if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
                 m_lifton_aln = tmp_m_lifton_aln
-                # SETTING miniprot identity score                
                 lifton_status.miniprot = m_lifton_aln.identity
-
     return m_lifton_aln, has_valid_miniprot
 
 
@@ -249,25 +207,19 @@ def get_ref_liffover_features(features, ref_db):
     ref_features_reverse_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
-
     for f_itr in features:
         for locus in ref_db.db_connection.features_of_type(f_itr):
-
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
-
             feature = lifton_class.Lifton_feature(locus.id)
             if len(CDS_children) > 0:
                 # This is the protien-coding gene
                 feature.is_protein_coding = True
-                
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
-
             if len(exon_children) > 0:
                 process_ref_liffover_features(locus, ref_db, None)
             else:
                 transcripts = ref_db.db_connection.children(locus, level=1)
                 for transcript in list(transcripts):
-                    # print(transcript)
                     process_ref_liffover_features(transcript, ref_db, feature)
                     ref_features_reverse_dict[transcript.id] = locus.id
             ref_features_dict[locus.id] = feature
@@ -314,11 +266,9 @@ def extract_ref_ids(ref_features_dict, liftoff_id):
 def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_ref_id_trans_dict):
     if miniprot_trans_id not in m_id_2_ref_id_trans_dict.keys():
         return None, None
-    
     ref_trans_id = m_id_2_ref_id_trans_dict[miniprot_trans_id]
     if ref_trans_id not in ref_features_reverse_dict.keys():
         return None, ref_trans_id
-    
     return ref_features_reverse_dict[ref_trans_id], ref_trans_id
 
 
@@ -326,42 +276,42 @@ def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status)
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.eval_dna}\t{lifton_status.eval_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
+
 def print_lifton_status(transcript_id, transcript, lifton_status, DEBUG=False):
     final_status = ";".join(lifton_status.status)
     logger.log(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n", debug=DEBUG)
+
 
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
+
 def write_lifton_chains(fw_chain, transcript_id, chains):
     chain_ls = ";".join(chains)
     fw_chain.write(f"{transcript_id}\t{chain_ls}\n")
 
+
 def segments_overlap_length(segment1, segment2):
     # Check if the segments have valid endpoints
-    # print("Checking two segments overlapping.!")
     if len(segment1) != 2 or len(segment2) != 2:
         raise ValueError("Segments must have exactly 2 endpoints")
-    
     # Sort the segments by their left endpoints
     segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
     # print("Checking miniprot overlapped length: ", segment1[1] - segment2[0] + 1)
-
     return segment1[1] - segment2[0] + 1
+
 
 def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
     is_overlapped = False
     if mtrans.seqid not in tree_dict.keys():
         return is_overlapped
-    
     ovps = tree_dict[mtrans.seqid].overlap(mtrans_interval)
     for ovp in ovps:
         ovp_len = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
         ref_len = ovp[1] - ovp[0] + 1
         # Overlapping does not extend the ratio of the reference
         if (ovp_len / ref_len) > overlap_ratio:
-            # print("Overlapped!!: ", (ovp_len / ref_len))
             is_overlapped = True
             break
     return is_overlapped
