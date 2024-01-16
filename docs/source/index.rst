@@ -72,7 +72,7 @@ LiftOn's tutorial
 .. ==================
 
 
-LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. This tool is constructed on the foundation of the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and integrates `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ protein alignment for an improved homology-based lift-over process.
+LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. This tool is constructed on the foundation of the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and integrates `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ protein alignment for an improved protein-coding gene lift-over process.
 
 .. LiftOn improves the protein-coding gene annotations and improves same or closely-related species lift-over!
 
@@ -86,9 +86,9 @@ Why LiftOn❓
 
 1. **Burgeoning number of genome assemblies**: As of December 2023, among the 15,578 distinct eukaryotic genomes, only 1,111 have been annotated (`Eukaryotic Genome Annotation at NCBI <https://www.ncbi.nlm.nih.gov/genome/annotation_euk/#graphs>`_). More and more high quality assemblies are generated. We need to accurately annotate them!
 
-2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over annotation! LiftOn is able to improve the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_). 
+2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over protein-coding gene annotations! LiftOn is able to improve the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_). 
 
-3. **Improved distant species lift-over**: See mapping from *Mus musculus* to *Rattus norvegicus* and *Drosophila melanogaster* to *Drosophila erecta*.
+3. **Improved distant species lift-over**: See mapping from :ref:`mouse_2_rat` and :ref:`drosophila_melanogaster_2_erecta` sections.
 
 LiftOn is free, it's open source, it's easy to install , and it's in Python!
 
@@ -98,7 +98,8 @@ Who is it for❓
 ====================================
 
 1. If you have sequenced and assembled a new genome and need to annotate it, LiftOn is the ideal choice for generating annotations.
-2. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the `T2T_CHM13_LiftOn.gff3 <https://khchao.com>`_ file for your convenience.
+2. If you want to do comparative genomics analysis, run liftOn to lift-over and compare annotations!
+3. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the `T2T_CHM13_LiftOn.gff3 <https://khchao.com>`_ file for your convenience.
 
 
 |
@@ -114,7 +115,11 @@ LiftOn is designed for individuals who would like to annotate a new assembly, re
 
 The first step is to select a well-annotated genome along with its annotation, denoted as reference **Genome** :math:`R` and **Annotation** :math:`R_A`. 
 
-The process begins by extracting protein sequences annotated by Liftoff and miniprot. These sequences are then aligned with full-length reference proteins. For each gene locus, LiftOn employs the *chaining algorithm* that compares each section of the protein alignments from Liftoff and miniprot. This algorithm corrects errors in exon and CDS boundaries, resulting in the better protein annotations that preserves the longest matching proteins.
+LiftOn employs a two-step  :ref:`protein-maximization_algorithm` (PM algorithm). 
+
+1. The first module is the *chaining algorithm*. It starts by extracting protein sequences annotated by Liftoff and miniprot. These sequences are then aligned with full-length reference proteins. For each gene locus, LiftOn compares each section of the protein alignments from Liftoff and miniprot. This algorithm corrects errors in exon and CDS boundaries, resulting in the better protein annotations that preserves the longest matching proteins.
+
+2. The second module is the *open-reading frame search (ORF search) algorithm*. In the case of truncated protein-coding transcripts, this algorithm examines alternative frames to identify the ORF that produces the longest match with the reference protein.
 
 * **Input**: 
     1. target **Genome** :math:`T` in FASTA 

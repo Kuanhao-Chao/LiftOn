@@ -5,30 +5,34 @@ Output files
 
 After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_output/` directory. More details are shown in the output directory hierarchy below. This page provides guidance on how to interpret your results.
 
-.. code-block:: 
+.. admonition:: LiftOn output directory hierarchy 
+   :class: note
 
-   # LiftOn output directory hierarchy 
-   .
-   ├── lifton.GFF3
-   └── lifton_output
-      ├── intermediate_files
-      │   ├── proteins.fa
-      │   ├── proteins_truncated.fa
-      │   ├── reference_all_genes.fa
-      │   ├── reference_all_to_target_all.sam
-      │   └── transcripts.fa
-      │
-      ├── liftoff
-      │   ├── liftoff.GFF3
-      │   └── liftoff.GFF3_db
-      │
-      ├── miniprot
-      │   ├── miniprot.GFF3
-      │   └── miniprot.GFF3_db
-      │
-      ├── extra_copy_features.txt
-      ├── score.txt
-      └── unmapped_features.txt
+
+   .. code-block:: 
+
+      # LiftOn output directory hierarchy 
+      .
+      ├── lifton.GFF3
+      └── lifton_output
+         ├── intermediate_files
+         │   ├── proteins.fa
+         │   ├── proteins_truncated.fa
+         │   ├── reference_all_genes.fa
+         │   ├── reference_all_to_target_all.sam
+         │   └── transcripts.fa
+         │
+         ├── liftoff
+         │   ├── liftoff.GFF3
+         │   └── liftoff.GFF3_db
+         │
+         ├── miniprot
+         │   ├── miniprot.GFF3
+         │   └── miniprot.GFF3_db
+         │
+         ├── extra_copy_features.txt
+         ├── score.txt
+         └── unmapped_features.txt
 
 
 |
@@ -70,6 +74,9 @@ This directory contains all LiftOn outputs, including the following:
 
 It is a tsv file summarizing the LiftOn results.
 
+.. admonition:: Column definition
+   :class: note
+
    1. Transcript ID
    2. Liftoff transcript protein sequence identity: :math:`0-1`
    3. miniprot transcript protein sequence identity: :math:`0-1`
@@ -106,6 +113,9 @@ It is a tsv file summarizing the LiftOn results.
 
 It is a TSV file summarizing the number of copies of a specific gene and indicating whether it is a coding or non-coding gene.
 
+.. admonition:: Column definition
+   :class: note
+
    1. Gene ID
    2. The number of gene copy
    3. coding or non-coding tag
@@ -137,6 +147,9 @@ It is a TSV file summarizing the number of copies of a specific gene and indicat
 +++++++++++++++++++++++++++++++++++
 
 It is a TSV file summarizing unmapped gene ID.
+
+.. admonition:: Column definition
+   :class: note
 
    1. Gene ID
 

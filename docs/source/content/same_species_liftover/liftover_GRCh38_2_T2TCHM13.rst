@@ -1,16 +1,15 @@
 .. raw:: html
 
     <script type="text/javascript">
-
-        let mutation_lvl_2_fuc = function(mutations) {
+        let mutation_lvl_1_fuc = function(mutations) {
             var dark = document.body.dataset.theme == 'dark';
 
             if (document.body.dataset.theme == 'auto') {
                 dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
             }
             
-            document.getElementsByClassName('sidebar_ccb')[0].src = dark ? '../../../_static/JHU_ccb-white.png' : "../../../_static/JHU_ccb-dark.png";
-            document.getElementsByClassName('sidebar_wse')[0].src = dark ? '../../../_static/JHU_wse-white.png' : "../../../_static/JHU_wse-dark.png";
+            document.getElementsByClassName('sidebar_ccb')[0].src = dark ? '../../_static/JHU_ccb-white.png' : "../../_static/JHU_ccb-dark.png";
+            document.getElementsByClassName('sidebar_wse')[0].src = dark ? '../../_static/JHU_wse-white.png' : "../../_static/JHU_wse-dark.png";
 
 
 
@@ -27,8 +26,8 @@
             }
 
         }
-        document.addEventListener("DOMContentLoaded", mutation_lvl_2_fuc);
-        var observer = new MutationObserver(mutation_lvl_2_fuc)
+        document.addEventListener("DOMContentLoaded", mutation_lvl_1_fuc);
+        var observer = new MutationObserver(mutation_lvl_1_fuc)
         observer.observe(document.body, {attributes: true, attributeFilter: ['data-theme']});
         console.log(document.body);
     </script>
