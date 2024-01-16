@@ -3,17 +3,8 @@ from intervaltree import Interval
 import argparse
 from argparse import Namespace
 from pyfaidx import Fasta, Faidx
-import os, sys
-
+import os
 from concurrent.futures import ProcessPoolExecutor
-import threading
-
-# def process_feature(feature):
-#     # This function processes a single feature
-#     # You can customize this function based on your needs
-#     print(f"Processing feature: {feature.id}")
-#     # Add your processing logic here
-
 
 def args_outgrp(parser):
     outgrp = parser.add_argument_group('* Output settings')
@@ -32,6 +23,7 @@ def args_outgrp(parser):
              'partial_mapping=True, low_identity=True in comments'
     )
     return outgrp
+
 
 def args_aligngrp(parser):
     aligngrp = parser.add_argument_group('Alignments')
@@ -60,6 +52,7 @@ def args_aligngrp(parser):
                                                            "target and "
                                                            "reference; by default F=0.0")
     return aligngrp
+
 
 def args_optional(parser):
     parser.add_argument('-V', '--version', help='show program version', action='version', version=__version__)
@@ -107,17 +100,15 @@ def args_optional(parser):
                                                                                         "missing stop, inframe stop "
                                                                                         "codon)")
 
+
 def parse_args(arglist):
     parser = argparse.ArgumentParser(description='Lift features from one genome assembly to another')
     parser.add_argument('target', help='target fasta genome to lift genes to')
     parser.add_argument('reference', help='reference fasta genome to lift genes from')
-    
     parser.add_argument('-E', '--evaluation', help='Run LiftOn in evaluation mode', action='store_true', default = False)
-
     parser_outgrp = args_outgrp(parser)
     parser_aligngrp = args_aligngrp(parser)
     args_optional(parser)
-
     referencegrp = parser.add_argument_group('* Required input (Reference annotation)')    
     referencegrp.add_argument(
         '-g', '--reference-annotation', metavar='GFF',  required=True,
@@ -125,20 +116,17 @@ def parse_args(arglist):
                 'name of feature database; if not specified, the -g '
                 'argument must be provided and a database will be built automatically'
     )
-
+    ###################################
+    # START for the LiftOn params
+    ###################################
     referencegrp.add_argument(
         '-P', '--proteins', metavar='FASTA', required=False, default=None,
         help='the reference protein sequences.'
     )
-
     referencegrp.add_argument(
         '-T', '--transcripts', metavar='FASTA', required=False, default=None,
         help='the reference transcript sequences.'
     )
-
-    ###################################
-    # START for the LiftOn params
-    ###################################
     liftoffrefrgrp = parser.add_argument_group('* Optional input (Liftoff annotation)')
     liftoffrefrgrp.add_argument(
         '-L', '--liftoff', metavar='gff', default=None,
@@ -146,7 +134,6 @@ def parse_args(arglist):
                 'name of Liftoff gffutils database; if not specified, the -liftoff '
                 'argument must be provided and a database will be built automatically'
     )
-
     miniprotrefrgrp = parser.add_argument_group('* Optional input (miniprot annotation)')
     miniprotrefrgrp.add_argument(
         '-M', '--miniprot', metavar='gff', default=None,
@@ -154,16 +141,13 @@ def parse_args(arglist):
                 'name of miniprot gffutils database; if not specified, the -miniprot '
                 'argument must be provided and a database will be built automatically'
     )
-
     ###################################
     # END for the LiftOn params
     ###################################
-
     parser._positionals.title = '* Required input (sequences)'
     parser._optionals.title = '* Miscellaneous settings'
     parser._action_groups = [parser._positionals, referencegrp, liftoffrefrgrp, miniprotrefrgrp, parser_outgrp, parser._optionals, parser_aligngrp]
     args = parser.parse_args(arglist)
-
     if '-a' not in args.mm2_options:
         args.mm2_options += ' -a'
     if '--eqx' not in args.mm2_options:
@@ -178,12 +162,10 @@ def parse_args(arglist):
         parser.error("-sc must be greater than or equal to -s")
     if (args.chroms is None and args.unplaced is not None):
         parser.error("-unplaced must be used with -chroms")
-
     return args
     
 
 def run_all_lifton_steps(args):
-
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -197,13 +179,11 @@ def run_all_lifton_steps(args):
         outdir = os.path.dirname(args.output)
         outdir = outdir if outdir != "" else "."
         os.makedirs(outdir, exist_ok=True)
-
     lifton_outdir = f"{outdir}/lifton_output/"
     args.directory = "intermediate_files/"
     intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
     os.makedirs(intermediate_dir, exist_ok=True)
     args.directory = intermediate_dir
-    
     logger.log(">> Reading target genome ...", debug=True)
     tgt_fai = Fasta(tgt_genome)
     logger.log(">> Reading reference genome ...", debug=True)
@@ -243,36 +223,29 @@ def run_all_lifton_steps(args):
     trunc_ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, trunc_ref_proteins, "truncated_proteins")
     logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
 
+    # # Evaluation mode
+    # if args.evaluation:
+    #     tgt_annotation = args.output
+    #     ref_annotation = args.reference_annotation
+    #     print("Run LiftOn in evaluation mode")
+    #     print("lifton_outdir     : ", lifton_outdir)
+    #     print("Ref genome        : ", ref_genome)
+    #     print("Target genome     : ", tgt_genome)
+    #     print("Ref annotation    : ", args.reference_annotation)
+    #     print("Target annotation : ", args.output)
+    #     print("ref_trans_file    : ", ref_trans_file)
+    #     print("ref_proteins_file : ", ref_proteins_file)
+    #     logger.log(">> Creating target database : ", tgt_annotation, debug=True)
+    #     tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
+    #     fw_score = open(lifton_outdir+"/eval.txt", "w")
+    #     tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
+    #     for feature in features:
+    #         for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
+    #             evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
+    #     fw_score.close()
+    #     return
 
-    ################################
-    # Evaluation mode
-    ################################
-    if args.evaluation:
-        tgt_annotation = args.output
-        ref_annotation = args.reference_annotation
-        print("Run LiftOn in evaluation mode")
-        print("lifton_outdir     : ", lifton_outdir)
-        print("Ref genome        : ", ref_genome)
-        print("Target genome     : ", tgt_genome)
-        print("Ref annotation    : ", args.reference_annotation)
-        print("Target annotation : ", args.output)
-        print("ref_trans_file    : ", ref_trans_file)
-        print("ref_proteins_file : ", ref_proteins_file)
-
-        logger.log(">> Creating target database : ", tgt_annotation, debug=True)
-        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
-        fw_score = open(lifton_outdir+"/eval.txt", "w")
-        tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
-        for feature in features:
-            for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
-                evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG)
-        fw_score.close()
-        return
-
-
-    ################################
-    # Normal LiftOn mode
-    ################################    
+    # LiftOn mode
     ################################
     # Step 4: Run liftoff & miniprot
     ################################
@@ -280,10 +253,7 @@ def run_all_lifton_steps(args):
     miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
 
     ################################
-    # Step 5: Run LiftOn algorithm
-    ################################
-    ################################
-    # Step 5.0: Create liftoff and miniprot database
+    # Step 5: Create liftoff and miniprot database
     ################################
     logger.log("\n>> Creating liftoff annotation database : ", liftoff_annotation, debug=True)
     l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
@@ -298,65 +268,28 @@ def run_all_lifton_steps(args):
     fw_extra_copy = open(f"{lifton_outdir}/extra_copy_features.txt", "w")
 
     ################################
-    # Step 5.1: Creating miniprot 2 Liftoff ID mapping
+    # Step 6: Creating miniprot 2 Liftoff ID mapping
     ################################
     ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = mapping.miniprot_id_mapping(m_feature_db)
 
     ################################
-    # Step 5.2: Initializing intervaltree
+    # Step 7: Initializing intervaltree
     ################################
     tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
 
     ################################
-    # Step 5.3: Process Liftoff genes & transcripts
+    # Step 8: Process Liftoff genes & transcripts
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
     ################################
     for feature in features:
         for locus in l_feature_db.features_of_type(feature):#, limit=("NW_020825194.1", 28072487, 28072684)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, DEBUG)
-
-            ######################################
             # Writing out LiftOn entries
-            ######################################
             lifton_gene.write_entry(fw)
-                
 
-
-
-    # for feature in features:
-    #     loci = list(l_feature_db.features_of_type(feature))#, limit=("NC_051341.1", 25905292, 25922938)):
-    #     print("Len(loci): ", len(loci))
-    #     # Number of parallel processes (adjust according to your system)
-    #     num_processes = 20
-    #     # Use ProcessPoolExecutor for parallel processing
-    #     with ProcessPoolExecutor(max_workers=num_processes) as executor:
-    #         # Submit each gene feature to the executor for processing
-    #         futures = [executor.submit(process_feature, gene) for gene in loci]
-    #         # Wait for all processes to complete
-    #         for future in futures:
-    #             future.result()
-    # # Assuming 'features' is a list of features
-    # with concurrent.futures.ThreadPoolExecutor() as executor:
-    #     # Replace 'features' with your actual list of features
-    #     features_to_process = features
-
-    #     # Process each locus in parallel
-    #     loci = [locus for feature in features_to_process for locus in l_feature_db.features_of_type(feature)]
-
-    #     print("loci: ", len(loci))
-
-    #     # Use the executor to parallelize the processing of loci
-    #     executor.map(lambda locus: run_liftoff.process_liftoff(None, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw, fw_score, DEBUG), loci)
-    #     # results = list(executor.map(process_liftoff_parallel, loci))
-    # # Ensure all threads have completed before continuing
-    # executor.shutdown()
-
-
-    
-    
     ################################
-    # Step 5.4: Process miniprot transcripts
+    # Step 9: Process miniprot transcripts
     ################################
     for mtrans in m_feature_db.features_of_type('mRNA'):
         mtrans_id = mtrans.attributes["ID"][0]
@@ -364,40 +297,31 @@ def run_all_lifton_steps(args):
         is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
         if not is_overlapped:
             ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
-            ###########################
             # Link the reference trans ID to feature
-            ###########################
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
             logger.log(f"miniprot: ref_gene_id: {ref_gene_id};  ref_trans_id: {ref_trans_id}\t: ", debug=DEBUG)
             if ref_trans_id in ref_proteins.keys() and ref_trans_id in ref_trans.keys():
                 # The transcript match the reference transcript
                 if ref_trans_id != None:
-                    # # Mark transcript as lifted-over
-                    # ref_features_dict[ref_gene_id][ref_trans_id] = True
                     lifton_gene, transcript_id, lifton_status = run_miniprot.lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG)
                 else:
                     ref_gene_id = "LiftOn-gene"
                     lifton_gene, transcript_id, lifton_status = run_miniprot.lifton_miniprot_no_ref_protein(mtrans, m_feature_db, ref_gene_id, ref_trans_id, ref_features_dict, tree_dict, DEBUG)
             lifton_gene.add_lifton_status_attrs(transcript_id, lifton_status)
-            ###########################
-            # Write scores for each transcript
-            ###########################
             lifton_utils.write_lifton_status(fw_score, transcript_id, mtrans, lifton_status)
-            ###########################
-            # Writing out LiftOn entries
-            ###########################
             lifton_gene.write_entry(fw)
 
-
-
+    ################################
+    # Step 10: Printing stats
+    ################################
     stats.print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=DEBUG)
-
     # Close output files
     fw.close()
     fw_score.close()
     fw_chain.close()
     fw_unmapped.close()
     fw_extra_copy.close()
+
 
 def main(arglist=None):
     banner = '''
