@@ -1,3 +1,12 @@
+.. raw:: html
+
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", mutation_lvl_1_fuc);
+        var observer = new MutationObserver(mutation_lvl_1_fuc)
+        observer.observe(document.body, {attributes: true, attributeFilter: ['data-theme']});
+        console.log(document.body);
+    </script>
+
 .. _close_species-section:
 
 Closely-related species lift-over
@@ -18,3 +27,21 @@ LiftOver is particularly effective in mapping annotation between closely-related
     :maxdepth: 1
 
     liftover_GRCh38_2_chimp
+
+
+|
+|
+|
+|
+|
+
+
+.. image:: ../../_images/jhu-logo-dark.png
+   :alt: My Logo
+   :class: logo, header-image only-light
+   :align: center
+
+.. image:: ../../_images/jhu-logo-white.png
+   :alt: My Logo
+   :class: logo, header-image only-dark
+   :align: center

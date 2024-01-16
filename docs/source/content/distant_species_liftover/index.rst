@@ -1,3 +1,13 @@
+.. raw:: html
+
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", mutation_lvl_1_fuc);
+        var observer = new MutationObserver(mutation_lvl_1_fuc)
+        observer.observe(document.body, {attributes: true, attributeFilter: ['data-theme']});
+        console.log(document.body);
+    </script>
+
+
 .. _distant_species-section:
 
 Distant species lift-over
@@ -28,3 +38,21 @@ Following are two examples:
 
     liftover_drosophila_erecta
     liftover_mouse_2_rat
+
+
+|
+|
+|
+|
+|
+
+
+.. image:: ../../_images/jhu-logo-dark.png
+   :alt: My Logo
+   :class: logo, header-image only-light
+   :align: center
+
+.. image:: ../../_images/jhu-logo-white.png
+   :alt: My Logo
+   :class: logo, header-image only-dark
+   :align: center
