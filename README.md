@@ -1,8 +1,9 @@
 # LiftOn
 
+<img alt="My Logo" class="logo header-image only-light align-center" src="graphics/LiftOn_color.png">
+
 <div class="content">
 
-<link rel="preload" href="./_images/jhu-logo-dark.png" as="image"><div class="line-block">
 <div class="line"><br></div>
 </div>
 <section id="lifton-s-tutorial">
@@ -159,6 +160,7 @@
 </section>
 </section>
 
+<br>
 
 ## <a name="citation"></a>Citation<a class="headerlink" href="#citation" title="Permalink to this heading">#</a>
 
@@ -169,5 +171,4 @@ Kuan-Hao Chao*, Mihaela Pertea, Steven L Salzberg*, "LiftOn: a tool to improve a
 <div class="line"><br></div>
 <div class="line"><br></div>
 </div>
-<img alt="My Logo" class="logo header-image only-light align-center" src="_images/jhu-logo-dark.png">
-<img alt="My Logo" class="logo header-image only-dark align-center" src="_images/jhu-logo-white.png">
+<img alt="My Logo" class="logo header-image only-light align-center" src="graphics/jhu-logo-dark.png">
