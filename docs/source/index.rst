@@ -87,11 +87,7 @@ LiftOn's tutorial
 .. ==================
 
 
-LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. This tool is constructed on the foundation of the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and integrates `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ protein alignment for an improved protein-coding gene lift-over process.
-
-.. LiftOn improves the protein-coding gene annotations and improves same or closely-related species lift-over!
-
-.. LiftOn enhances protein-coding gene annotations and facilitates lift-over for the same or closely-related species.
+LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ (credits to `Dr. Alaina Shumate <https://scholar.google.com/citations?user=N3tXk7QAAAAJ&hl=en>`_) and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ (credits to `Dr. Heng Li <http://liheng.org>`_), and employs a :ref:`protein-maximization_algorithm` to improve the protein-coding gene lift-over process.
 
 
 .. lift-over annotator that takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_!
