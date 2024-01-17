@@ -1,91 +1,173 @@
 # LiftOn
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) ![version](https://img.shields.io/badge/version-v.0.0.1-blue)
+<div class="content">
 
-LiftOn is a lift-over annotator that takes [Liftoff](https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true) and [miniprot](https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621) GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both [Liftoff](https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true) and [miniprot](https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621)!
+<link rel="preload" href="./_images/jhu-logo-dark.png" as="image"><div class="line-block">
+<div class="line"><br></div>
+</div>
+<section id="lifton-s-tutorial">
+<embed>
+<a class="reference external image-reference" href="https://img.shields.io/badge/License-GPLv3-yellow.svg"><img alt="https://img.shields.io/badge/License-GPLv3-yellow.svg" src="https://img.shields.io/badge/License-GPLv3-yellow.svg"></a>
+<a class="reference external image-reference" href="https://img.shields.io/badge/version-v.0.0.1-blue"><img alt="https://img.shields.io/badge/version-v.0.0.1-blue" src="https://img.shields.io/badge/version-v.0.0.1-blue"></a>
+<a class="reference external image-reference" href="https://pepy.tech/project/lifton"><img alt="https://static.pepy.tech/personalized-badge/lifton?period=total&amp;units=abbreviation&amp;left_color=grey&amp;right_color=blue&amp;left_text=PyPi%20downloads" src="https://static.pepy.tech/personalized-badge/lifton?period=total&amp;units=abbreviation&amp;left_color=grey&amp;right_color=blue&amp;left_text=PyPi%20downloads"></a>
+<a class="reference external image-reference" href="https://github.com/Kuanhao-Chao/lifton/releases"><img alt="https://img.shields.io/github/downloads/Kuanhao-Chao/lifton/total.svg?style=social&amp;logo=github&amp;label=Download" src="https://img.shields.io/github/downloads/Kuanhao-Chao/lifton/total.svg?style=social&amp;logo=github&amp;label=Download"></a>
+<a class="reference external image-reference" href="https://github.com/Kuanhao-Chao/lifton/releases"><img alt="https://img.shields.io/badge/platform-macOS_/Linux-green.svg" src="https://img.shields.io/badge/platform-macOS_/Linux-green.svg"></a>
+<a class="reference external image-reference" href="https://colab.research.google.com/github/Kuanhao-Chao/lifton/blob/main/notebook/lifton_example.ipynb"><img alt="https://colab.research.google.com/assets/colab-badge.svg" src="https://colab.research.google.com/assets/colab-badge.svg"></a>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+<p>LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic <a class="reference external" href="https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true">Liftoff</a> (credits to <a class="reference external" href="https://scholar.google.com/citations?user=N3tXk7QAAAAJ&amp;hl=en">Dr. Alaina Shumate</a>) and <a class="reference external" href="https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621">miniprot</a> (credits to <a class="reference external" href="http://liheng.org">Dr. Heng Li</a>), and employs a <a class="reference internal" href="content/behind_scenes.html#protein-maximization-algorithm"><span class="std std-ref">Protein-maximization algorithm</span></a> to improve the protein-coding gene lift-over process.</p>
+<section id="why-lifton" class="">
+<h2>Why LiftOn❓<a class="headerlink" href="#why-lifton" title="Permalink to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Burgeoning number of genome assemblies</strong>: As of December 2023, among the 15,578 distinct eukaryotic genomes, only 1,111 have been annotated (<a class="reference external" href="https://www.ncbi.nlm.nih.gov/genome/annotation_euk/#graphs">Eukaryotic Genome Annotation at NCBI</a>). More and more high quality assemblies are generated. We need to accurately annotate them.</p></li>
+<li><p><strong>Improved protein-coding gene mapping</strong>: The popular <a class="reference external" href="https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true">Liftoff</a> map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over protein-coding gene annotations. LiftOn improves the current released T2T-CHM13 annotation (<a class="reference external" href="https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz">JHU RefSeqv110 + Liftoff v5.1</a>).</p></li>
+<li><p><strong>Improved distant species lift-over</strong>: LiftOn extends from lift-over between the same or closely related species to more distantly related species. See <span class="xref std std-ref">mouse_2_rat</span> and <span class="xref std std-ref">drosophila_melanogaster_2_erecta</span> lift-over sections.</p></li>
+</ol>
+<p>LiftOn is free, it's open source, it's easy to install , and it's in Python!</p>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+</section>
+<section id="who-is-it-for" class="">
+<h2>Who is it for❓<a class="headerlink" href="#who-is-it-for" title="Permalink to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>If you have sequenced and assembled a new genome and need to annotate it, LiftOn is the ideal choice for generating annotations.</p></li>
+<li><p>If you want to do comparative genomics analysis, run liftOn to lift-over and compare annotations!</p></li>
+<li><p>If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the <a class="reference external" href="https://khchao.com">T2T_CHM13_LiftOn.gff3</a> file for your convenience.</p></li>
+</ol>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+</section>
+<section id="what-does-lifton-do" class="">
+<h2>What does LiftOn do❓<a class="headerlink" href="#what-does-lifton-do" title="Permalink to this heading">#</a></h2>
+<p>LiftOn is designed for individuals who would like to annotate a new assembly, referred to as target <strong>Genome</strong> <span class="math notranslate nohighlight"><mjx-container class="MathJax CtxtMenu_Attached_0" jax="CHTML" tabindex="0" ctxtmenu_counter="0" style="font-size: 118.8%; position: relative;"><mjx-math class="MJX-TEX" aria-hidden="true"><mjx-mi class="mjx-i"><mjx-c class="mjx-c1D447 TEX-I"></mjx-c></mjx-mi></mjx-math><mjx-assistive-mml unselectable="on" display="inline"><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>T</mi></math></mjx-assistive-mml></mjx-container></span>.</p>
+<p>The first step is to select a well-annotated genome along with its annotation, denoted as reference <strong>Genome</strong> <span class="math notranslate nohighlight"><mjx-container class="MathJax CtxtMenu_Attached_0" jax="CHTML" tabindex="0" ctxtmenu_counter="1" style="font-size: 118.8%; position: relative;"><mjx-math class="MJX-TEX" aria-hidden="true"><mjx-mi class="mjx-i"><mjx-c class="mjx-c1D445 TEX-I"></mjx-c></mjx-mi></mjx-math><mjx-assistive-mml unselectable="on" display="inline"><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>R</mi></math></mjx-assistive-mml></mjx-container></span> and <strong>Annotation</strong> <span class="math notranslate nohighlight"><mjx-container class="MathJax CtxtMenu_Attached_0" jax="CHTML" tabindex="0" ctxtmenu_counter="2" style="font-size: 118.8%; position: relative;"><mjx-math class="MJX-TEX" aria-hidden="true"><mjx-msub><mjx-mi class="mjx-i"><mjx-c class="mjx-c1D445 TEX-I"></mjx-c></mjx-mi><mjx-script style="vertical-align: -0.153em;"><mjx-mi class="mjx-i" size="s"><mjx-c class="mjx-c1D434 TEX-I"></mjx-c></mjx-mi></mjx-script></mjx-msub></mjx-math><mjx-assistive-mml unselectable="on" display="inline"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>R</mi><mi>A</mi></msub></math></mjx-assistive-mml></mjx-container></span>.</p>
+<p>LiftOn employs a two-step  <a class="reference internal" href="content/behind_scenes.html#protein-maximization-algorithm"><span class="std std-ref">Protein-maximization algorithm</span></a> (PM algorithm).</p>
+<ol class="arabic simple">
+<li><p>The first module is the <em>chaining algorithm</em>. It starts by extracting protein sequences annotated by Liftoff and miniprot. LiftOn then aligns these sequences to full-length reference proteins. For each gene locus, LiftOn compares each section of the protein alignments from Liftoff and miniprot, chaining together the best combinations.</p></li>
+<li><p>The second module is the <em>open-reading frame search (ORF search) algorithm</em>. In the case of truncated protein-coding transcripts, this algorithm examines alternative frames to identify the ORF that produces the longest match with the reference protein.</p></li>
+</ol>
+<ul class="simple">
+<li><dl class="simple">
+<dt><strong>Input</strong>:</dt><dd><ol class="arabic simple">
+<li><p>target <strong>Genome</strong> <span class="math notranslate nohighlight"><mjx-container class="MathJax CtxtMenu_Attached_0" jax="CHTML" tabindex="0" ctxtmenu_counter="3" style="font-size: 118.8%; position: relative;"><mjx-math class="MJX-TEX" aria-hidden="true"><mjx-mi class="mjx-i"><mjx-c class="mjx-c1D447 TEX-I"></mjx-c></mjx-mi></mjx-math><mjx-assistive-mml unselectable="on" display="inline"><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>T</mi></math></mjx-assistive-mml></mjx-container></span> in FASTA</p></li>
+<li><p>reference <strong>Genome</strong> <span class="math notranslate nohighlight"><mjx-container class="MathJax CtxtMenu_Attached_0" jax="CHTML" tabindex="0" ctxtmenu_counter="4" style="font-size: 118.8%; position: relative;"><mjx-math class="MJX-TEX" aria-hidden="true"><mjx-mi class="mjx-i"><mjx-c class="mjx-c1D445 TEX-I"></mjx-c></mjx-mi></mjx-math><mjx-assistive-mml unselectable="on" display="inline"><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>R</mi></math></mjx-assistive-mml></mjx-container></span> in FASTA</p></li>
+<li><p>reference <strong>Annotation</strong> <span class="math notranslate nohighlight"><mjx-container class="MathJax CtxtMenu_Attached_0" jax="CHTML" tabindex="0" ctxtmenu_counter="5" style="font-size: 118.8%; position: relative;"><mjx-math class="MJX-TEX" aria-hidden="true"><mjx-msub><mjx-mi class="mjx-i"><mjx-c class="mjx-c1D445 TEX-I"></mjx-c></mjx-mi><mjx-script style="vertical-align: -0.153em;"><mjx-mi class="mjx-i" size="s"><mjx-c class="mjx-c1D434 TEX-I"></mjx-c></mjx-mi></mjx-script></mjx-msub></mjx-math><mjx-assistive-mml unselectable="on" display="inline"><math xmlns="http://www.w3.org/1998/Math/MathML"><msub><mi>R</mi><mi>A</mi></msub></math></mjx-assistive-mml></mjx-container></span> in GFF3</p></li>
+</ol>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>Output</strong>:</dt><dd><ol class="arabic simple">
+<li><p>LiftOn annotation file in GFF3</p></li>
+<li><p>Protein sequence identities &amp; mutation types</p></li>
+<li><p>Features with extra copies</p></li>
+<li><p>Unmapped features</p></li>
+</ol>
+</dd>
+</dl>
+</li>
+</ul>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+</section>
+<section id="lifton-s-limitation" class="active">
+<h2>LiftOn's limitation<a class="headerlink" href="#lifton-s-limitation" title="Permalink to this heading">#</a></h2>
+<p>LiftOn's <em>chaining algorithm</em> currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it can be extended to chain together multiple protein-based annotation files or aasembled RNA-Seq transcripts.</p>
+<p>DNA- and protein-based methods still have some limitations. We are developing a module to merge the LiftOn annotation with the released curated annotations to generate better annotations.</p>
+<p>The LiftOn <em>chaining algorithm</em> now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!</p>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+</section>
+<section id="user-support">
+<h2>User support<a class="headerlink" href="#user-support" title="Permalink to this heading">#</a></h2>
+<p>Please go through the <a class="reference internal" href="#table-of-contents"><span class="std std-ref">documentation</span></a> below first. If you have questions about using the package, a bug report, or a feature request, please use the GitHub issue tracker here:</p>
+<p><a class="reference external" href="https://github.com/Kuanhao-Chao/LiftOn/issues">https://github.com/Kuanhao-Chao/LiftOn/issues</a></p>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+</section>
+<section id="key-contributors">
+<h2>Key contributors<a class="headerlink" href="#key-contributors" title="Permalink to this heading">#</a></h2>
+<p>LiftOn was designed and developed by <a class="reference external" href="https://khchao.com/">Kuan-Hao Chao</a>.  This documentation was written by <a class="reference external" href="https://khchao.com/">Kuan-Hao Chao</a>.</p>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+</section>
+<section id="table-of-contents">
+<span id="id3"></span><h2>Table of contents<a class="headerlink" href="#table-of-contents" title="Permalink to this heading">#</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="content/installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="content/installation.html#system-requirements">System requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/installation.html#install-through-pip">Install through pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/installation.html#install-through-conda">Install through conda</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/installation.html#install-from-source">Install from source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/installation.html#check-lifton-installation">Check LiftOn installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/installation.html#now-you-are-ready-to-go">Now, you are ready to go !</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="content/quickstart.html">Quick Start Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="content/quickstart.html#super-quick-start-one-liner">Super-Quick Start (one-liner)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/quickstart.html#try-lifton-on-google-colab">Try LiftOn on Google Colab</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Examples</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="content/same_species_liftover/index.html">Same species lift-over</a></li>
+<li class="toctree-l1"><a class="reference internal" href="content/close_species_liftover/index.html">Closely-related species lift-over</a></li>
+<li class="toctree-l1"><a class="reference internal" href="content/distant_species_liftover/index.html">Distant species lift-over</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Info</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="content/output_explanation.html">Output files</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="content/output_explanation.html#lifton-gff3">lifton.GFF3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/output_explanation.html#lifton-output">lifton_output/</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="content/behind_scenes.html">Behind the scenes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#matching-miniprot-liftoff-genome-annotation">Matching miniprot &amp; Liftoff genome annotation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#protein-maximization-algorithm"><em>Protein-maximization algorithm</em></a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#mutation-report">Mutation report</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#open-reading-frame-search">Open-reading-frame search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#dna-protein-transcript-sequence-identity-score-calculation">DNA &amp; protein transcript sequence identity score calculation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#reference">Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="content/how_to_page.html">Q &amp; A ...</a></li>
+<li class="toctree-l1"><a class="reference internal" href="content/function_manual.html">User Manual</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="content/function_manual.html#splam">splam</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="content/changelog.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="content/changelog.html#v1-0-0">v1.0.0</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="content/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="content/contact.html">Contact</a></li>
+</ul>
+</div>
+</section>
+</section>
 
-
-
-
-<!-- LiftOn improves the annotations of protein-coding genes provided by Liftoff. Additionally, during the lift-over process, it identifies any extra copies of protein-coding genes and generates optimal annotations.
- -->
-
-<br>
-
-##  <a name="whylifton"></a>Why LiftOn❓<a class="headerlink" href="#whylifton" title="Permalink to this heading">#</a>
-1. The current approach to generate the annotation of [T2T-CHM13](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_009914755.1/) is to run Liftoff to lift-over annotations from GRCh38 to T2T-CHM13. However, Liftoff is not perfect. T2T-CHM13 annotation is far from perfect. **We need a tool to accurately generates T2T-CHM13 annotations**.
-2. More and more high quality assemblies are generated. We need to annotate them.
-3. The current lift-over tools mainly depend on either DNA aligners ([Liftoff](https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true), [minimap2](https://academic.oup.com/bioinformatics/article/34/18/3094/4994778)) or protein aligner ([miniprot](https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621)). They are not perfect, as there are instances where they make mistakes.
-
-<br>
-
-## <a name="whatliftondo"></a>What does LiftOn do❓<a class="headerlink" href="#whatliftondo" title="Permalink to this heading">#</a>
-LiftOn takes GFF files from Liftoff and miniprot and reference protein sequences in a FASTA file, and generates a new annotation file in GFF format. LiftOn works on the same and closely-related species. 
-<!-- We also tested LiftOn by lifting-over annotations from human to mouse, and it also does pretty good job to find the optimal protein annotations. However, there are false positives or -->
-
-
-* **Input**:  Liftoff GFF file  /  miniprot GFF file  /  protein FASTA file
-* **Output**: LiftOn GFF file
-
-LiftOn utilizes gene loci coordinates obtained from Liftoff, as Liftoff employs an overlapping fixing algorithm to determine the most suitable gene locus for each gene.
-
-First, LiftOn extracts protein sequences annotated by Liftoff and miniprot, and aligns them to the reference proteins.
-
-Next, LiftOn employs an algorithm that compares each section of the protein alignments from Liftoff and miniprot, corrects errors in exon and CDS boundaries, and produces the optimal protein annotations.
-
-<br>
-
-## <a name="whosplaminterested"></a>Who is it for❓<a class="headerlink" href="#whosplaminterested" title="Permalink to this heading">#</a>
-1. If you have sequenced and assembled a new human genome and need to annotate it, LiftOn is the ideal choice for generating annotations.
-2. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the [T2T_CHM13_LiftOn.gff3](https://khchao.com) file for your convenience."
-
-<br>
-
-<!-- ## <a name="itworks"></a>It works❗️<a class="headerlink" href="#itworks" title="Permalink to this heading">#</a> -->
-
-<!-- <br> -->
-
-## <a name="installation"></a>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a>
-
-LiftOn is on [PyPi](https://pypi.org/). This is the easiest installation approach. Check out all the releases here.
-
-```
-$ pip install lifton
-```
-
-You can also install LiftOn from source
-
-```
-$ git clone https://github.com/Kuanhao-Chao/LiftOn --recursive
-
-$ cd lifton
-
-$ python setup.py install
-
-```
-
-<br>
-
-## <a name="quick_start"></a>Quick Start<a class="headerlink" href="#quick-start" title="Permalink to this heading">#</a>
-
-Running LiftOn is simple. It only requires one line of code!
-
-<!-- See these examples on Google Colab: [![](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Kuanhao-Chao/splam/blob/main/notebook/splam_example.ipynb)
-
- -->
-
-### Example 1: clean up alignment files (`BAM`)
-
-``` bash
-$ cd test
-
-# Step 1: extract splice junctions in the alignment file
-$ lifton --proteins protein.fasta --liftoffdb CHM13_MANE.sort.gff3_db --miniprotdb CHM13_MANE_miniprot.fix.sorted.gff_db -o chm13v2.0.fa
-```
-
-<br>
 
 ## <a name="citation"></a>Citation<a class="headerlink" href="#citation" title="Permalink to this heading">#</a>
 
 
 Kuan-Hao Chao*, Mihaela Pertea, Steven L Salzberg*, "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.", <i>bioRxiv</i> <b>2023.07.27.550754</b>, doi: [https://doi.org/10.1101/2023.07.27.550754](https://doi.org/10.1101/2023.07.27.550754), 2023
+
+<div class="line-block">
+<div class="line"><br></div>
+<div class="line"><br></div>
+</div>
+<img alt="My Logo" class="logo header-image only-light align-center" src="_images/jhu-logo-dark.png">
+<img alt="My Logo" class="logo header-image only-dark align-center" src="_images/jhu-logo-white.png">
