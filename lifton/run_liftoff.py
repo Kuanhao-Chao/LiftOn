@@ -83,7 +83,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                 if has_valid_miniprot:
                     logger.log("\t* Has CDS and valid miniprot", debug=DEBUG)
                     lifton_status.annotation = "LiftOn_chaining_algorithm" 
-                    cds_list, chains = fix_trans_annotation.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai, debug=DEBUG)
+                    cds_list, chains = fix_trans_annotation.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai, DEBUG)
                     if write_chains:
                         lifton_utils.write_lifton_chains(fw_chain, lifton_trans.entry.id, chains)
                     lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
