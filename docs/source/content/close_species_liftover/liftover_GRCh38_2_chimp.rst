@@ -49,12 +49,13 @@ Human (*GRCh38*) to chimpanzee
 |
 |
 
-.. image:: ../_images/jhu-logo-dark.png
+
+.. image:: ../../_images/jhu-logo-dark.png
    :alt: My Logo
    :class: logo, header-image only-light
    :align: center
 
-.. image:: ../_images/jhu-logo-white.png
+.. image:: ../../_images/jhu-logo-white.png
    :alt: My Logo
    :class: logo, header-image only-dark
    :align: center

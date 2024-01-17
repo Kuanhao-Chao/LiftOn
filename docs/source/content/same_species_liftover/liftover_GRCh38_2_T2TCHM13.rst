@@ -81,6 +81,9 @@ After successfully running LiftOn, you will get the following file and output di
 Results
 +++++++++++++++++++++++++++++++++++
 
+Genome annotation evaluation
+------------------------------
+
 Here are some visualization results comparing LiftOn annotation to (1) Liftoff and (2) miniprot annotation. 
 
 
@@ -91,12 +94,12 @@ First, we calculate the protein sequence identity score for every protein-coding
 .. _figure-human_miniprot_vs_liftoff:
 .. figure::  ../../_images/human_refseq/Liftoff_miniprot/parasail_identities.png
     :align:   center
-    :scale:   23 %
+    :scale:   25 %
 
-    The scatter plot of protein sequence identity comparing between miniprot (y-axis) and Liftoff (x-axis), 
+    The scatter plot of protein sequence identity comparing between miniprot (y-axis) and Liftoff (x-axis). Each dot represents a protein-coding transcript.
 |
 
-Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In the comparison of LiftOn versus Liftoff (:numref:`figure-human_lifton_vs_liftoff_vs_miniprot`, left), 2,075 transcripts demonstrate higher protein sequence identity, with 460 achieving 100% identity. Similarly, in the LiftOn versus miniprot comparison (:numref:`figure-human_lifton_vs_liftoff_vs_miniprot`, right), 30,276 protein-coding transcripts exhibit superior matches, elevating 22,616 to identical status relative to the reference.
+Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In the comparison of LiftOn versus Liftoff (:numref:`figure-human_lifton_vs_liftoff_vs_miniprot`, left), 2,075 transcripts demonstrate higher protein sequence identity, with 442 achieving 100% identity. Similarly, in the LiftOn versus miniprot comparison (:numref:`figure-human_lifton_vs_liftoff_vs_miniprot`, right), 30,276 protein-coding transcripts exhibit superior matches, elevating 22,598 to identical status relative to the reference.
 
 .. _figure-human_lifton_vs_liftoff_vs_miniprot:
 .. figure::  ../../_images/human_refseq/combined_scatter_plots.png
@@ -106,7 +109,7 @@ Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In th
     The scatter plot of protein sequence identity comparing between LiftOn (y-axis) and Liftoff (x-axis) (left) and comparing between LiftOn (y-axis) and miniprot (x-axis) (right).
 |
 
-We visualize the transcripts in a 3-D plot, incorporating LiftOn, Liftoff, and miniprot scores (:numref:`figure-human_3D_scatter`). The majority of dots reside above the :math:x=y plane, suggesting that LiftOn features longer proteins aligning with those in the reference annotation.
+We visualize the transcripts in a 3-D plot, incorporating LiftOn, Liftoff, and miniprot scores (see Figure :numref:`figure-human_3D_scatter`) to provide a comprehensive comparison of the three tools. If a dot is above the :math:`x=y` plane, it indicates that the protein-coding transcript annotation of LiftOn generates a longer valid protein sequence aligning to the full-length reference protein. The 3-D plot reveals that the majority of dots are above the :math:`x=y` plane, suggesting that LiftOn annotation is better.
 
 
 .. _figure-human_3D_scatter:
@@ -118,7 +121,7 @@ We visualize the transcripts in a 3-D plot, incorporating LiftOn, Liftoff, and m
 
 |
 
-We plotted the distribution of protein sequence identities(:numref:`figure-human_frequency_log`). LiftOn (middle) has the smallest left tail.
+Next, we check the distribution of protein sequence identities (see :numref:`figure-human_frequency_log`). Among the three tools, LiftOn (middle) exhibits the smallest left tail, with 322 protein-coding transcripts having a protein sequence identity of :math:`< 0.4`.
 
 .. _figure-human_frequency_log:
 .. figure::  ../../_images/human_refseq/combined_frequency_log.png
@@ -129,12 +132,16 @@ We plotted the distribution of protein sequence identities(:numref:`figure-human
 
 |
 
-The Circos plot in :numref:`figure-human_circos` shows their relative positions between the two genomes. The plot illustrates that the extra copies were predominantly located on the same chromosomes in both GRCh38 and T2T-CHM13. 
+
+Finding extra copies of lift-over features
+-------------------------------------------------
+
+LiftOn also has a module to find extra copies by using `intervaltree <https://github.com/chaimleib/intervaltree>`_, `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_, and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_. The Circos plot in :numref:`figure-human_circos` shows their relative positions between the two genomes. The plot illustrates that the extra copies were predominantly located on the same chromosomes in both GRCh38 and T2T-CHM13. The frequency plot of extra copy features are show in :numref:`figure-human_extra_copy_fq`.
 
 .. _figure-human_circos:
-.. figure::  ../../_images/human_refseq/human_refseq_circos_plot.pdf
+.. figure::  ../../_images/human_refseq/circos_plot.png
     :align:   center
-    :scale:  20 %
+    :scale:  28 %
 
     Circos plot illustrating the locations of extra gene copies found on T2T-CHM13 (left side) compared to GRCh38 (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 

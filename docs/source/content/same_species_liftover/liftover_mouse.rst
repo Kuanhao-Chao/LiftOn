@@ -42,7 +42,45 @@
 Mouse
 =========================================================================
 
-*Mus musculus*
+
+Input files
++++++++++++++++++++++++++++++++++++
+
+To run this example, download the following three input files.
+
+* **Input**
+    1. target **Genome** :math:`T` in FASTA : `chm13v2.0.fa <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/chm13v2.0.fa>`_ 
+    2. reference **Genome** :math:`R` in FASTA : `GCF_000001405.40_GRCh38.p14_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna>`_
+    3. reference **Annotation** :math:`R_A` in GFF3 : `NCBI_RefSeq_no_rRNA.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff>`_
+
+
+
+.. .. important::
+
+..     **We propose running Splam as a new step in RNA-Seq analysis pipeline to score all splice junctions.**
+
+There is only one command you need to run LiftOn:
+
+.. code-block:: bash
+
+    lifton -D -g NCBI_RefSeq_no_rRNA.gff -o lifton.gff3 -copies chm13v2.0.fa GCF_000001405.40_GRCh38.p14_genomic.fna
+
+
+After successfully running LiftOn, you will get the following file and output directory:
+
+* **Output**: 
+    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3
+    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/
+
+       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/score.txt>`_
+       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/extra_copy_features.txt>`_
+       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/unmapped_features.txt>`_
+
+|
+|
+
+Results
++++++++++++++++++++++++++++++++++++
 
 
 |
@@ -52,12 +90,12 @@ Mouse
 |
 
 
-.. image:: ../_images/jhu-logo-dark.png
+.. image:: ../../_images/jhu-logo-dark.png
    :alt: My Logo
    :class: logo, header-image only-light
    :align: center
 
-.. image:: ../_images/jhu-logo-white.png
+.. image:: ../../_images/jhu-logo-white.png
    :alt: My Logo
    :class: logo, header-image only-dark
    :align: center
