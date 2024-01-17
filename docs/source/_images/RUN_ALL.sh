@@ -10,7 +10,6 @@ do
     cp -r /ccb/salz2/kh.chao/LiftOn/results/$i/lifton_output/visualization/* $i/
     rm -rf $i/Liftoff/
     rm -rf $i/miniprot/
-    rm -rf $i/Liftoff_miniprot/
     rm -rf $i/liftoff_frequency.png
     rm -rf $i/lifton_frequency.png
     rm -rf $i/miniprot_frequency.png
