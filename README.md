@@ -1,6 +1,4 @@
-# LiftOn
-
-<img alt="My Logo" class="logo header-image only-light align-center" src="graphics/LiftOn_color.png">
+<img alt="My Logo" class="logo header-image only-light align-center" src="graphics/LiftOn_color.png" style="width:90%">
 
 <div class="content">
 
@@ -167,8 +165,8 @@
 
 Kuan-Hao Chao*, Mihaela Pertea, Steven L Salzberg*, "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.", <i>bioRxiv</i> <b>2023.07.27.550754</b>, doi: [https://doi.org/10.1101/2023.07.27.550754](https://doi.org/10.1101/2023.07.27.550754), 2023
 
-<div class="line-block">
-<div class="line"><br></div>
-<div class="line"><br></div>
-</div>
+<br>
+<br>
+<br>
+
 <img alt="My Logo" class="logo header-image only-light align-center" src="graphics/jhu-logo-dark.png">
