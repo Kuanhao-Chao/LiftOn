@@ -1,3 +1,6 @@
+
+|
+
 .. _behind-the-scenes-splam:
 
 Behind the scenes

@@ -1,9 +1,13 @@
+
+|
+
 .. _quick-start:
 
 Quick Start Guide
 =================
 
 This page offers straightforward quick-start information on using LiftOn to map RefSeq v110 annotations on :code:`chr22:1-50755568` from GRCh38 version 40 patch 14 to T2T-CHM13 v2.0. If you haven't already, please follow the steps outlined on the :ref:`Installation` page to install and load LiftOn.
+
 
 Before you get started, make sure you have already cloned the `LiftOn GitHub repository <https://github.com/Kuanhao-Chao/LiftOn>`_. We provide an example in `test/lifton_chr22_example.sh <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/lifton_chr22_example.sh>`_.
 
@@ -28,25 +32,11 @@ Run the following commands:
 
     $ cd test
 
-    $ lifton -g GRCh38_chr22.gff3 -dir GRCh38_2_CHM13 -o GRCh38_2_CHM13_lifton.gff3 -copies chm13_chr22.fa GRCh38_chr22.fa
+    $ lifton -g GRCh38_chr22.gff3 -o GRCh38_2_CHM13_lifton.gff3 -copies chm13_chr22.fa GRCh38_chr22.fa
 
 
-After this step, you will get an annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format, and a directory :code:`lifton_output/` that contains various outputs such as sequence identity scores, unmapped features, extra copies, intermediate files, and more.
+After this step, you will obtain an annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format, and a directory :code:`lifton_output/` that contains various outputs, including sequence identity scores, unmapped features, extra copies, intermediate files, and more. We provide further explanations of the output file hierarchy in the :ref:`output_files` section.
 
-.. GRCh38_2_CHM13_lifton.gff3
-
-.. extra_copy_features.txt
-.. unmapped_features.txt
-.. score.txt
-.. gene.txt
-.. miniprot
-.. liftoff
-.. intermediate_files
-.. GRCh38_chr22.gff3_db
-.. GRCh38_2_CHM13
-
-
-We will further explain in :ref:`output_files` section.
 
 |
 
@@ -59,7 +49,7 @@ We created a reproducible and easy-to-run LiftOn example on Google Colab. It's a
 
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
-    :target: https://colab.research.google.com/github/Kuanhao-Chao/LiftOn/blob/main/notebook/LiftOn_example.ipynb
+    :target: https://colab.research.google.com/github/Kuanhao-Chao/LiftOn/blob/main/notebook/lifton_example.ipynb
 
 
 |

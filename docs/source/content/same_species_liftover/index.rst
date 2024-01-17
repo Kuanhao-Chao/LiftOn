@@ -33,6 +33,8 @@
         console.log(document.body);
     </script>
 
+|
+
 .. _same_species-section:
 
 Same species lift-over
@@ -43,19 +45,34 @@ Same species lift-over
 
 .. LiftOn performs well on the same species annotation Lift-over. Here ase some examples of running LiftOn on *Homo sapiens*, *Arabidopsis thaliana*, and *Apis mellifera*.
 
-When working with a recently assembled genome, users frequently face the necessity to lift-over or convert the genome annotation from a reference genome to the new assembly.
+When working with a recently assembled genome, users often need to lift-over or convert the genome annotation from a reference genome to the new assembly.
 
 LiftOn excels in performing lift-over on annotations within the same species. Here ase some examples of running LiftOn on *Homo sapiens*, *Arabidopsis thaliana*, and *Apis mellifera*.
 
 |
 
+.. admonition:: LiftOn examples
+    :class: note
+
+    * **Eukaryote**
+        * :ref:`same_species_liftover_human`
+        * :ref:`same_species_liftover_mouse`
+
+    * **Insect**
+        * :ref:`same_species_liftover_bee`
+
+    * **Plant**
+        * :ref:`same_species_liftover_thale`
+        * :ref:`same_species_liftover_rice`
+
 .. toctree::
-    :maxdepth: 1
+    :hidden:
 
     liftover_GRCh38_2_T2TCHM13
+    liftover_mouse
     liftover_bee_insect
     liftover_arabidopsis_plant
-
+    liftover_rice_plant
 
 |
 |

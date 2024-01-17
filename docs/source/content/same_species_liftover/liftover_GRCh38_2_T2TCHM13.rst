@@ -32,23 +32,25 @@
         console.log(document.body);
     </script>
 
-.. _alignment-detailed-section:
+
+|
+
+
+.. _same_species_liftover_human:
 
 Human (*GRCh38* to *T2T-CHM13*)
 ===================================================================
 
 
-.. _alignment-introduction:
-
 Input files
 +++++++++++++++++++++++++++++++++++
 
-To run this examples, you need to first download the following three input files
+To run this example, download the following three input files.
 
 * **Input**
-    1. target **Genome** :math:`T` in FASTA : `chm13v2.0.fa <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/chm13v2.0.fa>`_ 
-    2. reference **Genome** :math:`R` in FASTA : `GCF_000001405.40_GRCh38.p14_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/GCF_000001405.40_GRCh38.p14_genomic.fna>`_
-    3. reference **Annotation** :math:`R_A` in GFF3 : `NCBI_RefSeq_no_rRNA.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/NCBI_RefSeq_no_rRNA.gff>`_
+    1. target **Genome** :math:`T` in FASTA : `chm13v2.0.fa <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/chm13v2.0.fa>`_ 
+    2. reference **Genome** :math:`R` in FASTA : `GCF_000001405.40_GRCh38.p14_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna>`_
+    3. reference **Annotation** :math:`R_A` in GFF3 : `NCBI_RefSeq_no_rRNA.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff>`_
 
 
 
@@ -66,12 +68,12 @@ There is only one command you need to run LiftOn:
 After successfully running LiftOn, you will get the following file and output directory:
 
 * **Output**: 
-    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/lifton.gff3
-    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/lifton_output/
+    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3
+    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/
 
-       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/lifton_output/score.txt>`_
-       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/lifton_output/extra_copy_features.txt>`_
-       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human/lifton_output/unmapped_features.txt>`_
+       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/score.txt>`_
+       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/extra_copy_features.txt>`_
+       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/unmapped_features.txt>`_
 
 |
 |
@@ -151,7 +153,7 @@ The Circos plot in :numref:`figure-human_circos` shows their relative positions 
 Finally, we examined the order of protein-coding genes (:numref:`figure-human_gene_order`) between the two genomes and observed that, as expected, nearly all genes occur in the same order and orientation in both human genomes.
 
 .. _figure-human_gene_order:
-.. figure::  ../../_images/human_refseq/extra_cp/frequency.png
+.. figure::  ../../_images/human_refseq/gene_order_plot.png
     :align:   center
     :scale:  30 %
 

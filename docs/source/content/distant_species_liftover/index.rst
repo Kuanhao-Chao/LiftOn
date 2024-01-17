@@ -32,6 +32,10 @@
         console.log(document.body);
     </script>
 
+
+|
+
+
 .. _distant_species-section:
 
 Distant species lift-over
@@ -57,12 +61,19 @@ Following are two examples:
 
 |
 
+
+
+.. admonition:: LiftOn examples
+    :class: note
+
+    * :ref:`distant_species_liftover_mouse_2_rat`
+    * :ref:`distant_species_liftover_drosophila_melanogaster_2_erecta`
+
 .. toctree::
-    :maxdepth: 1
-
-    liftover_drosophila_erecta
+    :hidden:
+    
     liftover_mouse_2_rat
-
+    liftover_drosophila_erecta
 
 |
 |
