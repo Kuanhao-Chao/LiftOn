@@ -55,9 +55,9 @@ Closely-related species lift-over
 .. LiftOn excels in performing lift-over on annotations between two closely-related species. Here ase an example of running LiftOn to lift-over annotations from *Homo sapiens* GRCh38 to *Pan troglodytes* (chimpanzee).
 
 
-When you intend to annotate your recently assembled genome and find that there is no pre-annotated reference for the same species or that a closely related species has significantly better annotations than your assembled species, you can use LiftOver to transfer annotations between the two species.
+When you intend to annotate your recently assembled genome and find that there is no pre-annotated reference for the same species or that a closely related species has significantly better annotations than your assembled species, you can use LiftOn to transfer annotations between the two species.
 
-LiftOver is particularly effective in mapping annotation between closely-related species. Here is an example of using LiftOver to transfer annotations from *Homo sapiens* GRCh38 to *Pan troglodytes* (chimpanzee).
+LiftOn is particularly effective in mapping annotation between closely-related species. Here is an example of using LiftOn to transfer annotations from *Homo sapiens* GRCh38 to *Pan troglodytes* (chimpanzee).
 
 |
 
