@@ -23,6 +23,10 @@ System requirements
    * biopython
    * miniprot >= 0.10.0
    * pyfaidx
+   * pysam
+   * packages/lifton/liftoff/extract_features.py", line 7, in <module>
+    import ujson as json
+ModuleNotFoundError: No module named 'ujson
 
 .. admonition:: Version warning
    :class: important
