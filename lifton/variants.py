@@ -1,4 +1,14 @@
 def has_stop_codon(ref_align, target_align):
+    """
+        This function checks if a string contains a stop codon.
+
+        Parameters:
+        - ref_align: reference sequence alignment
+        - target_align: target sequence alignment
+
+        Returns:
+        True if a stop codon is found, False otherwise.
+    """
     for i, letter in enumerate(target_align):
         if letter == "*" and ref_align[i] != "*":
             return True
@@ -6,6 +16,15 @@ def has_stop_codon(ref_align, target_align):
 
 
 def is_frameshift(s):
+    """
+        This function checks if a string contains a non-divisible substring of '-' characters.
+
+        Parameters:
+        - s: a string
+
+        Returns:
+        True if s contains a non-divisible substring of '-' characters, False otherwise.
+    """
     # Initialize a variable to keep track of consecutive '-' characters.
     consecutive_count = 0
     for char in s:
@@ -24,6 +43,18 @@ def is_frameshift(s):
 
 
 def find_variants(align_dna, align_protein, lifton_status, peps):
+    """
+        This function finds the variants between two sequences.
+
+        Parameters:
+        - align_dna: DNA pairwise alignment
+        - align_protein: Protein pairwise alignment
+        - lifton_status: Lifton_Status object
+        - peps: Protein sequence split by stop codon
+
+        Returns:
+        None
+    """
     # Mutation types:
     #   (1) identical
     #   (2) synonymous

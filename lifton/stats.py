@@ -2,6 +2,15 @@ import sys
 from lifton import logger
 
 def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
+    """
+        This function prints the report of the lifton results.
+
+        Parameters:
+        - ref_features_dict: reference features dictionary
+        - fw_unmapped: file writer for unmapped features
+        - fw_extra_copy: file writer for extra copy features
+        - debug: debug mode
+    """
     LIFTED_FEATURES = 0
     MISSED_FEATURES = 0
     LIFTED_SINGLE_CODING_FEATURES = 0

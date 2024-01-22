@@ -1,6 +1,16 @@
 from lifton import lifton_utils, logger
 
 def miniprot_id_mapping(m_feature_db):
+    """
+        This function creates a dictionary of miniprot id to reference id.
+
+        Parameters:
+        - m_feature_db: miniprot feature database
+
+        Returns:
+        ref_id_2_m_id_trans_dict: reference id to miniprot transcript ids dictionary
+        m_id_2_ref_id_trans_dict: miniprot transcript id to reference id dictionary
+    """
     ref_id_2_m_id_trans_dict = {}
     m_id_2_ref_id_trans_dict = {}
     for feature in m_feature_db.features_of_type("mRNA"):
@@ -19,30 +29,3 @@ def miniprot_id_mapping(m_feature_db):
     #     print("key : ", key)
     #     print("vals: ", vals)
     return ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict
-
-
-def liftoff_id_mapping(l_feature_db, features):
-    l_feature_id_2_ref_feature_id_dict = {}
-    ref_feature_id_2_l_feature_id_dict = {}
-    for feature in features:
-        print("feature: ", feature)
-        for locus in l_feature_db.features_of_type(feature):#, limit=("OX291666.1", 14237, 214237)):
-            print("Locus: ", locus)
-            liftoff_get_id_locus(locus, l_feature_db)    
-    # return m_id_dict, m_id_2_ref_id_trans_dict
-
-
-def liftoff_get_id_locus(locus, l_feature_db):
-    # Check if there are exons in the children
-    children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
-    if len(children) == 0:
-        # locus is in gene level: No exons in the children
-        liftoff_gene_id, ref_gene_id = lifton_utils.get_ID(locus)
-        logger.log(f"Liftoff: liftoff_gene_id\t: {liftoff_gene_id}\t{ref_gene_id}", debug=True)
-        # # 5.1 Create LifOn gene instance
-        transcripts = l_feature_db.children(locus, level=1)
-        for transcript in list(transcripts):
-            liftoff_get_id_locus(transcript, l_feature_db)
-    else:
-        # locus is in transcript level: exons are in its children
-        print(f"\tTranscript level: {locus.id}")

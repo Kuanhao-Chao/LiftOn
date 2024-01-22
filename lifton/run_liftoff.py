@@ -6,6 +6,16 @@ from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
 
 def run_liftoff(output_dir, args):
+    """
+        This function runs liftoff.
+
+        Parameters:
+        - output_dir: output directory
+        - args: Liftoff arguments
+
+        Returns:
+        liftoff_annotation: liftoff annotation file path
+    """
     liftoff_args = copy.deepcopy(args)
     liftoff_outdir = output_dir + "liftoff/"    
     os.makedirs(liftoff_outdir, exist_ok=True)
@@ -18,6 +28,29 @@ def run_liftoff(output_dir, args):
 
 
 def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, write_chains, DEBUG):
+    """
+        This function processes liftoff annotation.
+
+        Parameters:
+        - lifton_gene: Lifton gene instance
+        - locus: feature instance 
+        - ref_db: reference database
+        - l_feature_db: liftoff feature database
+        - ref_id_2_m_id_trans_dict: reference id to miniprot transcript ids dictionary
+        - m_feature_db: miniprot feature database
+        - tree_dict: intervaltree dictionary for each chromosome
+        - tgt_fai: target fasta index
+        - ref_proteins: reference protein dictionary
+        - ref_trans: reference transcript dictionary
+        - ref_features_dict: reference features dictionary
+        - fw_score: file writer for scores
+        - fw_chain: file writer for chains
+        - write_chains: write chains or not
+        - DEBUG: debug mode
+
+        Returns:
+        lifton_gene: Lifton gene instance
+    """
     exon_children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
     if len(exon_children) == 0:
         if lifton_gene is None:    
@@ -63,7 +96,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             cds_num += 1
             lifton_gene.add_cds(lifton_trans.entry.id, cds)
         # miniprot alignment
-        miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(lifton_trans, locus.seqid, locus, lifton_status, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id)
+        miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_check_miniprot_alignment(locus.seqid, locus, lifton_status, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id)
         if (cds_num > 0):
             # Liftoff alignment                  
             liftoff_aln = align.parasail_align("liftoff", lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)

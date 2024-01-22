@@ -2,6 +2,15 @@ from lifton import logger, lifton_class, align
 import subprocess, os, sys, copy
 
 def check_miniprot_installed():
+    """
+        This function checks if miniprot is installed.
+
+        Parameters:
+        None
+
+        Returns:
+        True if miniprot is installed, False otherwise.
+    """
     miniprot_path = "miniprot"
     command = [miniprot_path, "--version"]
     installed = False
@@ -14,6 +23,18 @@ def check_miniprot_installed():
 
 
 def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
+    """
+        This function runs miniprot.
+
+        Parameters:
+        - outdir: output directory
+        - args: arguments
+        - tgt_genome: target genome
+        - ref_proteins_file: reference protein file
+
+        Returns:
+        miniprot_output: miniprot output file
+    """
     miniprot_outdir = outdir + "miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
@@ -29,7 +50,29 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     return miniprot_output
 
 
-def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
+def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, 
+ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
+    """
+        This function create a miniprot gene entry with reference protein.
+
+        Parameters:
+        - m_feature: miniprot feature
+        - m_feature_db: miniprot feature database
+        - ref_db: reference database
+        - ref_gene_id: reference gene ID
+        - ref_trans_id: reference transcript ID
+        - tgt_fai: target fasta index
+        - ref_proteins: reference protein dictionary
+        - ref_trans: reference transcript dictionary
+        - tree_dict: tree dictionary
+        - ref_features_dict: reference features dictionary
+        - DEBUG: debug mode
+
+        Returns:
+        lifton_gene: LiftOn gene instance
+        lifton_transcript_id: LiftOn transcript ID
+        lifton_status: LiftOn status
+    """
     logger.log("\tminiprot with reference protein", debug=DEBUG)
     mtrans_id = m_feature.attributes["ID"][0]
     # Create LifOn gene instance
@@ -62,6 +105,23 @@ def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_i
 
 
 def lifton_miniprot_no_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_trans_id, ref_features_dict, tree_dict, DEBUG):
+    """
+        This function creates a miniprot gene entry with no reference protein.
+
+        Parameters:
+        - m_feature: miniprot feature
+        - m_feature_db: miniprot feature database
+        - ref_gene_id: reference gene ID
+        - ref_trans _id: reference transcript ID
+        - ref_features_dict: reference features dictionary
+        - tree_dict: tree dictionary
+        - DEBUG: debug mode
+
+        Returns:
+        lifton_gene: LiftOn gene instance
+        lifton_transcript_id: LiftOn transcript ID
+        lifton_status: LiftOn status
+    """ 
     logger.log("\tminiprot with NO reference protein", debug=DEBUG)
     # Reason it's missing => the mRNA does not belong to gene (vdj segments) || the mRNA is not in the reference annotation
     # Create LiftOn gene entry
