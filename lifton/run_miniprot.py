@@ -73,7 +73,7 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
         lifton_transcript_id: LiftOn transcript ID
         lifton_status: LiftOn status
     """
-    logger.log("\tminiprot with reference protein", debug=DEBUG)
+    # logger.log("\tminiprot with reference protein", debug=DEBUG)
     mtrans_id = m_feature.attributes["ID"][0]
     # Create LifOn gene instance
     if ref_gene_id is None:

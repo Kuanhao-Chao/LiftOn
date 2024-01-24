@@ -1,10 +1,8 @@
-from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, evaluation, __version__
+from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, __version__
 from intervaltree import Interval
 import argparse
-from argparse import Namespace
-from pyfaidx import Fasta, Faidx
-import os
-from concurrent.futures import ProcessPoolExecutor
+from pyfaidx import Fasta
+import os, sys
 
 def args_outgrp(parser):
     outgrp = parser.add_argument_group('* Output settings')
@@ -257,12 +255,11 @@ def run_all_lifton_steps(args):
     ################################
     # Step 5: Create liftoff and miniprot database
     ################################
-    logger.log("\n>> Creating liftoff annotation database : ", liftoff_annotation, debug=True)
+    logger.log(f"\n>> Creating liftoff annotation database : {liftoff_annotation}", debug=True)
     l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
-    logger.log("\n>> Creating miniprot annotation database : ", miniprot_annotation, debug=True)
+    logger.log(f">> Creating miniprot annotation database : {miniprot_annotation}", debug=True)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
-
-    # Open output files
+    
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
     fw_unmapped = open(f"{lifton_outdir}/unmapped_features.txt", "w")
@@ -287,11 +284,15 @@ def run_all_lifton_steps(args):
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
     ################################
+    processed_features = 0
     for feature in features:
         for locus in l_feature_db.features_of_type(feature):#, limit=("NW_020825194.1", 28072487, 28072684)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args.write_chains, DEBUG)
             # Writing out LiftOn entries
             lifton_gene.write_entry(fw)
+            if processed_features % 20 == 0:
+                sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
+            processed_features += 1
 
     ################################
     # Step 9: Process miniprot transcripts
@@ -304,7 +305,7 @@ def run_all_lifton_steps(args):
             ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
             # Link the reference trans ID to feature
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-            logger.log(f"miniprot: ref_gene_id: {ref_gene_id};  ref_trans_id: {ref_trans_id}\t: ", debug=DEBUG)
+            # logger.log(f"miniprot: ref_gene_id: {ref_gene_id};  ref_trans_id: {ref_trans_id}\t: ", debug=DEBUG)
             if ref_trans_id in ref_proteins.keys() and ref_trans_id in ref_trans.keys():
                 # The transcript match the reference transcript
                 if ref_trans_id != None:
@@ -315,6 +316,9 @@ def run_all_lifton_steps(args):
             lifton_gene.add_lifton_status_attrs(transcript_id, lifton_status)
             lifton_utils.write_lifton_status(fw_score, transcript_id, mtrans, lifton_status)
             lifton_gene.write_entry(fw)
+            if processed_features % 20 == 0:
+                sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
+            processed_features += 1
 
     ################################
     # Step 10: Printing stats
@@ -343,7 +347,7 @@ An accurate homology lift-over tool between assemblies
     ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
     ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
     '''
-    print(banner)
-    print(f"{__version__}\n")
+    print(banner, file=sys.stderr)
+    print(f"{__version__}\n", file=sys.stderr)
     args = parse_args(arglist)
     run_all_lifton_steps(args)

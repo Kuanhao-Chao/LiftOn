@@ -40,7 +40,7 @@ def print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=False):
         elif copy_num == 0:
             MISSED_FEATURES += 1
             fw_unmapped.write(f"{feature}\n")
-    print("*********************************************", file=sys.stderr)
+    print("\n\n*********************************************", file=sys.stderr)
     print(f"* Total features in reference\t\t: {len(ref_features_dict.keys())-1}", 
     file=sys.stderr)
     print(f"* Lifted feature\t\t\t: {LIFTED_FEATURES} ({LIFTED_SINGLE_CODING_FEATURES + LIFTED_EXTRA_CODING_FEATURES} + {LIFTED_SINGLE_NONCODING_FEATURES + LIFTED_EXTRA_NONCODING_FEATURES})", file=sys.stderr)

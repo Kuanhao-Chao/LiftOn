@@ -98,34 +98,23 @@ class Lifton_TRANS_EVAL:
         # Step 1: Iterate through the children and chain the DNA sequence
         ################################
         coding_seq = ""
-        cdss_lens = []
         trans_seq = ""
-        exon_lens = []
         for exon in self.exons:
             # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
             p_trans_seq = Seq(p_trans_seq).upper()
             if exon.entry.strand == '-':
                 trans_seq = p_trans_seq + trans_seq
-                exon_lens.insert(0, exon.entry.end - exon.entry.start + 1)
             elif exon.entry.strand == '+':
                 trans_seq = trans_seq + p_trans_seq
-                exon_lens.append(exon.entry.end - exon.entry.start + 1)
-
             if exon.cds is not None:
                 # Chaining the CDS features
                 p_seq = exon.cds.entry.sequence(fai)
                 p_seq = Seq(p_seq).upper()
                 if exon.cds.entry.strand == '-':
                     coding_seq = p_seq + coding_seq
-                    cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
-                    cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
-
-        # print("coding_seq: ", coding_seq)
-        # print("trans_seq : ", trans_seq)
-
         ################################
         # Step 2: Translate the DNA sequence & get the reference protein sequence.
         ################################
@@ -164,11 +153,11 @@ class Lifton_TRANS_EVAL:
                 ORF_search = True
 
         if ORF_search:
-            self.__find_orfs(trans_seq, exon_lens, ref_protein_seq, lifton_aa_aln, lifton_status)
+            self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status)
         return lifton_tran_aln, lifton_aa_aln
 
 
-    def __find_orfs(self, trans_seq, exon_lens, ref_protein_seq, lifton_aln, lifton_status):
+    def __find_orfs(self, trans_seq, ref_protein_seq, lifton_aln, lifton_status):
         trans_seq = trans_seq.upper()
         # Find ORFs manually
         start_codon = "ATG"
@@ -209,7 +198,7 @@ class Lifton_TRANS_EVAL:
             
             # print(f"\tORF {i+1}: {orf_DNA_seq}")
             # print(f"\torf_protein_seq: {orf_protein_seq}")
-            extracted_parasail_res, extracted_seq, reference_seq = align.parasail_align_protein_base(orf_protein_seq, str(ref_protein_seq))        
+            extracted_parasail_res = align.parasail_align_protein_base(orf_protein_seq,ref_protein_seq)
 
             alignment_score = extracted_parasail_res.score
             alignment_query = extracted_parasail_res.traceback.query
@@ -224,7 +213,7 @@ class Lifton_TRANS_EVAL:
             if extracted_identity > max_identity:
                 max_identity = extracted_identity
                 final_orf = orf
-                lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, extracted_seq, reference_seq, None)
+                lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, orf_protein_seq, ref_protein_seq, None)
                 lifton_status.lifton_aa = lifton_aln.identity
                 # max(lifton_status.lifton_aa, lifton_aln.identity)
 
