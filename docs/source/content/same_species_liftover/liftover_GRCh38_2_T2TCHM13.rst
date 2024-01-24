@@ -128,7 +128,7 @@ Next, we check the distribution of protein sequence identities (see :numref:`fig
     :align:   center
     :scale:   12 %
 
-    Frequency plots in logarithmic scale of protein sequence identity for Liftoff (left), LiftOn (middle), and miniprot (right) for the results of mouse to rat lift-over.
+    Frequency plots in logarithmic scale of protein sequence identity for Liftoff (left), LiftOn (middle), and miniprot (right) for the results of GRCh38 to T2TCHM13 lift-over.
 
 |
 
