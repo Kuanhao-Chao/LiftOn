@@ -172,10 +172,10 @@ Examples of LiftOn's output
 
 To demonstrate LiftOn's improvement in comparison to Liftoff and miniprot visually, we extracted excerpts from IGV which contain the annotation tracks of all three methods, side by side (:numref:`figure-mouse_to_rat_example`).
 
-. _figure-mouse_to_rat_example:
+.. _figure-mouse_to_rat_example:
 .. figure::  ../../_images/mouse_to_rat/select_examples.png
     :align:   center
-    :scale:  30 %
+    :scale:  20 %
 
     The above images, loaded from IGV, showcase examples of LiftOn yielding novel protein-coding transcripts which outperform Liftoff and miniprot’s readouts. (A) demonstrates LiftOn correctly locating the starting region of a short CDS which miniprot misses (producing subsequent error in the next CDS) but Liftoff catches, and a stop codon in a CDS which Liftoff misses but miniprot catches, yielding a consensus with 100% protein identity score. Similarly, (B) demonstrates LiftOn catching the short starting CDS which miniprot misses but Liftoff catches, and a missing CDS which Liftoff misses but miniport catches. Lastly, (C) again showcases LiftOn producing the best consensus between Liftoff and miniprot, while also highlighting a new feature in (2), where the algorithm extends the protein with an open reading frame search for a novel terminal CDS, yielding the complete protein sequence which both Liftoff and miniprot miss. 
 
