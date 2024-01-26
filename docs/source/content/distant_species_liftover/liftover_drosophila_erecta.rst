@@ -51,7 +51,7 @@ To run this example, download the following three input files.
 * **Input**
     1. target **Genome** :math:`T` in FASTA : `d.erecta_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.erecta_genomic.fna>`_ 
     2. reference **Genome** :math:`R` in FASTA : `d.menogaster_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.menogaster_genomic.fna>`_
-    3. reference **Annotation** :math:`R_A` in GFF3 : `d.menogaste_genomic.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.menogaste_genomic.gff>`_
+    3. reference **Annotation** :math:`R_A` in GFF3 : `d.menogaster_genomic.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.menogaster_genomic.gff>`_
 
 
 .. .. important::
@@ -99,7 +99,7 @@ First, we calculate the protein sequence identity score for every protein-coding
     The scatter plot of protein sequence identity comparing between miniprot (y-axis) and Liftoff (x-axis). Each dot represents a protein-coding transcript.
 |
 
-Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In the comparison of LiftOn versus Liftoff (:numref:`figure-drosophila_erecta_lifton_vs_liftoff_vs_miniprot`, left), [FILL] transcripts demonstrate higher protein sequence identity, with [FILL] achieving 100% identity. Similarly, in the LiftOn versus miniprot comparison (:numref:`figure-drosophila_erecta_lifton_vs_liftoff_vs_miniprot`, right), [FILL] protein-coding transcripts exhibit superior matches, elevating [FILL] to identical status relative to the reference.
+Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In the comparison of LiftOn versus Liftoff (:numref:`figure-drosophila_erecta_lifton_vs_liftoff_vs_miniprot`, left), 4359 transcripts demonstrate higher protein sequence identity, with 45 achieving 100% identity. Similarly, in the LiftOn versus miniprot comparison (:numref:`figure-drosophila_erecta_lifton_vs_liftoff_vs_miniprot`, right), 11487 protein-coding transcripts exhibit superior matches, elevating 353 to identical status relative to the reference.
 
 .. _figure-drosophila_erecta_lifton_vs_liftoff_vs_miniprot:
 .. figure::  ../../_images/drosophila_erecta/combined_scatter_plots.png
@@ -121,7 +121,7 @@ We visualize the transcripts in a 3-D plot, incorporating LiftOn, Liftoff, and m
 
 |
 
-Next, we check the distribution of protein sequence identities (see :numref:`figure-drosophila_erecta_frequency_log`). Among the three tools, LiftOn (middle) exhibits the smallest left tail, with [FILL] protein-coding transcripts having a protein sequence identity of :math:`< 0.4`.
+Next, we check the distribution of protein sequence identities (see :numref:`figure-drosophila_erecta_frequency_log`). Among the three tools, LiftOn (middle) exhibits the smallest left tail, with 331 protein-coding transcripts having a protein sequence identity of :math:`< 0.4`.
 
 .. _figure-drosophila_erecta_frequency_log:
 .. figure::  ../../_images/drosophila_erecta/combined_frequency_log.png
@@ -135,14 +135,14 @@ Next, we check the distribution of protein sequence identities (see :numref:`fig
 Finding extra copies of lift-over features
 -------------------------------------------------
 
-LiftOn also has a module to find extra copies by using `intervaltree <https://github.com/chaimleib/intervaltree>`_, `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_, and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_. The Circos plot in :numref:`figure-drosophila_erecta_circos` shows their relative positions between the two genomes. The plot illustrates that the extra copies were predominantly located on the same chromosomes in both [REFERENCE] and [TARGET]. The frequency plot of extra copy features are show in :numref:`figure-drosophila_erecta_extra_copy_fq`.
+LiftOn also has a module to find extra copies by using `intervaltree <https://github.com/chaimleib/intervaltree>`_, `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_, and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_. The Circos plot in :numref:`figure-drosophila_erecta_circos` shows their relative positions between the two genomes. The plot illustrates that the extra copies were predominantly located on the same chromosomes in both d.menogaster and d.erecta. The frequency plot of extra copy features are show in :numref:`figure-drosophila_erecta_extra_copy_fq`.
 
 .. _figure-drosophila_erecta_circos:
 .. figure::  ../../_images/drosophila_erecta/circos_plot.png
     :align:   center
     :scale:  28 %
 
-    Circos plot illustrating the locations of extra gene copies found on [TARGET] (left side) compared to [REFERENCE] (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
+    Circos plot illustrating the locations of extra gene copies found on d.erecta (left side) compared to d.menogaster (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 
 |
 
@@ -163,7 +163,7 @@ Finally, we examined the order of protein-coding genes (:numref:`figure-drosophi
     :align:   center
     :scale:  30 %
 
-    Protein-gene order plot, with the x-axis representing the reference genome ([REFERENCE]) and the y-axis representing the target genome ([TARGET]). The protein sequence identities are color-coded on a logarithmic scale, ranging from green to red. Green represents a sequence identity score of 1, while red corresponds to a sequence identity score of 0.
+    Protein-gene order plot, with the x-axis representing the reference genome (d.menogaster) and the y-axis representing the target genome (d.erecta). The protein sequence identities are color-coded on a logarithmic scale, ranging from green to red. Green represents a sequence identity score of 1, while red corresponds to a sequence identity score of 0.
 
 |
 
