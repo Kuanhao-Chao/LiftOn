@@ -38,7 +38,7 @@
 
 .. _distant_species-section:
 
-Distant species lift-over
+Distantly related species lift-over
 ====================================
 
 .. The fantastic tool, `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_, does not work well mapping annotations between distant related species due to the fact that it only depends on the information of DNA aligner.  LiftOn incorporates the information from the protein aligner as well and therefore improves the annotation lift-over process, especially for mapping between distant species! Following are two examples:
@@ -66,7 +66,7 @@ Following are two examples:
 .. admonition:: LiftOn examples
     :class: note
 
-    * :ref:`distant_species_liftover_mouse_2_rat`
+    * :ref:`distant_species_liftover_mouse_to_rat`
     * :ref:`distant_species_liftover_drosophila_melanogaster_2_erecta`
 
 .. toctree::

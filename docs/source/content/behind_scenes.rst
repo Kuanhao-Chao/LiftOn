@@ -37,7 +37,7 @@ Using lift-over RefSeq v110 annotations from GRCh38 to T2T-CHM13 V2.0 as an exam
 .. _liftoff-miniprot-map-circos:
 .. figure::  ../_images/figure_liftoff_miniprot_circos_plot.png
     :align:   center
-    :scale:   32 %
+    :scale:   28 %
 
     Circos plots compare protein-coding transcript coordinates between miniprot and Liftoff annotations for RefSeq v110 from GRCh38 to T2T-CHM13. (A) aligns proteins to the same gene loci, while (B) aligns proteins to different gene loci. Left circle\: miniprot coordinates on T2T-CHM13; right circle\: Liftoff coordinates on T2T-CHM13.
 

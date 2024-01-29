@@ -142,7 +142,7 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-arabadop_circos:
 .. figure::  ../../_images/arabadop/circos_plot.png
     :align:   center
-    :scale:  28 %
+    :scale:  16 %
 
     Circos plot illustrating the locations of extra gene copies found on ASM2311539 (left side) compared to TAIR10 (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 

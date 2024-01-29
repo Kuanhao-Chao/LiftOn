@@ -47,7 +47,7 @@ Same species lift-over
 
 When working with a recently assembled genome, users often need to lift-over or convert the genome annotation from a reference genome to the new assembly.
 
-LiftOn excels in performing lift-over on annotations within the same species. Here ase some examples of running LiftOn on *Homo sapiens*, *Arabidopsis thaliana*, and *Apis mellifera*.
+LiftOn excels in performing lift-over on annotations within the same species. Here ase some examples of running LiftOn on *Homo sapiens* (human), *Mus musculus* (mouse), *Apis mellifera* (honey bee), *Arabidopsis thaliana* (Thale cress), and *Oryza sativa* (rice).
 
 |
 

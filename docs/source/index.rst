@@ -87,7 +87,7 @@ LiftOn's tutorial
 .. ==================
 
 
-LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ (credits to `Dr. Alaina Shumate <https://scholar.google.com/citations?user=N3tXk7QAAAAJ&hl=en>`_) and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ (credits to `Dr. Heng Li <http://liheng.org>`_), and employs a :ref:`protein-maximization_algorithm` to improve the protein-coding gene lift-over process.
+LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ (credits to `Dr. Alaina Shumate <https://scholar.google.com/citations?user=N3tXk7QAAAAJ&hl=en>`_) and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ (credits to `Dr. Heng Li <http://liheng.org>`_), and employs a two-step  :ref:`protein maximization algorithm <protein-maximization_algorithm>` to improve the protein-coding gene lift-over process.
 
 
 .. lift-over annotator that takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_!
@@ -110,7 +110,7 @@ Who is it for❓
 
 1. If you have sequenced and assembled a new genome and need to annotate it, LiftOn is the ideal choice for generating annotations.
 2. If you want to do comparative genomics analysis, run liftOn to lift-over and compare annotations!
-3. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the `T2T_CHM13_LiftOn.gff3 <https://khchao.com>`_ file for your convenience.
+3. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the `T2T_CHM13_LiftOn.gff3 <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3>`_ file for your convenience.
 
 
 |
@@ -126,7 +126,7 @@ LiftOn is designed for individuals who would like to annotate a new assembly, re
 
 The first step is to select a well-annotated genome along with its annotation, denoted as reference **Genome** :math:`R` and **Annotation** :math:`R_A`. 
 
-LiftOn employs a two-step  :ref:`protein-maximization_algorithm` (PM algorithm). 
+LiftOn employs a two-step  :ref:`protein maximization algorithm <protein-maximization_algorithm>` (PM algorithm). 
 
 1. The first module is the *chaining algorithm*. It starts by extracting protein sequences annotated by Liftoff and miniprot. LiftOn then aligns these sequences to full-length reference proteins. For each gene locus, LiftOn compares each section of the protein alignments from Liftoff and miniprot, chaining together the best combinations.
 2. The second module is the *open-reading frame search (ORF search) algorithm*. In the case of truncated protein-coding transcripts, this algorithm examines alternative frames to identify the ORF that produces the longest match with the reference protein.
@@ -151,7 +151,7 @@ Cite us
 
 .. raw:: html
     
-    <p>Chao, Kua-Hao, Jakob M. Heinz, Celine Hoh, Alan Mao, Alaina Shumate, Mihaela Perte, aand Steven L. Salzberg. <i>"Chaining DNA and protein alignments to improve homology-based lift-over genome annotation using LiftOn."</i> <b>bioRxiv</b>.
+    <p>Chao, Kua-Hao, Jakob M. Heinz, Celine Hoh, Alan Mao, Alaina Shumate, Mihaela Perte, aand Steven L. Salzberg. <i>"Combining DNA and protein alignments to improve genome annotation with LiftOn."</i> <b>bioRxiv</b>.
     <a href="https://doi.org/10.1093/bioinformatics/btaa1016" target="_blank"> <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg> </a> </p>
 
     <p>Shumate, Alaina, and Steven L. Salzberg. <i>"Liftoff: accurate mapping of gene annotations."</i> <b>Bioinformatics</b> 37.12 (2021): 1639-1643.
@@ -174,7 +174,7 @@ https://github.com/Kuanhao-Chao/LiftOn/issues
 Key contributors
 ================
 
-LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_.
+LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_ and `Alan Man <https://github.com/am12>`_. The LiftOn logo was designed by `Alan Man <https://github.com/am12>`_.
 
 |
 
