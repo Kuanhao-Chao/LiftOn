@@ -95,7 +95,7 @@ LiftOn is a homology-based lift-over tool designed to accurately map annotations
 Why LiftOn❓
 ==================
 
-1. **Burgeoning number of genome assemblies**: As of December 2023, among the 15,578 distinct eukaryotic genomes, only 1,111 have been annotated (`Eukaryotic Genome Annotation at NCBI <https://www.ncbi.nlm.nih.gov/genome/annotation_euk/#graphs>`_). More and more high quality assemblies are generated. We need to accurately annotate them.
+1. **Burgeoning number of genome assemblies**: As of December 2023, there are 30,530 eukaryotic genomes listed on NCBI (`NCBI genome browser <https://www.ncbi.nlm.nih.gov/genome/browse/#!/overview/>`_). However, genome annotation is lagging behind. As more high-quality assemblies are generated, it is important to accurately annotate them.
 
 2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over protein-coding gene annotations. LiftOn improves the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_). 
 
@@ -182,8 +182,6 @@ LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  Th
 
 Table of contents
 ==================
-
-.. hide-toc:: true
 
 .. toctree::
     :maxdepth: 2

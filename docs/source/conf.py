@@ -23,7 +23,7 @@ copyright = '2024, Kuan-Hao Chao'
 author = 'Kuan-Hao Chao'
 
 copyright = u'Copyright (c) 2024 Kuan-Hao Chao. All rights reserved.'
-
+numfig = True
 
 
 # -- General configuration ---------------------------------------------------
