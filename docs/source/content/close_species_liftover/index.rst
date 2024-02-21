@@ -47,7 +47,7 @@
 
 .. _close_species-section:
 
-Closely-related species lift-over
+Closely related species lift-over
 ====================================
 
 .. When you want to annotate your newly assembled genome, and you realized that there is no same species reference annotation that is previously annotated, or there is a closely related species that is way much more anotated than your assembled species. In this case, you can run LiftOn to lift-over annotations between two closely-related speceis. 

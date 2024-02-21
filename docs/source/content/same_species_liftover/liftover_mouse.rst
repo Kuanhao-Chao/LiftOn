@@ -143,7 +143,7 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-mouse_circos:
 .. figure::  ../../_images/mouse/circos_plot.png
     :align:   center
-    :scale:  28 %
+    :scale:  16 %
 
     Circos plot illustrating the locations of extra gene copies found on NOD_SCID (left side) compared to GRCm39 (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 

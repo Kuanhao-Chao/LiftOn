@@ -31,7 +31,7 @@ Q & A ...
 
     `miniprot <https://github.com/lh3/miniprot>`_, on the other hand, is exclusively protein-based. This approach has limitations. (1) It cannot capture untranslated regions (UTRs), (2) may miss small exons in cases of long introns, (3) is susceptible to aligning proteins to pseudogenes due to the disregard of intronic sequences, and (4) may combine coding sequences (CDSs) from distinct genes when arranged in tandem along a genome. (5) Additionally, it solely applies to protein-coding transcripts, excluding non-coding genes or other features.
 
-    To overcome these limitations, we created LiftOn, which combines the advantages of both DNA- and protein-based approaches and applies :ref:`protein-maximization (PM) algorithm <protein-maximization_algorithm>` leading to enhanced protein-coding gene annotation.
+    To overcome these limitations, we created LiftOn, which combines the advantages of both DNA- and protein-based approaches and applies a two-step :ref:`protein-maximization (PM) algorithm <protein-maximization_algorithm>` leading to enhanced protein-coding gene annotation.
     
 |
 

@@ -48,9 +48,13 @@ Input files
 To run this example, download the following three input files.
 
 * **Input**
-    1. target **Genome** :math:`T` in FASTA : `chm13v2.0.fa <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/chm13v2.0.fa>`_ 
-    2. reference **Genome** :math:`R` in FASTA : `GCF_000001405.40_GRCh38.p14_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna>`_
-    3. reference **Annotation** :math:`R_A` in GFF3 : `NCBI_RefSeq_no_rRNA.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff>`_
+    1. target **Genome** :math:`T` in FASTA : `chm13v2.0.fa <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/chm13v2.0.fa>`_ 
+
+.. ftp://ftp.ccb.jhu.edu/pub/data/Homo_sapiens/Han1/v1.0/Assembly/Han1_v1.2.fasta)
+
+
+    2. reference **Genome** :math:`R` in FASTA : `GCF_000001405.40_GRCh38.p14_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna>`_
+    3. reference **Annotation** :math:`R_A` in GFF3 : `NCBI_RefSeq_no_rRNA.gff <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff>`_
 
 
 
@@ -68,12 +72,12 @@ There is only one command you need to run LiftOn:
 After successfully running LiftOn, you will get the following file and output directory:
 
 * **Output**: 
-    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3
-    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/
+    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton.gff3
+    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton_output/
 
-       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/score.txt>`_
-       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/extra_copy_features.txt>`_
-       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton_output/unmapped_features.txt>`_
+       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton_output/score.txt>`_
+       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton_output/extra_copy_features.txt>`_
+       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton_output/unmapped_features.txt>`_
 
 |
 |
@@ -141,7 +145,7 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-human_circos:
 .. figure::  ../../_images/human_refseq/circos_plot.png
     :align:   center
-    :scale:  28 %
+    :scale:  16 %
 
     Circos plot illustrating the locations of extra gene copies found on T2T-CHM13 (left side) compared to GRCh38 (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 

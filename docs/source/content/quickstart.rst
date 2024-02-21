@@ -35,7 +35,7 @@ Run the following commands:
     $ lifton -g GRCh38_chr22.gff3 -o GRCh38_2_CHM13_lifton.gff3 -copies chm13_chr22.fa GRCh38_chr22.fa
 
 
-After this step, you will obtain an annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format, and a directory :code:`lifton_output/` that contains various outputs, including sequence identity scores, unmapped features, extra copies, intermediate files, and more. We provide further explanations of the output file hierarchy in the :ref:`output_files` section.
+After this step, you will obtain an annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format, and a directory :code:`lifton_output/` that contains various outputs, including sequence identity scores, unmapped features, extra copies, intermediate files, and more. We provide further explanations of the output file hierarchy in the :ref:`output files section <output_files>`.
 
 
 |
