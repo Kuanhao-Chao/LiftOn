@@ -22,6 +22,8 @@ def run_liftoff(output_dir, args):
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
     liftoff_args.output = liftoff_annotation
     liftoff_main.run_all_liftoff_steps(liftoff_args)
+    if args.polish:
+        liftoff_annotation += "_polished"
     # test_basic.test_yeast(liftoff_outdir + "test_basic/")
     # test_advanced.test_yeast(liftoff_outdir + "test_advance/")
     return liftoff_annotation

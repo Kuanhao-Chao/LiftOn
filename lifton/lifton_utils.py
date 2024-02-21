@@ -344,7 +344,9 @@ def get_ref_liffover_features(features, ref_db):
         ref_features_reverse_dict: reference features reverse dictionary (transcript id -> gene id)
     """
     ref_features_dict = {}
+    ref_features_len_dict = {}
     ref_features_reverse_dict = {}
+    ref_trans_exon_num_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
     for f_itr in features:
@@ -362,8 +364,18 @@ def get_ref_liffover_features(features, ref_db):
                 for transcript in list(transcripts):
                     __process_ref_liffover_features(transcript, ref_db, feature)
                     ref_features_reverse_dict[transcript.id] = locus.id
+                    all_CDS_in_trans = list(ref_db.db_connection.children(transcript, featuretype='CDS', order_by='start'))
+                    if len(all_CDS_in_trans) > 0:
+                        ref_trans_exon_num_dict[transcript.id] = len(all_CDS_in_trans)
+                    else:
+                        ref_trans_exon_num_dict[transcript.id] = 0
             ref_features_dict[locus.id] = feature
-    return ref_features_dict, ref_features_reverse_dict
+            all_CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS', order_by='start'))
+            if len(all_CDS_children) > 0:
+                ref_features_len_dict[locus.id] = all_CDS_children[-1].end - all_CDS_children[0].start + 1
+            else:
+                ref_features_len_dict[locus.id] = 0
+    return ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict
 
 
 def __process_ref_liffover_features(locus, ref_db, feature):
@@ -476,15 +488,18 @@ def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
     """
     is_overlapped = False
     if mtrans.seqid not in tree_dict.keys():
-        return is_overlapped
+        return False
     ovps = tree_dict[mtrans.seqid].overlap(mtrans_interval)
     for ovp in ovps:
         ovp_len = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
         ref_len = ovp[1] - ovp[0] + 1
+        target_len = mtrans_interval[1] - mtrans_interval[0] + 1
         # Overlapping does not extend the ratio of the reference
-        if (ovp_len / ref_len) > overlap_ratio:
+        if (ovp_len / min(ref_len, target_len)) > overlap_ratio:
             is_overlapped = True
             break
     return is_overlapped
-
-
+    # if len(ovps) == 0:
+    #     return False
+    # else:
+    #     return True
