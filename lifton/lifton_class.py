@@ -60,7 +60,6 @@ class Lifton_GENE:
         ###########################
         self.entry = gffutil_entry_gene
         self.entry.source = "LiftOn"
-        self.entry.featuretype = "gene"
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
         self.copy_num = self.__get_gene_copy(ref_features_dict)
@@ -98,7 +97,6 @@ class Lifton_GENE:
 
     def update_gene_info(self, chromosome, start, end):
         self.entry.seqid = chromosome
-        self.entry.featuretype = "gene"
         self.entry.start = start
         self.entry.end = end
 
@@ -109,7 +107,6 @@ class Lifton_GENE:
     
     def update_trans_info(self, trans_id, chromosome, start, end):
         self.transcripts[trans_id].entry.seqid = chromosome
-        self.transcripts[trans_id].entry.featuretype = "mRNA"
         self.transcripts[trans_id].entry.start = start
         self.transcripts[trans_id].entry.end = end
 

@@ -17,7 +17,6 @@ class Annotation():
             feature_db = gffutils.FeatureDB(self.file_name)
         except:
             feature_db = self.build_database()
-        
         # print("feature_db: ", feature_db)
         # feature_db.execute('ANALYZE features')
         self.db_connection = feature_db
