@@ -49,12 +49,10 @@ To run this example, download the following three input files.
 
 * **Input**
     1. target **Genome** :math:`T` in FASTA : `chm13v2.0.fa <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/chm13v2.0.fa>`_ 
-
-.. ftp://ftp.ccb.jhu.edu/pub/data/Homo_sapiens/Han1/v1.0/Assembly/Han1_v1.2.fasta)
-
-
     2. reference **Genome** :math:`R` in FASTA : `GCF_000001405.40_GRCh38.p14_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna>`_
     3. reference **Annotation** :math:`R_A` in GFF3 : `NCBI_RefSeq_no_rRNA.gff <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff>`_
+
+
 
 
 
