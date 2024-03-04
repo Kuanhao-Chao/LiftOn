@@ -230,18 +230,20 @@ class Lifton_TRANS:
         self.entry.attributes["status"] = [lifton_status.annotation]
 
     def add_exon(self, gffutil_entry_exon):
-        attributes = {}
-        attributes['Parent'] = [self.entry.id]
-        gffutil_entry_exon.attributes = attributes
+        # attributes = {}
+        # attributes['Parent'] = [self.entry.id]
+        # gffutil_entry_exon.attributes = attributes
+        gffutil_entry_exon.attributes['Parent'] = [self.entry.id]
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
 
     def add_cds(self, gffutil_entry_cds):
         for exon in self.exons:
             if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
-                attributes = {}
-                attributes['Parent'] = [self.entry.id]
-                gffutil_entry_cds.attributes = attributes
+                # attributes = {}
+                # attributes['Parent'] = [self.entry.id]
+                # gffutil_entry_cds.attributes = attributes
+                gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
                 exon.add_cds(gffutil_entry_cds)
 
     def update_gffutil_entry_trans(self, gffutil_entry_trans):

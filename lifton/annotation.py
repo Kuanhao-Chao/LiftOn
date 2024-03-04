@@ -32,7 +32,6 @@ class Annotation():
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
                                         merge_strategy="create_unique", 
                                         # merge_strategy="warning",
-                                            # merge_strategy="create_unique", 
                                         id_spec='ID',
                                         force=True,
                                         verbose=True, disable_infer_transcripts=True,

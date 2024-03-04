@@ -76,11 +76,13 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
     # logger.log("\tminiprot with reference protein", debug=DEBUG)
     mtrans_id = m_feature.attributes["ID"][0]
     # Create LifOn gene instance
+    m_gene_feature = copy.deepcopy(m_feature)
+    m_gene_feature.featuretype = "gene"
     if ref_gene_id is None:
         # This is a place holder gene
-        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict, miniprot_holder=True)
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, {}, tree_dict, ref_features_dict, miniprot_holder=True)
     else:
-        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
+        lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
     # Create LifOn transcript instance
     Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
@@ -125,7 +127,9 @@ def lifton_miniprot_no_ref_protein(m_feature, m_feature_db, ref_gene_id, ref_tra
     logger.log("\tminiprot with NO reference protein", debug=DEBUG)
     # Reason it's missing => the mRNA does not belong to gene (vdj segments) || the mRNA is not in the reference annotation
     # Create LiftOn gene entry
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(m_feature), {}, tree_dict, ref_features_dict)
+    m_gene_feature = copy.deepcopy(m_feature)
+    m_gene_feature.featuretype = "gene"
+    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, {}, tree_dict, ref_features_dict)
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
     # Create LiftOn transcript entry
     Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), {}, ref_features_dict)
