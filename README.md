@@ -15,7 +15,7 @@
 <div class="line-block">
 <div class="line"><br></div>
 </div>
-<p>LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic <a class="reference external" href="https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true">Liftoff</a> (credits to <a class="reference external" href="https://scholar.google.com/citations?user=N3tXk7QAAAAJ&amp;hl=en">Dr. Alaina Shumate</a>) and <a class="reference external" href="https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621">miniprot</a> (credits to <a class="reference external" href="http://liheng.org">Dr. Heng Li</a>), and employs a <a class="reference internal" href="content/behind_scenes.html#protein-maximization-algorithm"><span class="std std-ref">Protein-maximization algorithm</span></a> to improve the protein-coding gene lift-over process.</p>
+<p>LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic <a class="reference external" href="https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true">Liftoff</a> (credits to <a class="reference external" href="https://scholar.google.com/citations?user=N3tXk7QAAAAJ&amp;hl=en">Dr. Alaina Shumate</a>) and <a class="reference external" href="https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621">miniprot</a> (credits to <a class="reference external" href="http://liheng.org">Dr. Heng Li</a>), and employs a <a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#protein-maximization-algorithm"><span class="std std-ref">Protein-maximization algorithm</span></a> to improve the protein-coding gene lift-over process.</p>
 <section id="why-lifton" class="">
 <h2>Why LiftOn❓<a class="headerlink" href="#why-lifton" title="Permalink to this heading">#</a></h2>
 <ol class="arabic simple">
@@ -51,7 +51,7 @@
 <div class="line-block">
 <div class="line"><br></div>
 </div>
-<p>LiftOn is the best tool to help you solve this problem! LiftOn employs a two-step <a class="reference internal" href="content/behind_scenes.html#protein-maximization-algorithm"><span class="std std-ref">protein maximization algorithm</span></a> (PM algorithm).</p>
+<p>LiftOn is the best tool to help you solve this problem! LiftOn employs a two-step <a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#protein-maximization-algorithm"><span class="std std-ref">protein maximization algorithm</span></a> (PM algorithm).</p>
 <ol class="arabic simple">
 <li><p>The first module is the <em>chaining algorithm</em>. It starts by extracting protein sequences annotated by Liftoff and miniprot. LiftOn then aligns these sequences to full-length reference proteins. For each gene locus, LiftOn compares each section of the protein alignments from Liftoff and miniprot, chaining together the best combinations.</p></li>
 <li><p>The second module is the <em>open-reading frame search (ORF search) algorithm</em>. In the case of truncated protein-coding transcripts, this algorithm examines alternative frames to identify the ORF that produces the longest match with the reference protein.</p></li>
@@ -109,18 +109,18 @@
 <span id="id3"></span><h2>Table of contents<a class="headerlink" href="#table-of-contents" title="Permalink to this heading">#</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="content/installation.html">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="content/installation.html#system-requirements">System requirements</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/installation.html#install-through-pip">Install through pip</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/installation.html#install-through-conda">Install through conda</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/installation.html#install-from-source">Install from source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/installation.html#check-lifton-installation">Check LiftOn installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/installation.html#now-you-are-ready-to-go">Now, you are ready to go !</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html#system-requirements">System requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html#install-through-pip">Install through pip</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html#install-through-conda">Install through conda</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html#install-from-source">Install from source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html#check-lifton-installation">Check LiftOn installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/installation.html#now-you-are-ready-to-go">Now, you are ready to go !</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="content/quickstart.html">Quick Start Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="content/quickstart.html#super-quick-start-one-liner">Super-Quick Start (one-liner)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/quickstart.html#try-lifton-on-google-colab">Try LiftOn on Google Colab</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/quickstart.html">Quick Start Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/quickstart.html#super-quick-start-one-liner">Super-Quick Start (one-liner)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/quickstart.html#try-lifton-on-google-colab">Try LiftOn on Google Colab</a></li>
 </ul>
 </li>
 </ul>
@@ -128,39 +128,39 @@
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Examples</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="content/same_species_liftover/index.html">Same species lift-over</a></li>
-<li class="toctree-l1"><a class="reference internal" href="content/close_species_liftover/index.html">Closely-related species lift-over</a></li>
-<li class="toctree-l1"><a class="reference internal" href="content/distant_species_liftover/index.html">Distant species lift-over</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/same_species_liftover/index.html">Same species lift-over</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/close_species_liftover/index.html">Closely-related species lift-over</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/distant_species_liftover/index.html">Distant species lift-over</a></li>
 </ul>
 </div>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Info</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="content/output_explanation.html">Output files</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="content/output_explanation.html#lifton-gff3">lifton.GFF3</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/output_explanation.html#lifton-output">lifton_output/</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/output_explanation.html">Output files</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/output_explanation.html#lifton-gff3">lifton.GFF3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/output_explanation.html#lifton-output">lifton_output/</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="content/behind_scenes.html">Behind the scenes</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#matching-miniprot-liftoff-genome-annotation">Matching miniprot &amp; Liftoff genome annotation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#protein-maximization-algorithm"><em>Protein-maximization algorithm</em></a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#mutation-report">Mutation report</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#open-reading-frame-search">Open-reading-frame search</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#dna-protein-transcript-sequence-identity-score-calculation">DNA &amp; protein transcript sequence identity score calculation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="content/behind_scenes.html#reference">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html">Behind the scenes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#matching-miniprot-liftoff-genome-annotation">Matching miniprot &amp; Liftoff genome annotation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#protein-maximization-algorithm"><em>Protein-maximization algorithm</em></a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#mutation-report">Mutation report</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#open-reading-frame-search">Open-reading-frame search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#dna-protein-transcript-sequence-identity-score-calculation">DNA &amp; protein transcript sequence identity score calculation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/behind_scenes.html#reference">Reference</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="content/how_to_page.html">Q &amp; A ...</a></li>
-<li class="toctree-l1"><a class="reference internal" href="content/function_manual.html">User Manual</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="content/function_manual.html#splam">splam</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/how_to_page.html">Q &amp; A ...</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/function_manual.html">User Manual</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/function_manual.html#splam">splam</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="content/changelog.html">Changelog</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="content/changelog.html#v1-0-0">v1.0.0</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/changelog.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/changelog.html#v1-0-0">v1.0.0</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="content/license.html">License</a></li>
-<li class="toctree-l1"><a class="reference internal" href="content/contact.html">Contact</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="http://ccb.jhu.edu/lifton/content/contact.html">Contact</a></li>
 </ul>
 </div>
 </section>
