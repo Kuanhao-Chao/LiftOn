@@ -86,21 +86,21 @@ LiftOn's tutorial
 .. What is LiftOn?
 .. ==================
 
+.. raw:: html
 
-LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ (credits to `Dr. Alaina Shumate <https://scholar.google.com/citations?user=N3tXk7QAAAAJ&hl=en>`_) and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ (credits to `Dr. Heng Li <http://liheng.org>`_), and employs a two-step  :ref:`protein maximization algorithm <protein-maximization_algorithm>` to improve the protein-coding gene lift-over process.
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 
+    LiftOn is a homology-based lift-over tool designed to accurately map annotations in GFF or GTF between assemblies. It is built upon the fantastic <a href="https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true" target="_blank">Liftoff</a> (credits to <a href="https://scholar.google.com/citations?user=N3tXk7QAAAAJ&hl=en" target="_blank">Dr. Alaina Shumate</a>) and <a href="https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621" target="_blank">miniprot</a> (credits to <a href="http://liheng.org" target="_blank">Dr. Heng Li</a>), and employs a two-step  <a href="https://ccb.jhu.edu/lifton/content/behind_scenes.html#protein-maximization-algorithm">protein maximization algorithm</a> to improve the protein-coding gene lift-over process. LiftOn improves the current T2T-CHM13 <a href="https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz" target="_blank">JHU RefSeqv110 + Liftoff v5.1</a> annotation and produces the finest T2T-CHM13 annotation to date <a href="ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/JHU_LiftOn_v1.0_chm13v2.0.gff3" target="_blank"><i class="fa fa-download"></i> JHU_LiftOn_v1.0_chm13v2.0.gff3</a>.
 
-
-.. lift-over annotator that takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ GFF files as input. It accurately generates gene annotations, with a particular focus on protein-coding genes. LiftOn takes consensus from both sources and generates optimal annotations that outperform both `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ and `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_!
-
+.. 
 Why LiftOn❓
 ==================
 
-1. **Burgeoning number of genome assemblies**: As of December 2023, there are 30,530 eukaryotic genomes listed on NCBI (`NCBI genome browser <https://www.ncbi.nlm.nih.gov/genome/browse/#!/overview/>`_). However, genome annotation is lagging behind. As more high-quality assemblies are generated, it is important to accurately annotate them.
+1. **Burgeoning number of genome assemblies**: As of December 2023, there are 30,530 eukaryotic genomes, 567,228 prokaryotic genomes, and 66,429 viruses listed on NCBI (`NCBI genome browser <https://www.ncbi.nlm.nih.gov/genome/browse/#!/overview/>`_). However, genome annotation is lagging behind. As more high-quality assemblies are generated, it is important to accurately annotate them.
 
-2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ map genes only based on the DNA alignment. With the protein-to-genome alignment, LiftOn is able to further improve the lift-over protein-coding gene annotations. LiftOn improves the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_). 
+2. **Improved protein-coding gene mapping**: The popular `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_ tool maps genes based on DNA alignments alone. `Miniprot <https://github.com/lh3/miniprot>`_ maps genes based on protein alignments but, without gene structure information, may not be as accurate on their own. LiftOn combines both DNA and protein alignments and produces better gene mapping results! LiftOn improves upon the current released T2T-CHM13 annotation (`JHU RefSeqv110 + Liftoff v5.1 <https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/CHM13/assemblies/annotation/chm13v2.0_RefSeq_Liftoff_v5.1.gff3.gz>`_).
 
-3. **Improved distant species lift-over**: LiftOn extends from lift-over between the same or closely related species to more distantly related species. See :ref:`mouse_2_rat` and :ref:`drosophila_melanogaster_2_erecta` lift-over sections.
+3. **Improved distant species lift-over**: A key limitation of DNA-based lift-over tools is that they do not perform well when the reference and target genomes have significantly diverged. With the help of protein alignments, LiftOn improves the lift-over process between distantly related species. See ":ref:`distant_species_liftover_mouse_to_rat`" and ":ref:`distant_species_liftover_drosophila_melanogaster_2_erecta`" result sections.
 
 LiftOn is free, it's open source, it's easy to install , and it's in Python!
 
@@ -109,10 +109,13 @@ LiftOn is free, it's open source, it's easy to install , and it's in Python!
 Who is it for❓
 ====================================
 
-1. If you have sequenced and assembled a new genome and need to annotate it, LiftOn is the ideal choice for generating annotations.
-2. If you want to do comparative genomics analysis, run liftOn to lift-over and compare annotations!
-3. If you wish to utilize the finest CHM13 annotation, you can run LiftOn! We have also pre-generated the `T2T_CHM13_LiftOn.gff3 <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3>`_ file for your convenience.
+LiftOn is designed for researchers and bioinformaticians who are interested in genome annotation. Specifically, it is beneficial in the following scenarios:
 
+1. If you have sequenced and assembled a new genome and require annotation, LiftOn provides an efficient solution for generating annotations for your genome.
+
+2. LiftOn is an excellent tool for those looking to perform comparative genomics analysis. It facilitates the lifting over and comparison of gene contents between different genomes, aiding in understanding evolutionary relationships and functional genomics.
+
+3. For researchers interested in using T2T-CHM13 annotations, try LiftOn! Additionally, we have pre-generated the `T2T_CHM13_LiftOn.gff3 <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3>`_ file for your convenience. 
 
 |
 
