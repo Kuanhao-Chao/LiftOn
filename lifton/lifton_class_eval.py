@@ -92,13 +92,27 @@ class Lifton_TRANS_EVAL:
             self.entry.attributes[key] = atr
 
 
-    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
-        # Need to output which type of mutation it is.
-        ################################
-        # Step 1: Iterate through the children and chain the DNA sequence
-        ################################
+    def get_coding_seq(self, fai):
         coding_seq = ""
+        cdss_lens = []
+        cds_children = []
+        for exon in self.exons:
+            if exon.cds is not None:
+                cds_children.append(copy.deepcopy(exon.cds.entry))
+                # Chaining the CDS features
+                p_seq = exon.cds.entry.sequence(fai)
+                if exon.cds.entry.strand == '-':
+                    coding_seq = p_seq + coding_seq
+                    cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
+                elif exon.cds.entry.strand == '+':
+                    coding_seq = coding_seq + p_seq
+                    cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
+        return coding_seq, cds_children, cdss_lens
+
+    def get_coding_trans_seq(self, fai):
         trans_seq = ""
+        coding_seq = ""
+        accum_cds_length = 0
         for exon in self.exons:
             # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
@@ -108,54 +122,78 @@ class Lifton_TRANS_EVAL:
             elif exon.entry.strand == '+':
                 trans_seq = trans_seq + p_trans_seq
             if exon.cds is not None:
+                # Updating CDS frame
+                exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
+                accum_cds_length = exon.cds.entry.end - exon.cds.entry.start + 1
                 # Chaining the CDS features
                 p_seq = exon.cds.entry.sequence(fai)
-                p_seq = Seq(p_seq).upper()
                 if exon.cds.entry.strand == '-':
                     coding_seq = p_seq + coding_seq
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
-        ################################
-        # Step 2: Translate the DNA sequence & get the reference protein sequence.
-        ################################
-        if coding_seq == "":
+        if trans_seq != None:
+            trans_seq = str(trans_seq).upper()
+        if coding_seq != None:
+            coding_seq = str(coding_seq).upper()
+        return coding_seq, trans_seq
+
+    def translate_coding_seq(self, coding_seq):
+        protein_seq = None
+        if coding_seq != "":
+            protein_seq = str(Seq(coding_seq).translate())
+        return protein_seq
+
+    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
+        if protein_seq == "" or protein_seq == None:
             lifton_aa_aln = None
             peps = None
         else:
-            protein_seq = coding_seq.translate()
             peps = protein_seq.split("*")
-            
-            # print("protein_seq: ", protein_seq)
-            # print("ref_protein_seq: ", ref_protein_seq)
-            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
+            lifton_aa_aln = align.protein_align(str(protein_seq), str(ref_protein_seq))
             # Update lifton sequence identity
             lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aa_aln.identity)
+        return lifton_aa_aln, peps
 
-        if trans_seq == "":
+    def align_trans_seq(self, trans_seq, ref_trans_seq, lifton_status):
+        if trans_seq == "" or trans_seq == None:
             lifton_tran_aln = None
         else:
             lifton_tran_aln = align.trans_align(trans_seq, ref_trans_seq)
+        lifton_status.lifton_dna = lifton_tran_aln.identity
+        return lifton_tran_aln
 
+    def fix_truncated_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status):
+        # Getting translated sequences (frame will be updated)
+        coding_seq, trans_seq = self.get_coding_trans_seq(fai)
+        protein_seq = self.translate_coding_seq(coding_seq)
+        # Aligning the LiftOn protein & DNA sequences
+        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
+        lifton_tran_aln = self.align_trans_seq(str(trans_seq), str(ref_trans_seq), lifton_status)
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps)
-
         ORF_search = False
         for mutation in lifton_status.status:
-            # identical
-            # synonymous # inframe_insertion # inframe_deletion # nonsynonymous # frameshift # start_lost # stop_missing # stop_codon_gain            
+            # identical # synonymous 
+            # (1) inframe_insertion # (2) inframe_deletion # (3) nonsynonymous 
+            # (4) frameshift # (5) start_lost # (6) stop_missing # (7) stop_codon_gain
             # Adding mutations in to entry.attributes
             if mutation != "identical":
                 if "mutation" not in self.entry.attributes:
                     self.entry.attributes["mutation"] = [mutation]
                 else:
                     self.entry.attributes["mutation"].append(mutation)
-            # ORF searching
-            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift" or mutation == "start_lost":
+            # ORF searching for these four types of mutations
+            # frameshift_orf_threshold = 0.8
+            # and lifton_aa_aln.identity < frameshift_orf_threshold)
+            if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
-
-        if ORF_search:
-            self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status)
+        # if ORF_search:
+        #     self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status)
         return lifton_tran_aln, lifton_aa_aln
 
+    def align_trans_dna(self, fai, ref_trans_seq, lifton_status):
+        _, trans_seq = self.get_coding_trans_seq(fai)
+        lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
+        return lifton_tran_aln
 
     def __find_orfs(self, trans_seq, ref_protein_seq, lifton_aln, lifton_status):
         trans_seq = trans_seq.upper()

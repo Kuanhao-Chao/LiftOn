@@ -4,15 +4,12 @@ from lifton import lifton_class, lifton_class_eval, lifton_utils, align, logger
 def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, DEBUG):
     # Check if there are exons in the children
     exon_children = list(db.children(locus, featuretype='exon', level=1, order_by='start'))
-
     if len(exon_children) == 0:
         if lifton_gene is None:    
             ###########################
             # These are gene (1st) features without direct exons 
             #   => Create LifOn gene instance
             ########################### 
-            # logger.log(f"Before locus.id\t: {locus.id}", debug=DEBUG)
-
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, "gene-"+(locus.id),None)
 
             # ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, (locus.id),None)
@@ -81,7 +78,6 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
         # Processing transcript (feature with exon features)
         ###########################
         lifton_status = lifton_class.Lifton_Status()                
-
         try:
             ###########################
             # Add LifOn transcript instance
@@ -138,7 +134,6 @@ def tgt_evaluate(lifton_gene, locus, ref_db, db, tree_dict, tgt_fai, ref_feature
         else:
             lifton_status.annotation = "Eval_no_cdss"
             lifton_status.status = ["no_cdss"]
-
 
         # print(">> written lifton_trans.entry.id: ", lifton_trans.entry.id)
         lifton_utils.write_lifton_eval_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
