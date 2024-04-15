@@ -50,6 +50,7 @@ class Lifton_feature:
         self.id = id
         self.copy_num = 0
         self.is_protein_coding = False
+        self.is_non_coding = False
         self.children = set()
 
 
@@ -137,17 +138,20 @@ class Lifton_GENE:
         lifton_aln, good_trans = self.transcripts[trans_id].fix_truncated_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status)
         return lifton_aln, good_trans
 
-    def align_trans_dna(self, trans_id, ref_trans_id, fai, fai_trans, lifton_status):
+    def align_trans_dna(self, trans_id, ref_trans_id, fai, fai_trans, lifton_status, cds_num):
+        if trans_id not in self.transcripts.keys() or ref_trans_id not in fai_trans.keys():
+            return None    
         ref_trans_seq = str(fai_trans[ref_trans_id])
-        if trans_id not in self.transcripts.keys():
-            return None
         lifton_tran_aln = self.transcripts[trans_id].align_trans_dna(fai, ref_trans_seq, lifton_status)
+
         if lifton_tran_aln.identity == 1:
             lifton_status.annotation = "Liftoff_identical"
             lifton_status.status = ["identical"]
         elif lifton_tran_aln.identity < 1:
             lifton_status.annotation = "Liftoff_synonymous"
             lifton_status.status = ["synonymous"]
+        if cds_num == 0:
+            lifton_status.status = ["non_coding"]
         return lifton_tran_aln
 
     def update_cds_list(self, trans_id, cds_list):

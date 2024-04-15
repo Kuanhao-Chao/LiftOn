@@ -161,26 +161,6 @@ def get_child_types(parent_types, db):
     return child_types
 
 
-def segments_overlap(segment1, segment2):
-    """
-        This function checks if the segments overlap.
-
-        Parameters:
-        - segment1: segment 1 in tuple (start, end)
-        - segment2: segment 2 in tuple (start, end)
-
-        Returns:
-        True if the segments overlap, False otherwise.
-    """
-    # Check if the segments have valid endpoints
-    if len(segment1) != 2 or len(segment2) != 2:
-        raise ValueError("Segments must have exactly 2 endpoints")    
-    # Sort the segments by their left endpoints
-    segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-    # Check if the right endpoint of the first segment is greater than or equal to the left endpoint of the second segment
-    return segment1[1] >= segment2[0]
-
-
 def custom_bisect_insert(sorted_list, element_to_insert):
     """
         This function bisects the sorted list and inserts the element.
@@ -260,7 +240,13 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
-def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id):
+def LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
+    liftoff_aln = align.lifton_parasail_align("liftoff", lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
+    lifton_status.liftoff = liftoff_aln.identity
+    return liftoff_aln
+
+
+def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, tree_dict, fai, ref_proteins, ref_trans_id, lifton_status):
     """
         This function checks the miniprot alignment.
 
@@ -324,14 +310,14 @@ def LiftOn_check_miniprot_alignment(chromosome, transcript, lifton_status, m_id_
             for cds in list(cdss):
                 cds_num += 1
                 miniprot_trans.add_cds(cds)
-            tmp_m_lifton_aln = align.parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id, lifton_status)
+            tmp_m_lifton_aln = align.lifton_parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
             if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
                 m_lifton_aln = tmp_m_lifton_aln
                 lifton_status.miniprot = m_lifton_aln.identity
     return m_lifton_aln, has_valid_miniprot
 
 
-def get_ref_liffover_features(features, ref_db):
+def get_ref_liffover_features(features, ref_db, intermediate_dir):
     """
         This function gets the reference liftover features.
 
@@ -343,19 +329,24 @@ def get_ref_liffover_features(features, ref_db):
         ref_features_dict: reference features dictionary (gene id -> transcript id)
         ref_features_reverse_dict: reference features reverse dictionary (transcript id -> gene id)
     """
+    fw_gene_c = open(f"{intermediate_dir}/ref_feature_coding.txt", "w")
+    fw_gene_nc = open(f"{intermediate_dir}/ref_feature_noncoding.txt", "w")
+    fw_trans_c = open(f'{intermediate_dir}/ref_transcript_coding.txt', 'w')    
+    fw_trans_nc = open(f'{intermediate_dir}/ref_transcript_noncoding.txt', 'w')
     ref_features_dict = {}
-    ref_features_len_dict = {}
-    ref_features_reverse_dict = {}
-    ref_trans_exon_num_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
     for f_itr in features:
         for locus in ref_db.db_connection.features_of_type(f_itr):
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
             feature = lifton_class.Lifton_feature(locus.id)
-            if len(CDS_children) > 0:
-                # This is the protien-coding gene
+            # Write out reference gene features IDs
+            if locus.attributes['gene_biotype'][0] == "protein_coding" and len(CDS_children) > 0:
                 feature.is_protein_coding = True
+                fw_gene_c.write(f"{locus.id}\n")
+            elif (locus.attributes['gene_biotype'][0] == "lncRNA" or locus.attributes['gene_biotype'][0] == "ncRNA"):
+                feature.is_non_coding = True
+                fw_gene_nc.write(f"{locus.id}\n")
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
             if len(exon_children) > 0:
                 __process_ref_liffover_features(locus, ref_db, None)
@@ -363,24 +354,47 @@ def get_ref_liffover_features(features, ref_db):
                 transcripts = ref_db.db_connection.children(locus, level=1)
                 for transcript in list(transcripts):
                     __process_ref_liffover_features(transcript, ref_db, feature)
-                    ref_features_reverse_dict[transcript.id] = locus.id
-                    all_CDS_in_trans = list(ref_db.db_connection.children(transcript, featuretype='CDS', order_by='start'))
-                    if len(all_CDS_in_trans) > 0:
-                        ref_trans_exon_num_dict[transcript.id] = len(all_CDS_in_trans)
-                    else:
-                        ref_trans_exon_num_dict[transcript.id] = 0
+                    # Write out reference trans feature IDs
+                    if feature.is_protein_coding and transcript.featuretype == "mRNA":
+                        fw_trans_c.write(f"{transcript.id}\n")
+                    elif feature.is_non_coding:
+                        fw_trans_nc.write(f"{transcript.id}\n")
             ref_features_dict[locus.id] = feature
             all_CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS', order_by='start'))
-            if len(all_CDS_children) > 0:
-                ref_features_len_dict[locus.id] = all_CDS_children[-1].end - all_CDS_children[0].start + 1
-            else:
-                ref_features_len_dict[locus.id] = 0
-    return ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict
+    fw_gene_c.close()
+    fw_gene_nc.close()
+    fw_trans_c.close()
+    fw_trans_nc.close()
+    return ref_features_dict
 
 
 def __process_ref_liffover_features(locus, ref_db, feature):
     if feature != None:
         feature.children.add(locus.id)
+
+
+def miniprot_id_mapping(m_feature_db):
+    """
+        This function creates a dictionary of miniprot id to reference id.
+
+        Parameters:
+        - m_feature_db: miniprot feature database
+
+        Returns:
+        ref_id_2_m_id_trans_dict: reference id to miniprot transcript ids dictionary
+        m_id_2_ref_id_trans_dict: miniprot transcript id to reference id dictionary
+    """
+    ref_id_2_m_id_trans_dict = {}
+    m_id_2_ref_id_trans_dict = {}
+    for feature in m_feature_db.features_of_type("mRNA"):
+        miniprot_id = feature["ID"][0]
+        aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]
+        if aa_trans_id in ref_id_2_m_id_trans_dict.keys():
+            ref_id_2_m_id_trans_dict[aa_trans_id].append(miniprot_id)
+        else:
+            ref_id_2_m_id_trans_dict[aa_trans_id] = [miniprot_id]
+        m_id_2_ref_id_trans_dict[miniprot_id] = aa_trans_id
+    return ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict
 
 
 def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
@@ -454,6 +468,26 @@ def write_lifton_chains(fw_chain, transcript_id, chains):
     fw_chain.write(f"{transcript_id}\t{chain_ls}\n")
 
 
+def segments_overlap(segment1, segment2):
+    """
+        This function checks if the segments overlap.
+
+        Parameters:
+        - segment1: segment 1 in tuple (start, end)
+        - segment2: segment 2 in tuple (start, end)
+
+        Returns:
+        True if the segments overlap, False otherwise.
+    """
+    # Check if the segments have valid endpoints
+    if len(segment1) != 2 or len(segment2) != 2:
+        raise ValueError("Segments must have exactly 2 endpoints")    
+    # Sort the segments by their left endpoints
+    segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
+    # Check if the right endpoint of the first segment is greater than or equal to the left endpoint of the second segment
+    return segment1[1] >= segment2[0]
+
+
 def segments_overlap_length(segment1, segment2):
     """
         This function gets the length of the overlapping segments.
@@ -469,7 +503,6 @@ def segments_overlap_length(segment1, segment2):
         raise ValueError("Segments must have exactly 2 endpoints")
     # Sort the segments by their left endpoints
     segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-    # print("Checking miniprot overlapped length: ", segment1[1] - segment2[0] + 1)
     return segment1[1] - segment2[0] + 1
 
 
@@ -499,7 +532,3 @@ def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
             is_overlapped = True
             break
     return is_overlapped
-    # if len(ovps) == 0:
-    #     return False
-    # else:
-    #     return True
