@@ -188,7 +188,9 @@ def run_all_lifton_steps(args):
     lifton_outdir = f"{outdir}/lifton_output/"
     args.directory = "intermediate_files/"
     intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
+    stats_dir= f"{outdir}/lifton_output/stats/"
     os.makedirs(intermediate_dir, exist_ok=True)
+    os.makedirs(stats_dir, exist_ok=True)
     args.directory = intermediate_dir
     logger.log(">> Reading target genome ...", debug=True)
     tgt_fai = Fasta(tgt_genome)
@@ -206,8 +208,6 @@ def run_all_lifton_steps(args):
     ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir)
-
-    return 0
 
     ################################
     # Step 3: Extract protein & DNA dictionaries from the selected reference features
@@ -268,10 +268,11 @@ def run_all_lifton_steps(args):
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
-    fw_unmapped = open(f"{lifton_outdir}/unmapped_features.txt", "w")
-    fw_extra_copy = open(f"{lifton_outdir}/extra_copy_features.txt", "w")
-    fw_mapped_trans_ids = open(f'{intermediate_dir}/mapped_transcript_ids.txt', 'w')    
-    fw_mapped_feature_ids = open(f'{intermediate_dir}/mapped_feature_ids.txt', 'w')
+
+    fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")
+    fw_extra_copy = open(f"{stats_dir}/extra_copy_features.txt", "w")
+    fw_mapped_feature = open(f'{stats_dir}/mapped_feature.txt', 'w')
+    fw_mapped_trans = open(f'{stats_dir}/mapped_transcript.txt', 'w')
 
     if args.write_chains:
         fw_chain = open(f"{lifton_outdir}/chain.txt", "w")
@@ -339,13 +340,13 @@ def run_all_lifton_steps(args):
     ################################
     # Step 9: Printing stats
     ################################
-    stats.print_report(ref_features_dict, fw_unmapped, fw_extra_copy, debug=args.debug)
+    stats.print_report(ref_features_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
     fw.close()
     fw_score.close()
     fw_unmapped.close()
     fw_extra_copy.close()
-    fw_mapped_trans_ids.close()
-    fw_mapped_feature_ids.close()
+    fw_mapped_feature.close()
+    fw_mapped_trans.close()
     if args.write_chains:
         fw_chain.close()
 
