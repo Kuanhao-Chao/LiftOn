@@ -242,7 +242,8 @@ def get_parent_features_to_lift(feature_types_file):
 
 def LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
     liftoff_aln = align.lifton_parasail_align("liftoff", lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
-    lifton_status.liftoff = liftoff_aln.identity
+    if liftoff_aln != None:
+        lifton_status.liftoff = liftoff_aln.identity
     return liftoff_aln
 
 
@@ -329,11 +330,13 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir):
         ref_features_dict: reference features dictionary (gene id -> transcript id)
         ref_features_reverse_dict: reference features reverse dictionary (transcript id -> gene id)
     """
-    fw_gene_c = open(f"{intermediate_dir}/ref_feature_coding.txt", "w")
-    fw_gene_nc = open(f"{intermediate_dir}/ref_feature_noncoding.txt", "w")
-    fw_trans_c = open(f'{intermediate_dir}/ref_transcript_coding.txt', 'w')    
-    fw_trans_nc = open(f'{intermediate_dir}/ref_transcript_noncoding.txt', 'w')
+
+    fw_gene = open(f"{intermediate_dir}/ref_feature.txt", "w")
+    fw_trans = open(f'{intermediate_dir}/ref_transcript.txt', 'w')    
     ref_features_dict = {}
+    ref_features_len_dict = {}
+    ref_features_reverse_dict = {}
+    ref_trans_exon_num_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
     for f_itr in features:
@@ -343,10 +346,12 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir):
             # Write out reference gene features IDs
             if locus.attributes['gene_biotype'][0] == "protein_coding" and len(CDS_children) > 0:
                 feature.is_protein_coding = True
-                fw_gene_c.write(f"{locus.id}\n")
+                fw_gene.write(f"{locus.id}\tcoding\n")
             elif (locus.attributes['gene_biotype'][0] == "lncRNA" or locus.attributes['gene_biotype'][0] == "ncRNA"):
                 feature.is_non_coding = True
-                fw_gene_nc.write(f"{locus.id}\n")
+                fw_gene.write(f"{locus.id}\tnon-coding\n")
+            else:
+                fw_gene.write(f"{locus.id}\tother\n")
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
             if len(exon_children) > 0:
                 __process_ref_liffover_features(locus, ref_db, None)
@@ -354,18 +359,28 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir):
                 transcripts = ref_db.db_connection.children(locus, level=1)
                 for transcript in list(transcripts):
                     __process_ref_liffover_features(transcript, ref_db, feature)
+                    ref_features_reverse_dict[transcript.id] = locus.id
+                    all_CDS_in_trans = list(ref_db.db_connection.children(transcript, featuretype='CDS', order_by='start'))
+                    if len(all_CDS_in_trans) > 0:
+                        ref_trans_exon_num_dict[transcript.id] = len(all_CDS_in_trans)
+                    else:
+                        ref_trans_exon_num_dict[transcript.id] = 0
                     # Write out reference trans feature IDs
                     if feature.is_protein_coding and transcript.featuretype == "mRNA":
-                        fw_trans_c.write(f"{transcript.id}\n")
+                        fw_trans.write(f"{transcript.id}\tcoding\n")
                     elif feature.is_non_coding:
-                        fw_trans_nc.write(f"{transcript.id}\n")
+                        fw_trans.write(f"{transcript.id}\tnon-coding\n")
+                    else:
+                        fw_trans.write(f"{transcript.id}\tother\n")
             ref_features_dict[locus.id] = feature
             all_CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS', order_by='start'))
-    fw_gene_c.close()
-    fw_gene_nc.close()
-    fw_trans_c.close()
-    fw_trans_nc.close()
-    return ref_features_dict
+            if len(all_CDS_children) > 0:
+                ref_features_len_dict[locus.id] = all_CDS_children[-1].end - all_CDS_children[0].start + 1
+            else:
+                ref_features_len_dict[locus.id] = 0
+    fw_gene.close()
+    fw_trans.close()
+    return ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict
 
 
 def __process_ref_liffover_features(locus, ref_db, feature):

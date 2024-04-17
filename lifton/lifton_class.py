@@ -55,33 +55,33 @@ class Lifton_feature:
 
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, miniprot_holder = False, tmp = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, tmp = False):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
         self.entry = gffutil_entry_gene
         self.entry.source = "LiftOn"
+        self.is_protein_coding = False
+        self.is_non_coding = False
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
         self.copy_num = self.__get_gene_copy(ref_features_dict)
-        self.miniprot_holder = miniprot_holder
         self.tmp = tmp
-        if self.miniprot_holder:
-            attributes = {}
-            attributes["ID"] = ["LiftOn-gene_" + str(ref_features_dict["LiftOn-gene"].copy_num)]
-            ref_features_dict["LiftOn-gene"].copy_num += 1
-            self.entry.attributes = attributes
-        else:
-            self.entry.attributes = ref_gene_attrs
-            self.entry.attributes["ID"] = self.ref_gene_id + "_" + str(self.copy_num) if self.copy_num > 0 else self.ref_gene_id
-            if self.copy_num > 0:
-                self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]        
+        self.entry.attributes = ref_gene_attrs
+        self.entry.attributes["ID"] = self.ref_gene_id + "_" + str(self.copy_num) if self.copy_num > 0 else self.ref_gene_id
+        if self.copy_num > 0:
+            self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]        
         self.__update_gene_copy(ref_features_dict)
         self.entry.id = self.entry.attributes["ID"][0]
         gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
         if self.entry.seqid not in tree_dict.keys():
             tree_dict[self.entry.seqid] = IntervalTree()
         tree_dict[self.entry.seqid].add(gene_interval)
+        # Decide if its type
+        if self.entry.attributes['gene_biotype'][0] == "protein_coding":
+            self.is_protein_coding = True
+        elif (self.entry.attributes['gene_biotype'][0] == "lncRNA" or self.entry.attributes['gene_biotype'][0] == "ncRNA"):
+            self.is_non_coding = True
         
     def __get_gene_copy(self, ref_features_dict):
         if 'extra_copy_number' in self.entry.attributes:
@@ -151,6 +151,7 @@ class Lifton_GENE:
             lifton_status.annotation = "Liftoff_synonymous"
             lifton_status.status = ["synonymous"]
         if cds_num == 0:
+            lifton_status.annotation = "Liftoff_non_codi ng"
             lifton_status.status = ["non_coding"]
         return lifton_tran_aln
 
@@ -161,11 +162,24 @@ class Lifton_GENE:
     def add_lifton_status_attrs(self, trans_id, lifton_status):
         self.transcripts[trans_id].add_lifton_status_attrs(lifton_status)
 
-    def write_entry(self, fw):
+    def write_entry(self, fw, transcripts_stats_dict):
         if not self.tmp:
             fw.write(str(self.entry) + "\n")
         for key, trans in self.transcripts.items():
             trans.write_entry(fw)
+            TYPE = ""
+            if self.is_protein_coding and trans.entry.featuretype == "mRNA":
+                TYPE = "coding"
+            elif self.is_non_coding and (trans.entry.featuretype == "ncRNA" or trans.entry.featuretype == "nc_RNA" or trans.entry.featuretype == "lncRNA" or trans.entry.featuretype == "lnc_RNA"):
+                TYPE = "non-coding"
+            else:
+                TYPE = "other"
+            if trans.ref_tran_id is None:
+                continue
+            if not trans.ref_tran_id in transcripts_stats_dict[TYPE].keys():
+                transcripts_stats_dict[TYPE][trans.ref_tran_id] = 1
+            else:
+                transcripts_stats_dict[TYPE][trans.ref_tran_id] += 1
 
     def update_boundaries(self):        
         for key, trans in self.transcripts.items():
@@ -185,6 +199,8 @@ class LiftOn_FEATURE:
         self.copy_num = copy_num
         self.features = {}
         self.entry.attributes["Parent"] = [parent_id]
+        self.ref_tran_id = None
+        # self.ref_tran_id = self.entry.id
         if int(copy_num) > 0:
             feature_id_base = lifton_utils.get_ID_base(self.entry.id)
             self.entry.id = f"{feature_id_base}_{copy_num}"

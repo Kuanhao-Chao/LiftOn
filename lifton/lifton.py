@@ -207,7 +207,7 @@ def run_all_lifton_steps(args):
     # Step 2: Get all reference features to liftover
     ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
-    ref_features_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir)
+    ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir)
 
     ################################
     # Step 3: Extract protein & DNA dictionaries from the selected reference features
@@ -268,22 +268,18 @@ def run_all_lifton_steps(args):
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
-
     fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")
     fw_extra_copy = open(f"{stats_dir}/extra_copy_features.txt", "w")
     fw_mapped_feature = open(f'{stats_dir}/mapped_feature.txt', 'w')
     fw_mapped_trans = open(f'{stats_dir}/mapped_transcript.txt', 'w')
-
-    if args.write_chains:
-        fw_chain = open(f"{lifton_outdir}/chain.txt", "w")
-    else:
-        fw_chain = None
+    fw_chain = open(f"{lifton_outdir}/chain.txt", "w") if args.write_chains else None
 
     ################################
     # Step 6: Creating miniprot 2 Liftoff ID mapping & Initializing intervaltree
     ################################
     ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
     tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
+    transcripts_stats_dict = {'coding': {}, 'non-coding': {}, 'other': {}}
 
     ################################
     # Step 7: Process Liftoff genes & transcripts
@@ -291,64 +287,39 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     processed_features = 0
-    for feature in features:
-        for locus in l_feature_db.features_of_type(feature):#, limit=("NW_020825194.1", 28072487, 28072684)):
-            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args.write_chains, args.debug, ENTRY_FEATURE=True)
+    for feature in features:#CP132235.1:34100723-34103135
+        for locus in l_feature_db.features_of_type(feature):#, limit=("CP132235.1", 34100723, 34303135)):
+            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
             if lifton_gene is None or lifton_gene.ref_gene_id is None:
                 continue
-            # Writing out LiftOn entries
-            lifton_gene.write_entry(fw)
+            lifton_gene.write_entry(fw,transcripts_stats_dict)
             if processed_features % 20 == 0:
                 sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
             processed_features += 1
 
     ################################
-    # Step 8: Process miniprot transcripts
+    # Step 8: Process miniprot transcriptsq
     ################################
-    # for mtrans in m_feature_db.features_of_type('mRNA'):
-    #     mtrans_id = mtrans.attributes["ID"][0]
-    #     mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
-    #     is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
-    #     if not is_overlapped:
-    #         ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
-    #         ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-    #         if ref_trans_id in ref_proteins.keys() and ref_trans_id in ref_trans.keys():
-    #             if ref_trans_id != None:
-    #                 # Check if the additional copy is valid
-    #                 # 1. Remove processed pseudogenes: 1 CDS in miniprot but >1 CDS in reference
-    #                 # 2. Check the trans ratio is in the range of min_minprot and max_minprot
-    #                 if len(list(m_feature_db.children(mtrans, featuretype='CDS'))) == 1 and ref_trans_exon_num_dict[ref_trans_id] > 1:
-    #                     # print(f"Processed pseudogene: {mtrans_id} with 1 CDS in miniprot but >1 CDS in reference")
-    #                     continue
-    #                 miniprot_trans_ratio = (mtrans.end - mtrans.start + 1) / ref_features_len_dict[ref_gene_id]
-    #                 if miniprot_trans_ratio > args.min_miniprot and miniprot_trans_ratio < args.max_miniprot:
-    #                     lifton_gene, transcript_id, lifton_status = run_miniprot.lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args.debug)
-    #                     lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
-    #                 else:
-    #                     # print(f"Invalid miniprot transcript: {mtrans_id} with ratio: {miniprot_trans_ratio}")
-    #                     continue
-    #             else:
-    #                 # Skip those cannot be found in reference.
-    #                 continue
-    #         lifton_gene.add_lifton_status_attrs(transcript_id, lifton_status)
-    #         lifton_utils.write_lifton_status(fw_score, transcript_id, mtrans, lifton_status)
-    #         lifton_gene.write_entry(fw)
-    #         if processed_features % 20 == 0:
-    #             sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
-    #         processed_features += 1
+    for mtrans in m_feature_db.features_of_type('mRNA'):
+        lifton_gene = run_miniprot.process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args)
+        if lifton_gene is None or lifton_gene.ref_gene_id is None:
+            continue
+        lifton_gene.write_entry(fw, transcripts_stats_dict)
+        if processed_features % 20 == 0:
+            sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
+        processed_features += 1
 
     ################################
     # Step 9: Printing stats
     ################################
-    stats.print_report(ref_features_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
+    stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
     fw.close()
     fw_score.close()
     fw_unmapped.close()
     fw_extra_copy.close()
     fw_mapped_feature.close()
     fw_mapped_trans.close()
-    if args.write_chains:
-        fw_chain.close()
+    if args.write_chains: fw_chain.close()
 
 
 def main(arglist=None):
