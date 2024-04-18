@@ -22,6 +22,7 @@ def get_partial_id_fraction(reference, target, start, end):
 # Gap-collapsed protein sequence identity
 def get_AA_id_fraction(reference, target):
     matches = 0
+    # gap-compressed BLAST identity
     reference = reference.upper()
     target = target.upper()
     gaps_in_ref = 0

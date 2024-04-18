@@ -4,7 +4,6 @@ import math
 def get_protein_boundary(cdss_aln_boundary, c_idx_last, c_idx, DEBUG):
     aa_start = cdss_aln_boundary[c_idx_last][0]
     aa_end = cdss_aln_boundary[c_idx-1][1]
-    # logger.log(f"\t### protein chunk boundaries: {aa_start} - {aa_end}", debug=DEBUG)
     return aa_start, aa_end
 
 
@@ -77,13 +76,6 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, DEBUG):
     ref_aa_liftoff_count = 0
     ref_aa_miniprot_count = 0
     chains = []
-    # # Directly adopting Liftoff's annptation. Miniprot is likely to be pseudogene.
-    # if len(m_children) == 1 and len(l_children) > 1:
-    #     chains = ['liftoff']
-    #     for liftoff_cds in l_children:
-    #         cds = lifton_class.Lifton_CDS(liftoff_cds)
-    #         cds_list.append(cds)
-    #     return cds_list, chains
     while m_c_idx != (len(m_children)-1) or l_c_idx != (len(l_children)-1):
         if (m_c_idx == len(m_children)-1) and (l_c_idx < (len(l_children)-1)):
             l_c_idx, ref_aa_liftoff_count = push_cds_idx(l_c_idx, l_lifton_aln, ref_aa_liftoff_count, DEBUG)

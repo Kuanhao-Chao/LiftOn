@@ -81,7 +81,8 @@ class Lifton_TRANS_EVAL:
 
     def add_cds(self, gffutil_entry_cds):
         for exon in self.exons:
-            if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
+            _, ovp = lifton_utils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
+            if ovp:
                 attributes = {}
                 attributes['Parent'] = [self.entry.id]
                 gffutil_entry_cds.attributes = attributes

@@ -10,7 +10,6 @@ def extract_features(ref_db, features, ref_fai):
 
 
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
-    # for children in ref_db.db_connection.children(feature, featuretype='exon', order_by='start'):
     # If exon is the first level children
     children_exons = list(ref_db.db_connection.children(feature, featuretype='exon', level=1))
     children_CDSs = list(ref_db.db_connection.children(feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))

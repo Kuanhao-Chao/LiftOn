@@ -103,8 +103,6 @@ def parasail_align_DNA_base(trans_seq, ref_trans_seq):
     gap_open = 5
     gap_extend = 2
     # Return: (Query, Target)
-    # print("trans_seq     : ", trans_seq)
-    # print("ref_trans_seq : ", ref_trans_seq)
     extracted_parasail_res = parasail.nw_trace_scan_sat(trans_seq, ref_trans_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res
 
@@ -153,12 +151,11 @@ def LiftOn_translate(lifton_trans, fai, ref_proteins, ref_trans_id):
     return str(ref_proteins[ref_trans_id]), protein_seq, cdss_lens, cds_children
 
 
-def lifton_parasail_align(tool, lifton_trans, db_entry, fai, ref_proteins, ref_trans_id):
+def lifton_parasail_align(lifton_trans, db_entry, fai, ref_proteins, ref_trans_id):
     """
         This function aligns the annotated protein sequence to the reference protein sequence
 
         Parameters:
-        - tool: tool name (Liftoff or miniprot)
         - lifton_trans: LiftOn transcript instance
         - db_entry: database entry
         - fai: fasta index
@@ -200,11 +197,4 @@ def lifton_parasail_align(tool, lifton_trans, db_entry, fai, ref_proteins, ref_t
     extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
     extracted_identity = extracted_matches/extracted_length
     aln = lifton_class.Lifton_Alignment(extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, protein_seq, ref_protein_seq, db_entry)
-    # if tool == "liftoff":
-    #     # SETTING Liftoff identity score
-    #     lifton_status.liftoff = aln.identity
-    # miniprot is handled outside of this function
-    # elif tool == "miniprot":
-    #     # SETTING miniprot identity score
-    #     lifton_status.miniprot = aln.identity
     return aln

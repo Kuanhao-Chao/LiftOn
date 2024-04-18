@@ -149,6 +149,7 @@ def parse_args(arglist):
                 'name of miniprot gffutils database; if not specified, the -miniprot '
                 'argument must be provided and a database will be built automatically'
     )
+    parser.add_argument('-ad', '--annotation-database', help='The source of the reference annotation (RefSeq / GENCODE / others).', default = "RefSeq")
     ###################################
     # END for the LiftOn params
     ###################################
@@ -298,7 +299,7 @@ def run_all_lifton_steps(args):
             processed_features += 1
 
     ################################
-    # Step 8: Process miniprot transcriptsq
+    # Step 8: Process miniprot transcripts
     ################################
     for mtrans in m_feature_db.features_of_type('mRNA'):
         lifton_gene = run_miniprot.process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args)

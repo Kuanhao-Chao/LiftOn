@@ -137,30 +137,6 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     return miniprot_annotation
 
 
-def get_child_types(parent_types, db):
-    """
-        This function gets the child types.
-
-        Parameters:
-        - parent_types: parent types
-        - db: database
-
-        Returns:
-        child_types: set of child types
-    """
-    child_types = set()
-    for parent in parent_types:
-        for feature in db.db_connection.features_of_type(featuretype=parent):
-            child_count = 0
-            for child in db.db_connection.children(feature):
-                child_count += 1
-                if db.is_lowest_child(child):
-                    child_types.add(child.featuretype)
-            if child_count == 0:
-                child_types.add(feature.featuretype)
-    return child_types
-
-
 def custom_bisect_insert(sorted_list, element_to_insert):
     """
         This function bisects the sorted list and inserts the element.
@@ -241,7 +217,7 @@ def get_parent_features_to_lift(feature_types_file):
 
 
 def LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
-    liftoff_aln = align.lifton_parasail_align("liftoff", lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
+    liftoff_aln = align.lifton_parasail_align(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
     if liftoff_aln != None:
         lifton_status.liftoff = liftoff_aln.identity
     return liftoff_aln
@@ -275,7 +251,7 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
             # Check 1: Check if the miniprot transcript is overlapping the current gene locus
             ##################################################
             m_entry = m_feature_db[m_id]
-            overlap = segments_overlap((m_entry.start, m_entry.end), (transcript.start, transcript.end))
+            _, overlap = segments_overlap_length((m_entry.start, m_entry.end), (transcript.start, transcript.end))
             if not overlap or m_entry.seqid != transcript.seqid:
                 # "Not overlapped"
                 continue
@@ -311,7 +287,7 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
             for cds in list(cdss):
                 cds_num += 1
                 miniprot_trans.add_cds(cds)
-            tmp_m_lifton_aln = align.lifton_parasail_align("miniprot", miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
+            tmp_m_lifton_aln = align.lifton_parasail_align(miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
             if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
                 m_lifton_aln = tmp_m_lifton_aln
                 lifton_status.miniprot = m_lifton_aln.identity
@@ -483,26 +459,6 @@ def write_lifton_chains(fw_chain, transcript_id, chains):
     fw_chain.write(f"{transcript_id}\t{chain_ls}\n")
 
 
-def segments_overlap(segment1, segment2):
-    """
-        This function checks if the segments overlap.
-
-        Parameters:
-        - segment1: segment 1 in tuple (start, end)
-        - segment2: segment 2 in tuple (start, end)
-
-        Returns:
-        True if the segments overlap, False otherwise.
-    """
-    # Check if the segments have valid endpoints
-    if len(segment1) != 2 or len(segment2) != 2:
-        raise ValueError("Segments must have exactly 2 endpoints")    
-    # Sort the segments by their left endpoints
-    segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-    # Check if the right endpoint of the first segment is greater than or equal to the left endpoint of the second segment
-    return segment1[1] >= segment2[0]
-
-
 def segments_overlap_length(segment1, segment2):
     """
         This function gets the length of the overlapping segments.
@@ -518,7 +474,12 @@ def segments_overlap_length(segment1, segment2):
         raise ValueError("Segments must have exactly 2 endpoints")
     # Sort the segments by their left endpoints
     segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-    return segment1[1] - segment2[0] + 1
+    print("segment1: ", segment1)
+    print("segment2: ", segment2)
+    ovp_len = segment1[1] - segment2[0] + 1
+    ovp = False
+    if ovp_len > 0: ovp = True
+    return ovp_len, ovp
 
 
 def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
@@ -539,7 +500,7 @@ def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
         return False
     ovps = tree_dict[mtrans.seqid].overlap(mtrans_interval)
     for ovp in ovps:
-        ovp_len = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
+        ovp_len, _ = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
         ref_len = ovp[1] - ovp[0] + 1
         target_len = mtrans_interval[1] - mtrans_interval[0] + 1
         # Overlapping does not extend the ratio of the reference

@@ -53,7 +53,7 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
 
 
 def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, 
-ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
+ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     """
         This function create a miniprot gene entry with reference protein.
 
@@ -68,7 +68,7 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
         - ref_trans: reference transcript dictionary
         - tree_dict: tree dictionary
         - ref_features_dict: reference features dictionary
-        - DEBUG: debug mode
+        - args: LiftOn arguments
 
         Returns:
         lifton_gene: LiftOn gene instance
@@ -79,7 +79,7 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
     # Create LifOn gene instance
     m_gene_feature = copy.deepcopy(m_feature)
     m_gene_feature.featuretype = "gene"
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict)
+    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, args)
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
     # Create LifOn transcript instance
     Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
@@ -93,7 +93,7 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, DEBUG):
     # Update LiftOn status
     lifton_status = lifton_class.Lifton_Status()                
     m_entry = m_feature_db[mtrans_id]
-    m_lifton_aln = align.lifton_parasail_align("miniprot", Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
+    m_lifton_aln = align.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
     lifton_status.lifton_aa = m_lifton_aln.identity
     if m_lifton_aln.identity == 1:
         lifton_status.annotation =  "miniprot_identical"
@@ -123,7 +123,7 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
                     return None
                 miniprot_trans_ratio = (mtrans.end - mtrans.start + 1) / ref_features_len_dict[ref_gene_id]
                 if miniprot_trans_ratio > args.min_miniprot and miniprot_trans_ratio < args.max_miniprot:
-                    lifton_gene, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args.debug)
+                    lifton_gene, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
                     lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
                 else: # Invalid miniprot transcript
                     return None

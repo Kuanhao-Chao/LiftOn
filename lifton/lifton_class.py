@@ -55,7 +55,7 @@ class Lifton_feature:
 
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, tmp = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, args, tmp = False):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -78,10 +78,16 @@ class Lifton_GENE:
             tree_dict[self.entry.seqid] = IntervalTree()
         tree_dict[self.entry.seqid].add(gene_interval)
         # Decide if its type
-        if self.entry.attributes['gene_biotype'][0] == "protein_coding":
-            self.is_protein_coding = True
-        elif (self.entry.attributes['gene_biotype'][0] == "lncRNA" or self.entry.attributes['gene_biotype'][0] == "ncRNA"):
-            self.is_non_coding = True
+        gene_type_key = ""
+        if args.annotation_database.upper() == "REFSEQ":
+            gene_type_key = "gene_biotype"
+        elif args.annotation_database.upper() == "GENCODE" or args.annotation_database.upper() == "ENSEMBL":
+            gene_type_key = "gene_type"
+        if gene_type_key in self.entry.attributes.keys():
+            if self.entry.attributes[gene_type_key][0] == "protein_coding":
+                self.is_protein_coding = True
+            elif (self.entry.attributes[gene_type_key][0] == "lncRNA" or self.entry.attributes[gene_type_key][0] == "ncRNA"):
+                self.is_non_coding = True
         
     def __get_gene_copy(self, ref_features_dict):
         if 'extra_copy_number' in self.entry.attributes:
@@ -121,9 +127,6 @@ class Lifton_GENE:
         self.transcripts[Lifton_feature.entry.id] = Lifton_feature
         return Lifton_feature
 
-    def remove_transcript(self, transcript_id):
-        del self.transcripts[transcript_id]
-
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.transcripts[trans_id].add_exon(gffutil_entry_exon)
 
@@ -143,7 +146,6 @@ class Lifton_GENE:
             return None    
         ref_trans_seq = str(fai_trans[ref_trans_id])
         lifton_tran_aln = self.transcripts[trans_id].align_trans_dna(fai, ref_trans_seq, lifton_status)
-
         if lifton_tran_aln.identity == 1:
             lifton_status.annotation = "Liftoff_identical"
             lifton_status.status = ["identical"]
@@ -151,7 +153,7 @@ class Lifton_GENE:
             lifton_status.annotation = "Liftoff_synonymous"
             lifton_status.status = ["synonymous"]
         if cds_num == 0:
-            lifton_status.annotation = "Liftoff_non_codi ng"
+            lifton_status.annotation = "Liftoff_non_coding"
             lifton_status.status = ["non_coding"]
         return lifton_tran_aln
 
@@ -259,7 +261,8 @@ class Lifton_TRANS:
 
     def add_cds(self, gffutil_entry_cds):
         for exon in self.exons:
-            if lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end)):
+            _, ovp = lifton_utils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
+            if ovp:
                 # attributes = {}
                 # attributes['Parent'] = [self.entry.id]
                 # gffutil_entry_cds.attributes = attributes
@@ -290,10 +293,12 @@ class Lifton_TRANS:
             ovp_exons = []
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
+                _, ovp = lifton_utils.segments_overlap_length((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end))
+
                 # |eeeeee| |ccccc|
                 if exon.entry.end < only_cds.entry.start:
                     new_exons.append(exon)
-                elif lifton_utils.segments_overlap((exon.entry.start, exon.entry.end), (only_cds.entry.start, only_cds.entry.end)):
+                elif ovp:
                     cp_exon = copy.deepcopy(exon)
                     ovp_exons.append(cp_exon)
                 # |cccc|  |eeee|
@@ -361,6 +366,7 @@ class Lifton_TRANS:
                 while exon_idx < len(self.exons) and cds_idx < len(cds_list):
                     exon_start, exon_end = self.exons[exon_idx].entry.start, self.exons[exon_idx].entry.end
                     cds_start, cds_end = cds_list[cds_idx].entry.start, cds_list[cds_idx].entry.end
+                    _, ovp = lifton_utils.segments_overlap_length((exon_start, exon_end), (cds_start, cds_end))
                     # |eeeeee| |ccccc|
                     if exon_end < cds_start:
                         # Create a new exon using exon boundary
@@ -369,7 +375,7 @@ class Lifton_TRANS:
                         new_exons.append(new_exon)
                         exon_idx += 1
                     # |eeee|--|cccc|
-                    elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
+                    elif ovp:
                         # Stop if exon and CDS overlap
                         # Create a new exon using exon boundary
                         new_exon = copy.deepcopy(self.exons[exon_idx])
@@ -411,12 +417,13 @@ class Lifton_TRANS:
             while exon_idx < len(self.exons):
                 exon = self.exons[exon_idx]
                 exon_start, exon_end = exon.entry.start, exon.entry.end
+                _, ovp = lifton_utils.segments_overlap_length((exon_start, exon_end), (cds_start, cds_end))
                 # |eeeeee| |ccccc|
                 if exon_end < cds_start:
                     # exon_idx = self.mv_exon_idx(exon_idx)
                     exon_idx += 1
                     continue
-                elif lifton_utils.segments_overlap((exon_start, exon_end), (cds_start, cds_end)):
+                elif ovp:
                     # Create a new exon using exon boundary
                     last_cds_processed = True
                     new_exon = copy.deepcopy(exon)
