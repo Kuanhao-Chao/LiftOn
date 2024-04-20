@@ -344,7 +344,7 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir):
                     # Write out reference trans feature IDs
                     if feature.is_protein_coding and transcript.featuretype == "mRNA":
                         fw_trans.write(f"{transcript.id}\tcoding\n")
-                    elif feature.is_non_coding:
+                    elif feature.is_non_coding and (transcript.featuretype == "ncRNA" or transcript.featuretype == "nc_RNA" or transcript.featuretype == "lncRNA" or transcript.featuretype == "lnc_RNA"):
                         fw_trans.write(f"{transcript.id}\tnon-coding\n")
                     else:
                         fw_trans.write(f"{transcript.id}\tother\n")
@@ -474,8 +474,6 @@ def segments_overlap_length(segment1, segment2):
         raise ValueError("Segments must have exactly 2 endpoints")
     # Sort the segments by their left endpoints
     segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-    print("segment1: ", segment1)
-    print("segment2: ", segment2)
     ovp_len = segment1[1] - segment2[0] + 1
     ovp = False
     if ovp_len > 0: ovp = True

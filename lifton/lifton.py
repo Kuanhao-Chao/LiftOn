@@ -149,7 +149,7 @@ def parse_args(arglist):
                 'name of miniprot gffutils database; if not specified, the -miniprot '
                 'argument must be provided and a database will be built automatically'
     )
-    parser.add_argument('-ad', '--annotation-database', help='The source of the reference annotation (RefSeq / GENCODE / others).', default = "RefSeq")
+    parser.add_argument('-ad', '--annotation-database', metavar='SOURCE', help='The source of the reference annotation (RefSeq / GENCODE / others).', default = "RefSeq")
     ###################################
     # END for the LiftOn params
     ###################################
@@ -281,13 +281,13 @@ def run_all_lifton_steps(args):
     ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
     tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
     transcripts_stats_dict = {'coding': {}, 'non-coding': {}, 'other': {}}
-
+    processed_features = 0
+    
     ################################
     # Step 7: Process Liftoff genes & transcripts
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
     ################################
-    processed_features = 0
     for feature in features:#CP132235.1:34100723-34103135
         for locus in l_feature_db.features_of_type(feature):#, limit=("CP132235.1", 34100723, 34303135)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)

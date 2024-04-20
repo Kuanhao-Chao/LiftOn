@@ -131,6 +131,7 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
                 return None
         # LiftOn status
         lifton_utils.print_lifton_status(transcript_id, mtrans, lifton_status, DEBUG=args.debug)
-        lifton_gene.add_lifton_status_attrs(transcript_id, lifton_status)
+        lifton_gene.add_lifton_gene_status_attrs("miniprot")
+        lifton_gene.add_lifton_trans_status_attrs(transcript_id, lifton_status)
         lifton_utils.write_lifton_status(fw_score, transcript_id, mtrans, lifton_status)
     return lifton_gene

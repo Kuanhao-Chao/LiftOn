@@ -181,6 +181,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         _ = lifton_gene.align_trans_dna(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_trans, lifton_status, cds_num)
         # LiftOn status
         lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=args.debug)
-        lifton_gene.add_lifton_status_attrs(lifton_trans.entry.id, lifton_status)
+        lifton_gene.add_lifton_gene_status_attrs("Liftoff")
+        lifton_gene.add_lifton_trans_status_attrs(lifton_trans.entry.id, lifton_status)
         lifton_utils.write_lifton_status(fw_score, lifton_trans.entry.id, locus, lifton_status)
     return lifton_gene

@@ -161,8 +161,11 @@ class Lifton_GENE:
         self.transcripts[trans_id].update_cds_list(cds_list)
         self.update_boundaries()
 
-    def add_lifton_status_attrs(self, trans_id, lifton_status):
-        self.transcripts[trans_id].add_lifton_status_attrs(lifton_status)
+    def add_lifton_gene_status_attrs(self, source):
+        self.entry.attributes["source"] = [source]
+
+    def add_lifton_trans_status_attrs(self, trans_id, lifton_status):
+        self.transcripts[trans_id].add_lifton_trans_status_attrs(lifton_status)
 
     def write_entry(self, fw, transcripts_stats_dict):
         if not self.tmp:
@@ -246,7 +249,7 @@ class Lifton_TRANS:
         if 'transcript_id' in self.entry.attributes:
             self.entry.attributes['transcript_id'] = [self.entry.id]
 
-    def add_lifton_status_attrs(self, lifton_status):
+    def add_lifton_trans_status_attrs(self, lifton_status):
         self.entry.attributes["protein_identity"] = [f"{lifton_status.lifton_aa:.3f}"]
         self.entry.attributes["dna_identity"] = [f"{lifton_status.lifton_dna:.3f}"]
         self.entry.attributes["status"] = [lifton_status.annotation]
