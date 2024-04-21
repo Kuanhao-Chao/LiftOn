@@ -294,7 +294,7 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
     return m_lifton_aln, has_valid_miniprot
 
 
-def get_ref_liffover_features(features, ref_db, intermediate_dir):
+def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
     """
         This function gets the reference liftover features.
 
@@ -319,11 +319,18 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir):
         for locus in ref_db.db_connection.features_of_type(f_itr):
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
             feature = lifton_class.Lifton_feature(locus.id)
+
             # Write out reference gene features IDs
-            if locus.attributes['gene_biotype'][0] == "protein_coding" and len(CDS_children) > 0:
+            # Decide if its type
+            gene_type_key = ""
+            if args.annotation_database.upper() == "REFSEQ":
+                gene_type_key = "gene_biotype"
+            elif args.annotation_database.upper() == "GENCODE" or args.annotation_database.upper() == "ENSEMBL" or args.annotation_database.upper() == "CHESS":
+                gene_type_key = "gene_type"
+            if locus.attributes[gene_type_key][0] == "protein_coding" and len(CDS_children) > 0:
                 feature.is_protein_coding = True
                 fw_gene.write(f"{locus.id}\tcoding\n")
-            elif (locus.attributes['gene_biotype'][0] == "lncRNA" or locus.attributes['gene_biotype'][0] == "ncRNA"):
+            elif (locus.attributes[gene_type_key][0] == "lncRNA" or locus.attributes[gene_type_key][0] == "ncRNA"):
                 feature.is_non_coding = True
                 fw_gene.write(f"{locus.id}\tnon-coding\n")
             else:

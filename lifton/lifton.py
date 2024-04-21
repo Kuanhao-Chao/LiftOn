@@ -208,7 +208,7 @@ def run_all_lifton_steps(args):
     # Step 2: Get all reference features to liftover
     ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
-    ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir)
+    ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir, args)
 
     ################################
     # Step 3: Extract protein & DNA dictionaries from the selected reference features

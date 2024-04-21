@@ -94,13 +94,10 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     lifton_status = lifton_class.Lifton_Status()                
     m_entry = m_feature_db[mtrans_id]
     m_lifton_aln = align.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
+    lifton_status.annotation =  "miniprot"
     lifton_status.lifton_aa = m_lifton_aln.identity
-    if m_lifton_aln.identity == 1:
-        lifton_status.annotation =  "miniprot_identical"
-    elif m_lifton_aln.identity < 1:
-        lifton_status.annotation =  "miniprot_truncated"
-    lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(Lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
-    return lifton_gene, Lifton_trans.entry.id, lifton_status
+    # lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(Lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
+    return lifton_gene, Lifton_trans, Lifton_trans.entry.id, lifton_status
 
 
 def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args):
@@ -109,6 +106,7 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
     is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
     print(f"mtrans_id: {mtrans_id}, is_overlapped: {is_overlapped}")
     lifton_gene = None
+    lifton_trans = None
     if not is_overlapped:
         ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
         ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
@@ -123,13 +121,13 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
                     return None
                 miniprot_trans_ratio = (mtrans.end - mtrans.start + 1) / ref_features_len_dict[ref_gene_id]
                 if miniprot_trans_ratio > args.min_miniprot and miniprot_trans_ratio < args.max_miniprot:
-                    lifton_gene, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
+                    lifton_gene, lifton_trans, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
                     lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
                 else: # Invalid miniprot transcript
                     return None
             else: # Skip those cannot be found in reference.
                 return None
-        # LiftOn status
+        lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
         lifton_utils.print_lifton_status(transcript_id, mtrans, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("miniprot")
         lifton_gene.add_lifton_trans_status_attrs(transcript_id, lifton_status)

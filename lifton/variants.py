@@ -42,7 +42,7 @@ def is_frameshift(s):
     return False
 
 
-def find_variants(align_dna, align_protein, lifton_status, peps):
+def find_variants(align_dna, align_protein, lifton_status, peps, is_non_coding):
     """
         This function finds the variants between two sequences.
 
@@ -66,12 +66,16 @@ def find_variants(align_dna, align_protein, lifton_status, peps):
     #   (8) stop_missing
     #   (9) stop_codon_gain
     mutation_type = []
+    if is_non_coding:
+        mutation_type.append('non_coding')
+        lifton_status.status = mutation_type
+        return
     if align_dna == None:
         mutation_type.append('full_transcript_loss')
         lifton_status.status = mutation_type
         return 
     if align_protein == None:
-        mutation_type.append('full_protein_loss')
+        mutation_type.append('no_protein_loss')
         lifton_status.status = mutation_type
         return 
     # 1. return cases

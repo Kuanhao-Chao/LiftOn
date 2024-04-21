@@ -105,12 +105,11 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
     liftoff_aln = lifton_utils.LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
     # miniprot alignment
     miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_miniprot_alignment(locus.seqid, locus, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
-    if liftoff_aln is None:
-        # There is no reference protein -> just keep Liftoff annotation
-        lifton_status.annotation = "Liftoff_no_ref_protein"
-        lifton_status.status = ["no_ref_protein"]
-    elif liftoff_aln.identity == 1:
-        # Liftoff protein annotation is perfect
+    # if liftoff_aln is None:
+    #     # There is no reference protein -> just keep Liftoff annotation
+    #     lifton_status.status = ["no_ref_protein"]
+    if liftoff_aln.identity == 1:
+        # Liftoff protein annotation is perfect"
         lifton_status.lifton_aa = 1
     elif liftoff_aln.identity < 1:
         # Liftoff protein annotation is not perfect
@@ -120,9 +119,6 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
             if write_chains:
                 lifton_utils.write_lifton_chains(fw_chain, lifton_trans.entry.id, chains)
             lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
-        else:
-            lifton_status.annotation = "Liftoff_truncated"
-        lifton_trans_aln, lifton_aa_aln = lifton_gene.fix_truncated_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
 
 
 def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=False):
@@ -170,16 +166,14 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         else: # Transcript features with direct exons 
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, locus.id)
         lifton_status = lifton_class.Lifton_Status()
+        lifton_status.annotation = "Liftoff"
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
         if cds_num > 0:
             process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                                         ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                         tgt_fai, ref_trans_id, ref_proteins, ref_trans,
                                         fw_chain, args.write_chains, lifton_status, args.debug)
-        # LiftOn DNA level alignment
-        if ref_trans_id not in ref_trans.keys(): return None
-        _ = lifton_gene.align_trans_dna(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_trans, lifton_status, cds_num)
-        # LiftOn status
+        lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
         lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("Liftoff")
         lifton_gene.add_lifton_trans_status_attrs(lifton_trans.entry.id, lifton_status)
