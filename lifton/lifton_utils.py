@@ -216,6 +216,13 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
+def LiftOn_eval_alignment(eval_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
+    eval_aln = align.lifton_parasail_align(eval_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
+    if eval_aln != None:
+        lifton_status.lifton_aa = eval_aln.identity
+    return eval_aln
+
+
 def LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
     liftoff_aln = align.lifton_parasail_align(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
     if liftoff_aln != None:

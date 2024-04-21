@@ -133,12 +133,12 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-    def orf_search_protein(self, trans_id, ref_trans_id, fai, ref_proteins, fai_trans, lifton_status):
+    def orf_search_protein(self, trans_id, ref_trans_id, fai, ref_proteins, fai_trans, lifton_status, eval_only=False):
         if trans_id not in self.transcripts.keys():
             return None, False
         ref_protein_seq = str(ref_proteins[ref_trans_id]) if ref_trans_id in ref_proteins else None
         ref_trans_seq = str(fai_trans[ref_trans_id]) if ref_trans_id in fai_trans else None
-        lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding)
+        lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only)
         return lifton_aln, good_trans
 
     def update_cds_list(self, trans_id, cds_list):
@@ -521,7 +521,7 @@ class Lifton_TRANS:
             lifton_status.lifton_dna = lifton_tran_aln.identity
         return lifton_tran_aln
 
-    def orf_search_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding):
+    def orf_search_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding, eval_only=False):
         coding_seq, trans_seq = self.get_coding_trans_seq(fai)
         protein_seq = self.translate_coding_seq(coding_seq)
         # Aligning the LiftOn protein & DNA sequences
@@ -544,7 +544,7 @@ class Lifton_TRANS:
             # and lifton_aa_aln.identity < frameshift_orf_threshold)
             if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
-        if ORF_search:
+        if ORF_search and eval_only==False:
             self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status)
         return lifton_tran_aln, lifton_aa_aln
 

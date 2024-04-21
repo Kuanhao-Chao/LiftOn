@@ -105,10 +105,9 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
     liftoff_aln = lifton_utils.LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
     # miniprot alignment
     miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_miniprot_alignment(locus.seqid, locus, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
-    # if liftoff_aln is None:
-    #     # There is no reference protein -> just keep Liftoff annotation
-    #     lifton_status.status = ["no_ref_protein"]
-    if liftoff_aln.identity == 1:
+    if liftoff_aln is None:
+        lifton_status.annotation = "no_ref_protein"
+    elif liftoff_aln.identity == 1:
         # Liftoff protein annotation is perfect"
         lifton_status.lifton_aa = 1
     elif liftoff_aln.identity < 1:

@@ -1,4 +1,4 @@
-from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_miniprot, run_liftoff, __version__
+from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, __version__
 from intervaltree import Interval
 import argparse
 from pyfaidx import Fasta
@@ -231,28 +231,35 @@ def run_all_lifton_steps(args):
     trunc_ref_proteins = lifton_utils.get_truncated_protein(ref_proteins)
     logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
 
-    # import lifton.evaluation as evaluation
-    # # Evaluation mode
-    # if args.evaluation:
-    #     tgt_annotation = args.output
-    #     ref_annotation = args.reference_annotation
-    #     print("Run LiftOn in evaluation mode")
-    #     print("lifton_outdir     : ", lifton_outdir)
-    #     print("Ref genome        : ", ref_genome)
-    #     print("Target genome     : ", tgt_genome)
-    #     print("Ref annotation    : ", args.reference_annotation)
-    #     print("Target annotation : ", args.output)
-    #     print("ref_trans_file    : ", ref_trans_file)
-    #     print("ref_proteins_file : ", ref_proteins_file)
-    #     logger.log(">> Creating target database : ", tgt_annotation, debug=True)
-    #     tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
-    #     fw_score = open(lifton_outdir+"/eval.txt", "w")
-    #     tree_dict = intervals.initialize_interval_tree(tgt_feature_db, features)
-    #     for feature in features:
-    #         for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
-    #             evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, args.debug)
-    #     fw_score.close()
-    #     return
+    ################################
+    # optional Step: Evaluation mode
+    ################################
+    if args.evaluation:
+        tgt_annotation = args.output
+        ref_annotation = args.reference_annotation
+        print("Run LiftOn in evaluation mode")
+        print("lifton_outdir     : ", lifton_outdir)
+        print("Ref genome        : ", ref_genome)
+        print("Target genome     : ", tgt_genome)
+        print("Ref annotation    : ", args.reference_annotation)
+        print("Target annotation : ", args.output)
+        print("ref_trans_file    : ", ref_trans_file)
+        print("ref_proteins_file : ", ref_proteins_file)
+        logger.log(">> Creating target database : ", tgt_annotation, debug=True)
+        os.makedirs(lifton_outdir, exist_ok=True)
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
+        fw_score = open(lifton_outdir+"/eval.txt", "w")
+        tree_dict = {}
+        processed_features = 0
+        for feature in features:
+            for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
+                # evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, args.debug)
+                lifton_gene = run_evaluation.evaluation(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, args, ENTRY_FEATURE=True)
+                if processed_features % 20 == 0:
+                    sys.stdout.write("\r>> LiftOn evaluated: %i features." % processed_features)
+                processed_features += 1
+        fw_score.close()
+        return
 
     ################################
     # Step 4: Run liftoff & miniprot
