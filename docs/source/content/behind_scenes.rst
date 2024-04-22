@@ -8,10 +8,19 @@ Behind the scenes
 
 
 
-LiftOn is specifically designed for lifting genes, transcripts, and exons, with the capability to handle any feature or group of hierarchical features in a GFF or GTF file. It utilizes information from , and exons, with the capability to handle any feature or group of hierarchical features in a GFF or GTF file. It takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_  :cite:p:`shumate2021liftoff` and  `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ :cite:p:`li2023protein` to enhance protein-coding gene annotation. This section provides a more detailed explanation of how the algorithms work.
+LiftOn is specifically designed for lifting genes, transcripts, and exons, with the capability to handle any feature or group of hierarchical features in a GFF or GTF file. It utilizes information from , and exons, with the capability to handle any feature or group of hierarchical features in a GFF or GTF file. It takes `Liftoff <https://academic.oup.com/bioinformatics/article/37/12/1639/6035128?login=true>`_  :cite:p:`shumate2021liftoff` and  `miniprot <https://academic.oup.com/bioinformatics/article/39/1/btad014/6989621>`_ :cite:p:`li2023protein` to improve protein-coding gene annotation. This section provides a more detailed explanation of how the algorithms work.
 
 
 |
+|
+
+
+Deciding chromosomes and features for annotation lift-over
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+When transferring genomic annotations to different assemblies, it's important to be selective about which chromosomes to include. Take human as an example, for the mappings of the human annotation from GRCh38 to CHM13, we excluded all alternative scaffolds and patches from the GRCh38 genome and its annotation. Specifically, we excluded scaffolds ending in “_fix” and “_alt”, because they are duplicates or variants of sequences found on the primary chromosomes. 
+
+As for features, we suggest users map both 'gene' and 'pseudogene' features to prevent LiftOn from mistakenly identifying pseudogenes as genes. We also recommend excluding genes that overlap with rRNA genes in rDNA arrays :cite:p:`agrawal2018conservation` :cite:p:`chao2023first`, which occur in hundreds of identical copies and vary widely among humans, creating problems for the alignment programs.
+
 |
 
 .. _data-curation:
@@ -37,7 +46,7 @@ Using lift-over RefSeq v110 annotations from GRCh38 to T2T-CHM13 V2.0 as an exam
 
 
 .. _liftoff-miniprot-map-circos:
-.. figure::  ../_images/figure_liftoff_miniprot_circos_plot.png
+.. figure::  ../_images/circous_plots_liftoff_miniprot_cmp.png
     :align:   center
     :scale:   28 %
 

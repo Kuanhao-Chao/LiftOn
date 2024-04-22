@@ -4,7 +4,7 @@
 User Manual 
 =======================
 
-splam
+LiftOn
 ---------------------------------
 
 .. code-block:: text
