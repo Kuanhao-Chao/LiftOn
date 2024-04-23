@@ -326,7 +326,6 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
         for locus in ref_db.db_connection.features_of_type(f_itr):
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
             feature = lifton_class.Lifton_feature(locus.id)
-
             # Write out reference gene features IDs
             # Decide if its type
             gene_type_key = ""
@@ -349,12 +348,12 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                 transcripts = ref_db.db_connection.children(locus, level=1)
                 for transcript in list(transcripts):
                     __process_ref_liffover_features(transcript, ref_db, feature)
-                    ref_features_reverse_dict[transcript.id] = locus.id
+                    ref_features_reverse_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = locus.id
                     all_CDS_in_trans = list(ref_db.db_connection.children(transcript, featuretype='CDS', order_by='start'))
                     if len(all_CDS_in_trans) > 0:
-                        ref_trans_exon_num_dict[transcript.id] = len(all_CDS_in_trans)
+                        ref_trans_exon_num_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = len(all_CDS_in_trans)
                     else:
-                        ref_trans_exon_num_dict[transcript.id] = 0
+                        ref_trans_exon_num_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = 0
                     # Write out reference trans feature IDs
                     if feature.is_protein_coding and transcript.featuretype == "mRNA":
                         fw_trans.write(f"{transcript.id}\tcoding\n")
@@ -362,12 +361,12 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                         fw_trans.write(f"{transcript.id}\tnon-coding\n")
                     else:
                         fw_trans.write(f"{transcript.id}\tother\n")
-            ref_features_dict[locus.id] = feature
+            ref_features_dict[locus.id if not args.evaluation_liftoff_chm13 else locus.id[5:]] = feature
             all_CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS', order_by='start'))
             if len(all_CDS_children) > 0:
-                ref_features_len_dict[locus.id] = all_CDS_children[-1].end - all_CDS_children[0].start + 1
+                ref_features_len_dict[locus.id if not args.evaluation_liftoff_chm13 else locus.id[5:]] = all_CDS_children[-1].end - all_CDS_children[0].start + 1
             else:
-                ref_features_len_dict[locus.id] = 0
+                ref_features_len_dict[locus.id if not args.evaluation_liftoff_chm13 else locus.id[5:]] = 0
     fw_gene.close()
     fw_trans.close()
     return ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict
@@ -403,6 +402,7 @@ def miniprot_id_mapping(m_feature_db):
 
 
 def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
+    print(f'liftoff_gene_id: {liftoff_gene_id}; liftoff_trans_id: {liftoff_trans_id}')
     """
         This function gets the reference IDs from Liftoff IDs.
 
@@ -466,6 +466,11 @@ def print_lifton_status(transcript_id, transcript, lifton_status, DEBUG=False):
 def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
+
+
+def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status):
+    final_status = ";".join(lifton_status.status)
+    fw_score.write(f"{transcript_id}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 
 
 def write_lifton_chains(fw_chain, transcript_id, chains):

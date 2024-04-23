@@ -75,7 +75,7 @@ def find_variants(align_dna, align_protein, lifton_status, peps, is_non_coding):
         lifton_status.status = mutation_type
         return 
     if align_protein == None:
-        mutation_type.append('no_protein_loss')
+        mutation_type.append('no_protein')
         lifton_status.status = mutation_type
         return 
     # 1. return cases

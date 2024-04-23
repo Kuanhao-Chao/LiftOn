@@ -133,11 +133,15 @@ class Lifton_GENE:
     def add_cds(self, trans_id, gffutil_entry_cds):
         self.transcripts[trans_id].add_cds(gffutil_entry_cds)
                             
-    def orf_search_protein(self, trans_id, ref_trans_id, fai, ref_proteins, fai_trans, lifton_status, eval_only=False):
+    def orf_search_protein(self, trans_id, ref_trans_id, fai, ref_proteins, fai_trans, lifton_status, eval_only=False, eval_liftoff_chm13=False):
         if trans_id not in self.transcripts.keys():
             return None, False
-        ref_protein_seq = str(ref_proteins[ref_trans_id]) if ref_trans_id in ref_proteins else None
-        ref_trans_seq = str(fai_trans[ref_trans_id]) if ref_trans_id in fai_trans else None
+        if not eval_liftoff_chm13:
+            ref_protein_seq = str(ref_proteins[ref_trans_id]) if ref_trans_id in ref_proteins.keys() else None
+            ref_trans_seq = str(fai_trans[ref_trans_id]) if ref_trans_id in fai_trans.keys() else None
+        else:
+            ref_protein_seq = str(ref_proteins["rna-"+ref_trans_id]) if "rna-"+ref_trans_id in ref_proteins.keys() else None
+            ref_trans_seq = str(fai_trans["rna-"+ref_trans_id]) if "rna-"+ref_trans_id in fai_trans.keys() else None
         lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only)
         return lifton_aln, good_trans
 

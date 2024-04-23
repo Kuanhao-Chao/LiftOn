@@ -112,6 +112,7 @@ def parse_args(arglist):
     parser.add_argument('target', help='target fasta genome to lift genes to')
     parser.add_argument('reference', help='reference fasta genome to lift genes from')
     parser.add_argument('-E', '--evaluation', help='Run LiftOn in evaluation mode', action='store_true', default = False)
+    parser.add_argument('-EL', '--evaluation-liftoff-chm13', help='Run LiftOn in evaluation mode', action='store_true', default = False)
     parser.add_argument('-c', '--write_chains', help='Write chaining files', action='store_true', default = True)
     parser_outgrp = args_outgrp(parser)
     parser_aligngrp = args_aligngrp(parser)
@@ -253,7 +254,6 @@ def run_all_lifton_steps(args):
         processed_features = 0
         for feature in features:
             for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
-                # evaluation.tgt_evaluate(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_features_dict, ref_proteins, ref_trans, fw_score, args.debug)
                 lifton_gene = run_evaluation.evaluation(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, args, ENTRY_FEATURE=True)
                 if processed_features % 20 == 0:
                     sys.stdout.write("\r>> LiftOn evaluated: %i features." % processed_features)
@@ -347,4 +347,6 @@ An accurate homology lift-over tool between assemblies
     print(banner, file=sys.stderr)
     print(f"{__version__}\n", file=sys.stderr)
     args = parse_args(arglist)
+    if not run_miniprot.check_miniprot_installed(): 
+        sys.exit("miniprot is not installed. Please install miniprot before running LiftOn.")
     run_all_lifton_steps(args)

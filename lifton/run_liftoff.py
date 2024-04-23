@@ -46,6 +46,8 @@ def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, wi
         ref_trans_id: reference transcript
     """
     ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
+    print(f"ref_gene_id: {ref_gene_id}; ref_trans_id: {ref_trans_id}")
+    print("ref_db[ref_gene_id]: ", ref_db[ref_gene_id])
     lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, args, tmp=with_exons)
     return lifton_gene, ref_gene_id, ref_trans_id
 
