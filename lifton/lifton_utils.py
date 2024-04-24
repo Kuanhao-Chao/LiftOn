@@ -402,7 +402,6 @@ def miniprot_id_mapping(m_feature_db):
 
 
 def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
-    print(f'liftoff_gene_id: {liftoff_gene_id}; liftoff_trans_id: {liftoff_trans_id}')
     """
         This function gets the reference IDs from Liftoff IDs.
 

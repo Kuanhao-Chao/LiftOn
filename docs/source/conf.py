@@ -74,7 +74,7 @@ html_theme = 'furo'
 
 # html_logo = "./_static/logo.png"
 html_theme_options = {
-    "announcement": "LiftOn: a tool to improve annotations for protein-coding genes during the lift-over process.",
+    "announcement": "Combining DNA and protein alignments to improve genome annotation with LiftOn",
     
     "display_version": True,
     "logo_only": True,

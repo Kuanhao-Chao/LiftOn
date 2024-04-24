@@ -190,8 +190,8 @@ def run_all_lifton_steps(args):
     lifton_outdir = f"{outdir}/lifton_output/"
     args.directory = "intermediate_files/"
     intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
-    stats_dir= f"{outdir}/lifton_output/stats/"
     os.makedirs(intermediate_dir, exist_ok=True)
+    stats_dir= f"{outdir}/lifton_output/stats/"
     os.makedirs(stats_dir, exist_ok=True)
     args.directory = intermediate_dir
     logger.log(">> Reading target genome ...", debug=True)

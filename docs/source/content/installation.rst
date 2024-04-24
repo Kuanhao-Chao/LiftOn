@@ -17,15 +17,15 @@ System requirements
    * python >= 3.8.0
    * numpy >= 1.22.0
    * gffutils >= 0.10.1
+   * biopython>=1.76
    * cigar >= 0.1.3
    * parasail>=1.2.4
    * intervaltree>=3.1.0
-   * biopython>=1.76
    * networkx>=2.4
+   * interlap>=0.2.6
    * miniprot >= 0.10.0
    * pyfaidx>=0.5.8
    * pysam>=0.19.1
-   * interlap>=0.2.6
    * ujson>=3.2.0
 
 These dependencies will be automatically installed when you install LiftOn through pip or conda. The only exception is **miniprot**. Since miniprot is not on PyPi, you will need to install it manually. Please check out the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ on `GitHub <https://github.com/lh3/miniprot>`_.
@@ -63,7 +63,7 @@ LiftOn is on `PyPi 3.12 <https://pypi.org/project/lifton/>`_ now. Check out all 
 Install through conda
 -------------------------------
 
-Installing LiftOn through conda is the easiest way to go:
+Installing LiftOn through bioconda. It will also automatically install all the dependencies required by LiftOn.
 
 .. code-block:: bash
    
@@ -121,7 +121,7 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v0.0.1
+      v0.0.3
 
       usage: lifton [-h] [-E] [-c] [-o FILE] [-u FILE] [-exclude_partial] [-mm2_options =STR] [-a A] [-s S] [-d D] [-flank F] [-V] [-D] [-t THREADS]
                   [-m PATH] [-f TYPES] [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT] [-copies] [-sc SC] [-overlap O] [-mismatch M]

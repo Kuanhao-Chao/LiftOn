@@ -219,6 +219,8 @@ Table of contents
     :maxdepth: 2
     
     content/output_explanation
+    content/feature_counting
+    content/evaluation_metrics
     content/behind_scenes
     content/how_to_page
     content/function_manual

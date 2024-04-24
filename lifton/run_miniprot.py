@@ -104,7 +104,6 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
     mtrans_id = mtrans.attributes["ID"][0]
     mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
     is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
-    print(f"mtrans_id: {mtrans_id}, is_overlapped: {is_overlapped}")
     lifton_gene = None
     lifton_trans = None
     if not is_overlapped:

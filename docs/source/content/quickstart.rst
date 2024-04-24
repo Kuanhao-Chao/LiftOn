@@ -6,7 +6,7 @@
 Quick Start Guide
 =================
 
-This page offers straightforward quick-start information on using LiftOn to map RefSeq v110 annotations on :code:`chr22:1-50755568` from GRCh38 version 40 patch 14 to T2T-CHM13 v2.0. If you haven't already, please follow the steps outlined on the :ref:`Installation` page to install and load LiftOn.
+This page offers straightforward quick-start information on using LiftOn to map RefSeq v220 annotations on :code:`chr22:1-50755568` from GRCh38 version 40 patch 14 to T2T-CHM13 v2.0. If you haven't already, please follow the steps outlined on the :ref:`Installation` page to install and load LiftOn.
 
 
 Before you get started, make sure you have already cloned the `LiftOn GitHub repository <https://github.com/Kuanhao-Chao/LiftOn>`_. We provide an example in `test/lifton_chr22_example.sh <https://github.com/Kuanhao-Chao/LiftOn/tree/main/test/lifton_chr22_example.sh>`_.
@@ -32,11 +32,47 @@ Run the following commands:
 
     $ cd test
 
-    $ lifton -g GRCh38_chr22.gff3 -o GRCh38_2_CHM13_lifton.gff3 -copies chm13_chr22.fa GRCh38_chr22.fa
+    $ lifton -g GRCh38_chr22.gff3 -o GRCh38_2_CHM13/GRCh38_2_CHM13_lifton.gff3 -copies -sc 0.95 chm13_chr22.fa GRCh38_chr22.fa
 
 
-After this step, you will obtain an annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format, and a directory :code:`lifton_output/` that contains various outputs, including sequence identity scores, unmapped features, extra copies, intermediate files, and more. We provide further explanations of the output file hierarchy in the :ref:`output files section <output_files>`.
+After this step, you will obtain a directory, :code:`GRCh38_2_CHM13/`, which contains the output annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format. Additionally, a directory :code:`lifton_output/` includes various outputs such as sequence identity scores, Liftoff and miniprot outputs, statistics files about unmapped features, extra copies, intermediate files, and more. Further explanations of the output file hierarchy are provided in the :ref:`output files section <output_files>`.
 
+
+
+Interpreting outputs on the terminal
++++++++++++++++++++++++++++++++++++++
+
+After running the command, you will see the following output on the terminal:
+
+.. code-block:: txt
+
+    *********************************************
+    * Total features in reference	: 890
+    * Lifted feature			: 879 (437 + 333 + 109)
+        * Protein-coding feature	: 437
+        * Non-coding feature		: 333
+        * Other feature			: 109
+    * Missed feature			: 11
+
+    * Total features in target		: 906 (440 + 355 + 111)
+        * Protein-coding feature	: 440 (435 + 5)
+            * single copy		: 435
+            * > 1 copy			: 2, 5 in total
+        * Non-coding feature		: 355 (326 + 29)
+            * single copy		: 326
+            * > 1 copy			: 7, 29 in total
+        * Other feature			: 111 (107 + 4)
+            * single copy		: 107
+            * > 1 copy			: 2, 4 in total
+    *********************************************
+
+There are two parts to the output:
+
+1. It shows the total number of features in the reference assembly, the number of features lifted, and the number of features missed. The lifted features are further categorized into protein-coding, non-coding, and other features. The missed features are those that could not be transferred to the target assembly.
+
+2. It shows the total number of features in the target assembly, including extra copies identified by LiftOn, which are also categorized into protein-coding, non-coding, and other features.
+
+For more detailed information about our feature counting approach, check out the :ref:`gene / transcript counting section <gene_transcript_counting>`.
 
 |
 
@@ -45,8 +81,7 @@ After this step, you will obtain an annotation file :code:`GRCh38_2_CHM13_lifton
 Try LiftOn on Google Colab
 +++++++++++++++++++++++++++++++++++
 
-We created a reproducible and easy-to-run LiftOn example on Google Colab. It's a good starting point, so go ahead and check it out!
-
+We created a reproducible and easy-to-run LiftOn example on Google Colab. It's a great starting point to try LiftOn, so go ahead and check it out!
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
     :target: https://colab.research.google.com/github/Kuanhao-Chao/LiftOn/blob/main/notebook/lifton_example.ipynb
