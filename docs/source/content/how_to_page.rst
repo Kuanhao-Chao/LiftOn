@@ -111,7 +111,7 @@ Q & A ...
     :title: bg-light font-weight-bolder
     :body: bg-light text-left
 
-    Check out the :ref:`'Evaluation metris - sequence identity' page <evaluation_metrics_sequence_identity>`.
+    Check out the :ref:`'Evaluation metrics - sequence identity' page <evaluation_metrics_sequence_identity>`.
 
 
 | 

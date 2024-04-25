@@ -3,7 +3,7 @@
 
 .. _evaluation_metrics_sequence_identity:
 
-Evaluation metris - sequence identity
+Evaluation metrics - sequence identity
 ===============================================
 
 The main evaluation of the protein gene loci is based on the sequence identity between the reference and target proteins. We want the mapped proteins to be as similar as possible to the reference proteins. The sequence identity is calculated at the DNA and protein levels. 
