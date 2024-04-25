@@ -6,6 +6,7 @@
 Output files
 =====================
 
+
 After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_output/` directory. More details are shown in the output directory hierarchy below. This page provides guidance on how to interpret your results.
 
 .. admonition:: LiftOn output directory hierarchy 
@@ -16,35 +17,41 @@ After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_out
 
       # LiftOn output directory hierarchy 
       .
-      ├── lifton.GFF3
+      ├── lifton.gff3
       └── lifton_output
+         |
+         ├── score.txt
+         |
+         ├── liftoff
+         │   ├── liftoff.gff3
+         │   ├── liftoff.gff3_db
+         │   └── unmapped_features.txt
+         |
+         ├── miniprot
+         │   ├── miniprot.gff3
+         │   └── miniprot.gff3_db
+         |
          ├── intermediate_files
          │   ├── proteins.fa
-         │   ├── proteins_truncated.fa
          │   ├── reference_all_genes.fa
          │   ├── reference_all_to_target_all.sam
+         │   ├── ref_feature.txt
+         │   ├── ref_transcript.txt
          │   └── transcripts.fa
-         │
-         ├── liftoff
-         │   ├── liftoff.GFF3
-         │   └── liftoff.GFF3_db
-         │
-         ├── miniprot
-         │   ├── miniprot.GFF3
-         │   └── miniprot.GFF3_db
-         │
-         ├── extra_copy_features.txt
-         ├── score.txt
-         └── unmapped_features.txt
-
+         |
+         └── stats
+            ├── extra_copy_features.txt
+            ├── mapped_feature.txt
+            ├── mapped_transcript.txt
+            └── unmapped_features.txt
 
 |
 |
 
 
-lifton.GFF3
+lifton.gff3
 --------------
-This is the main output of LiftOn software. It is an annotation file of the target genome in GFF3 format. Following is an example of a gene locus. More details about `GFF3 file format <https://useast.ensembl.org/info/website/upload/GFF3.html>`_. 
+This is the main output of LiftOn software. It is an annotation file of the target genome in GFF3 format. Following is an example of a gene locus. For more details about GFF3, check `GFF3 file format <https://useast.ensembl.org/info/website/upload/GFF3.html>`_. 
 
 .. dropdown:: Example
    :animate: fade-in-slide-down
@@ -80,50 +87,20 @@ It is a tsv file summarizing the LiftOn results.
 .. admonition:: Column definition
    :class: note
 
-   1. Transcript ID
-   2. Liftoff transcript protein sequence identity: :math:`0-1`
-   3. miniprot transcript protein sequence identity: :math:`0-1`
-   4. LiftOn transcript DNA sequence identity: :math:`0-1`
-   5. LiftOn transcript protein sequence identity: :math:`0-1`
-   6. Status of the annotation: 
-   
-      * 'Liftoff_identical', 'Liftoff_synonymous', 'Liftoff_truncated', 'Liftoff_nc_transcript', 'Liftoff_no_ref_protein', 'LiftOn_chaining_algorithm', 'miniprot_identical', 'miniprot_truncated'
+      1. Transcript ID
+      2. Liftoff transcript protein sequence identity: :math:`0-1`
+      3. miniprot transcript protein sequence identity: :math:`0-1`
+      4. LiftOn transcript DNA sequence identity: :math:`0-1`
+      5. LiftOn transcript protein sequence identity: :math:`0-1`
+      6. The source of the annotation:    
+      
+         * 'Liftoff', 'miniprot', or 'LiftOn_chaining_algorithm'.
 
+      7. Mutation types
 
-   7. Mutation types
+         * 'synonymous', 'nonsynonymous', 'inframe_insertion', 'inframe_deletion', 'frameshift', 'stop_codon_gain', 'stop_codon_loss', and 'start_codon_loss".
 
-      * 'synonymous', 'non-synonymous', 'in-frame insertion', 'in-frame deletion', 'frameshift', 'stop codon gain', 'stop codon loss', and 'start codon loss".
-
-   8. Transcript locus coordinate: :code:`<chromosome>:<start>-<end>`
-
-.. dropdown:: Example
-   :animate: fade-in-slide-down
-   :container: + shadow
-   :title: bg-light font-weight-bolder
-   :body: bg-light text-left
-
-   .. code-block:: plain-text
-
-      rna-NM_176598.2 0.9146141215106732      0.9507389162561576      0.8503959276018099      0.9507389162561576      LiftOn_chaining_algorithm       frameshift      NW_020825194.1:114373-268723
-      rna-NM_176599.2 0.9090909090909091      0.9448051948051948      0.8489566081483935      0.9496753246753247      LiftOn_chaining_algorithm       frameshift;start_lost   NW_020825194.1:122632-268723
-      rna-NM_176600.3 0.9146141215106732      0.9507389162561576      0.8896146309601568      0.9507389162561576      LiftOn_chaining_algorithm       frameshift      NW_020825194.1:112640-268723
-      rna-NM_176601.3 0.9146141215106732      0.9507389162561576      0.9075364154528183      0.9507389162561576      LiftOn_chaining_algorithm       frameshift      NW_020825194.1:112640-268723
-
-|
-
-2. extra_copy_features.txt
-+++++++++++++++++++++++++++++++++++
-
-It is a TSV file summarizing the number of copies of a specific gene and indicating whether it is a coding or non-coding gene.
-
-.. admonition:: Column definition
-   :class: note
-
-   1. Gene ID
-   2. The number of gene copy
-   3. coding or non-coding tag
-
-
+      8. Transcript locus coordinate: :code:`<chromosome>:<start>-<end>`
 
 .. dropdown:: Example
    :animate: fade-in-slide-down
@@ -133,71 +110,168 @@ It is a TSV file summarizing the number of copies of a specific gene and indicat
 
    .. code-block:: plain-text
 
-      gene-Dmel_CG32498       2       coding
-      gene-Dmel_CG6998        2       coding
-      gene-Dmel_CR32748       2       non-coding
-      gene-Dmel_CG34417       2       coding
-      gene-Dmel_CG1343        2       coding
-      gene-Dmel_CR32615       2       non-coding
-      gene-Dmel_CG46317       2       coding
-      gene-Dmel_CG6340        2       coding
-      gene-Dmel_CG46306       2       coding
-      gene-Dmel_CG5004        2       coding
+      rna-NR_132385.2	0	0	0.9991364421416234	0	Liftoff	non_coding	chr22:16314791-16352180
+      rna-NM_014406.5	0.9982078853046595	0.996415770609319	0.9985443959243085	0.9982078853046595	LiftOn_chaining_algorithm	frameshift	chr22:17267300-17269359
+      rna-NR_134584.1	0	0	0.9990338164251208	0	Liftoff	non_coding	chr22:17423569-17425137
+      rna-NM_001318251.3	0.9910714285714286	0.9910714285714286	0.9981549815498155	0.9910714285714286	LiftOn_chaining_algorithm	frameshift	chr22:17460159-17498391
+      rna-NM_001386955.1	0.9910714285714286	0.9910714285714286	0.9987878787878788	0.9910714285714286	LiftOn_chaining_algorithm	nonsynonymous	chr22:17460159-17502102
+      rna-NM_001386956.1	0.9910714285714286	0.9910714285714286	0.997489014438167	0.9910714285714286	LiftOn_chaining_algorithm	frameshift	chr22:17460159-17502102
+      rna-NM_001386957.1	0.9910714285714286	0.9910714285714286	0.998533724340176	0.9910714285714286	LiftOn_chaining_algorithm	frameshift	chr22:17460159-17502102
 
 |
 
-3. unmapped_features.txt
-+++++++++++++++++++++++++++++++++++
 
-It is a TSV file summarizing unmapped gene ID.
-
-.. admonition:: Column definition
-   :class: note
-
-   1. Gene ID
-
-
-.. dropdown:: Example
-   :animate: fade-in-slide-down
-   :container: + shadow
-   :title: bg-light font-weight-bolder
-   :body: bg-light text-left
-
-   .. code-block:: plain-text
-
-      gene-Dmel_CR40469
-      gene-Dmel_CR43552
-      gene-Dmel_CR45473
-      gene-Dmel_CG32817
-      gene-Dmel_CR43519
-      gene-Dmel_CR45474
-      gene-Dmel_CR45475
-      gene-Dmel_CR46283
-      gene-Dmel_CR44469
-      gene-Dmel_CG13359
-      gene-Dmel_CG14634
-      gene-Dmel_CR45476
-
-|
-
-4. miniprot/
-+++++++++++++++++++++++++++++++++++
-
-The miniprot GFF3 file generated during the LiftOn process.
-
-|
-
-5. liftoff/
+2. liftoff/
 +++++++++++++++++++++++++++++++++++
 
 The liftoff GFF3 annotatation generated during the LiftOn process.
 
 |
 
-6. intermediate_files/
+3. miniprot/
 +++++++++++++++++++++++++++++++++++
 
-In this directory, it stores all intermdeiate files, including protein sequences (FASTA), truncated protein sequences (FASTA), gene seuqence to genome alignment (SAM), and transcript sequences (FASTA). 
+The miniprot GFF3 file generated during the LiftOn process.
+
+|
+
+4. intermediate_files/
++++++++++++++++++++++++++++++++++++
+
+In this directory, it stores all intermdeiate files, including protein sequences (FASTA), gene seuqence to genome alignment (SAM), transcript sequences (FASTA), the type of the reference gene (coding or non-coding), and the type of the reference transcript (coding or non-coding).
+
+         
+|
+
+
+5. stats/mapped_feature.txt
++++++++++++++++++++++++++++++++++++
+
+It is a TSV file summarizing the number of features being mapped from the reference genome to the target genome.
+
+.. admonition:: Column definition
+   :class: note
+
+      1. Feature ID
+      2. The number of feature copy
+      3. Feeature type: `coding`, `non-coding`, or `other`
+
+.. dropdown:: Example
+   :animate: fade-in-slide-down
+   :container: + shadow
+   :title: bg-light font-weight-bolder
+   :body: bg-light text-left
+
+   .. code-block:: plain-text
+
+      gene-LOC105379428	1	non-coding
+      gene-LOC124905168	1	other
+      gene-OR11H1	1	coding
+      gene-LOC112268291	1	non-coding
+      gene-POTEH	1	coding
+      gene-POTEH-AS1	1	non-coding
+      gene-PSLNR	1	non-coding
+
+|
+
+6. stats/mapped_transcript.txt
++++++++++++++++++++++++++++++++++++
+
+It is a TSV file summarizing the number of transcripts being mapped from the reference genome to the target genome.
+
+.. admonition:: Column definition
+   :class: note
+
+      1. Transcript ID
+      2. The number of transcript copy
+      3. Transcript type: `coding`, `non-coding`, or `other`
+
+.. dropdown:: Example
+   :animate: fade-in-slide-down
+   :container: + shadow
+   :title: bg-light font-weight-bolder
+   :body: bg-light text-left
+
+   .. code-block:: plain-text
+
+      rna-XM_011546114.3      1       coding
+      rna-NM_001025161.3	2	coding
+      rna-XR_001755413.2	3	non-coding
+      rna-XR_001755415.2	3	non-coding
+      rna-XR_002958735.2	3	non-coding
+      rna-NR_110761.1	3	non-coding
+      id-LOC124905154	2	others
+
+|
+
+7. stats/extra_copy_features.txt
++++++++++++++++++++++++++++++++++++
+
+Similar to mapped_feature.txt, this TSV file summarizes the number of additional copies of genes and indicates whether they are coding or non-coding.
+
+.. admonition:: Column definition
+   :class: note
+
+      1. Feature ID
+      2. The number of feature copy
+      3. Feeature type: `coding`, `non-coding`, or `other`
+
+
+
+.. dropdown:: Example
+   :animate: fade-in-slide-down
+   :container: + shadow
+   :title: bg-light font-weight-bolder
+   :body: bg-light text-left
+
+   .. code-block:: plain-text
+
+      gene-LOC124905154	2	other
+      gene-LOC107984037	3	non-coding
+      gene-LOC102723769	3	non-coding
+      gene-LOC107987323	3	non-coding
+      gene-LOC105372858	4	non-coding
+      gene-GGTLC3	3	coding
+      gene-LOC107985584	9	non-coding
+      gene-MIR650	2	other
+      gene-LINC02556	5	non-coding
+      gene-CYP2D6	2	coding
+      gene-LOC101927372	2	non-coding
+
+|
+
+
+8. stats/unmapped_features.txt
++++++++++++++++++++++++++++++++++++
+
+It is a TSV file summarizing unmapped gene IDs and their types.
+
+.. admonition:: Column definition
+   :class: note
+
+      1. Gene ID
+      2. Feeature type: `coding`, `non-coding`, or `other`
+
+
+.. dropdown:: Example
+   :animate: fade-in-slide-down
+   :container: + shadow
+   :title: bg-light font-weight-bolder
+   :body: bg-light text-left
+
+   .. code-block:: plain-text
+
+      gene-LOC124905174	non-coding
+      gene-LOC124900482	non-coding
+      gene-FAM246B	coding
+      gene-RIMBP3C	coding
+      gene-IGLJ1	other
+      gene-IGLJ2	other
+      gene-IGLJ3	other
+      gene-IGLJ4	other
+      gene-IGLJ5	other
+      gene-IGLJ6	other
+      gene-IGLJ7	other
 
 |
 |
