@@ -45,12 +45,12 @@ Mouse to Rat
 Input files
 +++++++++++++++++++++++++++++++++++
 
-To run this example, download the following three input files.
+To run this example, you will need to download the following three input files:
 
 * **Input**
-    1. target **Genome** :math:`T` in FASTA : `mRatBN7.2_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/mRatBN7.2_genomic.fna>`_ 
-    2. reference **Genome** :math:`R` in FASTA : `GRCm39_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/GRCm39_genomic.fna>`_
-    3. reference **Annotation** :math:`R_A` in GFF3 : `GRCm39_genomic.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/GRCm39_genomic.gff>`_
+    1. target **Genome** :math:`T` in FASTA : `mRatBN7.2_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/mouse_to_rat/mRatBN7.2_genomic.fna>`_ 
+    2. reference **Genome** :math:`R` in FASTA : `GRCm39_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/GRCm39_genomic.fna>`_
+    3. reference **Annotation** :math:`R_A` in GFF3 : `GRCm39_genomic.gff <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/GRCm39_genomic.gff>`_
 
 
 
@@ -62,18 +62,16 @@ There is only one command you need to run LiftOn:
 
 .. code-block:: bash
 
-    lifton -D -g GRCm39_genomic.gff -o lifton.gff3 -copies mRatBN7.2_genomic.fna GRCm39_genomic.fna
+    lifton -g GRCm39_genomic.gff -o lifton.gff3 -copies mRatBN7.2_genomic.fna GRCm39_genomic.fna
 
 
 After successfully running LiftOn, you will get the following file and output directory:
 
 * **Output**: 
-    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/lifton.gff3
-    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/lifton_output/
-
-       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/lifton_output/score.txt>`_
-       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/lifton_output/extra_copy_features.txt>`_
-       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/mouse_to_rat/lifton_output/unmapped_features.txt>`_
+    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_to_rat/lifton.gff3
+    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_to_rat/lifton_output/
+   
+       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_to_rat/lifton_output/score.txt>`_
 
 |
 |
@@ -87,14 +85,13 @@ Genome annotation evaluation
 Here are some visualization results comparing LiftOn annotation to (1) Liftoff and (2) miniprot annotation. 
 
 
-First, we calculate the protein sequence identity score for every protein-coding transcript (check :ref:`lifton_sequence_identity` section) for three annotations, LiftOn, Liftoff, and miniprot. 
+First, we calculate the protein sequence identity score for every protein-coding transcript (check :ref:`evaluation_metrics_sequence_identity` section) for three annotations, LiftOn, Liftoff, and miniprot. 
 
 :numref:`figure-mouse_to_rat_miniprot_vs_liftoff` compares the protein-coding gene mapping of Liftoff, based on DNA alignment, with miniprot, utilizing protein-to-DNA alignment. Dots in the lower right signify transcripts where Liftoff outperformed miniprot in protein sequence identity, while the upper left indicates transcripts where miniprot excelled. LiftOn employs the PM algorithm to enhance annotations in both, achieving improved protein-coding gene annotation, as neither approach dominates the other.
 
 .. _figure-mouse_to_rat_miniprot_vs_liftoff:
 .. figure::  ../../_images/mouse_to_rat/Liftoff_miniprot/parasail_identities.png
     :align:   center
-    :scale:   25 %
 
     The scatter plot of protein sequence identity comparing between miniprot (y-axis) and Liftoff (x-axis). Each dot represents a protein-coding transcript.
 |
@@ -104,7 +101,6 @@ Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In th
 .. _figure-mouse_to_rat_lifton_vs_liftoff_vs_miniprot:
 .. figure::  ../../_images/mouse_to_rat/combined_scatter_plots.png
     :align:   center
-    :scale:   21 %
 
     The scatter plot of protein sequence identity comparing between LiftOn (y-axis) and Liftoff (x-axis) (left) and comparing between LiftOn (y-axis) and miniprot (x-axis) (right).
 |
@@ -115,7 +111,6 @@ We visualize the transcripts in a 3-D plot, incorporating LiftOn, Liftoff, and m
 .. _figure-mouse_to_rat_3D_scatter:
 .. figure::  ../../_images/mouse_to_rat/3d_scatter.png
     :align:   center
-    :scale:   30 %
 
     The 3-D scatter plot of protein sequence identity comparing between LiftOn (y-axis), Liftoff (x-axis), and miniprot (z-axis).
 
@@ -126,7 +121,6 @@ Next, we check the distribution of protein sequence identities (see :numref:`fig
 .. _figure-mouse_to_rat_frequency_log:
 .. figure::  ../../_images/mouse_to_rat/combined_frequency_log.png
     :align:   center
-    :scale:   12 %
 
     Frequency plots in logarithmic scale of protein sequence identity for Liftoff (left), LiftOn (middle), and miniprot (right) for the results of mouse_to_rat lift-over.
 
@@ -140,7 +134,6 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-mouse_to_rat_circos:
 .. figure::  ../../_images/mouse_to_rat/circos_plot.png
     :align:   center
-    :scale:  16 %
 
     Circos plot illustrating the locations of extra gene copies found on mRatBN7.2 (left side) compared to GRCm39 (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 
@@ -150,7 +143,6 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-mouse_to_rat_extra_copy_fq:
 .. figure::  ../../_images/mouse_to_rat/extra_cp/frequency.png
     :align:   center
-    :scale:  30 %
 
     Frequency plot for additional gene copy.
 
@@ -161,7 +153,6 @@ Finally, we examined the order of protein-coding genes (:numref:`figure-mouse_to
 .. _figure-mouse_to_rat_gene_order:
 .. figure::  ../../_images/mouse_to_rat/gene_order_plot.png
     :align:   center
-    :scale:  30 %
 
     Protein-gene order plot, with the x-axis representing the reference genome (GRCm39) and the y-axis representing the target genome (mRatBN7.2). The protein sequence identities are color-coded on a logarithmic scale, ranging from green to red. Green represents a sequence identity score of 1, while red corresponds to a sequence identity score of 0.
 
@@ -175,7 +166,6 @@ To demonstrate LiftOn's improvement in comparison to Liftoff and miniprot visual
 .. _figure-mouse_to_rat_example:
 .. figure::  ../../_images/mouse_to_rat/select_examples.png
     :align:   center
-    :scale:  20 %
 
     The above images, loaded from IGV, showcase examples of LiftOn yielding novel protein-coding transcripts which outperform Liftoff and miniprot’s readouts. (A) demonstrates LiftOn correctly locating the starting region of a short CDS which miniprot misses (producing subsequent error in the next CDS) but Liftoff catches, and a stop codon in a CDS which Liftoff misses but miniprot catches, yielding a consensus with 100% protein identity score. Similarly, (B) demonstrates LiftOn catching the short starting CDS which miniprot misses but Liftoff catches, and a missing CDS which Liftoff misses but miniport catches. Lastly, (C) again showcases LiftOn producing the best consensus between Liftoff and miniprot, while also highlighting a new feature in (2), where the algorithm extends the protein with an open reading frame search for a novel terminal CDS, yielding the complete protein sequence which both Liftoff and miniprot miss. 
 

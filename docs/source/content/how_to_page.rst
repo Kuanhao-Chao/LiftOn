@@ -3,7 +3,7 @@
 
 .. _Q&A:
 
-Q & A ...
+FAQ ...
 ==========
 
 .. dropdown:: Q: What is LiftOn?

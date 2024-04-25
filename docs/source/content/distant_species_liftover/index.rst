@@ -66,14 +66,14 @@ Following are two examples:
 .. admonition:: LiftOn examples
     :class: note
 
-    * :ref:`distant_species_liftover_mouse_to_rat`
     * :ref:`distant_species_liftover_drosophila_melanogaster_2_erecta`
+    * :ref:`distant_species_liftover_mouse_to_rat`
 
 .. toctree::
     :hidden:
-    
-    liftover_mouse_2_rat
+
     liftover_drosophila_erecta
+    liftover_mouse_2_rat
 
 |
 |

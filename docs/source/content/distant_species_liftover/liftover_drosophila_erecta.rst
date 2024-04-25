@@ -46,12 +46,12 @@
 Input files
 +++++++++++++++++++++++++++++++++++
 
-To run this example, download the following three input files.
+To run this example, you will need to download the following three input files:
 
 * **Input**
-    1. target **Genome** :math:`T` in FASTA : `d.erecta_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.erecta_genomic.fna>`_ 
-    2. reference **Genome** :math:`R` in FASTA : `d.menogaster_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.menogaster_genomic.fna>`_
-    3. reference **Annotation** :math:`R_A` in GFF3 : `d.menogaster_genomic.gff <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/d.menogaster_genomic.gff>`_
+    1. target **Genome** :math:`T` in FASTA : `d.erecta_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/drosophila/d.erecta_genomic.fna>`_ 
+    2. reference **Genome** :math:`R` in FASTA : `d.menogaster_genomic.fna <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/drosophila/d.menogaster_genomic.fna>`_
+    3. reference **Annotation** :math:`R_A` in GFF3 : `d.menogaster_genomic.gff <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/drosophila/d.menogaster_genomic.gff>`_
 
 
 .. .. important::
@@ -62,18 +62,16 @@ There is only one command you need to run LiftOn:
 
 .. code-block:: bash
 
-    lifton -D -g d.menogaste_genomic.gff -o lifton.gff3 -copies d.erecta_genomic.fna d.menogaster_genomic.fna
+    lifton -g d.menogaste_genomic.gff -o lifton.gff3 -copies d.erecta_genomic.fna d.menogaster_genomic.fna
 
 
 After successfully running LiftOn, you will get the following file and output directory:
 
 * **Output**: 
-    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/lifton.gff3
-    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/lifton_output/
+    1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/drosophila_erecta/lifton.gff3
+    2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/drosophila_erecta/lifton_output/
 
-       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/lifton_output/score.txt>`_
-       *  `extra_copy_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/lifton_output/extra_copy_features.txt>`_
-       *  `unmapped_features.txt <ftp://ftp.ccb.jhu.edu/pub/LiftOn/drosophila_erecta/lifton_output/unmapped_features.txt>`_
+       *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/drosophila_erecta/lifton_output/score.txt>`_
 
 |
 |
@@ -87,14 +85,13 @@ Genome annotation evaluation
 Here are some visualization results comparing LiftOn annotation to (1) Liftoff and (2) miniprot annotation. 
 
 
-First, we calculate the protein sequence identity score for every protein-coding transcript (check :ref:`lifton_sequence_identity` section) for three annotations, LiftOn, Liftoff, and miniprot. 
+First, we calculate the protein sequence identity score for every protein-coding transcript (check :ref:`evaluation_metrics_sequence_identity` section) for three annotations, LiftOn, Liftoff, and miniprot. 
 
 :numref:`figure-drosophila_erecta_miniprot_vs_liftoff` compares the protein-coding gene mapping of Liftoff, based on DNA alignment, with miniprot, utilizing protein-to-DNA alignment. Dots in the lower right signify transcripts where Liftoff outperformed miniprot in protein sequence identity, while the upper left indicates transcripts where miniprot excelled. LiftOn employs the PM algorithm to enhance annotations in both, achieving improved protein-coding gene annotation, as neither approach dominates the other.
 
 .. _figure-drosophila_erecta_miniprot_vs_liftoff:
 .. figure::  ../../_images/drosophila_erecta/Liftoff_miniprot/parasail_identities.png
     :align:   center
-    :scale:   25 %
 
     The scatter plot of protein sequence identity comparing between miniprot (y-axis) and Liftoff (x-axis). Each dot represents a protein-coding transcript.
 |
@@ -104,7 +101,6 @@ Next, we individually assess LiftOn in comparison to Liftoff and miniprot. In th
 .. _figure-drosophila_erecta_lifton_vs_liftoff_vs_miniprot:
 .. figure::  ../../_images/drosophila_erecta/combined_scatter_plots.png
     :align:   center
-    :scale:   21 %
 
     The scatter plot of protein sequence identity comparing between LiftOn (y-axis) and Liftoff (x-axis) (left) and comparing between LiftOn (y-axis) and miniprot (x-axis) (right).
 |
@@ -115,7 +111,6 @@ We visualize the transcripts in a 3-D plot, incorporating LiftOn, Liftoff, and m
 .. _figure-drosophila_erecta_3D_scatter:
 .. figure::  ../../_images/drosophila_erecta/3d_scatter.png
     :align:   center
-    :scale:   30 %
 
     The 3-D scatter plot of protein sequence identity comparing between LiftOn (y-axis), Liftoff (x-axis), and miniprot (z-axis).
 
@@ -126,7 +121,6 @@ Next, we check the distribution of protein sequence identities (see :numref:`fig
 .. _figure-drosophila_erecta_frequency_log:
 .. figure::  ../../_images/drosophila_erecta/combined_frequency_log.png
     :align:   center
-    :scale:   12 %
 
     Frequency plots in logarithmic scale of protein sequence identity for Liftoff (left), LiftOn (middle), and miniprot (right) for the results of drosophila_erecta lift-over.
 
@@ -140,7 +134,6 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-drosophila_erecta_circos:
 .. figure::  ../../_images/drosophila_erecta/circos_plot.png
     :align:   center
-    :scale:  16 %
 
     Circos plot illustrating the locations of extra gene copies found on d.erecta (left side) compared to d.menogaster (right side). Each line shows the location of an extra copy, and lines are color-coded by the chromosome of the original copy.
 
@@ -150,7 +143,6 @@ LiftOn also has a module to find extra copies by using `intervaltree <https://gi
 .. _figure-drosophila_erecta_extra_copy_fq:
 .. figure::  ../../_images/drosophila_erecta/extra_cp/frequency.png
     :align:   center
-    :scale:  30 %
 
     Frequency plot for additional gene copy.
 
@@ -161,7 +153,6 @@ Finally, we examined the order of protein-coding genes (:numref:`figure-drosophi
 .. _figure-drosophila_erecta_gene_order:
 .. figure::  ../../_images/drosophila_erecta/gene_order_plot.png
     :align:   center
-    :scale:  30 %
 
     Protein-gene order plot, with the x-axis representing the reference genome (d.menogaster) and the y-axis representing the target genome (d.erecta). The protein sequence identities are color-coded on a logarithmic scale, ranging from green to red. Green represents a sequence identity score of 1, while red corresponds to a sequence identity score of 0.
 

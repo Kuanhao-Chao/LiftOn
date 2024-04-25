@@ -50,7 +50,7 @@ There are three ways that you can install LiftOn:
 Install through pip
 -------------------------
 
-LiftOn is on `PyPi 3.12 <https://pypi.org/project/lifton/>`_ now. Check out all the releases `here <https://pypi.org/manage/project/lifton/releases/>`_. Pip automatically resolves and installs any dependencies required by LiftOn.
+LiftOn is on `PyPi <https://pypi.org/project/lifton/>`_ now. Check out all the releases `here <https://pypi.org/manage/project/lifton/releases/>`_. Pip automatically resolves and installs any dependencies required by LiftOn.
 
 .. code-block:: bash
    
@@ -121,7 +121,7 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v0.0.3
+      v1.0.0
 
       usage: lifton [-h] [-E] [-c] [-o FILE] [-u FILE] [-exclude_partial] [-mm2_options =STR] [-a A] [-s S] [-d D] [-flank F] [-V] [-D] [-t THREADS]
                   [-m PATH] [-f TYPES] [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT] [-copies] [-sc SC] [-overlap O] [-mismatch M]
