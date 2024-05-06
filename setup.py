@@ -5,7 +5,7 @@ this_directory = Path(__file__).resolve().parent
 long_description = (this_directory / "./README.md").read_text()
 setuptools.setup(
 	name="lifton",
-	version="1.0.0",
+	version="1.0.1",
 	author="Kuan-Hao Chao",
 	author_email="kh.chao@cs.jhu.edu",
 	description="Combining DNA and protein alignments to improve genome annotation with LiftOn",

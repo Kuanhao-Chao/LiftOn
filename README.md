@@ -174,7 +174,7 @@ Given a reference <strong>Genome</strong> <span class="math notranslate nohighli
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="https://ccb.jhu.edu/lifton/content/changelog.html">Changelog</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="https://ccb.jhu.edu/lifton/content/changelog.html#v1-0-0">v1.0.0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://ccb.jhu.edu/lifton/content/changelog.html#v1-0-0">v1.0.1</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="https://ccb.jhu.edu/lifton/content/license.html">License</a></li>

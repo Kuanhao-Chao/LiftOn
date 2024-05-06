@@ -471,24 +471,22 @@ class Lifton_TRANS:
         trans_seq = ""
         coding_seq = ""
         accum_cds_length = 0
-        for exon in self.exons:
+        lcl_exons = []
+        lcl_exons = self.exons
+        if len(self.exons) > 0 and self.exons[0].entry.strand == '-':
+            lcl_exons = self.exons[::-1]
+        for exon in lcl_exons:
             # Chaining the exon features
             p_trans_seq = exon.entry.sequence(fai)
             p_trans_seq = Seq(p_trans_seq).upper()
-            if exon.entry.strand == '-':
-                trans_seq = p_trans_seq + trans_seq
-            elif exon.entry.strand == '+':
-                trans_seq = trans_seq + p_trans_seq
+            trans_seq = trans_seq + p_trans_seq
             if exon.cds is not None:
                 # Updating CDS frame
                 exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
-                accum_cds_length = exon.cds.entry.end - exon.cds.entry.start + 1
+                accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
                 # Chaining the CDS features
                 p_seq = exon.cds.entry.sequence(fai)
-                if exon.cds.entry.strand == '-':
-                    coding_seq = p_seq + coding_seq
-                elif exon.cds.entry.strand == '+':
-                    coding_seq = coding_seq + p_seq
+                coding_seq = coding_seq + p_seq
         if trans_seq != None:
             trans_seq = str(trans_seq).upper()
         if coding_seq != None:
@@ -615,8 +613,10 @@ class Lifton_TRANS:
                     # Create first partial CDS
                     if exon.cds is not None:
                         if strand == "+":
+                            exon.cds.entry.end = exon.entry.end
                             exon.cds.entry.start = exon.entry.start + (final_orf.start - accum_exon_length)
                         elif strand == "-":
+                            exon.cds.entry.start = exon.entry.start 
                             exon.cds.entry.end = exon.entry.end - (final_orf.start - accum_exon_length)
                     else:
                         if strand == "+":
@@ -633,24 +633,24 @@ class Lifton_TRANS:
                     # Create the last partial CDS
                     if exon.cds is not None:
                         if strand == "+":
+                            exon.cds.entry.start = exon.entry.start
                             exon.cds.entry.end = exon.entry.start + (final_orf.end - accum_exon_length)-1
                         elif strand == "-":
+                            exon.cds.entry.end = exon.entry.end
                             exon.cds.entry.start = exon.entry.end - (final_orf.end - accum_exon_length)+1
                     else:
                         if strand == "+":
                             exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length)-1)
                         elif strand == "-":
                             exon.add_novel_lifton_cds(exon.entry, exon.entry.end - (final_orf.end - accum_exon_length)+1, exon.entry.end)
-                    exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
-                    accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
                 else:
                     # Keep the original full CDS / extend the CDS to full exon length
                     if exon.cds is None:
                         exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
                     else:
                         exon.cds.update_CDS_info(exon.entry.start, exon.entry.end)
-                    exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
-                    accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
+                exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
+                accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
             elif final_orf.end <= accum_exon_length:
                 # No CDS should be created
                 exon.cds = None

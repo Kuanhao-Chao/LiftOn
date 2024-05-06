@@ -96,7 +96,6 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     m_lifton_aln = align.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
     lifton_status.annotation =  "miniprot"
     lifton_status.lifton_aa = m_lifton_aln.identity
-    # lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(Lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
     return lifton_gene, Lifton_trans, Lifton_trans.entry.id, lifton_status
 
 
