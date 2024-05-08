@@ -333,12 +333,16 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                 gene_type_key = "gene_biotype"
             elif args.annotation_database.upper() == "GENCODE" or args.annotation_database.upper() == "ENSEMBL" or args.annotation_database.upper() == "CHESS":
                 gene_type_key = "gene_type"
-            if locus.attributes[gene_type_key][0] == "protein_coding" and len(CDS_children) > 0:
-                feature.is_protein_coding = True
-                fw_gene.write(f"{locus.id}\tcoding\n")
-            elif (locus.attributes[gene_type_key][0] == "lncRNA" or locus.attributes[gene_type_key][0] == "ncRNA"):
-                feature.is_non_coding = True
-                fw_gene.write(f"{locus.id}\tnon-coding\n")
+
+            if gene_type_key in locus.attributes.keys():
+                if locus.attributes[gene_type_key][0] == "protein_coding" and len(CDS_children) > 0:
+                    feature.is_protein_coding = True
+                    fw_gene.write(f"{locus.id}\tcoding\n")
+                elif (locus.attributes[gene_type_key][0] == "lncRNA" or locus.attributes[gene_type_key][0] == "ncRNA"):
+                    feature.is_non_coding = True
+                    fw_gene.write(f"{locus.id}\tnon-coding\n")
+                else:
+                    fw_gene.write(f"{locus.id}\tother\n")
             else:
                 fw_gene.write(f"{locus.id}\tother\n")
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
