@@ -346,7 +346,6 @@ An accurate homology lift-over tool between assemblies
     ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
     '''
     print(banner, file=sys.stderr)
-    print(f"{__version__}\n", file=sys.stderr)
     args = parse_args(arglist)
     if not run_miniprot.check_miniprot_installed(): 
         sys.exit("miniprot is not installed. Please install miniprot before running LiftOn.")
