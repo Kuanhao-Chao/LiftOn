@@ -167,6 +167,10 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, locus.id)
         lifton_status = lifton_class.Lifton_Status()
         lifton_status.annotation = "Liftoff"
+        try: # Test if the reference transcript exists. Skip if not.
+            ref_db[ref_trans_id]
+        except:
+            return None
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
         if cds_num > 0:
             process_liftoff_with_protein(locus, lifton_gene, lifton_trans,

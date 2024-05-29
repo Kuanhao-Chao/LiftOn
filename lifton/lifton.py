@@ -114,6 +114,7 @@ def parse_args(arglist):
     parser.add_argument('-E', '--evaluation', help='Run LiftOn in evaluation mode', action='store_true', default = False)
     parser.add_argument('-EL', '--evaluation-liftoff-chm13', help='Run LiftOn in evaluation mode', action='store_true', default = False)
     parser.add_argument('-c', '--write_chains', help='Write chaining files', action='store_true', default = True)
+    parser.add_argument('--no-orf-search', help='Do not perform open reading frame search', action='store_true', default = False)
     parser_outgrp = args_outgrp(parser)
     parser_aligngrp = args_aligngrp(parser)
     args_optional(parser)
