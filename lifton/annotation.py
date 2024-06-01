@@ -35,12 +35,31 @@ class Annotation():
                                         id_spec='ID',
                                         force=True,
                                         verbose=True, disable_infer_transcripts=True,
-                                            disable_infer_genes=disable_genes, transform=transform_func)
-            
+                                            disable_infer_genes=disable_genes, transform=transform_func)            
+        except Exception as e:
+            print("gffutils database build failed with", e)
+            feature_db = self.build_database_again()
+        return feature_db
+
+
+    def build_database_again(self):
+        if self.infer_genes:
+            disable_genes = False
+        else:
+            disable_genes = True
+        try:
+            transform_func = self.get_transform_func()
+            feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
+                                        merge_strategy="warning",
+                                        id_spec='ID',
+                                        force=True,
+                                        verbose=True, disable_infer_transcripts=True,
+                                            disable_infer_genes=disable_genes, transform=transform_func)            
         except Exception as e:
             print("gffutils database build failed with", e)
             sys.exit()
         return feature_db
+
 
     def get_transform_func(self):
         if self.infer_genes is False:
