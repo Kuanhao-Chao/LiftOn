@@ -103,7 +103,7 @@ Why LiftOn❓
 
 3. **Improved distantly related species lift-over**: A key limitation of DNA-based lift-over tools is that they do not perform well when the reference and target genomes have significantly diverged. With the help of protein alignments and the protein maximization algorithm, LiftOn improves the lift-over process between distantly related species. See ":ref:`distant_species_liftover_mouse_to_rat`" and ":ref:`distant_species_liftover_drosophila_melanogaster_2_erecta`" result sections.
 
-LiftOn is free, it's open source, it's easy to install , and it's in Python!
+LiftOn is free, it's open source, it's easy to install, and it's in Python!
 
 |
 
@@ -116,7 +116,7 @@ LiftOn is designed for researchers and bioinformaticians who are interested in g
 
 2. LiftOn is an excellent tool for those looking to perform comparative genomics analysis. It facilitates the lifting over and comparison of gene contents between different genomes, aiding in understanding evolutionary relationships and functional genomics.
 
-3. For researchers interested in using T2T-CHM13 annotations, try LiftOn! We have pre-generated the `JHU_LiftOn_v1.0_chm13v2.0.gff3 <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3>`_  file for your convenience. 
+3. For researchers interested in using T2T-CHM13 annotations, try LiftOn! We have pre-generated the `JHU_LiftOn_v1.0_chm13v2.0.gff3 <ftp://ftp.ccb.jhu.edu/pub/LiftOn/human_refseq/lifton.gff3>`_ file for your convenience. 
 
 |
 
@@ -142,19 +142,19 @@ LiftOn is the best tool to help you solve this problem! LiftOn employs a two-ste
 
 |
 
-Inputs & outputs
+Inputs & Outputs
 ====================================
 
 
 * **Input**: 
-    1. target **Genome** :math:`T` in FASTA format.
-    2. reference **Genome** :math:`R` in FASTA format.  
-    3. reference **Annotation** :math:`R_A` in GFF3 format.
+    1. Target **Genome** :math:`T` in FASTA format.
+    2. Reference **Genome** :math:`R` in FASTA format.  
+    3. Reference **Annotation** :math:`R_A` in GFF3 format.
 * **Output**: 
     1. LiftOn annotation file, **Annotation** :math:`T_A`, in GFF3 format.
-    2. Protein sequence identities & mutation types
-    3. Features with extra copies
-    4. Unmapped features
+    2. Protein sequence identities & mutation types.
+    3. Features with extra copies.
+    4. Unmapped features.
 
 |
 
@@ -165,7 +165,7 @@ Cite us
 
 .. raw:: html
     
-    <p>Kua-Hao Chao, Jakob M. Heinz, Celine Hoh, Alan Mao, Alaina Shumate, Mihaela Pertea, and Steven L. Salzberg. <i>"Combining DNA and protein alignments to improve genome annotation with LiftOn."</i> <b>bioRxiv coming soon</b>.
+    <p>Kuan-Hao Chao, Jakob M. Heinz, Celine Hoh, Alan Mao, Alaina Shumate, Mihaela Pertea, and Steven L. Salzberg. <i>"Combining DNA and protein alignments to improve genome annotation with LiftOn."</i> <b>bioRxiv coming soon</b>.
     <a href="https://doi.org/10.1093/bioinformatics/btaa1016" target="_blank"> <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" x="0px" y="0px" viewBox="0 0 100 100" width="15" height="15" class="icon outbound"><path fill="currentColor" d="M18.8,85.1h56l0,0c2.2,0,4-1.8,4-4v-32h-8v28h-48v-48h28v-8h-32l0,0c-2.2,0-4,1.8-4,4v56C14.8,83.3,16.6,85.1,18.8,85.1z"></path> <polygon fill="currentColor" points="45.7,48.7 51.3,54.3 77.2,28.5 77.2,37.2 85.2,37.2 85.2,14.9 62.8,14.9 62.8,22.9 71.5,22.9"></polygon></svg> </a> </p>
 
     <p>Alaina Shumate, and Steven L. Salzberg. <i>"Liftoff: accurate mapping of gene annotations."</i> <b>Bioinformatics</b> 37.12 (2021): 1639-1643.
@@ -187,7 +187,7 @@ https://github.com/Kuanhao-Chao/LiftOn/issues
 Key contributors
 ================
 
-LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_ and `Alan Man <https://github.com/am12>`_. The LiftOn logo was designed by `Alan Man <https://github.com/am12>`_.
+LiftOn was designed and developed by `Kuan-Hao Chao <https://khchao.com/>`_.  This documentation was written by `Kuan-Hao Chao <https://khchao.com/>`_ and `Alan Mao <https://github.com/am12>`_. The LiftOn logo was designed by `Alan Mao <https://github.com/am12>`_.
 
 |
 
@@ -228,7 +228,7 @@ Table of contents
 |
 
 
-LiftOn's limitation
+LiftOn's limitations
 ==================================
 LiftOn's *chaining algorithm* currently only utilizes miniprot alignment results to fix the Liftoff annotation. However, it can be extended to chain together multiple DNA- and protein-based annotation files or aasembled RNA-Seq transcripts. 
 
