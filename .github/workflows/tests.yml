@@ -1,0 +1,45 @@
+name: Run tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.12"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip flake8
+        sudo apt install wget
+        wget https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
+        tar xvf miniprot-0.13_x64-linux.tar.bz2
+        cp miniprot-0.13_x64-linux/miniprot /usr/local/bin
+        rm -rf miniprot-0.13_x64-linux*
+        wget https://github.com/lh3/minimap2/releases/download/v2.28/minimap2-2.28_x64-linux.tar.bz2
+        tar xvf minimap2-2.28_x64-linux.tar.bz2
+        mv minimap2-2.28_x64-linux/k8  minimap2-2.28_x64-linux/paftools.js  minimap2-2.28_x64-linux/minimap2 /usr/local/bin
+        rm -rf minimap2-2.28_x64-linux*
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    - name: Install lifton
+      run: |
+        python -m pip install -e .
+    - name: Test with pytest
+      run: |
+        cd test && bash -xeu lifton_chr22_example.sh
+        
