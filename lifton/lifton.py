@@ -1,4 +1,4 @@
-from lifton import mapping, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, __version__
+from lifton import intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, __version__
 from intervaltree import Interval
 import argparse
 from pyfaidx import Fasta
