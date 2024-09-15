@@ -1,6 +1,6 @@
 import subprocess
 import os, copy
-from lifton import lifton_class, logger, lifton_utils, protein_maximization, run_miniprot, align
+from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.liftoff import liftoff_main
 from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
@@ -178,6 +178,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                                         tgt_fai, ref_trans_id, ref_proteins, ref_trans,
                                         fw_chain, args.write_chains, lifton_status, args.debug)
         lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
+        
         # lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("Liftoff")
         lifton_gene.add_lifton_trans_status_attrs(lifton_trans.entry.id, lifton_status)

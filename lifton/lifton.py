@@ -3,6 +3,7 @@ from intervaltree import Interval
 import argparse
 from pyfaidx import Fasta
 import os, sys
+import time
 
 def args_outgrp(parser):
     outgrp = parser.add_argument_group('* Output settings')
@@ -29,6 +30,8 @@ def args_aligngrp(parser):
                                                                             '5 --eqx -N 50 '
                                                                             '-p 0.5',
                           help='space delimited minimap2 parameters. By default ="-a --end-bonus 5 --eqx -N 50 -p 0.5"')
+    aligngrp.add_argument('-mp_options', metavar='=STR', type=str, default='',
+                          help='space delimited miniprot parameters.')
     aligngrp.add_argument(
         '-a', default=0.5, metavar='A', type=float,
         help='designate a feature mapped only if it aligns with coverage ≥A; by default A=0.5',
@@ -105,6 +108,10 @@ def args_optional(parser):
                                                                                         "(partial, missing start, "
                                                                                         "missing stop, inframe stop "
                                                                                         "codon)")
+    parser.add_argument(
+        '-time', '--measure_time', required=False, action='store_true',
+        help='Enable time measurement for each step'
+    )
 
 
 def parse_args(arglist):
@@ -172,11 +179,12 @@ def parse_args(arglist):
     if (float(args.s) > float(args.sc)):
         parser.error("-sc must be greater than or equal to -s")
     if (args.chroms is None and args.unplaced is not None):
-        parser.error("-unplaced must be used with -chroms")
+        parser.error("-unplaced must be used with -chroms")    
     return args
     
 
 def run_all_lifton_steps(args):
+    t1 = time.process_time()
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -200,18 +208,21 @@ def run_all_lifton_steps(args):
     logger.log(">> Reading reference genome ...", debug=True)
     ref_fai = Fasta(ref_genome)    
 
+    t2 = time.process_time()
     ################################
     # Step 1: Building database from the reference annotation
     ################################
     logger.log("\n>> Creating reference annotation database : ", args.reference_annotation, debug=True)
     ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes)
 
+    t3 = time.process_time()
     ################################
     # Step 2: Get all reference features to liftover
     ################################
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir, args)
 
+    t4 = time.process_time()
     ################################
     # Step 3: Extract protein & DNA dictionaries from the selected reference features
     ################################
@@ -261,18 +272,22 @@ def run_all_lifton_steps(args):
                 processed_features += 1
         fw_score.close()
         return
-
+    
     ################################
     # Step 4: Run liftoff & miniprot
     ################################
+    t5 = time.process_time()
     liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, args)
+    t6 = time.process_time()
     miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
 
+    t7 = time.process_time()
     ################################
     # Step 5: Create liftoff and miniprot database
     ################################
     logger.log(f"\n>> Creating liftoff annotation database : {liftoff_annotation}", debug=True)
     l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes).db_connection
+    t8 = time.process_time()
     logger.log(f">> Creating miniprot annotation database : {miniprot_annotation}", debug=True)
     m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes).db_connection
     fw = open(args.output, "w")
@@ -283,6 +298,7 @@ def run_all_lifton_steps(args):
     fw_mapped_trans = open(f'{stats_dir}/mapped_transcript.txt', 'w')
     fw_chain = open(f"{lifton_outdir}/chain.txt", "w") if args.write_chains else None
 
+    t9 = time.process_time()
     ################################
     # Step 6: Creating miniprot 2 Liftoff ID mapping & Initializing intervaltree
     ################################
@@ -291,13 +307,14 @@ def run_all_lifton_steps(args):
     transcripts_stats_dict = {'coding': {}, 'non-coding': {}, 'other': {}}
     processed_features = 0
     
+    t10 = time.process_time()
     ################################
     # Step 7: Process Liftoff genes & transcripts
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
     ################################
     for feature in features:#CP132235.1:34100723-34103135
-        for locus in l_feature_db.features_of_type(feature):#, limit=("NC_051336.1", 29333544, 29357000)):
+        for locus in l_feature_db.features_of_type(feature):#, limit=("chr1", 206759465, 206890507)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
             if lifton_gene is None or lifton_gene.ref_gene_id is None:
                 continue
@@ -306,6 +323,7 @@ def run_all_lifton_steps(args):
                 sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
             processed_features += 1
 
+    t11 = time.process_time()
     ################################
     # Step 8: Process miniprot transcripts
     ################################
@@ -317,7 +335,8 @@ def run_all_lifton_steps(args):
         if processed_features % 20 == 0:
             sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
         processed_features += 1
-
+    
+    t12 = time.process_time()
     ################################
     # Step 9: Printing stats
     ################################
@@ -329,6 +348,48 @@ def run_all_lifton_steps(args):
     fw_mapped_feature.close()
     fw_mapped_trans.close()
     if args.write_chains: fw_chain.close()
+    t13 = time.process_time()
+
+    if args.measure_time:
+        reading_target_reference_genomes= t2 - t1
+        creating_reference_annotation_database = t3 - t2
+        get_all_reference_features_to_lift = t4 - t3
+        extract_protein_dna_dictionaries = t5 - t4
+        run_liftoff_miniprot = t6 - t5
+        create_liftoff_database = t8 - t6
+        create_miniprot_database = t9 - t8
+        miniprot_2_liftoff_id_mapping = t10 - t9
+        process_liftoff_genes_transcripts = t11 - t10
+        process_miniprot_transcripts = t12 - t11
+        report_stats = t13 - t12
+        overall_time = t13 - t1
+        print("Time taken for each step:")
+        print(f"Reading target & reference genomes: {reading_target_reference_genomes}")
+        print(f"Creating reference annotation database: {creating_reference_annotation_database}")
+        print(f"Get all reference features to liftover: {get_all_reference_features_to_lift}")
+        print(f"Extract protein & DNA dictionaries: {extract_protein_dna_dictionaries}")
+        print(f"Run liftoff & miniprot: {run_liftoff_miniprot}")
+        print(f"Create liftoff database: {create_liftoff_database}")
+        print(f"Create miniprot database: {create_miniprot_database}")
+        print(f"Miniprot 2 Liftoff ID mapping: {miniprot_2_liftoff_id_mapping}")
+        print(f"Process Liftoff genes & transcripts: {process_liftoff_genes_transcripts}")
+        print(f"Process miniprot transcripts: {process_miniprot_transcripts}")
+        print(f"Report stats: {report_stats}")
+        print(f"Overall time: {overall_time}")
+        fw_time = open(f"{outdir}/time.txt", "w")
+        fw_time.write(f"{reading_target_reference_genomes}\tReading target & reference genomes\n")
+        fw_time.write(f"{creating_reference_annotation_database}\tCreating reference annotation database\n")
+        fw_time.write(f"{get_all_reference_features_to_lift}\tGet all reference features to liftover\n")
+        fw_time.write(f"{extract_protein_dna_dictionaries}\tExtract protein & DNA dictionaries\n")
+        fw_time.write(f"{run_liftoff_miniprot}\tRun liftoff & miniprot\n")
+        fw_time.write(f"{create_liftoff_database}\tCreate liftoff database\n")
+        fw_time.write(f"{create_miniprot_database}\tCreate miniprot database\n")
+        fw_time.write(f"{miniprot_2_liftoff_id_mapping}\tMiniprot 2 Liftoff ID mapping\n")
+        fw_time.write(f"{process_liftoff_genes_transcripts}\tProcess Liftoff genes & transcripts\n")
+        fw_time.write(f"{process_miniprot_transcripts}\tProcess miniprot transcripts\n")
+        fw_time.write(f"{report_stats}\tReport stats\n")
+        fw_time.write(f"{overall_time}\tOverall time\n")
+        fw_time.close()
 
 
 def main(arglist=None):

@@ -1,4 +1,4 @@
-from lifton import logger, lifton_class, align, lifton_utils
+from lifton import align_bk, logger, lifton_class, lifton_utils
 import subprocess, os, sys, copy
 from intervaltree import Interval, IntervalTree
 
@@ -41,7 +41,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
-    command = [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file]
+    print("args.mp_options: ", args.mp_options)
+    command = [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file] + args.mp_options.split(" ")
+    print("miniprot: ", " ".join(command))
     try:
         fw = open(miniprot_output, "w")
         subprocess.run(command, stdout=fw)
@@ -93,7 +95,7 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     # Update LiftOn status
     lifton_status = lifton_class.Lifton_Status()                
     m_entry = m_feature_db[mtrans_id]
-    m_lifton_aln = align.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
+    m_lifton_aln = align_bk.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
     lifton_status.annotation =  "miniprot"
     lifton_status.lifton_aa = m_lifton_aln.identity
     return lifton_gene, Lifton_trans, Lifton_trans.entry.id, lifton_status
