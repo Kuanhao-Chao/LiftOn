@@ -1,4 +1,4 @@
-from lifton import align_bk, logger, lifton_class, lifton_utils
+from lifton import align, logger, lifton_class, lifton_utils
 import subprocess, os, sys, copy
 from intervaltree import Interval, IntervalTree
 
@@ -95,7 +95,7 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     # Update LiftOn status
     lifton_status = lifton_class.Lifton_Status()                
     m_entry = m_feature_db[mtrans_id]
-    m_lifton_aln = align_bk.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
+    m_lifton_aln = align.lifton_parasail_align(Lifton_trans, m_entry, tgt_fai, ref_proteins, ref_trans_id)
     lifton_status.annotation =  "miniprot"
     lifton_status.lifton_aa = m_lifton_aln.identity
     return lifton_gene, Lifton_trans, Lifton_trans.entry.id, lifton_status
