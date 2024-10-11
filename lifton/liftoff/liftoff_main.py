@@ -118,7 +118,7 @@ def parse_args(arglist):
     parser.add_argument('-m', help='Minimap2 path', metavar='PATH')
     parser.add_argument('-f', '--features', metavar='TYPES', help='list of feature types to lift over')
     parser.add_argument(
-        '-infer_genes', action='store_true',
+        '-infer_genes', action='store_true', required=False,
         help='use if annotation file only includes transcripts, exon/CDS features'
     )
     parser.add_argument(

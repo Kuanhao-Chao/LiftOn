@@ -5,20 +5,21 @@ from collections import defaultdict
 
 class Annotation():
 
-
-    def __init__(self, file_name, infer_genes):
+    def __init__(self, file_name, infer_genes, infer_transcripts, merge_strategy, id_spec, force, verbose):
         self.file_name = file_name
         self.infer_genes = infer_genes
+        self.infer_transcripts = infer_transcripts
+        self.merge_strategy = merge_strategy
+        self.id_spec = id_spec
+        self.force = force
+        self.verbose = verbose
         self.get_db_connnection()
-
-
+        
     def get_db_connnection(self):
         try:
             feature_db = gffutils.FeatureDB(self.file_name)
         except:
             feature_db = self.build_database()
-        # print("feature_db: ", feature_db)
-        # feature_db.execute('ANALYZE features')
         self.db_connection = feature_db
 
 
@@ -27,15 +28,18 @@ class Annotation():
             disable_genes = False
         else:
             disable_genes = True
+        if self.infer_transcripts:
+            disable_transcripts = False
+        else:
+            disable_transcripts = True
         try:
             transform_func = self.get_transform_func()
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
-                                        merge_strategy="create_unique", 
-                                        # merge_strategy="warning",
-                                        id_spec='ID',
-                                        force=True,
-                                        verbose=True, disable_infer_transcripts=True,
-                                            disable_infer_genes=disable_genes, transform=transform_func)            
+                                        merge_strategy=self.merge_strategy, 
+                                        id_spec=self.id_spec,
+                                        force=self.force,
+                                        verbose=self.verbose, disable_infer_transcripts=disable_transcripts,
+                                            disable_infer_genes=disable_genes, transform=transform_func)
         except Exception as e:
             print("gffutils database build failed with", e)
             feature_db = self.build_database_again()
@@ -47,14 +51,18 @@ class Annotation():
             disable_genes = False
         else:
             disable_genes = True
+        if self.infer_transcripts:
+            disable_transcripts = False
+        else:
+            disable_transcripts = True
         try:
             transform_func = self.get_transform_func()
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
                                         merge_strategy="warning",
-                                        id_spec='ID',
+                                        id_spec=self.id_spec,
                                         force=True,
-                                        verbose=True, disable_infer_transcripts=True,
-                                            disable_infer_genes=disable_genes, transform=transform_func)            
+                                        verbose=True, disable_infer_transcripts=disable_transcripts,
+                                            disable_infer_genes=disable_genes, transform=transform_func)
         except Exception as e:
             print("gffutils database build failed with", e)
             sys.exit()

@@ -1,4 +1,4 @@
-from lifton import lifton_utils, lifton_class, align, get_id_fraction, variants, logger
+from lifton import align, lifton_utils, lifton_class, get_id_fraction, variants, logger
 import copy, os
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
