@@ -75,7 +75,7 @@ After successfully running LiftOn, you will get the following file and output di
 
        *  `score.txt <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton_output/score.txt>`_
 
-    3. We also convert the LiftOn annotation GFF3 file into BigBed format, allowing users to load the annotation into the UCSC Genome Browser: /ccb/salz7-data/ftp.ccb/pub/data/LiftOn/human_refseq/UCSC_genome_browser/. 
+    3. We also convert the LiftOn annotation GFF3 file into BigBed format, allowing users to load the annotation into the UCSC Genome Browser: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/UCSC_genome_browser/. 
        
        * USCU Track Hub quick start guide: `UCSC Track Hub <https://genome.ucsc.edu/goldenPath/help/hubQuickStartSearch.html>`_
 

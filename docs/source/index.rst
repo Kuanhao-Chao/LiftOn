@@ -216,6 +216,7 @@ Table of contents
     :maxdepth: 2
     
     content/output_explanation
+    content/bigbed_conversion
     content/feature_counting
     content/evaluation_metrics
     content/behind_scenes
