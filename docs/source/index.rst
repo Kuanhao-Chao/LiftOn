@@ -34,6 +34,29 @@
     </script>
     <link rel="preload" href="./_images/jhu-logo-dark.png" as="image">
 
+    <script type="application/ld+json">
+    {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Kuan-Hao Chao",
+    "alternateName": [
+        "趙冠豪",
+        "Kuan-Hao",
+        "Chao Kuan-Hao",
+        "kh chao",
+        "k-h chao",
+        "khc"
+    ],
+    "jobTitle": "Computational Biologist",
+    "url": "https://khchao.com/about",
+    "sameAs": [
+        "https://www.linkedin.com/in/kuanhao-chao/",
+        "https://x.com/KuanHaoChao",
+        "https://scholar.google.com/citations?user=n2AvFg0AAAAJ&hl=en"
+    ]
+    }
+    </script>
+
 |
 
 .. _main:
