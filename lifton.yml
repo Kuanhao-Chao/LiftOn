@@ -34,7 +34,7 @@ dependencies:
       - iniconfig==2.0.0
       - interlap==0.2.7
       - intervaltree==3.1.0
-      - lifton==1.0.5
+      - lifton==1.0.6
       - networkx==3.3
       - numpy==2.1.1
       - packaging==24.1

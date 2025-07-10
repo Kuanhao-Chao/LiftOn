@@ -94,7 +94,7 @@ def check_protein_valid(protein):
     return True
     
 
-def exec_liftoff(outdir, args):
+def exec_liftoff(outdir, ref_db, args):
     """
         This function executes liftoff.
 
@@ -110,7 +110,7 @@ def exec_liftoff(outdir, args):
         print("\n*********************")
         print("** Running Liftoff **")
         print("*********************")
-        liftoff_annotation = run_liftoff.run_liftoff(outdir, args)
+        liftoff_annotation = run_liftoff.run_liftoff(outdir, ref_db, args)
     return liftoff_annotation
 
 

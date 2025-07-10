@@ -116,14 +116,30 @@ def make_gff_line(attr_dict, feature):
 def edit_copy_ids(feature):
     new_attr_dict = feature.attributes.copy()
     copy_num = feature.attributes["extra_copy_number"][0]
+
     for attr in feature.attributes:
-        if attr[-3:] == "_id":
-            new_attr_dict[attr] = [feature.attributes[attr][0] + "_" + copy_num]
-        elif attr == 'ID':
-            new_attr_dict["ID"] = [feature.attributes["ID"][0]+ "_" + copy_num]
-        elif attr == "Parent":
-            new_attr_dict["Parent"] = [feature.attributes["Parent"][0] + "_" + copy_num]
+        try:
+            if attr[-3:] == "_id":
+                new_attr_dict[attr] = [feature.attributes[attr][0] + "_" + copy_num]
+            elif attr == 'ID':
+                new_attr_dict["ID"] = [feature.attributes["ID"][0] + "_" + copy_num]
+            elif attr == "Parent":
+                new_attr_dict["Parent"] = [feature.attributes["Parent"][0] + "_" + copy_num]
+        except (KeyError, IndexError) as e:
+            print(f"Error processing attribute '{attr}': {e}")
+            # Skip any attribute that raises a KeyError or IndexError
+            continue
+            
     return new_attr_dict
+
+    # for attr in feature.attributes:
+    #     if attr[-3:] == "_id":
+    #         new_attr_dict[attr] = [feature.attributes[attr][0] + "_" + copy_num]
+    #     elif attr == 'ID':
+    #         new_attr_dict["ID"] = [feature.attributes["ID"][0]+ "_" + copy_num]
+    #     elif attr == "Parent":
+    #         new_attr_dict["Parent"] = [feature.attributes["Parent"][0] + "_" + copy_num]
+    # return new_attr_dict
 
 
 def make_gtf_line(attr_dict, feature):

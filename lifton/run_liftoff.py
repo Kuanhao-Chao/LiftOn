@@ -5,7 +5,7 @@ from lifton.liftoff import liftoff_main
 from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
 
-def run_liftoff(output_dir, args):
+def run_liftoff(output_dir, ref_db, args):
     """
         This function runs liftoff.
 
@@ -22,7 +22,7 @@ def run_liftoff(output_dir, args):
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
     liftoff_args.output = liftoff_annotation
     liftoff_args.u = liftoff_outdir + "unmapped_features.txt"
-    liftoff_main.run_all_liftoff_steps(liftoff_args)
+    liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
     if args.polish:
         liftoff_annotation += "_polished"
     # test_basic.test_yeast(liftoff_outdir + "test_basic/")
@@ -177,8 +177,8 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                                         ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                         tgt_fai, ref_trans_id, ref_proteins, ref_trans,
                                         fw_chain, args.write_chains, lifton_status, args.debug)
-        lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
-        
+        if not args.no_orf_search:
+            lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status) 
         # lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("Liftoff")
         lifton_gene.add_lifton_trans_status_attrs(lifton_trans.entry.id, lifton_status)

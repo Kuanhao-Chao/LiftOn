@@ -299,7 +299,7 @@ def run_all_lifton_steps(args):
     # Step 4: Run liftoff & miniprot
     ################################
     t5 = time.process_time()
-    liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, args)
+    liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, ref_db, args)
     t6 = time.process_time()
     miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
 
@@ -336,7 +336,8 @@ def run_all_lifton_steps(args):
     #     structure 2: transcript -> exon
     ################################
     for feature in features:#CP132235.1:34100723-34103135
-        for locus in l_feature_db.features_of_type(feature):#, limit=("chr1", 206759465, 206890507)):
+        # 27,374,274-27,451,374
+        for locus in l_feature_db.features_of_type(feature, limit=("chr1", 27374274, 27451374)):
             lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
             if lifton_gene is None or lifton_gene.ref_gene_id is None:
                 continue

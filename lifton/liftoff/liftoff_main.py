@@ -7,7 +7,7 @@ def main(arglist=None):
     run_all_liftoff_steps(args)
 
 
-def run_all_liftoff_steps(args):
+def run_all_liftoff_steps(args, ref_db):
     if args.chroms is not None:
         ref_chroms, target_chroms = parse_chrm_files(args.chroms)
     else:
@@ -19,7 +19,7 @@ def run_all_liftoff_steps(args):
     feature_db, feature_hierarchy, ref_parent_order = liftover_types.lift_original_annotation(ref_chroms, target_chroms,
                                                                                               lifted_feature_list, args,
                                                                                               unmapped_features,
-                                                                                              parent_features_to_lift)
+                                                                                              parent_features_to_lift, ref_db)
 
     unmapped_features = map_unmapped_features(unmapped_features, target_chroms, lifted_feature_list, feature_db,
                                               feature_hierarchy, ref_parent_order, args)

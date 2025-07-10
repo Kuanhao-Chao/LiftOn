@@ -10,11 +10,12 @@ import ujson as json
 
 
 
-def extract_features_to_lift(ref_chroms, liftover_type, parents_to_lift, args):
+def extract_features_to_lift(ref_chroms, liftover_type, parents_to_lift, ref_db, args):
     print("extracting features")
     if os.path.exists(args.directory) is False:
         os.mkdir(args.directory)
-    feature_db = create_feature_db_connections(args)
+    # feature_db = create_feature_db_connections(args)
+    feature_db = ref_db.db_connection
     feature_hierarchy, parent_order = seperate_parents_and_children(feature_db, parents_to_lift)
     get_gene_sequences(feature_hierarchy.parents, ref_chroms, args, liftover_type)
     return feature_hierarchy, feature_db, parent_order
@@ -56,6 +57,9 @@ def create_feature_db_connections(args):
         feature_db = build_database(args)
     feature_db.execute('ANALYZE features')
     return feature_db
+
+
+    # ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose)
 
 
 def build_database(args):
