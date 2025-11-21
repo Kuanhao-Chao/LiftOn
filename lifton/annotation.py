@@ -1,6 +1,7 @@
 import gffutils
 import sys
 from collections import defaultdict
+import re
 
 
 class Annotation():
@@ -41,9 +42,13 @@ class Annotation():
                                         verbose=self.verbose, disable_infer_transcripts=disable_transcripts,
                                             disable_infer_genes=disable_genes, transform=transform_func)
         except Exception as e:
-            print("gffutils database build failed with", e)
+            error_msg = str(e)
+            if "UNIQUE constraint failed" in error_msg or "duplicate" in error_msg.lower():
+                print(f"Warning: Duplicate feature IDs detected in {self.file_name}. Attempting to handle duplicates...")
+            else:
+                print(f"gffutils database build failed with: {e}")
             feature_db = self.build_database_again()
-        return feature_db
+            return feature_db
 
 
     def build_database_again(self):
@@ -55,18 +60,37 @@ class Annotation():
             disable_transcripts = False
         else:
             disable_transcripts = True
+        # For duplicate IDs (especially non-overlapping CDS features), use unique ID transformation
+        # This is better than 'merge' strategy which is designed for overlapping features
         try:
-            transform_func = self.get_transform_func()
+            transform_func = self.get_unique_id_transform()
             feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
-                                        merge_strategy="warning",
+                                        merge_strategy="create_unique",
                                         id_spec=self.id_spec,
                                         force=True,
-                                        verbose=True, disable_infer_transcripts=disable_transcripts,
+                                        verbose=self.verbose, disable_infer_transcripts=disable_transcripts,
                                             disable_infer_genes=disable_genes, transform=transform_func)
-        except Exception as e:
-            print("gffutils database build failed with", e)
-            sys.exit()
-        return feature_db
+            print("Successfully built database using unique ID transformation to handle duplicate IDs.")
+            return feature_db
+        except Exception as e1:
+            print(f"Unique ID transformation failed: {e1}")
+            print("Attempting to build database with merge strategy...")
+            # If transform fails, try merge strategy as a fallback
+            try:
+                transform_func = self.get_transform_func()
+                feature_db = gffutils.create_db(self.file_name, self.file_name + "_db", 
+                                            merge_strategy="merge",
+                                            id_spec=self.id_spec,
+                                            force=True,
+                                            verbose=self.verbose, disable_infer_transcripts=disable_transcripts,
+                                                disable_infer_genes=disable_genes, transform=transform_func)
+                print("Successfully built database using merge strategy to handle duplicate IDs.")
+                return feature_db
+            except Exception as e2:
+                print(f"ERROR: Failed to build database after trying multiple strategies.")
+                print(f"Last error: {e2}")
+                print(f"Please check the GFF file {self.file_name} for duplicate feature IDs or other issues.")
+                sys.exit(1)
 
 
     def get_transform_func(self):
@@ -74,6 +98,49 @@ class Annotation():
             return None
         else:
             return transform_func
+
+    def get_unique_id_transform(self):
+        """Create a transform function that ensures unique IDs by appending a counter to duplicates.
+        This is especially important for non-overlapping CDS features in RefSeq annotations that may have duplicate IDs.
+        """
+        # Dictionary to track how many times we've seen each ID
+        seen_ids = {}
+        
+        def unique_id_transform(feature):
+            # Apply the original transform if needed
+            if self.infer_genes:
+                feature = transform_func(feature)
+            
+            # Get the ID from the feature - gffutils uses the 'id' property or ID attribute
+            # We need to check both the id property and the ID attribute
+            original_id = None
+            if hasattr(feature, 'id') and feature.id:
+                original_id = feature.id
+            elif 'ID' in feature.attributes and len(feature.attributes['ID']) > 0:
+                original_id = feature.attributes['ID'][0]
+            
+            # If no ID, gffutils will generate one, so we don't need to modify
+            if not original_id:
+                return feature
+            
+            # Track seen IDs and make unique if needed
+            # First occurrence keeps original ID, subsequent ones get _dup1, _dup2, etc.
+            if original_id in seen_ids:
+                seen_ids[original_id] += 1
+                new_id = f"{original_id}_dup{seen_ids[original_id]}"
+                # Update both the ID attribute and the id property
+                # This ensures gffutils uses the new unique ID
+                if 'ID' in feature.attributes:
+                    feature.attributes['ID'] = [new_id]
+                if hasattr(feature, 'id'):
+                    feature.id = new_id
+            else:
+                # First time seeing this ID - mark it as seen but don't modify
+                seen_ids[original_id] = 0
+            
+            return feature
+        
+        return unique_id_transform
 
 
 
