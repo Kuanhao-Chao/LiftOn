@@ -1,19 +1,70 @@
 import gffutils
 import sys
+import os
+import subprocess
 from collections import defaultdict
 import re
+from lifton import extract_sequence
 
 
 class Annotation():
 
-    def __init__(self, file_name, infer_genes, infer_transcripts, merge_strategy, id_spec, force, verbose):
+    def __init__(self, file_name, infer_genes, infer_transcripts, merge_strategy, id_spec, force, verbose, auto_convert_gtf=True):
         self.file_name = file_name
-        self.infer_genes = infer_genes
-        self.infer_transcripts = infer_transcripts
         self.merge_strategy = merge_strategy
         self.id_spec = id_spec
         self.force = force
         self.verbose = verbose
+        self.auto_convert_gtf = auto_convert_gtf
+        
+        # Detect file format and adjust inference settings
+        # Default is GFF3 format (most common and recommended)
+        file_format = self.detect_file_format()
+        
+        if file_format == "GTF format":
+            print(f"INFO: Detected GTF format for {file_name}")
+            print("INFO: GTF format support is experimental. For best results, consider converting to GFF3 using:")
+            print("  agat_sp_gtf2gff.pl --gtf input.gtf -o output.gff3")
+            print("  or")
+            print("  gffread -E input.gtf -o output.gff3")
+            # For GTF files, we need to infer genes and transcripts
+            # GTF files don't have explicit gene/transcript features, only exons/CDS with gene_id/transcript_id
+            # So we always enable inference for GTF files (user can't really override this)
+            self.infer_genes = True
+            self.infer_transcripts = True
+            if self.verbose:
+                print("  Automatically enabling gene and transcript inference for GTF format")
+            
+            # Optionally convert GTF to GFF3 for better compatibility
+            if self.auto_convert_gtf:
+                converted_file = self.convert_gtf_to_gff3()
+                if converted_file:
+                    # Verify the converted file exists and is valid
+                    if os.path.exists(converted_file) and os.path.getsize(converted_file) > 0:
+                        self.file_name = converted_file
+                        # Re-detect format to ensure it's now GFF3
+                        converted_format = self.detect_file_format()
+                        if converted_format == "GFF format":
+                            if self.verbose:
+                                print(f"  Successfully converted GTF to GFF3: {converted_file}")
+                        else:
+                            if self.verbose:
+                                print(f"  Warning: Converted file may not be valid GFF3 format")
+                    else:
+                        if self.verbose:
+                            print(f"  Warning: Conversion produced empty or invalid file, using original GTF")
+        elif file_format == "Unknown format":
+            # If format detection fails, default to GFF3 and use user-provided settings
+            if self.verbose:
+                print(f"Warning: Could not determine file format for {file_name}, assuming GFF3 format")
+            self.infer_genes = infer_genes
+            self.infer_transcripts = infer_transcripts
+        else:
+            # For GFF3 files (or any other recognized format), use user-provided settings
+            # argparse passes False when flags are not provided, True when they are
+            self.infer_genes = infer_genes
+            self.infer_transcripts = infer_transcripts
+        
         self.get_db_connnection()
         
     def get_db_connnection(self):
@@ -253,6 +304,81 @@ class Annotation():
             level += 1
             new_children = list(self.db_connection.children(feature_name, level=level))
         return level
+
+    def detect_file_format(self):
+        """Detect if the input file is GTF or GFF3 format."""
+        try:
+            return extract_sequence.determine_file_format(self.file_name)
+        except Exception as e:
+            if self.verbose:
+                print(f"Warning: Could not detect file format: {e}")
+            # Default to GFF3 if detection fails
+            return "GFF format"
+
+    def convert_gtf_to_gff3(self):
+        """Convert GTF file to GFF3 format using agat or gffread.
+        Returns the path to the converted file, or None if conversion fails.
+        """
+        # Check if agat is available (try different agat commands)
+        agat_available = False
+        agat_cmd = None
+        for cmd_name in ["agat_convert_sp_gff2gtf.pl", "agat_sp_gtf2gff.pl", "agat"]:
+            if self._check_tool_available(cmd_name):
+                agat_available = True
+                agat_cmd = cmd_name
+                break
+        
+        gffread_available = self._check_tool_available("gffread")
+        
+        if not agat_available and not gffread_available:
+            if self.verbose:
+                print("  Warning: Neither agat nor gffread found. GTF file will be used directly.")
+                print("  For best results with GTF files, consider converting to GFF3 using:")
+                print("    agat_sp_gtf2gff.pl --gtf input.gtf -o output.gff3")
+                print("  or")
+                print("    gffread -E input.gtf -o output.gff3")
+            return None
+        
+        # Create output filename
+        base_name = os.path.splitext(self.file_name)[0]
+        output_file = base_name + "_converted.gff3"
+        
+        # Try gffread first (more commonly available and reliable)
+        if gffread_available:
+            try:
+                cmd = ["gffread", "-E", self.file_name, "-o", output_file]
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                    return output_file
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                if self.verbose:
+                    print(f"  Warning: gffread conversion failed: {e}")
+        
+        # Try agat as fallback
+        if agat_available:
+            try:
+                # Try different agat command formats
+                if "gtf2gff" in agat_cmd:
+                    cmd = [agat_cmd, "--gtf", self.file_name, "-o", output_file]
+                else:
+                    # Generic agat command - may need adjustment
+                    cmd = [agat_cmd, "--gff", self.file_name, "-o", output_file]
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                    return output_file
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                if self.verbose:
+                    print(f"  Warning: agat conversion failed: {e}")
+        
+        return None
+
+    def _check_tool_available(self, tool_name):
+        """Check if a command-line tool is available."""
+        try:
+            subprocess.run(["which", tool_name], capture_output=True, check=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
 
 
 

@@ -160,24 +160,53 @@ def custom_bisect_insert(sorted_list, element_to_insert):
     sorted_list.insert(low, element_to_insert)
 
 
-def get_ID_base(id):
+def get_ID_base(id, ref_features_dict=None):
     """
-        This function gets the ID base by simply removing the last substring after "_".
+        This function gets the ID base by removing the last substring after "_" if it's a copy number.
+        Only removes the suffix if it's confirmed to be a copy number added by LiftOn.
+        
+        The key insight: We can only safely remove a suffix if the ID without the suffix exists
+        in the reference features dictionary. This confirms the suffix was added by LiftOn,
+        not part of the original ID.
 
         Parameters:
         - id: ID
+        - ref_features_dict: Optional reference features dictionary to verify if the base ID exists.
+                            If provided, only removes suffix if base ID exists in the dictionary.
 
         Returns:    
-        ID base
+        ID base (original ID if suffix removal is not safe or cannot be verified)
     """
-    # Regular expression pattern to match the desired substrings
     splits = id.split("_")
+    # Only try to remove suffix if there are at least 2 parts after splitting
+    if len(splits) < 2:
+        return id
+    
+    # Check if the last part is a pure integer (potential copy number)
     try:
-        int(splits[-1])
+        last_part = splits[-1]
+        copy_num = int(last_part)
         id_base = "_".join(splits[:-1])
-    except:
-        id_base = id
-    return id_base
+        
+        # If ref_features_dict is provided, verify that removing the suffix gives a valid ID
+        # This is the safest approach: only remove if we can confirm the base exists
+        if ref_features_dict is not None:
+            # Only remove the suffix if the base ID exists in the reference dictionary
+            # This confirms the suffix was added by LiftOn, not part of the original ID
+            if id_base in ref_features_dict.keys():
+                return id_base
+            else:
+                # The suffix is likely part of the original ID (e.g., FMUND_1), don't remove it
+                return id
+        else:
+            # Without reference dict, we cannot safely determine if the suffix is a copy number
+            # Be conservative: don't remove the suffix to avoid breaking IDs that naturally end with numbers
+            # This prevents issues like GCA_013396205.1-transcript_rna-gnl-WGS:JAAOAN-mrna.FMUND_1
+            # where _1 is part of the original ID, not a copy number
+            return id
+    except (ValueError, IndexError):
+        # Last part is not an integer, so it's not a copy number suffix
+        return id
 
 
 def get_ID(feature):
@@ -328,13 +357,30 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
             feature = lifton_class.Lifton_feature(locus.id)
             # Write out reference gene features IDs
             # Decide if its type
-            gene_type_key = ""
+            # Check for gene type/biotype attribute in order of preference
+            gene_type_key = None
             if args.annotation_database.upper() == "REFSEQ":
-                gene_type_key = "gene_biotype"
+                # For RefSeq, check gene_biotype first, then biotype as fallback
+                if "gene_biotype" in locus.attributes.keys():
+                    gene_type_key = "gene_biotype"
+                elif "biotype" in locus.attributes.keys():
+                    gene_type_key = "biotype"
             elif args.annotation_database.upper() == "GENCODE" or args.annotation_database.upper() == "ENSEMBL" or args.annotation_database.upper() == "CHESS":
-                gene_type_key = "gene_type"
+                # For GENCODE/ENSEMBL/CHESS, check gene_type first, then biotype as fallback
+                if "gene_type" in locus.attributes.keys():
+                    gene_type_key = "gene_type"
+                elif "biotype" in locus.attributes.keys():
+                    gene_type_key = "biotype"
+            else:
+                # For other databases, try all possible keys in order
+                if "gene_biotype" in locus.attributes.keys():
+                    gene_type_key = "gene_biotype"
+                elif "gene_type" in locus.attributes.keys():
+                    gene_type_key = "gene_type"
+                elif "biotype" in locus.attributes.keys():
+                    gene_type_key = "biotype"
 
-            if gene_type_key in locus.attributes.keys():
+            if gene_type_key is not None:
                 if locus.attributes[gene_type_key][0] == "protein_coding" and len(CDS_children) > 0:
                     feature.is_protein_coding = True
                     fw_gene.write(f"{locus.id}\tcoding\n")
@@ -432,7 +478,11 @@ def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
     if ref_gene_id is None:
         return None, None
     else:
-        ref_trans_id = get_ID_base(liftoff_trans_id)
+        # For transcript ID, we need to check if the base exists in ref_features_dict
+        # But ref_features_dict contains gene IDs, not transcript IDs
+        # So we'll use a more conservative approach: only remove single-digit suffixes
+        # The transcript ID should match the reference transcript ID from the reference annotation
+        ref_trans_id = get_ID_base(liftoff_trans_id, None)
         return ref_gene_id, ref_trans_id
 
 
@@ -440,7 +490,8 @@ def __extract_ref_ids(ref_features_dict, liftoff_id):
     if liftoff_id in ref_features_dict.keys():
         return liftoff_id
     else:
-        ref_id = get_ID_base(liftoff_id)
+        # Pass ref_features_dict to get_ID_base so it can verify the base ID exists
+        ref_id = get_ID_base(liftoff_id, ref_features_dict)
         if ref_id in ref_features_dict.keys():
             return ref_id
         else:

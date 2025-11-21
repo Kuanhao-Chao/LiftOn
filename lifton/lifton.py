@@ -92,11 +92,13 @@ def args_optional(parser):
     parser.add_argument('-f', '--features', metavar='TYPES', help='list of feature types to lift over')
     parser.add_argument(
         '-infer-genes', required=False, action='store_true',
-        help='use if annotation file only includes transcripts, exon/CDS features'
+        help='use if annotation file only includes transcripts, exon/CDS features. '
+             'Automatically enabled for GTF files.'
     )
     parser.add_argument(
         '-infer_transcripts', action='store_true', required=False,
-        help='use if annotation file only includes exon/CDS features and does not include transcripts/mRNA'
+        help='use if annotation file only includes exon/CDS features and does not include transcripts/mRNA. '
+             'Automatically enabled for GTF files.'
     )
     parser.add_argument(
         '-chroms', metavar='TXT', help='comma seperated file with corresponding chromosomes in '
@@ -147,9 +149,9 @@ def parse_args(arglist):
     referencegrp = parser.add_argument_group('* Required input (Reference annotation)')    
     referencegrp.add_argument(
         '-g', '--reference-annotation', metavar='GFF',  required=True,
-        help='the reference annotation file to lift over in GFF or GTF format (or) '
-                'name of feature database; if not specified, the -g '
-                'argument must be provided and a database will be built automatically'
+        help='the reference annotation file to lift over in GFF3 or GTF format (or) '
+                'name of feature database. GTF files are automatically detected and converted to GFF3 for better compatibility. '
+                'For best results with GTF files, ensure agat or gffread is installed.'
     )
     ###################################
     # START for the LiftOn params
@@ -179,6 +181,8 @@ def parse_args(arglist):
     )
     parser_gffutils_grp = args_gffutils(parser)
     parser.add_argument('-ad', '--annotation-database', metavar='SOURCE', help='The source of the reference annotation (RefSeq / GENCODE / others).', default = "RefSeq")
+    parser.add_argument('--no-auto-convert-gtf', action='store_true', default=False,
+                        help='Disable automatic GTF to GFF3 conversion. By default, LiftOn will attempt to convert GTF files to GFF3 for better compatibility.')
     ###################################
     # END for the LiftOn params
     ###################################
@@ -235,7 +239,8 @@ def run_all_lifton_steps(args):
     # Step 1: Building database from the reference annotation
     ################################
     logger.log("\n>> Creating reference annotation database : ", args.reference_annotation, debug=True)
-    ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose)
+    auto_convert_gtf = not args.no_auto_convert_gtf
+    ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf)
 
     t3 = time.process_time()
     ################################
@@ -282,7 +287,8 @@ def run_all_lifton_steps(args):
         print("ref_proteins_file : ", ref_proteins_file)
         logger.log(">> Creating target database : ", tgt_annotation, debug=True)
         os.makedirs(lifton_outdir, exist_ok=True)
-        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes).db_connection
+        auto_convert_gtf = not args.no_auto_convert_gtf
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
         fw_score = open(lifton_outdir+"/eval.txt", "w")
         tree_dict = {}
         processed_features = 0
@@ -308,10 +314,11 @@ def run_all_lifton_steps(args):
     # Step 5: Create liftoff and miniprot database
     ################################
     logger.log(f"\n>> Creating liftoff annotation database : {liftoff_annotation}", debug=True)
-    l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose).db_connection
+    auto_convert_gtf = not args.no_auto_convert_gtf
+    l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
     t8 = time.process_time()
     logger.log(f">> Creating miniprot annotation database : {miniprot_annotation}", debug=True)
-    m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose).db_connection
+    m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
     fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")

@@ -98,10 +98,12 @@ def write_line(feature, out_file, output_type):
 
 
 def make_gff_line(attr_dict, feature):
-    if feature.featuretype != "CDS":
-        attributes_str = "ID=" + attr_dict["ID"][0] + ";" #make ID the first printed attribute
-    else:
-        attributes_str = ""
+    # Write ID as the first attribute if it exists (for all features including CDS)
+    # GFF3 spec allows CDS features to have IDs, and CDS from the same mRNA should have the same ID
+    attributes_str = ""
+    if "ID" in attr_dict and len(attr_dict["ID"]) > 0:
+        attributes_str = "ID=" + attr_dict["ID"][0] + ";"
+    
     for attr in attr_dict:
         if attr != "copy_id":
             value_str = ""

@@ -78,12 +78,30 @@ class Lifton_GENE:
             tree_dict[self.entry.seqid] = IntervalTree()
         tree_dict[self.entry.seqid].add(gene_interval)
         # Decide if its type
-        gene_type_key = ""
+        # Check for gene type/biotype attribute in order of preference
+        gene_type_key = None
         if args.annotation_database.upper() == "REFSEQ":
-            gene_type_key = "gene_biotype"
+            # For RefSeq, check gene_biotype first, then biotype as fallback
+            if "gene_biotype" in self.entry.attributes.keys():
+                gene_type_key = "gene_biotype"
+            elif "biotype" in self.entry.attributes.keys():
+                gene_type_key = "biotype"
         elif args.annotation_database.upper() == "GENCODE" or args.annotation_database.upper() == "ENSEMBL" or args.annotation_database.upper() == "CHESS":
-            gene_type_key = "gene_type"
-        if gene_type_key in self.entry.attributes.keys():
+            # For GENCODE/ENSEMBL/CHESS, check gene_type first, then biotype as fallback
+            if "gene_type" in self.entry.attributes.keys():
+                gene_type_key = "gene_type"
+            elif "biotype" in self.entry.attributes.keys():
+                gene_type_key = "biotype"
+        else:
+            # For other databases, try all possible keys in order
+            if "gene_biotype" in self.entry.attributes.keys():
+                gene_type_key = "gene_biotype"
+            elif "gene_type" in self.entry.attributes.keys():
+                gene_type_key = "gene_type"
+            elif "biotype" in self.entry.attributes.keys():
+                gene_type_key = "biotype"
+        
+        if gene_type_key is not None:
             if self.entry.attributes[gene_type_key][0] == "protein_coding":
                 self.is_protein_coding = True
             elif (self.entry.attributes[gene_type_key][0] == "lncRNA" or self.entry.attributes[gene_type_key][0] == "ncRNA"):

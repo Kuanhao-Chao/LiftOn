@@ -1,25 +1,71 @@
 from Bio.Seq import Seq
 
 def determine_file_format(file_path):
+    """Detect if the input file is GTF or GFF3 format.
+    
+    GTF format uses space-separated key-value pairs with gene_id and transcript_id.
+    GFF3 format uses semicolon-separated key=value pairs with ID and Parent.
+    
+    Default format is GFF3 (most common and recommended format).
+    
+    Returns:
+        "GTF format" if GTF format is detected
+        "GFF format" if GFF3 format is detected (default)
+        "Unknown format" if format cannot be determined (should be treated as GFF3)
+    """
     gff_keys = {"ID", "Parent", "Name"}
     gtf_keys = {"gene_id", "transcript_id"}
-    with open(file_path, 'r') as file:
-        for line in file:
-            # Skip header or comment lines
-            if line.startswith("#"):
-                continue
-            columns = line.strip().split("\t")
-            if len(columns) != 9:
-                # Not a valid GTF/GFF file
-                return "Unknown format"
-            attributes_column = columns[8]
-            # Check if the attributes column has key-value pairs separated by spaces (GTF format)
-            if any(key in attributes_column for key in gtf_keys):
-                return "GTF format"
-            # Check if the attributes column has key-value pairs separated by equal signs (GFF format)
-            if any(key + "=" in attributes_column for key in gff_keys):
-                return "GFF format"
-        return "Unknown format"
+    gtf_count = 0
+    gff_count = 0
+    lines_checked = 0
+    max_lines_to_check = 100  # Check first 100 non-comment lines
+    
+    try:
+        with open(file_path, 'r') as file:
+            for line in file:
+                # Skip header or comment lines
+                if line.startswith("#"):
+                    continue
+                
+                columns = line.strip().split("\t")
+                if len(columns) != 9:
+                    # Not a valid GTF/GFF file line, skip
+                    continue
+                
+                attributes_column = columns[8]
+                
+                # GTF format: key-value pairs separated by spaces and semicolons
+                # e.g., "gene_id \"ENSG00000139618\"; transcript_id \"ENST00000380152\";"
+                # Check for GTF-specific patterns (key followed by space and quoted value)
+                # GTF uses: gene_id "value"; transcript_id "value";
+                if any((key + " " in attributes_column or key + "\"" in attributes_column) and 
+                       not (key + "=" in attributes_column) for key in gtf_keys):
+                    gtf_count += 1
+                
+                # GFF3 format: key=value pairs separated by semicolons
+                # e.g., "ID=gene1;Parent=;Name=Gene1"
+                # Check for GFF3-specific patterns (key=value)
+                if any(key + "=" in attributes_column for key in gff_keys):
+                    gff_count += 1
+                
+                lines_checked += 1
+                if lines_checked >= max_lines_to_check:
+                    break
+        
+        # Determine format based on counts
+        # GTF format is more specific, so if we see GTF patterns (without =), it's likely GTF
+        # Default to GFF3 format (most common and recommended)
+        if gtf_count > 0 and gtf_count > gff_count:
+            return "GTF format"
+        elif gff_count > 0:
+            return "GFF format"
+        else:
+            # No clear indicators found, default to GFF3 (most common format)
+            return "GFF format"
+            
+    except Exception as e:
+        # If file cannot be read, default to GFF3 format
+        return "GFF format"
 
 
 def extract_features(ref_db, features, ref_fai):
