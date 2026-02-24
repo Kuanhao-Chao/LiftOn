@@ -440,6 +440,9 @@ def miniprot_id_mapping(m_feature_db):
     """
     ref_id_2_m_id_trans_dict = {}
     m_id_2_ref_id_trans_dict = {}
+    if m_feature_db is None:
+        return ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict
+        
     for feature in m_feature_db.features_of_type("mRNA"):
         miniprot_id = feature["ID"][0]
         aa_trans_id = str(feature.attributes["Target"][0]).split(" ")[0]

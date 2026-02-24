@@ -22,7 +22,14 @@ def run_liftoff(output_dir, ref_db, args):
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
     liftoff_args.output = liftoff_annotation
     liftoff_args.u = liftoff_outdir + "unmapped_features.txt"
-    liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
+    try:
+        liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
+    except Exception as e:
+        logger.log_error(f"Liftoff encountered a fatal error during native execution: {e}")
+        logger.log_error("LiftOn cannot proceed without a valid Liftoff baseline annotation.")
+        import sys
+        sys.exit(1)
+        
     if args.polish:
         liftoff_annotation += "_polished"
     # test_basic.test_yeast(liftoff_outdir + "test_basic/")
@@ -159,7 +166,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             parent_feature = lifton_gene.add_feature(copy.deepcopy(locus))
         features = l_feature_db.children(locus, level=1)
         for feature in list(features):
-            lifton_gene = process_liftoff(parent_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args)
+            process_liftoff(parent_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args)
     else:
         if ENTRY_FEATURE: # Gene (1st) features with direct exons 
             ref_trans_id = ref_gene_id

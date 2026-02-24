@@ -1,6 +1,12 @@
 import gffutils
 from pyfaidx import Fasta, Faidx
-from lifton.liftoff  import liftoff_utils, feature_hierarchy, new_feature
+from lifton.liftoff import liftoff_utils, feature_hierarchy, new_feature
+from lifton.annotation_validator import (
+    validate_annotation_file,
+    print_validation_report,
+    print_db_build_error,
+    print_db_build_success,
+)
 import os
 import sys
 import numpy as np
@@ -51,43 +57,188 @@ def extract_features_to_lift(ref_chroms, liftover_type, parents_to_lift, ref_db,
 
 
 def create_feature_db_connections(args):
+    db_path = args.reference_annotation + "_db"
     try:
-        feature_db = gffutils.FeatureDB(args.reference_annotation)
-    except:
+        feature_db = gffutils.FeatureDB(db_path)
+    except Exception:
         feature_db = build_database(args)
-    feature_db.execute('ANALYZE features')
+    feature_db.execute("ANALYZE features")
     return feature_db
-
-
-    # ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose)
 
 
 def build_database(args):
-    if args.infer_genes:
-        disable_genes = False
-    else:
-        disable_genes = True
+    """
+    Build a gffutils database from the reference annotation file.
+
+    Implements a 2-strategy fallback:
+      Strategy 1: create_unique  (default, fast)
+      Strategy 2: merge strategy + unique-ID transform (handles duplicate IDs)
+
+    Raises SystemExit with a clear error message if all strategies fail.
+    """
+    annotation_file = args.reference_annotation
+    disable_genes = not args.infer_genes
+
+    # ── Pre-flight validation ────────────────────────────────────────────────
+    validation = validate_annotation_file(annotation_file, max_duplicate_examples=20)
+    if validation.errors or validation.warnings:
+        print_validation_report(validation)
+    # Fatal file-level errors (missing, empty, unreadable) → stop immediately
+    fatal_keywords = ["not found", "not readable", "empty",
+                      "no valid 9-column", "not a regular file"]
+    if any(
+        any(kw in err.lower() for kw in fatal_keywords)
+        for err in validation.errors
+    ):
+        print(
+            "[LiftOn/Liftoff] Cannot build annotation database — "
+            f"please fix the issues in {annotation_file!r} and re-run.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(f"\n[LiftOn/Liftoff] Building annotation database: {annotation_file}",
+          file=sys.stderr)
+
+    # ── Strategy 1: create_unique ────────────────────────────────────────────
+    print("[LiftOn/Liftoff]   Strategy 1: create_unique", file=sys.stderr)
     try:
-        transform_func = get_transform_func(args)
-        feature_db = gffutils.create_db(args.reference_annotation, args.reference_annotation + "_db", merge_strategy="create_unique",
-                                    force=True,
-                                    verbose=True, disable_infer_transcripts=True,
-                                        disable_infer_genes=disable_genes, transform=transform_func)
-    except Exception as e:
-        print("gffutils database build failed with", e)
-        sys.exit()
-    return feature_db
+        feature_db = gffutils.create_db(
+            annotation_file,
+            annotation_file + "_db",
+            merge_strategy="create_unique",
+            force=True,
+            verbose=False,
+            disable_infer_transcripts=True,
+            disable_infer_genes=disable_genes,
+            transform=get_transform_func(args),
+        )
+        print_db_build_success(annotation_file, "create_unique")
+        return feature_db
+    except Exception as exc1:
+        exc1_str = str(exc1)
+        print_db_build_error(annotation_file, "create_unique", exc1)
+        if not _is_duplicate_id_error(exc1_str):
+            # Unknown error — no point retrying
+            _fatal_db_error(annotation_file, exc1, "Strategy 1 (create_unique)")
+
+    # ── Strategy 2: merge + unique-ID transform ──────────────────────────────
+    print(
+        "[LiftOn/Liftoff]   Strategy 2: merge + unique-ID transform "
+        "(duplicate IDs detected — renaming them) …",
+        file=sys.stderr,
+    )
+    try:
+        feature_db = gffutils.create_db(
+            annotation_file,
+            annotation_file + "_db",
+            merge_strategy="merge",
+            force=True,
+            verbose=False,
+            disable_infer_transcripts=True,
+            disable_infer_genes=disable_genes,
+            transform=get_unique_id_transform(args),
+        )
+        print_db_build_success(annotation_file, "merge + unique-ID transform")
+        print(
+            "[LiftOn/Liftoff]   ⚠ Database built with unique-ID transformation. "
+            "Duplicate IDs were renamed (e.g. cds-XM_1 → cds-XM_1_dup1).",
+            file=sys.stderr,
+        )
+        return feature_db
+    except Exception as exc2:
+        print_db_build_error(annotation_file, "merge + unique-ID transform", exc2)
+        _fatal_db_error(annotation_file, exc2, "all strategies (create_unique, merge+unique-ID)")
 
 def get_transform_func(args):
-    if args.infer_genes is False:
+    """Return base transform (for GTF gene-inference) or None."""
+    if not args.infer_genes:
         return None
-    else:
-        return transform_func
+    return _transform_func_base
 
-def transform_func(x):
-    if 'transcript_id' in x.attributes:
-        x.attributes['transcript_id'][0] += '_transcript'
+
+def get_unique_id_transform(args):
+    """
+    Return a transform that de-duplicates feature IDs by appending _dup1, _dup2 …
+    Also applies the GTF transcript_id transform when infer_genes is True.
+    """
+    seen_ids: dict = {}
+    use_gtf_transform = args.infer_genes
+
+    def _unique_id_transform(feature):
+        if use_gtf_transform:
+            feature = _transform_func_base(feature)
+        original_id = None
+        if hasattr(feature, "id") and feature.id:
+            original_id = feature.id
+        elif "ID" in feature.attributes and feature.attributes["ID"]:
+            original_id = feature.attributes["ID"][0]
+        if not original_id:
+            return feature
+        if original_id in seen_ids:
+            seen_ids[original_id] += 1
+            new_id = f"{original_id}_dup{seen_ids[original_id]}"
+            if "ID" in feature.attributes:
+                feature.attributes["ID"] = [new_id]
+            if hasattr(feature, "id"):
+                feature.id = new_id
+        else:
+            seen_ids[original_id] = 0
+        return feature
+
+    return _unique_id_transform
+
+
+def _transform_func_base(x):
+    """Suffix transcript_id with '_transcript' to avoid GTF ID collisions."""
+    if "transcript_id" in x.attributes:
+        x.attributes["transcript_id"][0] += "_transcript"
     return x
+
+
+# backward-compat alias
+transform_func = _transform_func_base
+
+
+def _is_duplicate_id_error(exc_str: str) -> bool:
+    lower = exc_str.lower()
+    return any(
+        kw in lower
+        for kw in ("unique constraint failed", "uniqueconstraintviolation", "duplicate")
+    )
+
+
+def _fatal_db_error(annotation_file: str, exc: Exception, strategy_desc: str):
+    """
+    Print a comprehensive error block and exit with code 1.
+    The message surfaces concrete commands the user can run to fix the issue.
+    """
+    width = 70
+    print("╔" + "═" * (width - 2) + "╗", file=sys.stderr)
+    print("║  ❌  ANNOTATION DATABASE BUILD FAILED — CANNOT CONTINUE" +
+          " " * (width - 56) + "║", file=sys.stderr)
+    print("╠" + "═" * (width - 2) + "╣", file=sys.stderr)
+    def _row(text=""):
+        pad = max(0, width - 4 - len(text))
+        return f"║  {text}{' ' * pad}  ║"
+    print(_row(f"File     : {annotation_file}"), file=sys.stderr)
+    print(_row(f"Strategy : {strategy_desc}"), file=sys.stderr)
+    print(_row(f"Error    : {str(exc)[:60]}"), file=sys.stderr)
+    print(_row(), file=sys.stderr)
+    print(_row("POSSIBLE CAUSES:"), file=sys.stderr)
+    print(_row("  1. Duplicate feature IDs not resolved by any strategy"), file=sys.stderr)
+    print(_row("  2. Corrupted or malformed GFF3/GTF file"), file=sys.stderr)
+    print(_row("  3. GTF submitted without conversion to GFF3"), file=sys.stderr)
+    print(_row(), file=sys.stderr)
+    print(_row("SUGGESTED FIXES:"), file=sys.stderr)
+    print(_row("  • Convert GTF → GFF3:"), file=sys.stderr)
+    print(_row(f"      gffread -E {annotation_file} -o {annotation_file}.gff3"),
+          file=sys.stderr)
+    print(_row("  • Find duplicate IDs:"), file=sys.stderr)
+    print(_row(f"      grep -oP '(?<=ID=)[^;]+' {annotation_file} |"), file=sys.stderr)
+    print(_row("            sort | uniq -d | head -20"), file=sys.stderr)
+    print("╚" + "═" * (width - 2) + "╝", file=sys.stderr)
+    sys.exit(1)
 
 
 

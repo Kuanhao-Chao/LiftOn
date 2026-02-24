@@ -1,4 +1,4 @@
-from lifton import intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, __version__
+from lifton import intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
 from intervaltree import Interval
 import argparse
 from pyfaidx import Fasta
@@ -133,6 +133,15 @@ def args_optional(parser):
         '-time', '--measure_time', required=False, action='store_true',
         help='Enable time measurement for each step'
     )
+    parser.add_argument(
+        '--validate-output', required=False, action='store_true', default=False,
+        help='Validate the generated GFF3 output file for format correctness and '
+             'feature hierarchy after writing. Prints a detailed report to stderr.'
+    )
+    parser.add_argument(
+        '--validate-verbose', required=False, action='store_true', default=False,
+        help='When --validate-output is set, also print warnings (not just errors)'
+    )
 
 
 def parse_args(arglist):
@@ -230,9 +239,24 @@ def run_all_lifton_steps(args):
     os.makedirs(stats_dir, exist_ok=True)
     args.directory = intermediate_dir
     logger.log(">> Reading target genome ...", debug=True)
-    tgt_fai = Fasta(tgt_genome)
+    if not os.path.exists(tgt_genome):
+        logger.log_error(f"Target genome file not found: {tgt_genome}")
+        sys.exit(1)
+    try:
+        tgt_fai = Fasta(tgt_genome)
+    except Exception as e:
+        logger.log_error(f"Failed to read/index target genome '{tgt_genome}': {e}")
+        sys.exit(1)
+        
     logger.log(">> Reading reference genome ...", debug=True)
-    ref_fai = Fasta(ref_genome)    
+    if not os.path.exists(ref_genome):
+        logger.log_error(f"Reference genome file not found: {ref_genome}")
+        sys.exit(1)
+    try:
+        ref_fai = Fasta(ref_genome)
+    except Exception as e:
+        logger.log_error(f"Failed to read/index reference genome '{ref_genome}': {e}")
+        sys.exit(1)
 
     t2 = time.process_time()
     ################################
@@ -314,11 +338,35 @@ def run_all_lifton_steps(args):
     # Step 5: Create liftoff and miniprot database
     ################################
     logger.log(f"\n>> Creating liftoff annotation database : {liftoff_annotation}", debug=True)
-    auto_convert_gtf = not args.no_auto_convert_gtf
-    l_feature_db = annotation.Annotation(liftoff_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
+    l_feature_db = annotation.Annotation(
+        liftoff_annotation,
+        infer_genes=False,
+        infer_transcripts=False,
+        merge_strategy=args.merge_strategy,
+        id_spec=None,
+        force=args.force,
+        verbose=args.verbose,
+        auto_convert_gtf=False
+    ).db_connection
     t8 = time.process_time()
     logger.log(f">> Creating miniprot annotation database : {miniprot_annotation}", debug=True)
-    m_feature_db = annotation.Annotation(miniprot_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
+    if miniprot_annotation is not None:
+        m_feature_db = annotation.Annotation(
+            miniprot_annotation,
+            infer_genes=False,
+            infer_transcripts=False,
+            merge_strategy=args.merge_strategy,
+            id_spec=None,
+            force=args.force,
+            verbose=args.verbose,
+            auto_convert_gtf=False
+        ).db_connection
+    else:
+        print(
+            "[LiftOn] Skipping miniprot annotation database: miniprot produced no output.",
+            file=sys.stderr,
+        )
+        m_feature_db = None
     fw = open(args.output, "w")
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
     fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")
@@ -331,7 +379,10 @@ def run_all_lifton_steps(args):
     ################################
     # Step 6: Creating miniprot 2 Liftoff ID mapping & Initializing intervaltree
     ################################
-    ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
+    if m_feature_db is not None:
+        ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
+    else:
+        ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = {}, {}
     tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
     transcripts_stats_dict = {'coding': {}, 'non-coding': {}, 'other': {}}
     processed_features = 0
@@ -344,10 +395,14 @@ def run_all_lifton_steps(args):
     ################################
     for feature in features:
         for locus in l_feature_db.features_of_type(feature):
-            lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
-            if lifton_gene is None or lifton_gene.ref_gene_id is None:
-                continue
-            lifton_gene.write_entry(fw,transcripts_stats_dict)
+            try:
+                lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
+                if lifton_gene is None or lifton_gene.ref_gene_id is None:
+                    continue
+                lifton_gene.write_entry(fw,transcripts_stats_dict)
+            except Exception as e:
+                logger.log_error(f"Error during Liftoff gene output serialization ({locus.id}): {e}")
+                
             if processed_features % 20 == 0:
                 sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
             processed_features += 1
@@ -356,27 +411,61 @@ def run_all_lifton_steps(args):
     ################################
     # Step 8: Process miniprot transcripts
     ################################
-    for mtrans in m_feature_db.features_of_type('mRNA'):
-        lifton_gene = run_miniprot.process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args)
-        if lifton_gene is None or lifton_gene.ref_gene_id is None:
-            continue
-        lifton_gene.write_entry(fw, transcripts_stats_dict)
-        if processed_features % 20 == 0:
-            sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
-        processed_features += 1
+    if m_feature_db is not None:
+        for mtrans in m_feature_db.features_of_type('mRNA'):
+            try:
+                lifton_gene = run_miniprot.process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args)
+                if lifton_gene is None or lifton_gene.ref_gene_id is None:
+                    continue
+                lifton_gene.write_entry(fw, transcripts_stats_dict)
+            except Exception as e:
+                logger.log_error(f"Error during miniprot text output serialization ({mtrans.id}): {e}")
+                
+            if processed_features % 20 == 0:
+                sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
+            processed_features += 1
     
     t12 = time.process_time()
     ################################
     # Step 9: Printing stats
     ################################
-    stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
-    fw.close()
-    fw_score.close()
-    fw_unmapped.close()
-    fw_extra_copy.close()
-    fw_mapped_feature.close()
-    fw_mapped_trans.close()
-    if args.write_chains: fw_chain.close()
+    try:
+        stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
+    except Exception as e:
+        logger.log_error(f"Failed to print report: {e}")
+    finally:
+        # Guarantee closure of file objects
+        fw.close()
+        fw_score.close()
+        fw_unmapped.close()
+        fw_extra_copy.close()
+        fw_mapped_feature.close()
+        fw_mapped_trans.close()
+        if args.write_chains: fw_chain.close()
+
+    ################################
+    # Step 10: Validate output GFF3
+    ################################
+    if getattr(args, 'validate_output', False):
+        print("\n\n*********************************************", file=sys.stderr)
+        print("** Validating output GFF3                  **", file=sys.stderr)
+        print("*********************************************", file=sys.stderr)
+        val_result = gff3_validator.validate_gff3_file(
+            gff3_path=args.output,
+            check_hierarchy=True,
+            check_cds_phase=True,
+            check_containment=True,
+            check_lifton_attrs=True,
+        )
+        verbose = getattr(args, 'validate_verbose', False)
+        gff3_validator.print_validation_report(val_result, verbose=verbose)
+        if not val_result.is_valid:
+            print(
+                f"\n[LiftOn] Output GFF3 has {len(val_result.errors)} error(s). "
+                f"See report above for details.",
+                file=sys.stderr,
+            )
+
     t13 = time.process_time()
 
     if args.measure_time:

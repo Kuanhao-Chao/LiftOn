@@ -1,0 +1,91 @@
+Bootstrap: docker
+From: python:3.11-slim
+
+%labels
+    Author Kuan-Hao Chao
+    Email kh.chao@cs.jhu.edu
+    Version 1.0.7
+    Description "LiftOn: Combining DNA and protein alignments to improve genome annotation"
+
+%environment
+    export LC_ALL=C
+    export PATH=/usr/local/bin:$PATH
+
+%post
+    # Update package lists
+    apt-get update
+    
+    # Install system dependencies
+    apt-get install -y \
+        build-essential \
+        wget \
+        bzip2 \
+        zlib1g-dev \
+        libbz2-dev \
+        liblzma-dev \
+        curl \
+        ca-certificates \
+        git \
+        && rm -rf /var/lib/apt/lists/*
+    
+    # Install minimap2
+    MINIMAP2_VERSION=2.28
+    wget https://github.com/lh3/minimap2/releases/download/v${MINIMAP2_VERSION}/minimap2-${MINIMAP2_VERSION}_x64-linux.tar.bz2
+    tar -xjf minimap2-${MINIMAP2_VERSION}_x64-linux.tar.bz2
+    cp minimap2-${MINIMAP2_VERSION}_x64-linux/minimap2 /usr/local/bin/
+    cp minimap2-${MINIMAP2_VERSION}_x64-linux/k8 /usr/local/bin/
+    cp minimap2-${MINIMAP2_VERSION}_x64-linux/paftools.js /usr/local/bin/
+    rm -rf minimap2-${MINIMAP2_VERSION}_x64-linux*
+    chmod +x /usr/local/bin/minimap2 /usr/local/bin/k8 /usr/local/bin/paftools.js
+    
+    # Install miniprot
+    MINIPROT_VERSION=0.13
+    wget https://github.com/lh3/miniprot/releases/download/v${MINIPROT_VERSION}/miniprot-${MINIPROT_VERSION}_x64-linux.tar.bz2
+    tar -xjf miniprot-${MINIPROT_VERSION}_x64-linux.tar.bz2
+    cp miniprot-${MINIPROT_VERSION}_x64-linux/miniprot /usr/local/bin/
+    rm -rf miniprot-${MINIPROT_VERSION}_x64-linux*
+    chmod +x /usr/local/bin/miniprot
+    
+    # Install gffread (optional, for GTF to GFF3 conversion)
+    GFFREAD_VERSION=0.12.7
+    wget https://github.com/gpertea/gffread/releases/download/v${GFFREAD_VERSION}/gffread-${GFFREAD_VERSION}.Linux_x86_64.tar.gz
+    tar -xzf gffread-${GFFREAD_VERSION}.Linux_x86_64.tar.gz
+    cp gffread-${GFFREAD_VERSION}.Linux_x86_64/gffread /usr/local/bin/
+    rm -rf gffread-${GFFREAD_VERSION}.Linux_x86_64*
+    chmod +x /usr/local/bin/gffread
+    
+    # Upgrade pip
+    pip install --upgrade pip
+    
+    # Install LiftOn (assuming source is copied to /tmp/lifton during build)
+    # Note: For Singularity, you'll need to copy the source code during build
+    # or install from PyPI
+    pip install --no-cache-dir lifton==1.0.7
+    
+    # Verify installations
+    python -c "import lifton; print(f'LiftOn version: {lifton.__version__}')"
+    minimap2 --version
+    miniprot --version
+    gffread --version
+
+%runscript
+    exec lifton "$@"
+
+%help
+    LiftOn v1.0.7 - Combining DNA and protein alignments to improve genome annotation
+    
+    This container includes:
+    - LiftOn v1.0.7
+    - minimap2 v2.28
+    - miniprot v0.13
+    - gffread v0.12.7
+    - All Python dependencies
+    
+    Usage:
+        singularity run lifton.sif lifton [options] <target_genome> <reference_genome>
+    
+    Example:
+        singularity run lifton.sif lifton -g reference.gff3 -o output.gff3 target.fa reference.fa
+    
+    For more information, visit: https://github.com/Kuanhao-Chao/LiftOn
+

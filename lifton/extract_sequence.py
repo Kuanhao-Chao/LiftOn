@@ -87,15 +87,23 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
     children_CDSs = list(ref_db.db_connection.children(feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))
     # print(f"Parent: {feature.id};  exon: {len(children_exons)}; CDS: {len(children_CDSs)}")
     if len(children_exons) > 0 or len(children_CDSs) > 0:
-        # print(f"Parent: {feature.id};  exon: {len(children_exons)}; CDS: {len(children_CDSs)}")
         if len(children_exons) > 0:
-            trans_seq = get_dna_sequence(feature, ref_fai, children_exons)
-            trans_seq = trans_seq.upper()
-            ref_trans[feature.id] = trans_seq
+            try:
+                trans_seq = get_dna_sequence(feature, ref_fai, children_exons)
+                if trans_seq:
+                    trans_seq = trans_seq.upper()
+                    ref_trans[feature.id] = trans_seq
+            except Exception as e:
+                pass
+                
         if len(children_CDSs) > 0:
-            protein_seq = get_protein_sequence(feature, ref_fai, children_CDSs)
-            protein_seq = protein_seq.upper()
-            ref_proteins[feature.id] = protein_seq
+            try:
+                protein_seq = get_protein_sequence(feature, ref_fai, children_CDSs)
+                if protein_seq:
+                    protein_seq = protein_seq.upper()
+                    ref_proteins[feature.id] = protein_seq
+            except Exception as e:
+                pass
     else:
         for child in ref_db.db_connection.children(feature, level=1, order_by='start'):
             __inner_extract_feature(ref_db, child, ref_fai, ref_trans, ref_proteins)

@@ -26,31 +26,94 @@ def check_miniprot_installed():
 
 def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     """
-        This function runs miniprot.
+    Run miniprot and return the output GFF3 path, or None if miniprot fails.
 
-        Parameters:
-        - outdir: output directory
-        - args: arguments
-        - tgt_genome: target genome
-        - ref_proteins_file: reference protein file
+    Failure is detected in three ways:
+      1. Non-zero exit code from miniprot.
+      2. miniprot prints "ERROR" to stderr (exit 0 + error is a known miniprot quirk).
+      3. Output file is absent or empty.
 
-        Returns:
-        miniprot_output: miniprot output file
+    Parameters
+    ----------
+    outdir : str
+        Output directory for intermediate files.
+    args : argparse.Namespace
+    tgt_genome : str
+        Path to target genome FASTA.
+    ref_proteins_file : str
+        Path to reference proteins FASTA.
+
+    Returns
+    -------
+    str | None
+        Path to the miniprot GFF3 output file, or None on failure.
     """
     miniprot_outdir = outdir + "miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
     print("args.mp_options: ", args.mp_options)
-    command = [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file] + args.mp_options.split(" ")
+    command = (
+        [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file]
+        + [opt for opt in args.mp_options.split(" ") if opt]
+    )
     print("miniprot: ", " ".join(command))
     try:
-        fw = open(miniprot_output, "w")
-        subprocess.run(command, stdout=fw)
-        fw.close()
-    except: 
-        print("failed to run miniprot")
-        sys.exit(1)
+        with open(miniprot_output, "w") as fw:
+            proc = subprocess.run(
+                command,
+                stdout=fw,
+                stderr=subprocess.PIPE,  # capture stderr so we can scan it
+                text=True,
+            )
+
+        # Print stderr so the user sees miniprot's own log lines
+        if proc.stderr:
+            print(proc.stderr, end="", file=sys.stderr)
+
+        # ── Failure mode 1: non-zero exit code ────────────────────────────
+        if proc.returncode != 0:
+            print(
+                f"\n[LiftOn] miniprot exited with code {proc.returncode}. "
+                "Miniprot output will be skipped — LiftOn will continue "
+                "using Liftoff results only.",
+                file=sys.stderr,
+            )
+            return None
+
+        # ── Failure mode 2: miniprot printed ERROR on stderr ─────────────
+        # miniprot sometimes exits 0 but prints "ERROR during mapping" to
+        # stderr and produces an empty GFF3 (e.g. when the input FASTA has
+        # no valid amino-acid sequences).
+        if proc.stderr and "ERROR" in proc.stderr.upper():
+            print(
+                "\n[LiftOn] miniprot reported an ERROR during mapping "
+                "(exit code 0 but ERROR seen in output). "
+                "Miniprot output will be skipped — LiftOn will continue "
+                "using Liftoff results only.",
+                file=sys.stderr,
+            )
+            return None
+
+        # ── Failure mode 3: output file is absent or empty ───────────────
+        if not os.path.exists(miniprot_output) or os.path.getsize(miniprot_output) == 0:
+            print(
+                "\n[LiftOn] miniprot produced an empty output file. "
+                "Miniprot results will be skipped — LiftOn will continue "
+                "using Liftoff results only.",
+                file=sys.stderr,
+            )
+            return None
+
+    except Exception as exc:
+        print(
+            f"\n[LiftOn] miniprot failed unexpectedly: {exc}\n"
+            "Miniprot output will be skipped — LiftOn will continue "
+            "using Liftoff results only.",
+            file=sys.stderr,
+        )
+        return None
+
     return miniprot_output
 
 
@@ -102,6 +165,8 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
 
 
 def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args):
+    if m_feature_db is None:
+        return None
     mtrans_id = mtrans.attributes["ID"][0]
     mtrans_interval = Interval(mtrans.start, mtrans.end, mtrans_id)
     is_overlapped = lifton_utils.check_ovps_ratio(mtrans, mtrans_interval, args.overlap, tree_dict)
