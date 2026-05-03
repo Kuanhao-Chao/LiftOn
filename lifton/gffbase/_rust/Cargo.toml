@@ -1,0 +1,33 @@
+[package]
+name = "gffbase-core"
+version = "0.1.0"
+edition = "2021"
+# Minimum rustc — kept loose because our `Cargo.lock` pins compatible
+# transitive versions for older toolchains. PyO3 0.22.x recommends 1.71+
+# for unpinned deps, but we ship a working `Cargo.lock` for 1.69 too.
+rust-version = "1.69"
+description = "Rust core for GFFBase: high-performance GFF3/GTF parser exposed to Python via PyO3."
+readme = "../README.md"
+license = "MIT"
+repository = "https://github.com/your-org/gffbase"
+homepage = "https://github.com/your-org/gffbase"
+keywords = ["gff", "gtf", "bioinformatics", "parser", "pyo3"]
+categories = ["science", "parser-implementations", "api-bindings"]
+
+[lib]
+# The compiled artifact must match the Python submodule name: gffbase._native
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+pyo3   = { version = "0.22", features = ["extension-module", "abi3-py39"] }
+memchr = "2.7"
+memmap2 = "0.9"
+flate2 = "1.0"
+
+[profile.release]
+opt-level     = 3
+lto           = "thin"
+codegen-units = 1
+strip         = true

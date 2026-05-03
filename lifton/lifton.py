@@ -149,6 +149,23 @@ def args_optional(parser):
              '(missing ##gff-version 3, start>end, negative coords, '
              'unencoded reserved chars, dangling Parent, etc.).'
     )
+    parser.add_argument(
+        '--stream', dest='stream', action='store_true', default=False,
+        help='Phase 7 streaming-adapter fast path: pipe miniprot stdout '
+             'directly into an in-memory gffbase FeatureDB instead of '
+             'writing miniprot.gff3 to disk. Eliminates the SQLite '
+             're-ingest of miniprot output. Output GFF3 is byte-identical '
+             'to the default path; this flag changes I/O, not algorithms.'
+    )
+    parser.add_argument(
+        '--inmemory-liftoff', dest='inmemory_liftoff', action='store_true',
+        default=False,
+        help='Phase 8 in-memory Liftoff fast path: serialise Liftoff\'s '
+             'lifted_feature_list to bytes inside the parent process and '
+             'feed it straight to gffbase, skipping the liftoff.gff3 disk '
+             'write and SQLite re-ingest. Output GFF3 is byte-identical '
+             'to the default path; this flag changes I/O, not algorithms.'
+    )
 
 
 def parse_args(arglist):

@@ -26,18 +26,30 @@ def check_miniprot_installed():
 
 def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     """
-    Run miniprot and return the output GFF3 path, or None if miniprot fails.
+    Run miniprot and return the GFF3 result.
 
-    Failure is detected in three ways:
+    Two return shapes are supported, controlled by ``args.stream``:
+
+    * ``args.stream`` is False (default): write the GFF3 to disk at
+      ``<outdir>/miniprot/miniprot.gff3`` and return the **path**.
+      This is the legacy Phase 5 contract — preserved byte-for-byte.
+
+    * ``args.stream`` is True: pipe miniprot's stdout straight into
+      RAM via ``Popen.communicate()`` and return the **bytes blob**.
+      No disk write. Phase 7 streaming-adapter fast path.
+
+    Failure modes (any of them returns ``None`` so the pipeline
+    continues with Liftoff-only results):
       1. Non-zero exit code from miniprot.
       2. miniprot prints "ERROR" to stderr (exit 0 + error is a known miniprot quirk).
-      3. Output file is absent or empty.
+      3. Output is absent or empty.
 
     Parameters
     ----------
     outdir : str
         Output directory for intermediate files.
     args : argparse.Namespace
+        Must carry ``mp_options``; may carry ``stream`` (default False).
     tgt_genome : str
         Path to target genome FASTA.
     ref_proteins_file : str
@@ -45,8 +57,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
 
     Returns
     -------
-    str | None
-        Path to the miniprot GFF3 output file, or None on failure.
+    str | bytes | None
+        Path to the miniprot GFF3 output file, an in-memory bytes
+        blob when streaming, or None on failure.
     """
     miniprot_outdir = outdir + "miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
@@ -58,23 +71,44 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         + [opt for opt in args.mp_options.split(" ") if opt]
     )
     print("miniprot: ", " ".join(command))
+
+    stream_mode = bool(getattr(args, "stream", False))
     try:
-        with open(miniprot_output, "w") as fw:
-            proc = subprocess.run(
+        if stream_mode:
+            # ── Streaming branch: stdout -> RAM ───────────────────────────
+            proc = subprocess.Popen(
                 command,
-                stdout=fw,
-                stderr=subprocess.PIPE,  # capture stderr so we can scan it
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=1 << 20,
             )
+            stdout_bytes, stderr_bytes = proc.communicate()
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace") \
+                if stderr_bytes else ""
+            return_code = proc.returncode
+            output_size = len(stdout_bytes) if stdout_bytes else 0
+        else:
+            # ── Legacy file-write branch (Phase 5 baseline behaviour) ─────
+            with open(miniprot_output, "w") as fw:
+                proc = subprocess.run(
+                    command,
+                    stdout=fw,
+                    stderr=subprocess.PIPE,  # capture stderr so we can scan it
+                    text=True,
+                )
+            stderr_text = proc.stderr or ""
+            return_code = proc.returncode
+            output_size = (os.path.getsize(miniprot_output)
+                           if os.path.exists(miniprot_output) else 0)
 
         # Print stderr so the user sees miniprot's own log lines
-        if proc.stderr:
-            print(proc.stderr, end="", file=sys.stderr)
+        if stderr_text:
+            print(stderr_text, end="", file=sys.stderr)
 
         # ── Failure mode 1: non-zero exit code ────────────────────────────
-        if proc.returncode != 0:
+        if return_code != 0:
             print(
-                f"\n[LiftOn] miniprot exited with code {proc.returncode}. "
+                f"\n[LiftOn] miniprot exited with code {return_code}. "
                 "Miniprot output will be skipped — LiftOn will continue "
                 "using Liftoff results only.",
                 file=sys.stderr,
@@ -82,10 +116,7 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             return None
 
         # ── Failure mode 2: miniprot printed ERROR on stderr ─────────────
-        # miniprot sometimes exits 0 but prints "ERROR during mapping" to
-        # stderr and produces an empty GFF3 (e.g. when the input FASTA has
-        # no valid amino-acid sequences).
-        if proc.stderr and "ERROR" in proc.stderr.upper():
+        if stderr_text and "ERROR" in stderr_text.upper():
             print(
                 "\n[LiftOn] miniprot reported an ERROR during mapping "
                 "(exit code 0 but ERROR seen in output). "
@@ -95,10 +126,10 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             )
             return None
 
-        # ── Failure mode 3: output file is absent or empty ───────────────
-        if not os.path.exists(miniprot_output) or os.path.getsize(miniprot_output) == 0:
+        # ── Failure mode 3: output is absent or empty ─────────────────────
+        if output_size == 0:
             print(
-                "\n[LiftOn] miniprot produced an empty output file. "
+                "\n[LiftOn] miniprot produced an empty output. "
                 "Miniprot results will be skipped — LiftOn will continue "
                 "using Liftoff results only.",
                 file=sys.stderr,
@@ -113,6 +144,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             file=sys.stderr,
         )
         return None
+
+    if stream_mode:
+        return stdout_bytes
 
     return miniprot_output
 

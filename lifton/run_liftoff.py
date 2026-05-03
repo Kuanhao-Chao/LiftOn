@@ -6,34 +6,64 @@ from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
 
 def run_liftoff(output_dir, ref_db, args):
-    """
-        This function runs liftoff.
+    """Run Liftoff and return either a path to the resulting GFF3
+    (legacy default) or an in-memory GFF3 bytes blob (Phase 8).
 
-        Parameters:
-        - output_dir: output directory
-        - args: Liftoff arguments
+    The bytes-blob branch fires when ``args.inmemory_liftoff`` is
+    True. The output is byte-identical to the legacy file because
+    :mod:`lifton.liftoff.inmemory_emitter` shares its serialisation
+    helpers with :mod:`lifton.liftoff.write_new_gff`.
 
-        Returns:
-        liftoff_annotation: liftoff annotation file path
+    Parameters
+    ----------
+    output_dir : str
+        Output directory for intermediate Liftoff artefacts
+        (``unmapped_features.txt`` is still written here in both
+        modes; only the final GFF3 is held in RAM in the in-memory
+        mode).
+    ref_db : gffutils.FeatureDB
+        Reference annotation DB Liftoff lifts from.
+    args : argparse.Namespace
+        Must carry ``polish``; may carry ``inmemory_liftoff``
+        (default False).
+
+    Returns
+    -------
+    str | bytes
+        Path to the Liftoff GFF3 output, OR an in-memory bytes blob
+        when ``args.inmemory_liftoff`` is True.
     """
     liftoff_args = copy.deepcopy(args)
-    liftoff_outdir = output_dir + "liftoff/"    
+    liftoff_outdir = output_dir + "liftoff/"
     os.makedirs(liftoff_outdir, exist_ok=True)
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
     liftoff_args.output = liftoff_annotation
     liftoff_args.u = liftoff_outdir + "unmapped_features.txt"
+
+    inmemory = bool(getattr(args, "inmemory_liftoff", False))
     try:
-        liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
+        if inmemory:
+            from lifton.liftoff import inmemory_emitter
+            lifted_feature_list, feature_db, _ref_parent_order, _unmapped = \
+                liftoff_main.run_all_liftoff_steps_inmemory(liftoff_args, ref_db)
+            gff_bytes = inmemory_emitter.lifted_features_to_gff3_bytes(
+                lifted_feature_list, liftoff_args, feature_db,
+            )
+        else:
+            liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
     except Exception as e:
         logger.log_error(f"Liftoff encountered a fatal error during native execution: {e}")
         logger.log_error("LiftOn cannot proceed without a valid Liftoff baseline annotation.")
         import sys
         sys.exit(1)
-        
+
     if args.polish:
         liftoff_annotation += "_polished"
     # test_basic.test_yeast(liftoff_outdir + "test_basic/")
     # test_advanced.test_yeast(liftoff_outdir + "test_advance/")
+
+    if inmemory:
+        return gff_bytes
     return liftoff_annotation
 
 

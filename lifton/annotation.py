@@ -13,6 +13,7 @@ import sys
 import os
 import subprocess
 from collections import defaultdict
+from typing import Optional
 import re
 
 from lifton import extract_sequence, logger
@@ -41,7 +42,7 @@ class Annotation:
 
     def __init__(
         self,
-        file_name: str,
+        source,
         infer_genes: bool,
         infer_transcripts: bool,
         merge_strategy: str = "create_unique",
@@ -49,13 +50,55 @@ class Annotation:
         force: bool = False,
         verbose: bool = False,
         auto_convert_gtf: bool = True,
+        *,
+        backend: "Optional[str]" = None,
     ):
-        self.file_name      = file_name
+        # ── Phase 7: polymorphic on input type ────────────────────────────────
+        # ``source`` may be either a filesystem path (str/PathLike) OR an
+        # in-memory GFF3 blob (bytes/bytearray). The blob path is the
+        # streaming-adapter fast path used by run_miniprot when --stream is
+        # on; it requires backend="gffbase". The path branch keeps the
+        # legacy gffutils default unchanged.
+        from lifton import gffbase_adapter as _adapter
+        self._is_blob = isinstance(source, (bytes, bytearray)) or \
+                        _adapter.looks_like_gff3_blob(source)
+        if self._is_blob and not isinstance(source, (bytes, bytearray)):
+            # str-shaped GFF3 blob — coerce to bytes for uniform handling
+            source = source.encode("utf-8")
+
+        self.backend = self._resolve_backend(backend, is_blob=self._is_blob)
+        if self._is_blob and self.backend != "gffbase":
+            raise ValueError(
+                "In-memory GFF3 blob input requires backend='gffbase'; "
+                "the legacy gffutils backend can only accept a file path."
+            )
+
+        # File-name slot retained for the path branch + diagnostics in the
+        # blob branch (synthesised lazily).
+        if self._is_blob:
+            self.file_name = "<in-memory blob>"
+        else:
+            self.file_name  = source
         self.merge_strategy = merge_strategy
         self.id_spec        = id_spec
         self.force          = force
         self.verbose        = verbose
         self.auto_convert_gtf = auto_convert_gtf
+
+        # ── Blob branch — build an in-memory FeatureDB and stop ───────────────
+        if self._is_blob:
+            self.infer_genes       = infer_genes
+            self.infer_transcripts = infer_transcripts
+            self._db_connection = _adapter.build_database_from_string(
+                gff_text=source,
+                infer_genes=infer_genes,
+                infer_transcripts=infer_transcripts,
+                merge_strategy=merge_strategy,
+                id_spec=id_spec,
+                force=True,
+                verbose=verbose,
+            )
+            return
 
         # ── 0. Check if the file is already a gffutils database ───────────────
         if os.path.exists(self.file_name) and os.path.getsize(self.file_name) > 0:
@@ -92,6 +135,26 @@ class Annotation:
         # ── 3. Build gffutils database ────────────────────────────────────────
         self._get_db_connection()
 
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Phase 7: backend selection
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _resolve_backend(explicit: Optional[str], *, is_blob: bool) -> str:
+        """Select between gffutils (legacy SQLite) and gffbase
+        (DuckDB-backed). Priority: explicit kwarg > env var > default.
+
+        For an in-memory blob we always need gffbase — gffutils has no
+        path that ingests from a string.
+        """
+        if explicit in ("gffutils", "gffbase"):
+            return explicit
+        if is_blob:
+            return "gffbase"
+        if os.environ.get("LIFTON_USE_GFFBASE"):
+            return "gffbase"
+        return "gffutils"
 
     # ─────────────────────────────────────────────────────────────────────────
     # Public property
