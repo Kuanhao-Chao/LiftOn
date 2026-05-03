@@ -166,6 +166,15 @@ def args_optional(parser):
              'write and SQLite re-ingest. Output GFF3 is byte-identical '
              'to the default path; this flag changes I/O, not algorithms.'
     )
+    parser.add_argument(
+        '--locus-pipeline', dest='locus_pipeline', action='store_true',
+        default=False,
+        help='Phase 9 locus-major fan-out: dispatch Step 7 (per-Liftoff-'
+             'gene processing) through a ThreadPoolExecutor sized by '
+             '--threads. Output is emitted in submission order so '
+             '--threads N is byte-identical to --threads 1; this flag '
+             'changes scheduling, not algorithms.'
+    )
 
 
 def parse_args(arglist):
@@ -430,20 +439,36 @@ def run_all_lifton_steps(args):
     # Step 7: Process Liftoff genes & transcripts
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
+    #
+    # Phase 9: dispatch per-locus work either serially (default) or
+    # through a ThreadPoolExecutor with deterministic ordered-writer
+    # buffer. The legacy serial loop is preserved byte-for-byte so the
+    # default path cannot regress; the parallel path is opt-in via
+    # --locus-pipeline + --threads N and emits in submission order so
+    # output is byte-identical to --threads 1.
     ################################
-    for feature in features:
-        for locus in l_feature_db.features_of_type(feature):
-            try:
-                lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
-                if lifton_gene is None or lifton_gene.ref_gene_id is None:
-                    continue
-                lifton_gene.write_entry(fw,transcripts_stats_dict)
-            except Exception as e:
-                logger.log_error(f"Error during Liftoff gene output serialization ({locus.id}): {e}")
-                
-            if processed_features % 20 == 0:
-                sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
-            processed_features += 1
+    from lifton import parallel as _parallel
+    from lifton.locus_pipeline import StepContext as _StepContext
+    _ctx = _StepContext(
+        ref_db=ref_db.db_connection,
+        l_feature_db=l_feature_db,
+        m_feature_db=m_feature_db,
+        ref_id_2_m_id_trans_dict=ref_id_2_m_id_trans_dict,
+        tree_dict=tree_dict,
+        tgt_fai=tgt_fai,
+        ref_proteins=ref_proteins,
+        ref_trans=ref_trans,
+        ref_features_dict=ref_features_dict,
+        fw_score=fw_score,
+        fw_chain=fw_chain,
+        args=args,
+    )
+    _threads = int(getattr(args, "threads", 1) or 1)
+    _use_pool = bool(getattr(args, "locus_pipeline", False)) and _threads > 1
+    processed_features = _parallel.parallel_step7(
+        features, l_feature_db, _ctx, fw, transcripts_stats_dict,
+        threads=_threads if _use_pool else 1,
+    )
 
     t11 = time.process_time()
     ################################

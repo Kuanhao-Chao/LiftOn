@@ -269,9 +269,29 @@ class Annotation:
 
     def _get_db_connection(self):
         """
-        Try to open an existing gffutils DB; if that fails, build one.
+        Try to open an existing FeatureDB; if that fails, build one.
         Sets self._db_connection.
+
+        Backend dispatch (Phase 7+9): when self.backend == "gffbase",
+        route through the gffbase_adapter (DuckDB-backed; thread-safe).
+        Otherwise use the legacy gffutils 3-strategy path.
         """
+        if self.backend == "gffbase":
+            from lifton import gffbase_adapter as _adapter
+            db = _adapter.open_existing_db(self.file_name)
+            if db is None:
+                db = _adapter.build_database(
+                    file_name=self.file_name,
+                    infer_genes=self.infer_genes,
+                    infer_transcripts=self.infer_transcripts,
+                    merge_strategy=self.merge_strategy,
+                    id_spec=self.id_spec,
+                    force=True,
+                    verbose=self.verbose,
+                )
+            self._db_connection = db
+            return
+
         db_path = self.file_name + "_db"
         try:
             feature_db = gffutils.FeatureDB(db_path)

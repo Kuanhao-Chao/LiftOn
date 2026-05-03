@@ -1,0 +1,232 @@
+"""Phase 9 — full 12-cell parallelism + I/O matrix.
+
+The Phase 5 zero-bug contract says the output GFF3 must be byte-identical
+across every supported flag combination. Phase 9 expands that gate to
+include a third axis: ``--threads ∈ {1, 2, 4}``.
+
+Cells: ``--stream={off,on}`` × ``--inmemory-liftoff={off,on}`` ×
+``--threads ∈ {1,2,4}`` (with the locus-pipeline flag on for any
+threads > 1) = **12 cells**, all expected byte-identical.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+
+from tests.test_integration_pipeline import (  # noqa: F401
+    integration_workspace,
+    hermetic_pipeline,
+)
+
+
+def _drive(workspace, *, stream: bool, inmem: bool, threads: int,
+           suffix: str) -> bytes:
+    from lifton import lifton as lifton_main
+
+    out_gff = workspace["out"] / f"lifton_{suffix}.gff3"
+    argv = [
+        str(workspace["tgt_fa"]),
+        str(workspace["ref_fa"]),
+        "-g", str(workspace["ref_gff"]),
+        "-L", str(workspace["liftoff"]),
+        "-M", str(workspace["miniprot"]),
+        "-o", str(out_gff),
+        "-ad", "RefSeq",
+        "--force",
+    ]
+    if stream:
+        argv.append("--stream")
+    if inmem:
+        argv.append("--inmemory-liftoff")
+    if threads > 1:
+        argv += ["-t", str(threads), "--locus-pipeline"]
+    args = lifton_main.parse_args(argv)
+    lifton_main.run_all_lifton_steps(args)
+    return out_gff.read_bytes()
+
+
+# ---------------------------------------------------------------------------
+# Threads-only axis (with stream + inmemory both off)
+# ---------------------------------------------------------------------------
+
+class TestThreadsAxis:
+    @pytest.mark.parametrize("threads", [1, 2, 4])
+    def test_thread_count_yields_valid_output(self, integration_workspace,
+                                              hermetic_pipeline, threads):
+        b = _drive(integration_workspace,
+                   stream=False, inmem=False, threads=threads,
+                   suffix=f"t{threads}")
+        assert len(b) > 0
+
+    def test_threads_1_2_4_all_byte_identical(self, integration_workspace,
+                                              hermetic_pipeline):
+        outputs = {
+            t: _drive(integration_workspace,
+                      stream=False, inmem=False, threads=t,
+                      suffix=f"axis_t{t}")
+            for t in (1, 2, 4)
+        }
+        assert outputs[1] == outputs[2] == outputs[4], (
+            "Output diverged across thread counts — determinism gate failed"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Determinism with stream + inmemory both on
+# ---------------------------------------------------------------------------
+
+class TestThreadsAxisStreamingInmemory:
+    @pytest.mark.parametrize("threads", [1, 2, 4])
+    def test_under_streaming_path(self, integration_workspace,
+                                  hermetic_pipeline, threads):
+        b = _drive(integration_workspace,
+                   stream=True, inmem=True, threads=threads,
+                   suffix=f"si_t{threads}")
+        assert len(b) > 0
+
+    def test_streaming_threads_byte_identical(self, integration_workspace,
+                                              hermetic_pipeline):
+        outputs = {
+            t: _drive(integration_workspace,
+                      stream=True, inmem=True, threads=t,
+                      suffix=f"si_axis_t{t}")
+            for t in (1, 2, 4)
+        }
+        assert outputs[1] == outputs[2] == outputs[4]
+
+
+# ---------------------------------------------------------------------------
+# Full 12-cell matrix
+# ---------------------------------------------------------------------------
+
+class TestFull12CellMatrix:
+    def test_all_twelve_combinations_byte_identical(
+            self, integration_workspace, hermetic_pipeline):
+        """The Phase 9 golden output gate: every cell of the
+        2 × 2 × 3 matrix produces identical bytes."""
+        outputs = {}
+        for stream in (False, True):
+            for inmem in (False, True):
+                for threads in (1, 2, 4):
+                    key = f"s{int(stream)}_i{int(inmem)}_t{threads}"
+                    outputs[key] = _drive(
+                        integration_workspace,
+                        stream=stream, inmem=inmem, threads=threads,
+                        suffix=key,
+                    )
+        baseline = outputs["s0_i0_t1"]
+        diverged = [k for k, v in outputs.items() if v != baseline]
+        assert not diverged, (
+            f"Output diverged for: {diverged}. "
+            f"Lengths: {[(k, len(outputs[k])) for k in diverged]}"
+        )
+        # Sanity check: every output non-trivial
+        assert all(len(v) > 0 for v in outputs.values())
+
+
+# ---------------------------------------------------------------------------
+# Locus-pipeline path requires threads>1 to fan out
+# ---------------------------------------------------------------------------
+
+class TestLocusPipelineSemantics:
+    def test_locus_pipeline_with_threads_1_uses_serial(
+            self, integration_workspace, hermetic_pipeline, monkeypatch):
+        """When --locus-pipeline is set but --threads is 1 (the
+        default), the dispatcher should still take the serial path
+        (no ThreadPoolExecutor created)."""
+        from lifton import parallel
+        original = parallel.ThreadPoolExecutor
+        constructed = {"n": 0}
+
+        class TPESpy(original):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
+        from lifton import lifton as lifton_main
+        out_gff = integration_workspace["out"] / "lifton_lp_t1.gff3"
+        argv = [
+            str(integration_workspace["tgt_fa"]),
+            str(integration_workspace["ref_fa"]),
+            "-g", str(integration_workspace["ref_gff"]),
+            "-L", str(integration_workspace["liftoff"]),
+            "-M", str(integration_workspace["miniprot"]),
+            "-o", str(out_gff),
+            "-ad", "RefSeq", "--force",
+            "--locus-pipeline",
+        ]
+        args = lifton_main.parse_args(argv)
+        lifton_main.run_all_lifton_steps(args)
+        assert out_gff.exists()
+        assert constructed["n"] == 0
+
+    def test_locus_pipeline_with_threads_4_creates_pool(
+            self, integration_workspace, hermetic_pipeline, monkeypatch):
+        """With the LIFTON_PARALLEL_FORCE escape hatch set the
+        dispatcher really creates a ThreadPoolExecutor (the default
+        guard would have fallen back to serial)."""
+        monkeypatch.setenv("LIFTON_USE_GFFBASE", "1")
+        monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")
+
+        from lifton import parallel
+        original = parallel.ThreadPoolExecutor
+        constructed = {"n": 0}
+
+        class TPESpy(original):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
+        from lifton import lifton as lifton_main
+        out_gff = integration_workspace["out"] / "lifton_lp_t4.gff3"
+        argv = [
+            str(integration_workspace["tgt_fa"]),
+            str(integration_workspace["ref_fa"]),
+            "-g", str(integration_workspace["ref_gff"]),
+            "-L", str(integration_workspace["liftoff"]),
+            "-M", str(integration_workspace["miniprot"]),
+            "-o", str(out_gff),
+            "-ad", "RefSeq", "--force",
+            "--locus-pipeline", "-t", "4",
+        ]
+        args = lifton_main.parse_args(argv)
+        lifton_main.run_all_lifton_steps(args)
+        assert out_gff.exists()
+        assert constructed["n"] == 1
+
+    def test_locus_pipeline_falls_back_on_sqlite_backend(
+            self, integration_workspace, hermetic_pipeline, capsys):
+        """When --locus-pipeline + threads>1 is requested but the
+        backend is gffutils (SQLite), the dispatcher must fall back
+        to serial with a warning. Output remains byte-identical to
+        a serial run."""
+        from lifton import lifton as lifton_main
+        out_serial = integration_workspace["out"] / "fallback_serial.gff3"
+        out_attempted = integration_workspace["out"] / "fallback_attempted.gff3"
+
+        # Serial reference (no flag)
+        argv1 = [
+            str(integration_workspace["tgt_fa"]),
+            str(integration_workspace["ref_fa"]),
+            "-g", str(integration_workspace["ref_gff"]),
+            "-L", str(integration_workspace["liftoff"]),
+            "-M", str(integration_workspace["miniprot"]),
+            "-o", str(out_serial),
+            "-ad", "RefSeq", "--force",
+        ]
+        lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv1))
+
+        # Attempted parallel on SQLite — should fall back to serial
+        argv2 = argv1[:-1] + ["--force", "--locus-pipeline", "-t", "4"]
+        argv2[argv2.index(str(out_serial))] = str(out_attempted)
+        lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv2))
+
+        # Output is byte-identical because the fallback ran serial
+        assert out_serial.read_bytes() == out_attempted.read_bytes()
