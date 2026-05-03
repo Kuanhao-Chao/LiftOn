@@ -142,6 +142,13 @@ def args_optional(parser):
         '--validate-verbose', required=False, action='store_true', default=False,
         help='When --validate-output is set, also print warnings (not just errors)'
     )
+    parser.add_argument(
+        '--strict-gff', dest='strict_gff', action='store_true', default=False,
+        help='Run the NCBI GFF3 input-side validator on the reference '
+             'annotation and exit non-zero on any spec violation '
+             '(missing ##gff-version 3, start>end, negative coords, '
+             'unencoded reserved chars, dangling Parent, etc.).'
+    )
 
 
 def parse_args(arglist):
@@ -259,6 +266,20 @@ def run_all_lifton_steps(args):
         sys.exit(1)
 
     t2 = time.process_time()
+    ################################
+    # Phase 5 bug fix #6: NCBI GFF3 validation gate
+    ################################
+    from lifton.io.gff3_validator import GFF3Validator
+    target_seqids = set(tgt_fai.keys()) | set(ref_fai.keys())
+    findings = GFF3Validator(
+        target_seqids=target_seqids,
+        strict=getattr(args, "strict_gff", False),
+    ).validate(args.reference_annotation)
+    for f in findings:
+        logger.log(str(f), debug=True)
+    if getattr(args, "strict_gff", False) and any(
+            f.severity == "error" for f in findings):
+        sys.exit(2)
     ################################
     # Step 1: Building database from the reference annotation
     ################################

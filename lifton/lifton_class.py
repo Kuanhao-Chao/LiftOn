@@ -68,11 +68,16 @@ class Lifton_GENE:
         self.copy_num = self.__get_gene_copy(ref_features_dict)
         self.tmp = tmp
         self.entry.attributes = ref_gene_attrs
-        self.entry.attributes["ID"] = self.ref_gene_id + "_" + str(self.copy_num) if self.copy_num > 0 else self.ref_gene_id
+        # Bug fix #1 (Phase 5): build the ID as a list-of-str per the
+        # gffutils attribute contract. Previously a bare string was
+        # assigned, and the subsequent `[0]` reduced it to one character.
+        gene_id = (f"{self.ref_gene_id}_{self.copy_num}"
+                   if self.copy_num > 0 else self.ref_gene_id)
+        self.entry.attributes["ID"] = [gene_id]
         if self.copy_num > 0:
-            self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]        
+            self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
         self.__update_gene_copy(ref_features_dict)
-        self.entry.id = self.entry.attributes["ID"][0]
+        self.entry.id = gene_id
         gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
         if self.entry.seqid not in tree_dict.keys():
             tree_dict[self.entry.seqid] = IntervalTree()

@@ -178,18 +178,20 @@ def get_ID_base(id, ref_features_dict=None):
         ID base (original ID if suffix removal is not safe or cannot be verified)
     """
     splits = id.split("_")
-    # Only try to remove suffix if there are at least 2 parts after splitting
+    # Only try to remove suffix if there are at least 2 parts after splitting.
+    # This also guards against the Phase 5 bug #5 case where a single-component
+    # numeric id (e.g. "0") would otherwise be reduced to the empty string.
     if len(splits) < 2:
         return id
-    
+
     # Check if the last part is a pure integer (potential copy number)
     try:
         last_part = splits[-1]
         copy_num = int(last_part)
         id_base = "_".join(splits[:-1])
-        
-        # If ref_features_dict is provided, verify that removing the suffix gives a valid ID
-        # This is the safest approach: only remove if we can confirm the base exists
+
+        # If ref_features_dict is provided, verify that removing the suffix gives a valid ID.
+        # This is the safest approach: only remove if we can confirm the base exists.
         if ref_features_dict is not None:
             # Only remove the suffix if the base ID exists in the reference dictionary
             # This confirms the suffix was added by LiftOn, not part of the original ID
@@ -199,10 +201,9 @@ def get_ID_base(id, ref_features_dict=None):
                 # The suffix is likely part of the original ID (e.g., FMUND_1), don't remove it
                 return id
         else:
-            # Without reference dict, we cannot safely determine if the suffix is a copy number
-            # Be conservative: don't remove the suffix to avoid breaking IDs that naturally end with numbers
-            # This prevents issues like GCA_013396205.1-transcript_rna-gnl-WGS:JAAOAN-mrna.FMUND_1
-            # where _1 is part of the original ID, not a copy number
+            # Without reference dict, we cannot safely determine if the suffix is a copy number.
+            # Be conservative: don't remove the suffix to avoid breaking IDs that naturally end
+            # with numbers (e.g. FMUND_1 in GCA_013396205.1-transcript_rna-gnl-WGS:JAAOAN-mrna.FMUND_1).
             return id
     except (ValueError, IndexError):
         # Last part is not an integer, so it's not a copy number suffix
@@ -548,11 +549,15 @@ def segments_overlap_length(segment1, segment2):
     """
     if len(segment1) != 2 or len(segment2) != 2:
         raise ValueError("Segments must have exactly 2 endpoints")
-    # Sort the segments by their left endpoints
-    segment1, segment2 = sorted([segment1, segment2], key=lambda x: x[0])
-    ovp_len = segment1[1] - segment2[0] + 1
-    ovp = False
-    if ovp_len > 0: ovp = True
+    # Bug fix #4 (Phase 5): make the sort tie-break deterministic so the
+    # function is symmetric. Previously sorting by start alone left the
+    # tie-break to Python's stable-sort and the input order leaked into
+    # the result. Computing the overlap length directly from the sorted
+    # endpoints removes the ambiguity entirely.
+    s1, e1 = segment1
+    s2, e2 = segment2
+    ovp_len = min(e1, e2) - max(s1, s2) + 1
+    ovp = ovp_len > 0
     return ovp_len, ovp
 
 
@@ -572,7 +577,14 @@ def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):
     is_overlapped = False
     if mtrans.seqid not in tree_dict.keys():
         return False
-    ovps = tree_dict[mtrans.seqid].overlap(mtrans_interval)
+    # Bug fix #3 (Phase 5): IntervalTree.overlap requires (begin, end)
+    # ints or an Interval, not a raw tuple. Accept either an
+    # intervaltree.Interval or a (begin, end) tuple here.
+    if hasattr(mtrans_interval, "begin"):
+        begin, end = mtrans_interval.begin, mtrans_interval.end
+    else:
+        begin, end = mtrans_interval[0], mtrans_interval[1]
+    ovps = tree_dict[mtrans.seqid].overlap(begin, end)
     for ovp in ovps:
         ovp_len, _ = segments_overlap_length((mtrans_interval[0], mtrans_interval[1]), (ovp[0], ovp[1]))
         ref_len = ovp[1] - ovp[0] + 1
