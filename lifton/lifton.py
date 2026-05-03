@@ -175,6 +175,17 @@ def args_optional(parser):
              '--threads N is byte-identical to --threads 1; this flag '
              'changes scheduling, not algorithms.'
     )
+    parser.add_argument(
+        '--native', dest='native', action='store_true', default=False,
+        help='Phase 10 native bindings: drive minimap2 alignment '
+             'through `mappy` (real PyO3 binding) and miniprot through '
+             'the pyminiprot-shaped facade (subprocess today, swappable '
+             'for a real PyO3 binding when it ships). Eliminates '
+             'subprocess fork+exec overhead per query. Output GFF3 is '
+             'byte-identical to the subprocess path; this flag changes '
+             'how alignments are produced, not which alignments. '
+             'Falls back gracefully when mappy is not installed.'
+    )
 
 
 def parse_args(arglist):

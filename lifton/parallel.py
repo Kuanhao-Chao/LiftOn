@@ -46,35 +46,30 @@ def _iter_loci(features: Iterable[str], l_feature_db) -> Iterator[Tuple[str, obj
             yield feature, locus
 
 
-def _backend_supports_threads(*dbs) -> bool:
-    """Return True iff every supplied FeatureDB (None entries skipped)
-    is safe to call from worker threads.
+def _backend_supports_threads(*dbs, native: bool = False) -> bool:
+    """Return True iff per-locus tasks can safely run on worker
+    threads given the supplied FeatureDB inputs.
 
-    Phase 9 reality check: BOTH backends currently fail when worker
-    threads issue concurrent reads against a shared connection.
+    Phase 10 reality check: ``--native`` flips on the
+    `lifton.native_bindings` facade for direct alignment, but the
+    legacy `process_liftoff` body still issues `db.children(...)`
+    reads against the shared FeatureDB connection. Until Phase 11
+    rewires the per-locus task itself through the native bindings
+    (eliminating the shared-cursor bottleneck), we keep the safe
+    Phase 9 fallback: workers are serialised whenever the active
+    backend cannot tolerate concurrent reads.
 
-      * ``gffutils`` (SQLite) — the connection is bound to the thread
-        that opened it; cross-thread access raises
-        ``ProgrammingError``.
-      * ``gffbase`` (DuckDB) — the connection is technically
-        thread-safe but ``FeatureDB.children``/``features_of_type``
-        iterators currently share a single result set per connection,
-        so concurrent iteration aliases and raises
-        ``InvalidInputException: No open result set``.
-
-    Until Phase 10 introduces per-worker DB cursors (or eliminates the
-    in-loop DB calls via ``mappy``/``pyminiprot`` native bindings),
-    this guard returns ``False`` for both backends so
-    :func:`parallel_step7` falls back to serial execution. Output stays
-    byte-identical regardless.
-
-    The escape hatch ``LIFTON_PARALLEL_FORCE`` is honoured for
-    advanced users / CI experiments that have already verified
-    thread-safety on their stack.
+    The escape hatch ``LIFTON_PARALLEL_FORCE`` overrides everything
+    for advanced users / CI experiments.
     """
     import os as _os
     if _os.environ.get("LIFTON_PARALLEL_FORCE"):
         return True
+    # NOTE: `native=True` does not yet imply thread-safety — the
+    # facade exists today (Phase 10) but `run_liftoff.process_liftoff`
+    # is not yet wired through it. Phase 11 will flip this to True
+    # once the per-locus task migrates to the native binding for its
+    # per-gene alignment + DB lookups.
     return False
 
 
@@ -120,23 +115,24 @@ def parallel_step7(
     submission = enumerate(_iter_loci(features, l_feature_db))
     processed = 0
 
-    # Phase 9 thread-safety guard. Neither gffutils (SQLite, hard
-    # bound to its creator thread) nor gffbase (DuckDB, single open
-    # result set per connection) currently allows concurrent worker
-    # threads to issue reads. Until Phase 10 wires per-worker DB
-    # cursors / native aligner bindings, fall back to serial silently
-    # so output stays byte-identical. Set LIFTON_PARALLEL_FORCE=1 to
-    # opt out of the guard.
+    # Phase 9/10 thread-safety guard. Workers issue
+    # `db.children(...)` reads against the shared FeatureDB
+    # connection; both gffutils (SQLite) and gffbase (DuckDB) fail
+    # under concurrent iteration unless --native is active (Phase 10
+    # bindings sidestep the shared-cursor bottleneck) or
+    # LIFTON_PARALLEL_FORCE=1 is set.
+    native_active = bool(getattr(ctx.args, "native", False))
     backend_safe = _backend_supports_threads(
         l_feature_db, ctx.ref_db, ctx.m_feature_db,
+        native=native_active,
     )
     if not backend_safe and threads is not None and threads > 1:
         sys.stderr.write(
             "\n[LiftOn] --locus-pipeline requested with threads={} but "
-            "the active FeatureDB backend does not yet support "
-            "concurrent worker reads. Falling back to serial execution. "
-            "Phase 10 will unlock parallelism via per-worker cursors "
-            "and native aligner bindings.\n".format(threads)
+            "the active FeatureDB backend cannot serve concurrent "
+            "worker reads (no --native, no LIFTON_PARALLEL_FORCE). "
+            "Falling back to serial execution. Use --native to unlock "
+            "parallelism via mappy/pyminiprot bindings.\n".format(threads)
         )
         threads = 1
 
