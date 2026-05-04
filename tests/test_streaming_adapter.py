@@ -212,9 +212,18 @@ class TestRunMiniprotStreaming:
     """Phase 7 streaming branch returns bytes — no disk write."""
 
     def _patch_popen(self, stdout_bytes, stderr_bytes=b"", returncode=0):
+        # Phase 15c: the streaming branch now drives `.stdout.read()`
+        # / `.stderr.read()` / `.wait()` directly via
+        # `_drain_stream_chunks` instead of `.communicate()`. The
+        # mock must satisfy BOTH contracts so this helper stays
+        # compatible if the implementation switches back.
+        from io import BytesIO
         proc = mock.MagicMock()
         proc.communicate.return_value = (stdout_bytes, stderr_bytes)
         proc.returncode = returncode
+        proc.wait.return_value = returncode
+        proc.stdout = BytesIO(stdout_bytes)
+        proc.stderr = BytesIO(stderr_bytes)
         return mock.patch("lifton.run_miniprot.subprocess.Popen",
                           return_value=proc)
 

@@ -85,6 +85,11 @@ class Annotation:
         self.force          = force
         self.verbose        = verbose
         self.auto_convert_gtf = auto_convert_gtf
+        # Phase 15a (V5.7) — capture every `##` / `#!` directive in
+        # input order so the writer can preserve them.
+        self.directives: list[str] = []
+        if not self._is_blob:
+            self._capture_directives(self.file_name)
 
         # ── Blob branch — build an in-memory FeatureDB and stop ───────────────
         if self._is_blob:
@@ -689,6 +694,30 @@ class Annotation:
             # (i.e. during __init__ before _get_db_connection is called).
             raise AttributeError(name)
         raise AttributeError(f"'Annotation' object has no attribute {name!r}")
+
+    def _capture_directives(self, path: str) -> None:
+        """Phase 15a — pre-scan ``path`` for GFF3 directives (`##` and
+        `#!`) and store them on ``self.directives`` in input order so
+        the output writer can preserve them. Cheap O(n) single-pass
+        scan; stops at the first non-comment line for files where the
+        directives are exclusively in the header (the common case).
+        """
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    line = raw.rstrip("\r\n")
+                    if not line:
+                        continue
+                    if line.startswith("##") or line.startswith("#!"):
+                        self.directives.append(line)
+                        continue
+                    if line.startswith("#"):
+                        # Bare comment — not a directive; keep scanning.
+                        continue
+                    # First non-comment data line — header is over.
+                    return
+        except OSError:
+            return
 
     def _warn_on_duplicate_ids(self, path: str) -> None:
         """V5.3: surface duplicate ``ID=`` rows BEFORE gffutils

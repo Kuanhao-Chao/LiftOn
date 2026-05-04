@@ -81,6 +81,36 @@ def _canonical_attr_order(keys):
     return head + sorted(keys)
 
 
+def format_directives(directives) -> str:
+    """V5.7 / Phase 15a — render the directive block that prefixes the
+    GFF3 output. Always begins with `##gff-version 3`; preserves any
+    additional `##` / `#!` directives passed in (in input order),
+    de-duplicating the gff-version line if it appears more than once.
+
+    Returns a string ending with a single newline so the caller can
+    `fw.write(format_directives(...))` directly before the first
+    feature row.
+    """
+    seen: set[str] = set()
+    out: list[str] = ["##gff-version 3"]
+    seen.add("##gff-version 3")
+    for raw in directives or ():
+        if raw is None:
+            continue
+        line = str(raw).rstrip("\r\n")
+        if not line:
+            continue
+        if not (line.startswith("##") or line.startswith("#!")):
+            # Not a directive — silently skip; callers may pass mixed
+            # input as a convenience.
+            continue
+        if line in seen:
+            continue
+        seen.add(line)
+        out.append(line)
+    return "\n".join(out) + "\n"
+
+
 def format_attributes(attributes: Mapping[str, Any]) -> str:
     """Serialise an attribute dict into the column-9 string for a
     GFF3 row. Order and encoding follow NCBI canonical rules."""

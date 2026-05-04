@@ -1167,6 +1167,230 @@ class TestPropertyBasedAttributeRoundTrip:
                 )
 
 
+# ===========================================================================
+# Phase 15a — V5.7 directive preservation (DirectiveCarrier + writer prologue)
+# ===========================================================================
+
+class TestV5_7_DirectivePreservation:
+    def test_annotation_captures_directives(self, tmp_path):
+        """Annotation should collect every '##' / '#!' line from the
+        input GFF3 into its `directives` attribute."""
+        from lifton import annotation
+
+        gff = tmp_path / "with_directives.gff3"
+        gff.write_text(
+            "##gff-version 3\n"
+            "##sequence-region chr1 1 1000000\n"
+            "##species https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?id=9606\n"
+            "#!processor exampleTool 1.0\n"
+            "chr1\ttest\tgene\t100\t200\t.\t+\t.\tID=g1;gene_biotype=protein_coding\n"
+        )
+        ann = annotation.Annotation(
+            str(gff), infer_genes=False, infer_transcripts=False,
+        )
+        # All 4 directive-like lines must be captured, in input order.
+        assert hasattr(ann, "directives"), \
+            "Annotation should expose a `directives` attribute."
+        assert ann.directives[0] == "##gff-version 3"
+        assert any("sequence-region chr1" in d for d in ann.directives)
+        assert any("species" in d for d in ann.directives)
+        assert any("#!processor" in d for d in ann.directives)
+
+    def test_format_directives_serialises_block(self):
+        """gff3_writer.format_directives joins directives with newlines
+        and ends with a single trailing newline."""
+        from lifton.io import gff3_writer
+
+        block = gff3_writer.format_directives([
+            "##gff-version 3",
+            "##sequence-region chr1 1 1000000",
+        ])
+        assert block.startswith("##gff-version 3\n")
+        assert "##sequence-region chr1 1 1000000\n" in block
+        assert block.endswith("\n")
+
+    def test_format_directives_handles_empty(self):
+        from lifton.io import gff3_writer
+        # Empty list → emit only the mandatory gff-version directive.
+        block = gff3_writer.format_directives([])
+        assert block == "##gff-version 3\n"
+
+    def test_format_directives_dedups_gff_version(self):
+        """If the input already has '##gff-version 3', don't emit it twice."""
+        from lifton.io import gff3_writer
+        block = gff3_writer.format_directives([
+            "##gff-version 3",
+            "##gff-version 3",  # accidental duplicate
+            "##species foo",
+        ])
+        assert block.count("##gff-version 3\n") == 1
+
+
+# ===========================================================================
+# Phase 15b — RefSeqProvider via FASTA (lazy mmap, V3.1)
+# ===========================================================================
+
+class TestV3_1_LazyRefSeqProvider:
+    def test_extract_features_to_fasta_writes_files(self, tmp_path,
+                                                    gff_standard,
+                                                    fasta_standard):
+        """The streaming variant of extract_features writes FASTA files
+        directly without materialising the in-memory dict."""
+        import gffutils
+        from lifton import extract_sequence
+
+        db = gffutils.create_db(
+            str(gff_standard), ":memory:", force=True, keep_order=True,
+            merge_strategy="create_unique", sort_attribute_values=True,
+        )
+
+        class _RefDBWrapper:
+            def __init__(self, d):
+                self.db_connection = d
+        ref_db = _RefDBWrapper(db)
+
+        import pyfaidx
+        fa = pyfaidx.Fasta(str(fasta_standard))
+
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        trans_path, prot_path = extract_sequence.extract_features_to_fasta(
+            ref_db, ["mRNA"], fa, str(out_dir),
+        )
+        # Both files must exist and be non-empty.
+        assert Path(trans_path).exists() and Path(trans_path).stat().st_size > 0
+        assert Path(prot_path).exists() and Path(prot_path).stat().st_size > 0
+        # Re-opening via pyfaidx must yield the expected transcript ID.
+        prot_fa = pyfaidx.Fasta(prot_path)
+        assert "tx1" in prot_fa.keys()
+        assert str(prot_fa["tx1"]).startswith("M")
+
+    def test_streaming_path_matches_dict_path(self, tmp_path,
+                                              gff_standard,
+                                              fasta_standard):
+        """Streaming-to-FASTA must produce the same protein bytes as
+        the legacy dict-building path."""
+        import gffutils
+        from lifton import extract_sequence
+
+        db = gffutils.create_db(
+            str(gff_standard), ":memory:", force=True, keep_order=True,
+            merge_strategy="create_unique", sort_attribute_values=True,
+        )
+        class _RefDBWrapper:
+            def __init__(self, d): self.db_connection = d
+        ref_db = _RefDBWrapper(db)
+
+        import pyfaidx
+        fa = pyfaidx.Fasta(str(fasta_standard))
+        # Legacy path
+        ref_trans_dict, ref_proteins_dict = \
+            extract_sequence.extract_features(ref_db, ["mRNA"], fa)
+        # Streaming path
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+        trans_path, prot_path = extract_sequence.extract_features_to_fasta(
+            ref_db, ["mRNA"], fa, str(out_dir),
+        )
+        prot_fa = pyfaidx.Fasta(prot_path)
+        for tid, dict_seq in ref_proteins_dict.items():
+            assert str(prot_fa[tid]) == dict_seq, (
+                f"Protein {tid} differs between dict and streaming path"
+            )
+
+
+# ===========================================================================
+# Phase 15c — Streaming Popen (bounded chunked read instead of communicate)
+# ===========================================================================
+
+class TestV3_10_StreamingPopen:
+    def test_drain_stream_collects_full_output(self, tmp_path):
+        """The new helper drains a Popen's stdout in bounded chunks
+        and returns the same bytes as `proc.communicate()` would."""
+        import subprocess
+        from lifton.run_miniprot import _drain_stream_chunks
+
+        # Use a deterministic shell command that prints multiple lines.
+        proc = subprocess.Popen(
+            ["python", "-c", "import sys; sys.stdout.write('A' * 100000)"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes, rc = _drain_stream_chunks(
+            proc, chunk_size=4096,
+        )
+        assert rc == 0
+        assert len(stdout_bytes) == 100000
+        assert stdout_bytes == b"A" * 100000
+
+
+# ===========================================================================
+# Phase 15d — Bounded ordered-writer heap (disk spill)
+# ===========================================================================
+
+class TestPhase15d_BoundedHeap:
+    def test_in_order_emission_unchanged_under_bounded_heap(self, tmp_path):
+        """When max_pending is set, the writer still emits results in
+        submission-index order — the spill/restore is invisible to the
+        consumer."""
+        from lifton.parallel import _OrderedWriter
+        from lifton.locus_pipeline import LocusResult
+
+        emitted = []
+
+        def fake_consume(result, fw, stats):
+            emitted.append(result.index)
+            return True
+
+        writer = _OrderedWriter(
+            spill_dir=str(tmp_path / "spill"),
+            max_pending=2,   # very small to force spill
+            consume_fn=fake_consume,
+            fw=None,
+            stats={},
+        )
+        # Push results out-of-order: 3, 1, 0, 2, 4
+        for idx in [3, 1, 0, 2, 4]:
+            r = LocusResult(index=idx, locus_id=f"g{idx}",
+                            lifton_gene=object())
+            writer.offer(r)
+        writer.drain()
+        assert emitted == [0, 1, 2, 3, 4], (
+            f"out-of-order writer broke determinism: {emitted}"
+        )
+
+    def test_spill_actually_happens_when_threshold_exceeded(self, tmp_path):
+        """When > max_pending results buffer, the writer writes to disk."""
+        from lifton.parallel import _OrderedWriter
+        from lifton.locus_pipeline import LocusResult
+
+        spill_dir = tmp_path / "spill"
+
+        def fake_consume(result, fw, stats):
+            return True
+
+        writer = _OrderedWriter(
+            spill_dir=str(spill_dir),
+            max_pending=1,
+            consume_fn=fake_consume,
+            fw=None,
+            stats={},
+        )
+        # Push 5 results out-of-order so multiple have to spill.
+        for idx in [4, 3, 2, 1, 0]:
+            writer.offer(LocusResult(
+                index=idx, locus_id=f"g{idx}", lifton_gene=object(),
+            ))
+        # At least one spill file should have been created during the run
+        # (it'll be cleaned up during drain). Track via the writer's
+        # stat counter.
+        assert writer.spill_count >= 1, (
+            f"bounded heap did not spill any entries; spill_count="
+            f"{writer.spill_count}"
+        )
+        writer.drain()
+
+
 class TestPropertyBasedCoordinateInvariant:
     """For any random valid coordinate range, format_feature either
     succeeds with 9-column output, OR raises LiftOnInputError. Never

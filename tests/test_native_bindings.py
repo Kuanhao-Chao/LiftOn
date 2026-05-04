@@ -257,18 +257,28 @@ class TestMiniprotFacadeStreamingParity:
         # Patch `subprocess.Popen` for BOTH callers with the same
         # canned stdout, then verify the bytes captured by each
         # path are identical.
-        proc = mock.MagicMock()
-        proc.communicate.return_value = (_FAKE_GFF_BLOB, b"")
-        proc.returncode = 0
+        # The mock must satisfy BOTH the legacy `.communicate()` contract
+        # used by MiniprotIndex AND the Phase 15c `.stdout.read()` /
+        # `.stderr.read()` / `.wait()` contract used by run_miniprot's
+        # streaming branch.
+        from io import BytesIO
+        def _make_proc():
+            p = mock.MagicMock()
+            p.communicate.return_value = (_FAKE_GFF_BLOB, b"")
+            p.returncode = 0
+            p.wait.return_value = 0
+            p.stdout = BytesIO(_FAKE_GFF_BLOB)
+            p.stderr = BytesIO(b"")
+            return p
         # Patch the streaming-run path's subprocess
         with mock.patch.object(run_miniprot.subprocess, "Popen",
-                               return_value=proc):
+                               return_value=_make_proc()):
             args = SimpleNamespace(mp_options="", stream=True, miniprot=None)
             stream_bytes = run_miniprot.run_miniprot(
                 "/tmp/", args, "tgt.fa", "rp.fa",
             )
         # Patch the facade's subprocess
-        with mock.patch.object(subprocess, "Popen", return_value=proc):
+        with mock.patch.object(subprocess, "Popen", return_value=_make_proc()):
             idx = MiniprotIndex("tgt.fa", ref_proteins_path="rp.fa")
             idx.align_all()
             facade_bytes = idx.raw_bytes

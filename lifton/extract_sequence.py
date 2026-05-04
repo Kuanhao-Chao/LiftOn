@@ -83,6 +83,75 @@ def extract_features(ref_db, features, ref_fai):
     return ref_trans, ref_proteins
 
 
+# ---------------------------------------------------------------------------
+# Phase 15b — streaming extractor. Writes FASTA records as it goes,
+# never materialising the full {id: seq} dict. Caller re-opens the
+# resulting files via pyfaidx.Fasta for lazy mmap-style access.
+# RAM ceiling: ~one feature at a time (mid-100s of bytes).
+# ---------------------------------------------------------------------------
+
+import os as _os
+
+
+def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
+    """Streaming alternative to :func:`extract_features`.
+
+    Writes ``transcripts.fa`` and ``proteins.fa`` under ``out_dir`` as
+    each reference feature's sequence is computed; nothing is held in
+    Python dict form. Returns the two file paths so callers can hand
+    them straight to ``pyfaidx.Fasta(path)``.
+
+    The byte content of each FASTA record is identical to the legacy
+    path's ``write_seq_2_file`` output (same record header, same
+    in-order traversal, same uppercased sequence + N-padding) so
+    downstream identity scores do not drift.
+    """
+    _os.makedirs(out_dir, exist_ok=True)
+    trans_path = _os.path.join(out_dir, "transcripts.fa")
+    prot_path = _os.path.join(out_dir, "proteins.fa")
+    counter = 0
+    with open(trans_path, "w") as ft, open(prot_path, "w") as fp:
+        for feature in features:
+            for locus in ref_db.db_connection.features_of_type(feature):
+                counter += 1
+                _stream_inner(ref_db, locus, ref_fai, ft, fp)
+    print(f"Extracted features (streaming) for {counter} features")
+    return trans_path, prot_path
+
+
+def _stream_inner(ref_db, feature, ref_fai, ft, fp):
+    children_exons = list(ref_db.db_connection.children(
+        feature, featuretype='exon', level=1))
+    children_CDSs = list(ref_db.db_connection.children(
+        feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))
+    if len(children_exons) > 0 or len(children_CDSs) > 0:
+        if len(children_exons) > 0:
+            try:
+                trans_seq = get_dna_sequence(feature, ref_fai, children_exons)
+                if trans_seq:
+                    trans_seq = trans_seq.upper()
+                    ft.write(f">{feature.id}\n{trans_seq}\n")
+            except Exception as e:
+                logger.log_warning(
+                    f"extract_features_to_fasta: transcript {feature.id}: {e}"
+                )
+        if len(children_CDSs) > 0:
+            try:
+                protein_seq = get_protein_sequence(
+                    feature, ref_fai, children_CDSs)
+                if protein_seq:
+                    protein_seq = protein_seq.upper()
+                    fp.write(f">{feature.id}\n{protein_seq}\n")
+            except Exception as e:
+                logger.log_warning(
+                    f"extract_features_to_fasta: protein {feature.id}: {e}"
+                )
+    else:
+        for child in ref_db.db_connection.children(
+                feature, level=1, order_by='start'):
+            _stream_inner(ref_db, child, ref_fai, ft, fp)
+
+
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
     # If exon is the first level children
     children_exons = list(ref_db.db_connection.children(feature, featuretype='exon', level=1))

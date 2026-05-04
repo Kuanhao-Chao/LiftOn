@@ -340,9 +340,16 @@ def run_all_lifton_steps(args):
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
         logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
         logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
-        ref_trans, ref_proteins = extract_sequence.extract_features(ref_db, features, ref_fai)
-        ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_proteins, "proteins")
-        ref_trans_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_trans, "transcripts")
+        # Phase 15b (V3.1) — streaming extractor writes FASTA directly,
+        # no in-memory dict materialisation. Then re-open via pyfaidx
+        # so downstream consumers see the same lazy mmap-backed
+        # interface as the user-supplied -P / -T branch below.
+        ref_trans_file, ref_proteins_file = \
+            extract_sequence.extract_features_to_fasta(
+                ref_db, features, ref_fai, intermediate_dir,
+            )
+        ref_trans = Fasta(ref_trans_file)
+        ref_proteins = Fasta(ref_proteins_file)
     else:
         logger.log(">> Reading transcript DNA dictionary from the reference fasta ...", debug=True)
         logger.log(">> Reading transcript protein dictionary from the reference fasta ...", debug=True)
@@ -426,6 +433,14 @@ def run_all_lifton_steps(args):
         )
         m_feature_db = None
     fw = open(args.output, "w")
+    # Phase 15a (V5.7) — emit directive prologue BEFORE any feature row.
+    # Single source of truth: lifton.io.gff3_writer.format_directives.
+    # Runs on the parent thread before any worker exists, so no
+    # interleaving risk and no I/O lock needed.
+    from lifton.io import gff3_writer as _gff3_writer
+    fw.write(_gff3_writer.format_directives(
+        getattr(ref_db, "directives", []) or []
+    ))
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
     fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")
     fw_extra_copy = open(f"{stats_dir}/extra_copy_features.txt", "w")

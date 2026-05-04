@@ -3,6 +3,54 @@ import subprocess, os, sys, copy
 from intervaltree import Interval, IntervalTree
 
 
+def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
+    """Phase 15c (V3.10) — drain a Popen's stdout/stderr in bounded
+    chunks instead of `proc.communicate()`.
+
+    `communicate()` allocates `bytes(stdout)` + `bytes(stderr)` and
+    holds both simultaneously; for a multi-GB miniprot run that's an
+    8-figure peak-RSS pathology. Chunked reads keep peak buffer at
+    `chunk_size` per stream until both are drained, after which we
+    `b"".join()` once. The final bytes object is unavoidable because
+    gffbase.create_db(from_string=True) needs the full blob — but we
+    avoid the doubled-allocation interim.
+
+    Returns ``(stdout_bytes, stderr_bytes, returncode)``.
+    """
+    import threading
+
+    stdout_chunks: list[bytes] = []
+    stderr_chunks: list[bytes] = []
+
+    def _drain(stream, sink):
+        if stream is None:
+            return
+        try:
+            while True:
+                buf = stream.read(chunk_size)
+                if not buf:
+                    return
+                sink.append(buf)
+        finally:
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+    t_out = threading.Thread(
+        target=_drain, args=(proc.stdout, stdout_chunks), daemon=True,
+    )
+    t_err = threading.Thread(
+        target=_drain, args=(proc.stderr, stderr_chunks), daemon=True,
+    )
+    t_out.start()
+    t_err.start()
+    rc = proc.wait()
+    t_out.join()
+    t_err.join()
+    return b"".join(stdout_chunks), b"".join(stderr_chunks), rc
+
+
 def check_miniprot_installed():
     """
         This function checks if miniprot is installed.
@@ -109,17 +157,20 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
                       file=sys.stderr)
                 return None
         elif stream_mode:
-            # ── Streaming branch: stdout -> RAM ───────────────────────────
+            # ── Streaming branch: stdout -> RAM, bounded-chunk drain ──────
+            # Phase 15c: replace proc.communicate() with chunked drain
+            # so peak RAM is bounded by chunk_size per stream during
+            # collection, not by 2× the full output.
             proc = subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 bufsize=1 << 20,
             )
-            stdout_bytes, stderr_bytes = proc.communicate()
+            stdout_bytes, stderr_bytes, return_code = \
+                _drain_stream_chunks(proc, chunk_size=1 << 16)
             stderr_text = stderr_bytes.decode("utf-8", errors="replace") \
                 if stderr_bytes else ""
-            return_code = proc.returncode
             output_size = len(stdout_bytes) if stdout_bytes else 0
         else:
             # ── Legacy file-write branch (Phase 5 baseline behaviour) ─────
