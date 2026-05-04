@@ -142,6 +142,50 @@ def args_optional(parser):
         '--validate-verbose', required=False, action='store_true', default=False,
         help='When --validate-output is set, also print warnings (not just errors)'
     )
+    parser.add_argument(
+        '--strict-gff', dest='strict_gff', action='store_true', default=False,
+        help='Run the NCBI GFF3 input-side validator on the reference '
+             'annotation and exit non-zero on any spec violation '
+             '(missing ##gff-version 3, start>end, negative coords, '
+             'unencoded reserved chars, dangling Parent, etc.).'
+    )
+    parser.add_argument(
+        '--stream', dest='stream', action='store_true', default=False,
+        help='Phase 7 streaming-adapter fast path: pipe miniprot stdout '
+             'directly into an in-memory gffbase FeatureDB instead of '
+             'writing miniprot.gff3 to disk. Eliminates the SQLite '
+             're-ingest of miniprot output. Output GFF3 is byte-identical '
+             'to the default path; this flag changes I/O, not algorithms.'
+    )
+    parser.add_argument(
+        '--inmemory-liftoff', dest='inmemory_liftoff', action='store_true',
+        default=False,
+        help='Phase 8 in-memory Liftoff fast path: serialise Liftoff\'s '
+             'lifted_feature_list to bytes inside the parent process and '
+             'feed it straight to gffbase, skipping the liftoff.gff3 disk '
+             'write and SQLite re-ingest. Output GFF3 is byte-identical '
+             'to the default path; this flag changes I/O, not algorithms.'
+    )
+    parser.add_argument(
+        '--locus-pipeline', dest='locus_pipeline', action='store_true',
+        default=False,
+        help='Phase 9 locus-major fan-out: dispatch Step 7 (per-Liftoff-'
+             'gene processing) through a ThreadPoolExecutor sized by '
+             '--threads. Output is emitted in submission order so '
+             '--threads N is byte-identical to --threads 1; this flag '
+             'changes scheduling, not algorithms.'
+    )
+    parser.add_argument(
+        '--native', dest='native', action='store_true', default=False,
+        help='Phase 10 native bindings: drive minimap2 alignment '
+             'through `mappy` (real PyO3 binding) and miniprot through '
+             'the pyminiprot-shaped facade (subprocess today, swappable '
+             'for a real PyO3 binding when it ships). Eliminates '
+             'subprocess fork+exec overhead per query. Output GFF3 is '
+             'byte-identical to the subprocess path; this flag changes '
+             'how alignments are produced, not which alignments. '
+             'Falls back gracefully when mappy is not installed.'
+    )
 
 
 def parse_args(arglist):
@@ -260,6 +304,20 @@ def run_all_lifton_steps(args):
 
     t2 = time.process_time()
     ################################
+    # Phase 5 bug fix #6: NCBI GFF3 validation gate
+    ################################
+    from lifton.io.gff3_validator import GFF3Validator
+    target_seqids = set(tgt_fai.keys()) | set(ref_fai.keys())
+    findings = GFF3Validator(
+        target_seqids=target_seqids,
+        strict=getattr(args, "strict_gff", False),
+    ).validate(args.reference_annotation)
+    for f in findings:
+        logger.log(str(f), debug=True)
+    if getattr(args, "strict_gff", False) and any(
+            f.severity == "error" for f in findings):
+        sys.exit(2)
+    ################################
     # Step 1: Building database from the reference annotation
     ################################
     logger.log("\n>> Creating reference annotation database : ", args.reference_annotation, debug=True)
@@ -282,9 +340,16 @@ def run_all_lifton_steps(args):
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
         logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
         logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
-        ref_trans, ref_proteins = extract_sequence.extract_features(ref_db, features, ref_fai)
-        ref_proteins_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_proteins, "proteins")
-        ref_trans_file = lifton_utils.write_seq_2_file(intermediate_dir, ref_trans, "transcripts")
+        # Phase 15b (V3.1) — streaming extractor writes FASTA directly,
+        # no in-memory dict materialisation. Then re-open via pyfaidx
+        # so downstream consumers see the same lazy mmap-backed
+        # interface as the user-supplied -P / -T branch below.
+        ref_trans_file, ref_proteins_file = \
+            extract_sequence.extract_features_to_fasta(
+                ref_db, features, ref_fai, intermediate_dir,
+            )
+        ref_trans = Fasta(ref_trans_file)
+        ref_proteins = Fasta(ref_proteins_file)
     else:
         logger.log(">> Reading transcript DNA dictionary from the reference fasta ...", debug=True)
         logger.log(">> Reading transcript protein dictionary from the reference fasta ...", debug=True)
@@ -368,6 +433,14 @@ def run_all_lifton_steps(args):
         )
         m_feature_db = None
     fw = open(args.output, "w")
+    # Phase 15a (V5.7) — emit directive prologue BEFORE any feature row.
+    # Single source of truth: lifton.io.gff3_writer.format_directives.
+    # Runs on the parent thread before any worker exists, so no
+    # interleaving risk and no I/O lock needed.
+    from lifton.io import gff3_writer as _gff3_writer
+    fw.write(_gff3_writer.format_directives(
+        getattr(ref_db, "directives", []) or []
+    ))
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
     fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")
     fw_extra_copy = open(f"{stats_dir}/extra_copy_features.txt", "w")
@@ -392,20 +465,36 @@ def run_all_lifton_steps(args):
     # Step 7: Process Liftoff genes & transcripts
     #     structure 1: gene -> transcript -> exon
     #     structure 2: transcript -> exon
+    #
+    # Phase 9: dispatch per-locus work either serially (default) or
+    # through a ThreadPoolExecutor with deterministic ordered-writer
+    # buffer. The legacy serial loop is preserved byte-for-byte so the
+    # default path cannot regress; the parallel path is opt-in via
+    # --locus-pipeline + --threads N and emits in submission order so
+    # output is byte-identical to --threads 1.
     ################################
-    for feature in features:
-        for locus in l_feature_db.features_of_type(feature):
-            try:
-                lifton_gene = run_liftoff.process_liftoff(None, locus, ref_db.db_connection, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=True)
-                if lifton_gene is None or lifton_gene.ref_gene_id is None:
-                    continue
-                lifton_gene.write_entry(fw,transcripts_stats_dict)
-            except Exception as e:
-                logger.log_error(f"Error during Liftoff gene output serialization ({locus.id}): {e}")
-                
-            if processed_features % 20 == 0:
-                sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
-            processed_features += 1
+    from lifton import parallel as _parallel
+    from lifton.locus_pipeline import StepContext as _StepContext
+    _ctx = _StepContext(
+        ref_db=ref_db.db_connection,
+        l_feature_db=l_feature_db,
+        m_feature_db=m_feature_db,
+        ref_id_2_m_id_trans_dict=ref_id_2_m_id_trans_dict,
+        tree_dict=tree_dict,
+        tgt_fai=tgt_fai,
+        ref_proteins=ref_proteins,
+        ref_trans=ref_trans,
+        ref_features_dict=ref_features_dict,
+        fw_score=fw_score,
+        fw_chain=fw_chain,
+        args=args,
+    )
+    _threads = int(getattr(args, "threads", 1) or 1)
+    _use_pool = bool(getattr(args, "locus_pipeline", False)) and _threads > 1
+    processed_features = _parallel.parallel_step7(
+        features, l_feature_db, _ctx, fw, transcripts_stats_dict,
+        threads=_threads if _use_pool else 1,
+    )
 
     t11 = time.process_time()
     ################################

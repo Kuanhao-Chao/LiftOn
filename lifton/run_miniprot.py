@@ -3,6 +3,54 @@ import subprocess, os, sys, copy
 from intervaltree import Interval, IntervalTree
 
 
+def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
+    """Phase 15c (V3.10) — drain a Popen's stdout/stderr in bounded
+    chunks instead of `proc.communicate()`.
+
+    `communicate()` allocates `bytes(stdout)` + `bytes(stderr)` and
+    holds both simultaneously; for a multi-GB miniprot run that's an
+    8-figure peak-RSS pathology. Chunked reads keep peak buffer at
+    `chunk_size` per stream until both are drained, after which we
+    `b"".join()` once. The final bytes object is unavoidable because
+    gffbase.create_db(from_string=True) needs the full blob — but we
+    avoid the doubled-allocation interim.
+
+    Returns ``(stdout_bytes, stderr_bytes, returncode)``.
+    """
+    import threading
+
+    stdout_chunks: list[bytes] = []
+    stderr_chunks: list[bytes] = []
+
+    def _drain(stream, sink):
+        if stream is None:
+            return
+        try:
+            while True:
+                buf = stream.read(chunk_size)
+                if not buf:
+                    return
+                sink.append(buf)
+        finally:
+            try:
+                stream.close()
+            except Exception:
+                pass
+
+    t_out = threading.Thread(
+        target=_drain, args=(proc.stdout, stdout_chunks), daemon=True,
+    )
+    t_err = threading.Thread(
+        target=_drain, args=(proc.stderr, stderr_chunks), daemon=True,
+    )
+    t_out.start()
+    t_err.start()
+    rc = proc.wait()
+    t_out.join()
+    t_err.join()
+    return b"".join(stdout_chunks), b"".join(stderr_chunks), rc
+
+
 def check_miniprot_installed():
     """
         This function checks if miniprot is installed.
@@ -16,28 +64,45 @@ def check_miniprot_installed():
     miniprot_path = "miniprot"
     command = [miniprot_path, "--version"]
     installed = False
+    # V1.1b fix: narrow the bare `except:` so a real environmental failure
+    # (MemoryError, OSError, KeyboardInterrupt) is not silently misreported
+    # as "miniprot is not installed". Only the things that genuinely mean
+    # "binary is missing or unrunnable" return False here.
     try:
-        res = subprocess.run(command)
+        subprocess.run(command)
         installed = True
-    except: 
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            subprocess.SubprocessError):
         pass
     return installed
 
 
 def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     """
-    Run miniprot and return the output GFF3 path, or None if miniprot fails.
+    Run miniprot and return the GFF3 result.
 
-    Failure is detected in three ways:
+    Two return shapes are supported, controlled by ``args.stream``:
+
+    * ``args.stream`` is False (default): write the GFF3 to disk at
+      ``<outdir>/miniprot/miniprot.gff3`` and return the **path**.
+      This is the legacy Phase 5 contract — preserved byte-for-byte.
+
+    * ``args.stream`` is True: pipe miniprot's stdout straight into
+      RAM via ``Popen.communicate()`` and return the **bytes blob**.
+      No disk write. Phase 7 streaming-adapter fast path.
+
+    Failure modes (any of them returns ``None`` so the pipeline
+    continues with Liftoff-only results):
       1. Non-zero exit code from miniprot.
       2. miniprot prints "ERROR" to stderr (exit 0 + error is a known miniprot quirk).
-      3. Output file is absent or empty.
+      3. Output is absent or empty.
 
     Parameters
     ----------
     outdir : str
         Output directory for intermediate files.
     args : argparse.Namespace
+        Must carry ``mp_options``; may carry ``stream`` (default False).
     tgt_genome : str
         Path to target genome FASTA.
     ref_proteins_file : str
@@ -45,8 +110,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
 
     Returns
     -------
-    str | None
-        Path to the miniprot GFF3 output file, or None on failure.
+    str | bytes | None
+        Path to the miniprot GFF3 output file, an in-memory bytes
+        blob when streaming, or None on failure.
     """
     miniprot_outdir = outdir + "miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
@@ -58,23 +124,76 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         + [opt for opt in args.mp_options.split(" ") if opt]
     )
     print("miniprot: ", " ".join(command))
+
+    stream_mode = bool(getattr(args, "stream", False))
+    native_mode = bool(getattr(args, "native", False))
     try:
-        with open(miniprot_output, "w") as fw:
-            proc = subprocess.run(
+        if stream_mode and native_mode:
+            # ── Phase 11 native + streaming path: route through the
+            # MiniprotIndex facade. Today the facade still uses the
+            # subprocess underneath, so the bytes are byte-identical
+            # to the streaming branch (verified by
+            # tests/test_native_bindings.py::TestMiniprotFacadeStreamingParity).
+            # When a real `pyminiprot` PyO3 binding lands the facade
+            # will route through it transparently — no caller change.
+            from lifton.native_bindings import MiniprotIndex
+            try:
+                idx = MiniprotIndex(
+                    tgt_genome,
+                    mp_options=args.mp_options,
+                    miniprot_path=miniprot_path,
+                    ref_proteins_path=ref_proteins_file,
+                )
+                bundle = idx.align_all()
+                stdout_bytes = bundle.raw_bytes
+                stderr_text = ""
+                return_code = 0
+                output_size = len(stdout_bytes)
+            except RuntimeError as exc:
+                # The facade re-raises miniprot's own ERROR / non-zero
+                # exit conditions; surface them through the same code
+                # path as the legacy branches so logging stays uniform.
+                print(f"\n[LiftOn] miniprot (native facade) failed: {exc}",
+                      file=sys.stderr)
+                return None
+        elif stream_mode:
+            # ── Streaming branch: stdout -> RAM, bounded-chunk drain ──────
+            # Phase 15c: replace proc.communicate() with chunked drain
+            # so peak RAM is bounded by chunk_size per stream during
+            # collection, not by 2× the full output.
+            proc = subprocess.Popen(
                 command,
-                stdout=fw,
-                stderr=subprocess.PIPE,  # capture stderr so we can scan it
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                bufsize=1 << 20,
             )
+            stdout_bytes, stderr_bytes, return_code = \
+                _drain_stream_chunks(proc, chunk_size=1 << 16)
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace") \
+                if stderr_bytes else ""
+            output_size = len(stdout_bytes) if stdout_bytes else 0
+        else:
+            # ── Legacy file-write branch (Phase 5 baseline behaviour) ─────
+            with open(miniprot_output, "w") as fw:
+                proc = subprocess.run(
+                    command,
+                    stdout=fw,
+                    stderr=subprocess.PIPE,  # capture stderr so we can scan it
+                    text=True,
+                )
+            stderr_text = proc.stderr or ""
+            return_code = proc.returncode
+            output_size = (os.path.getsize(miniprot_output)
+                           if os.path.exists(miniprot_output) else 0)
 
         # Print stderr so the user sees miniprot's own log lines
-        if proc.stderr:
-            print(proc.stderr, end="", file=sys.stderr)
+        if stderr_text:
+            print(stderr_text, end="", file=sys.stderr)
 
         # ── Failure mode 1: non-zero exit code ────────────────────────────
-        if proc.returncode != 0:
+        if return_code != 0:
             print(
-                f"\n[LiftOn] miniprot exited with code {proc.returncode}. "
+                f"\n[LiftOn] miniprot exited with code {return_code}. "
                 "Miniprot output will be skipped — LiftOn will continue "
                 "using Liftoff results only.",
                 file=sys.stderr,
@@ -82,10 +201,7 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             return None
 
         # ── Failure mode 2: miniprot printed ERROR on stderr ─────────────
-        # miniprot sometimes exits 0 but prints "ERROR during mapping" to
-        # stderr and produces an empty GFF3 (e.g. when the input FASTA has
-        # no valid amino-acid sequences).
-        if proc.stderr and "ERROR" in proc.stderr.upper():
+        if stderr_text and "ERROR" in stderr_text.upper():
             print(
                 "\n[LiftOn] miniprot reported an ERROR during mapping "
                 "(exit code 0 but ERROR seen in output). "
@@ -95,10 +211,10 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             )
             return None
 
-        # ── Failure mode 3: output file is absent or empty ───────────────
-        if not os.path.exists(miniprot_output) or os.path.getsize(miniprot_output) == 0:
+        # ── Failure mode 3: output is absent or empty ─────────────────────
+        if output_size == 0:
             print(
-                "\n[LiftOn] miniprot produced an empty output file. "
+                "\n[LiftOn] miniprot produced an empty output. "
                 "Miniprot results will be skipped — LiftOn will continue "
                 "using Liftoff results only.",
                 file=sys.stderr,
@@ -113,6 +229,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             file=sys.stderr,
         )
         return None
+
+    if stream_mode:
+        return stdout_bytes
 
     return miniprot_output
 

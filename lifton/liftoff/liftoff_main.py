@@ -8,6 +8,61 @@ def main(arglist=None):
 
 
 def run_all_liftoff_steps(args, ref_db):
+    """Phase 5 baseline path. Runs every Liftoff stage AND writes the
+    final GFF3 to ``args.output`` via ``write_new_gff.write_new_gff``.
+
+    Phase 8 added a sibling :func:`run_all_liftoff_steps_inmemory`
+    that performs the same pipeline but skips the final
+    ``write_new_gff`` so callers can serialise in RAM. This wrapper
+    delegates to the in-memory variant and then performs the disk
+    write so the legacy callers see byte-identical output.
+    """
+    lifted_feature_list, feature_db, ref_parent_order, unmapped_features = \
+        _run_liftoff_pipeline(args, ref_db, polish_intermediate_write=True)
+    # Final on-disk emission — preserves the Phase 5 byte-for-byte contract.
+    write_new_gff.write_new_gff(lifted_feature_list, args, feature_db)
+
+
+def run_all_liftoff_steps_inmemory(args, ref_db):
+    """Phase 8 in-memory entrypoint.
+
+    Runs the entire Liftoff pipeline (alignment → lifting →
+    unmapped recovery → unplaced mapping → extra-copy mapping →
+    optional CDS polishing) but **does not** write the final GFF3
+    to ``args.output``. Returns the four artefacts the parent
+    process needs to serialise in RAM:
+
+    Returns
+    -------
+    lifted_feature_list : dict
+        ``{copy_id: [list of lifted child Feature objects]}`` —
+        the same dict that the legacy entrypoint hands to
+        ``write_new_gff.write_new_gff``.
+    feature_db : gffutils.FeatureDB
+        Liftoff's reference DB; carries the ``dialect`` used by
+        the GFF3 emitter to choose ``gff3`` vs ``gtf`` output type.
+    ref_parent_order : list
+        Order of reference parent features. Preserved for
+        downstream callers that need stable iteration.
+    unmapped_features : list
+        Unmapped feature objects (the file-write of
+        ``args.u`` already happened inside the pipeline so the
+        caller does not need to do anything with this).
+
+    The returned ``lifted_feature_list`` is byte-equivalent to what
+    the legacy path would have written; pair it with
+    :func:`lifton.liftoff.inmemory_emitter.lifted_features_to_gff3_bytes`
+    to produce the GFF3 blob.
+    """
+    return _run_liftoff_pipeline(args, ref_db, polish_intermediate_write=False)
+
+
+def _run_liftoff_pipeline(args, ref_db, *, polish_intermediate_write: bool):
+    """Shared body used by both run_all_liftoff_steps and
+    run_all_liftoff_steps_inmemory. ``polish_intermediate_write``
+    controls whether the polish branch's intermediate
+    ``write_new_gff`` call still fires (legacy callers need it; the
+    in-memory caller serialises on its own afterwards)."""
     if args.chroms is not None:
         ref_chroms, target_chroms = parse_chrm_files(args.chroms)
     else:
@@ -16,30 +71,41 @@ def run_all_liftoff_steps(args, ref_db):
     parent_features_to_lift = get_parent_features_to_lift(args.features)
     lifted_feature_list = {}
     unmapped_features = []
-    feature_db, feature_hierarchy, ref_parent_order = liftover_types.lift_original_annotation(ref_chroms, target_chroms,
-                                                                                              lifted_feature_list, args,
-                                                                                              unmapped_features,
-                                                                                              parent_features_to_lift, ref_db)
+    feature_db, feature_hierarchy, ref_parent_order = liftover_types.lift_original_annotation(
+        ref_chroms, target_chroms,
+        lifted_feature_list, args,
+        unmapped_features,
+        parent_features_to_lift, ref_db,
+    )
 
-    unmapped_features = map_unmapped_features(unmapped_features, target_chroms, lifted_feature_list, feature_db,
-                                              feature_hierarchy, ref_parent_order, args)
-    map_features_from_unplaced_seq(unmapped_features, lifted_feature_list, feature_db, feature_hierarchy,
-                                   ref_parent_order, args)
+    unmapped_features = map_unmapped_features(
+        unmapped_features, target_chroms, lifted_feature_list, feature_db,
+        feature_hierarchy, ref_parent_order, args,
+    )
+    map_features_from_unplaced_seq(
+        unmapped_features, lifted_feature_list, feature_db, feature_hierarchy,
+        ref_parent_order, args,
+    )
     write_unmapped_features_file(args.u, unmapped_features)
     map_extra_copies(args, lifted_feature_list, feature_hierarchy, feature_db, ref_parent_order)
 
     if args.cds and args.polish is False:
         check_cds(lifted_feature_list, feature_hierarchy, args)
     if args.polish:
-         print("polishing annotations")
-         check_cds(lifted_feature_list, feature_hierarchy, args)
-         write_new_gff.write_new_gff(lifted_feature_list, args, feature_db)
-         find_and_polish_broken_cds(args, lifted_feature_list,feature_hierarchy, ref_chroms,
-                                                          target_chroms,
-                               unmapped_features, feature_db, ref_parent_order)
-         if args.output != 'stdout':
-             args.output += "_polished"
-    write_new_gff.write_new_gff(lifted_feature_list, args, feature_db)
+        print("polishing annotations")
+        check_cds(lifted_feature_list, feature_hierarchy, args)
+        if polish_intermediate_write:
+            # Legacy callers need the pre-polish GFF3 written so the
+            # polish step has something to consume from disk.
+            write_new_gff.write_new_gff(lifted_feature_list, args, feature_db)
+        find_and_polish_broken_cds(
+            args, lifted_feature_list, feature_hierarchy, ref_chroms,
+            target_chroms,
+            unmapped_features, feature_db, ref_parent_order,
+        )
+        if args.output != 'stdout':
+            args.output += "_polished"
+    return lifted_feature_list, feature_db, ref_parent_order, unmapped_features
 
 
 

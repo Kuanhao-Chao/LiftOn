@@ -10,7 +10,17 @@ setuptools.setup(
 	author_email="kh.chao@cs.jhu.edu",
 	description="Combining DNA and protein alignments to improve genome annotation with LiftOn",
 	url="https://github.com/Kuanhao-Chao/Lifton",
-	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "cigar>=0.1.3", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0', 'pytest>=7.0.0'],
+	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "cigar>=0.1.3", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0', 'pytest>=7.0.0',
+	# Phase 6.1 (vendored gffbase) runtime requirements:
+	'duckdb>=1.0', 'pyarrow>=14'],
+	include_package_data=True,
+	package_data={
+		# Ship the vendored gffbase Rust extension and its bundled fixtures.
+		'lifton.gffbase': ['_native*.so', '_native*.pyd', 'data/*.gff3', 'data/*.gtf', 'LICENSE'],
+		'lifton.gffbase._pyfallback': ['*.py'],
+		'lifton.gffbase._rust': ['Cargo.toml', 'Cargo.lock'],
+		'lifton.gffbase._rust.src': ['*.rs'],
+	},
 	python_requires='>=3.6',
 	packages=setuptools.find_packages(),
 	entry_points={'console_scripts': [

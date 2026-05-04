@@ -13,6 +13,7 @@ import sys
 import os
 import subprocess
 from collections import defaultdict
+from typing import Optional
 import re
 
 from lifton import extract_sequence, logger
@@ -22,6 +23,7 @@ from lifton.annotation_validator import (
     print_db_build_error,
     print_db_build_success,
 )
+from lifton.exceptions import LiftOnInputError
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +43,7 @@ class Annotation:
 
     def __init__(
         self,
-        file_name: str,
+        source,
         infer_genes: bool,
         infer_transcripts: bool,
         merge_strategy: str = "create_unique",
@@ -49,13 +51,60 @@ class Annotation:
         force: bool = False,
         verbose: bool = False,
         auto_convert_gtf: bool = True,
+        *,
+        backend: "Optional[str]" = None,
     ):
-        self.file_name      = file_name
+        # ── Phase 7: polymorphic on input type ────────────────────────────────
+        # ``source`` may be either a filesystem path (str/PathLike) OR an
+        # in-memory GFF3 blob (bytes/bytearray). The blob path is the
+        # streaming-adapter fast path used by run_miniprot when --stream is
+        # on; it requires backend="gffbase". The path branch keeps the
+        # legacy gffutils default unchanged.
+        from lifton import gffbase_adapter as _adapter
+        self._is_blob = isinstance(source, (bytes, bytearray)) or \
+                        _adapter.looks_like_gff3_blob(source)
+        if self._is_blob and not isinstance(source, (bytes, bytearray)):
+            # str-shaped GFF3 blob — coerce to bytes for uniform handling
+            source = source.encode("utf-8")
+
+        self.backend = self._resolve_backend(backend, is_blob=self._is_blob)
+        if self._is_blob and self.backend != "gffbase":
+            raise ValueError(
+                "In-memory GFF3 blob input requires backend='gffbase'; "
+                "the legacy gffutils backend can only accept a file path."
+            )
+
+        # File-name slot retained for the path branch + diagnostics in the
+        # blob branch (synthesised lazily).
+        if self._is_blob:
+            self.file_name = "<in-memory blob>"
+        else:
+            self.file_name  = source
         self.merge_strategy = merge_strategy
         self.id_spec        = id_spec
         self.force          = force
         self.verbose        = verbose
         self.auto_convert_gtf = auto_convert_gtf
+        # Phase 15a (V5.7) — capture every `##` / `#!` directive in
+        # input order so the writer can preserve them.
+        self.directives: list[str] = []
+        if not self._is_blob:
+            self._capture_directives(self.file_name)
+
+        # ── Blob branch — build an in-memory FeatureDB and stop ───────────────
+        if self._is_blob:
+            self.infer_genes       = infer_genes
+            self.infer_transcripts = infer_transcripts
+            self._db_connection = _adapter.build_database_from_string(
+                gff_text=source,
+                infer_genes=infer_genes,
+                infer_transcripts=infer_transcripts,
+                merge_strategy=merge_strategy,
+                id_spec=id_spec,
+                force=True,
+                verbose=verbose,
+            )
+            return
 
         # ── 0. Check if the file is already a gffutils database ───────────────
         if os.path.exists(self.file_name) and os.path.getsize(self.file_name) > 0:
@@ -72,11 +121,11 @@ class Annotation:
         file_format = self._detect_file_format()
 
         if file_format == "GTF format":
-            self._handle_gtf_input(file_name, infer_genes, infer_transcripts)
+            self._handle_gtf_input(self.file_name, infer_genes, infer_transcripts)
         elif file_format == "Unknown format":
             if self.verbose:
                 logger.log_warning(
-                    f"Could not determine file format for {file_name!r}. "
+                    f"Could not determine file format for {self.file_name!r}. "
                     "Assuming GFF3."
                 )
             self.infer_genes        = infer_genes
@@ -92,6 +141,26 @@ class Annotation:
         # ── 3. Build gffutils database ────────────────────────────────────────
         self._get_db_connection()
 
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Phase 7: backend selection
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _resolve_backend(explicit: Optional[str], *, is_blob: bool) -> str:
+        """Select between gffutils (legacy SQLite) and gffbase
+        (DuckDB-backed). Priority: explicit kwarg > env var > default.
+
+        For an in-memory blob we always need gffbase — gffutils has no
+        path that ingests from a string.
+        """
+        if explicit in ("gffutils", "gffbase"):
+            return explicit
+        if is_blob:
+            return "gffbase"
+        if os.environ.get("LIFTON_USE_GFFBASE"):
+            return "gffbase"
+        return "gffutils"
 
     # ─────────────────────────────────────────────────────────────────────────
     # Public property
@@ -145,10 +214,18 @@ class Annotation:
                         "Using original GTF."
                     )
             else:
-                if self.verbose:
-                    logger.log_warning(
-                        "GTF→GFF3 conversion produced no output. Using original GTF."
-                    )
+                # V1.9 fix: when the user explicitly requests
+                # auto-conversion AND every conversion strategy failed,
+                # surface the failure as LiftOnInputError instead of
+                # silently using the (likely unparseable) raw GTF and
+                # blowing up 5 minutes later inside gffutils.
+                raise LiftOnInputError(
+                    "GTF→GFF3 auto-conversion failed: neither gffread "
+                    "nor agat produced a valid GFF3 output for the "
+                    "input GTF. Either install one of these tools, "
+                    "pre-convert the file, or pass "
+                    "`auto_convert_gtf=False` to use the GTF directly."
+                )
         else:
             self.infer_genes       = infer_genes
             self.infer_transcripts = infer_transcripts
@@ -206,9 +283,29 @@ class Annotation:
 
     def _get_db_connection(self):
         """
-        Try to open an existing gffutils DB; if that fails, build one.
+        Try to open an existing FeatureDB; if that fails, build one.
         Sets self._db_connection.
+
+        Backend dispatch (Phase 7+9): when self.backend == "gffbase",
+        route through the gffbase_adapter (DuckDB-backed; thread-safe).
+        Otherwise use the legacy gffutils 3-strategy path.
         """
+        if self.backend == "gffbase":
+            from lifton import gffbase_adapter as _adapter
+            db = _adapter.open_existing_db(self.file_name)
+            if db is None:
+                db = _adapter.build_database(
+                    file_name=self.file_name,
+                    infer_genes=self.infer_genes,
+                    infer_transcripts=self.infer_transcripts,
+                    merge_strategy=self.merge_strategy,
+                    id_spec=self.id_spec,
+                    force=True,
+                    verbose=self.verbose,
+                )
+            self._db_connection = db
+            return
+
         db_path = self.file_name + "_db"
         try:
             feature_db = gffutils.FeatureDB(db_path)
@@ -230,6 +327,11 @@ class Annotation:
         """
         disable_genes       = not self.infer_genes
         disable_transcripts = not self.infer_transcripts
+
+        # V5.3: pre-scan the input for duplicate ID rows so we can WARN
+        # the user before gffutils silently auto-renames them. The scan
+        # is O(n) — single pass, regex-free.
+        self._warn_on_duplicate_ids(self.file_name)
 
         # ── Strategy 1: user's chosen merge_strategy ─────────────────────────
         print(
@@ -592,6 +694,65 @@ class Annotation:
             # (i.e. during __init__ before _get_db_connection is called).
             raise AttributeError(name)
         raise AttributeError(f"'Annotation' object has no attribute {name!r}")
+
+    def _capture_directives(self, path: str) -> None:
+        """Phase 15a — pre-scan ``path`` for GFF3 directives (`##` and
+        `#!`) and store them on ``self.directives`` in input order so
+        the output writer can preserve them. Cheap O(n) single-pass
+        scan; stops at the first non-comment line for files where the
+        directives are exclusively in the header (the common case).
+        """
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    line = raw.rstrip("\r\n")
+                    if not line:
+                        continue
+                    if line.startswith("##") or line.startswith("#!"):
+                        self.directives.append(line)
+                        continue
+                    if line.startswith("#"):
+                        # Bare comment — not a directive; keep scanning.
+                        continue
+                    # First non-comment data line — header is over.
+                    return
+        except OSError:
+            return
+
+    def _warn_on_duplicate_ids(self, path: str) -> None:
+        """V5.3: surface duplicate ``ID=`` rows BEFORE gffutils
+        silently auto-renames them via `create_unique`. The user gets
+        an actionable warning naming the offending IDs."""
+        seen: dict[str, int] = {}
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    if not raw or raw.startswith("#"):
+                        continue
+                    cols = raw.rstrip("\r\n").split("\t")
+                    if len(cols) != 9:
+                        continue
+                    attrs = cols[8]
+                    # Cheap ID extraction — no full parser needed.
+                    for pair in attrs.split(";"):
+                        if pair.startswith("ID="):
+                            ident = pair[3:]
+                            seen[ident] = seen.get(ident, 0) + 1
+                            break
+        except OSError:
+            return
+        dups = sorted(k for k, v in seen.items() if v > 1)
+        if dups:
+            preview = ", ".join(dups[:5])
+            more = f" (+{len(dups) - 5} more)" if len(dups) > 5 else ""
+            logger.log_warning(
+                f"Duplicate ID rows detected in {path}: {preview}{more}. "
+                "gffutils will auto-rename collisions using "
+                "`create_unique` (suffixed _1, _2, …); downstream "
+                "lookups against the original IDs may miss the renamed "
+                "rows. To preserve all rows, ensure each feature has a "
+                "unique ID upstream."
+            )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

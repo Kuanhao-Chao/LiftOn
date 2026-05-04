@@ -10,6 +10,21 @@ from os import path
 
 
 def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy, liftover_type, unmapped_features):
+    # Phase 11 native path: when `args.native` is True (and the caller
+    # is not the polish subcommand which still needs a real SAM file),
+    # dispatch through the in-process mappy binding instead of
+    # spawning per-chromosome minimap2 subprocesses. The legacy
+    # subprocess path is preserved as the default and as the fallback
+    # when mappy is unavailable.
+    if (
+        getattr(args, "native", False)
+        and getattr(args, "subcommand", None) != "polish"
+    ):
+        from lifton.liftoff import native_align as _na
+        return _na.align_features_to_target_native(
+            ref_chroms, target_chroms, args,
+            feature_hierarchy, liftover_type, unmapped_features,
+        )
     if args.subcommand == "polish":
         sam_files = [args.directory + "/polish.sam"]
     else:

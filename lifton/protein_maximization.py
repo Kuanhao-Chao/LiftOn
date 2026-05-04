@@ -95,6 +95,18 @@ def process_m_l_children(
     m_identity = m_matches / m_length if m_length > 0 else 0.0
     l_identity = l_matches / l_length if l_length > 0 else 0.0
 
+    # V2.5 fix: when both tools score zero identity on this chunk
+    # neither one actually contributed reliable CDS bytes — labelling
+    # the chain as `liftoff[0.00-0.00]` falsely attributes provenance
+    # to Liftoff. Use an explicit `empty[...]` label so the chain log
+    # tells the truth. (Only triggers when both identities are 0.0,
+    # which is the audit-flagged ambiguous case.)
+    if m_identity == 0.0 and l_identity == 0.0:
+        chains.append(
+            f"empty[{l_aa_start:.2f}-{l_aa_end:.2f}]"
+        )
+        return []
+
     if m_identity > l_identity:
         cds_ls = create_lifton_entries(
             m_c_idx, m_c_idx_last, m_lifton_aln,
