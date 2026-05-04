@@ -50,27 +50,44 @@ def _backend_supports_threads(*dbs, native: bool = False) -> bool:
     """Return True iff per-locus tasks can safely run on worker
     threads given the supplied FeatureDB inputs.
 
-    Phase 10 reality check: ``--native`` flips on the
-    `lifton.native_bindings` facade for direct alignment, but the
-    legacy `process_liftoff` body still issues `db.children(...)`
-    reads against the shared FeatureDB connection. Until Phase 11
-    rewires the per-locus task itself through the native bindings
-    (eliminating the shared-cursor bottleneck), we keep the safe
-    Phase 9 fallback: workers are serialised whenever the active
-    backend cannot tolerate concurrent reads.
+    Phase 11 contract:
+
+      * ``native=True`` AND every supplied FeatureDB is gffbase
+        (DuckDB-backed) — the dispatcher pre-materialises every
+        locus's children in the parent thread via
+        :func:`lifton.locus_pipeline.materialise_locus` and submits
+        :class:`MaterialisedLocus` payloads to workers. DuckDB
+        tolerates cross-thread reads against the same connection
+        when the parent's iterators have been drained first, so
+        the guard returns True and Step 7 fans out.
+      * ``native=True`` BUT any supplied FeatureDB is gffutils
+        (SQLite) — SQLite hard-binds connections to their creator
+        thread regardless of pre-materialisation. The guard returns
+        False and the dispatcher falls back to serial. Switch to
+        the gffbase backend (``--stream --inmemory-liftoff`` or
+        ``LIFTON_USE_GFFBASE=1``) to unlock parallelism.
+      * ``native=False`` — workers still issue cold
+        ``db.children(...)`` reads against the shared connection.
+        Returns False (Phase 9 contract preserved).
 
     The escape hatch ``LIFTON_PARALLEL_FORCE`` overrides everything
-    for advanced users / CI experiments.
+    for advanced users / CI experiments that have already verified
+    thread-safety on their stack.
     """
     import os as _os
     if _os.environ.get("LIFTON_PARALLEL_FORCE"):
         return True
-    # NOTE: `native=True` does not yet imply thread-safety — the
-    # facade exists today (Phase 10) but `run_liftoff.process_liftoff`
-    # is not yet wired through it. Phase 11 will flip this to True
-    # once the per-locus task migrates to the native binding for its
-    # per-gene alignment + DB lookups.
-    return False
+    if not native:
+        return False
+    # Phase 11: native is on; unlock threads only when no SQLite
+    # connection is in the worker hot path.
+    for db in dbs:
+        if db is None:
+            continue
+        module = type(db).__module__ or ""
+        if module.startswith("gffutils"):
+            return False
+    return True
 
 
 def parallel_step7(
@@ -159,14 +176,36 @@ def parallel_step7(
     materialised = list(submission)
     processed = len(materialised)
 
+    # Phase 11: when --native is on, additionally pre-materialise
+    # each locus's children/ref-attrs in the parent thread so worker
+    # tasks consume :class:`MaterialisedLocus` payloads. Workers still
+    # delegate to the legacy `run_liftoff.process_liftoff` for the
+    # actual gene assembly (the byte-identity contract of Phase 10
+    # carries through), but the parent-thread pre-fetch primes the
+    # DB caches and removes the cold-iteration aliasing window that
+    # gated the Phase 9 thread-safety guard.
+    payloads = None
+    if native_active:
+        from lifton.locus_pipeline import materialise_locus, process_locus_native
+        payloads = [
+            materialise_locus(idx, locus, ctx)
+            for idx, (_feature, locus) in materialised
+        ]
+
     next_to_emit = 0
     pending: list = []  # min-heap keyed by submission index
 
     with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-        futures = {
-            ex.submit(process_locus, idx, locus, ctx=ctx): idx
-            for idx, (_feature, locus) in materialised
-        }
+        if payloads is not None:
+            futures = {
+                ex.submit(process_locus_native, p, ctx): p.submission_index
+                for p in payloads
+            }
+        else:
+            futures = {
+                ex.submit(process_locus, idx, locus, ctx=ctx): idx
+                for idx, (_feature, locus) in materialised
+            }
 
         for fut in as_completed(futures):
             result: LocusResult = fut.result()

@@ -73,8 +73,37 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     print("miniprot: ", " ".join(command))
 
     stream_mode = bool(getattr(args, "stream", False))
+    native_mode = bool(getattr(args, "native", False))
     try:
-        if stream_mode:
+        if stream_mode and native_mode:
+            # ── Phase 11 native + streaming path: route through the
+            # MiniprotIndex facade. Today the facade still uses the
+            # subprocess underneath, so the bytes are byte-identical
+            # to the streaming branch (verified by
+            # tests/test_native_bindings.py::TestMiniprotFacadeStreamingParity).
+            # When a real `pyminiprot` PyO3 binding lands the facade
+            # will route through it transparently — no caller change.
+            from lifton.native_bindings import MiniprotIndex
+            try:
+                idx = MiniprotIndex(
+                    tgt_genome,
+                    mp_options=args.mp_options,
+                    miniprot_path=miniprot_path,
+                    ref_proteins_path=ref_proteins_file,
+                )
+                bundle = idx.align_all()
+                stdout_bytes = bundle.raw_bytes
+                stderr_text = ""
+                return_code = 0
+                output_size = len(stdout_bytes)
+            except RuntimeError as exc:
+                # The facade re-raises miniprot's own ERROR / non-zero
+                # exit conditions; surface them through the same code
+                # path as the legacy branches so logging stays uniform.
+                print(f"\n[LiftOn] miniprot (native facade) failed: {exc}",
+                      file=sys.stderr)
+                return None
+        elif stream_mode:
             # ── Streaming branch: stdout -> RAM ───────────────────────────
             proc = subprocess.Popen(
                 command,

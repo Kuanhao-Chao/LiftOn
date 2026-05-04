@@ -304,15 +304,31 @@ class TestNativeCLI:
 # ---------------------------------------------------------------------------
 
 class TestThreadSafetyGuardWithNative:
-    def test_guard_returns_false_for_native_phase_10(self, monkeypatch):
-        """Phase 10 honest contract: --native ships the FACADE and
-        the architecture, but `process_liftoff` is not yet rewired
-        through it. Until Phase 11 migrates the per-locus task
-        itself, threading remains gated. The guard returns False
-        unless LIFTON_PARALLEL_FORCE=1 is set."""
+    def test_guard_returns_true_for_native_phase_11_no_dbs(self, monkeypatch):
+        """Phase 11 contract: with no FeatureDB inputs (i.e. nothing
+        SQLite-bound to fail), --native unlocks thread safety."""
         monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
         from lifton.parallel import _backend_supports_threads
-        assert _backend_supports_threads(native=True) is False
+        assert _backend_supports_threads(native=True) is True
+
+    def test_guard_returns_false_when_gffutils_in_workers(self, monkeypatch):
+        """Phase 11 honest contract: SQLite (gffutils) cannot tolerate
+        cross-thread access regardless of pre-materialisation. The
+        guard refuses to fan out when any input DB is gffutils."""
+        monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        # Define a class whose __module__ starts with "gffutils".
+        FakeSqlite = type("FakeSqliteDB", (), {})
+        FakeSqlite.__module__ = "gffutils.interface"
+        from lifton.parallel import _backend_supports_threads
+        assert _backend_supports_threads(FakeSqlite(), native=True) is False
+
+    def test_guard_returns_true_when_only_gffbase(self, monkeypatch):
+        """Phase 11: gffbase (DuckDB) with --native unlocks threads."""
+        monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        FakeGffbase = type("FakeGffbaseDB", (), {})
+        FakeGffbase.__module__ = "lifton.gffbase.interface"
+        from lifton.parallel import _backend_supports_threads
+        assert _backend_supports_threads(FakeGffbase(), native=True) is True
 
     def test_guard_returns_false_when_native_inactive(self, monkeypatch):
         monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
@@ -324,10 +340,12 @@ class TestThreadSafetyGuardWithNative:
         from lifton.parallel import _backend_supports_threads
         assert _backend_supports_threads(native=False) is True
 
-    def test_force_env_var_overrides_native_true(self, monkeypatch):
+    def test_force_env_var_overrides_gffutils_block(self, monkeypatch):
         monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")
+        FakeSqlite = type("FakeSqliteDB", (), {})
+        FakeSqlite.__module__ = "gffutils.interface"
         from lifton.parallel import _backend_supports_threads
-        assert _backend_supports_threads(native=True) is True
+        assert _backend_supports_threads(FakeSqlite(), native=True) is True
 
 
 # ---------------------------------------------------------------------------
@@ -335,13 +353,12 @@ class TestThreadSafetyGuardWithNative:
 # ---------------------------------------------------------------------------
 
 class TestParallelStep7WithNative:
-    """Phase 10 honest contract: --native does NOT unlock parallel
-    by itself — the per-locus task is still subprocess + shared-DB.
-    The user must additionally set LIFTON_PARALLEL_FORCE=1 to
-    override the safety guard. Phase 11 will rewire the per-locus
-    task through the native bindings and remove that requirement."""
+    """Phase 11 contract: with --native AND a thread-safe backend
+    (FakeDB modules NOT starting with ``gffutils``), the dispatcher
+    really creates a ThreadPoolExecutor and per-locus tasks run
+    concurrently. SQLite-backed gffutils still falls back."""
 
-    def test_native_alone_falls_back_to_serial(self, monkeypatch):
+    def test_native_unlocks_pool_for_safe_backend(self, monkeypatch):
         from lifton import parallel, run_liftoff, locus_pipeline
         monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
         from concurrent.futures import ThreadPoolExecutor as _real_TPE
@@ -357,7 +374,9 @@ class TestParallelStep7WithNative:
         loci = [SimpleNamespace(id=f"l_{i}", _idx=i) for i in range(4)]
 
         class FakeDB:
+            __module__ = "lifton.gffbase.interface"  # gffbase-shaped
             def features_of_type(self, ft): yield from loci
+            def children(self, *a, **kw): return iter([])
 
         def fake(*args, ENTRY_FEATURE=False, **kw):
             locus = args[1]
@@ -370,8 +389,9 @@ class TestParallelStep7WithNative:
 
         monkeypatch.setattr(run_liftoff, "process_liftoff", fake)
 
+        db = FakeDB()
         ctx = locus_pipeline.StepContext(
-            ref_db=mock.Mock(), l_feature_db=FakeDB(), m_feature_db=None,
+            ref_db=db, l_feature_db=db, m_feature_db=None,
             ref_id_2_m_id_trans_dict={}, tree_dict={},
             tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
             ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
@@ -380,13 +400,111 @@ class TestParallelStep7WithNative:
         fw = io.StringIO()
         stats = {"coding": {}, "non-coding": {}, "other": {}}
         n = parallel.parallel_step7(
-            ["gene"], FakeDB(), ctx, fw, stats, threads=4,
+            ["gene"], db, ctx, fw, stats, threads=4,
         )
         assert n == 4
-        # No pool was created — the guard fell back to serial because
-        # `process_liftoff` is not yet rewired through the bindings.
+        # Pool WAS created — Phase 11 unlocks parallelism.
+        assert constructed["n"] == 1
+        # Output still deterministic via the ordered-writer.
+        assert fw.getvalue() == "0\n1\n2\n3\n"
+
+    def test_native_falls_back_on_sqlite_backend(self, monkeypatch):
+        """gffutils backend stays serial under --native because SQLite
+        connections cannot cross threads."""
+        from lifton import parallel, run_liftoff, locus_pipeline
+        monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        from concurrent.futures import ThreadPoolExecutor as _real_TPE
+        constructed = {"n": 0}
+
+        class TPESpy(_real_TPE):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
+        loci = [SimpleNamespace(id=f"l_{i}", _idx=i) for i in range(4)]
+
+        class FakeSqliteDB:
+            __module__ = "gffutils.interface"   # SQLite-shaped
+            def features_of_type(self, ft): yield from loci
+            def children(self, *a, **kw): return iter([])
+
+        def fake(*args, ENTRY_FEATURE=False, **kw):
+            locus = args[1]
+            gene = mock.MagicMock()
+            gene.ref_gene_id = "ok"
+            gene.write_entry.side_effect = (
+                lambda fw, stats: fw.write(f"{locus._idx}\n")
+            )
+            return gene
+
+        monkeypatch.setattr(run_liftoff, "process_liftoff", fake)
+
+        db = FakeSqliteDB()
+        ctx = locus_pipeline.StepContext(
+            ref_db=db, l_feature_db=db, m_feature_db=None,
+            ref_id_2_m_id_trans_dict={}, tree_dict={},
+            tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
+            ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
+            args=SimpleNamespace(native=True),
+        )
+        fw = io.StringIO()
+        stats = {"coding": {}, "non-coding": {}, "other": {}}
+        n = parallel.parallel_step7(
+            ["gene"], db, ctx, fw, stats, threads=4,
+        )
+        assert n == 4
+        # Pool NOT created — fell back to serial under SQLite guard.
         assert constructed["n"] == 0
-        # Output still deterministic (serial path).
+        assert fw.getvalue() == "0\n1\n2\n3\n"
+
+    def test_native_plus_force_unlocks_pool(self, monkeypatch):
+        """LIFTON_PARALLEL_FORCE=1 overrides the SQLite block too."""
+        monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")
+        from lifton import parallel, run_liftoff, locus_pipeline
+        from concurrent.futures import ThreadPoolExecutor as _real_TPE
+        constructed = {"n": 0}
+
+        class TPESpy(_real_TPE):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
+        loci = [SimpleNamespace(id=f"l_{i}", _idx=i) for i in range(4)]
+
+        class FakeDB:
+            def features_of_type(self, ft): yield from loci
+            def children(self, *a, **kw): return iter([])
+
+        def fake(*args, ENTRY_FEATURE=False, **kw):
+            locus = args[1]
+            gene = mock.MagicMock()
+            gene.ref_gene_id = "ok"
+            gene.write_entry.side_effect = (
+                lambda fw, stats: fw.write(f"{locus._idx}\n")
+            )
+            return gene
+
+        monkeypatch.setattr(run_liftoff, "process_liftoff", fake)
+
+        db = FakeDB()
+        ctx = locus_pipeline.StepContext(
+            ref_db=db, l_feature_db=db, m_feature_db=None,
+            ref_id_2_m_id_trans_dict={}, tree_dict={},
+            tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
+            ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
+            args=SimpleNamespace(native=True),
+        )
+        fw = io.StringIO()
+        stats = {"coding": {}, "non-coding": {}, "other": {}}
+        n = parallel.parallel_step7(
+            ["gene"], db, ctx, fw, stats, threads=4,
+        )
+        assert n == 4
+        assert constructed["n"] == 1
         assert fw.getvalue() == "0\n1\n2\n3\n"
 
     def test_native_plus_force_unlocks_pool(self, monkeypatch):

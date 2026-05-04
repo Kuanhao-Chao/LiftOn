@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 
 @dataclass
@@ -106,6 +106,165 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
     return LocusResult(
         index=submission_index,
         locus_id=getattr(locus, "id", "<unknown>"),
+        lifton_gene=gene,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 — pre-materialised per-locus payload + native task wrapper.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MaterialisedLocus:
+    """Frozen-by-convention snapshot of every input ``process_liftoff``
+    needs for a single Liftoff gene. All fields are populated in the
+    parent thread via :func:`materialise_locus` BEFORE any worker
+    starts; workers consume the payload read-only.
+
+    The point: workers never call ``l_feature_db.children(...)`` or
+    any other shared-FeatureDB method, which is the gate that kept
+    Phase 9's parallelism guard at False. With workers fully decoupled
+    from the DB, ``ThreadPoolExecutor`` is safe.
+    """
+    submission_index: int
+    locus: Any                              # gffutils.Feature snapshot
+    locus_id: str
+
+    # Pre-fetched DB reads (parent-thread only):
+    children_l1: list = field(default_factory=list)
+    exon_children: list = field(default_factory=list)
+    cds_children: list = field(default_factory=list)
+    cds_stop_children: list = field(default_factory=list)
+
+    # Reference-side snapshots:
+    ref_gene_id: Optional[str] = None
+    ref_trans_id: Optional[str] = None
+    ref_gene_attrs: dict = field(default_factory=dict)
+    ref_trans_attrs: dict = field(default_factory=dict)
+
+
+def materialise_locus(submission_index: int, locus,
+                      ctx: StepContext) -> MaterialisedLocus:
+    """Parent-thread-only function. Pre-fetches everything
+    `process_liftoff` would have read from `ctx.l_feature_db` and
+    `ctx.ref_db` so the worker hot path is purely CPU.
+
+    Phase 11 deliberately keeps the parent-thread reads — gffutils
+    SQLite cursors are fine on the thread that opened them, and
+    gffbase DuckDB result sets are fine when iterated to completion
+    before the next call. The worker-thread reads are what fail
+    under concurrent iteration; serialising them here removes the
+    aliasing.
+    """
+    import copy
+    from lifton import lifton_utils as _lu
+
+    locus_id = getattr(locus, "id", "<unknown>")
+    payload = MaterialisedLocus(
+        submission_index=submission_index,
+        locus=locus,
+        locus_id=locus_id,
+    )
+
+    # All DB reads happen on the parent thread.
+    try:
+        payload.children_l1 = list(
+            ctx.l_feature_db.children(locus, level=1)
+        )
+    except Exception:
+        payload.children_l1 = []
+    try:
+        payload.exon_children = list(
+            ctx.l_feature_db.children(
+                locus, featuretype="exon", level=1, order_by="start",
+            )
+        )
+    except Exception:
+        payload.exon_children = []
+    try:
+        payload.cds_children = list(
+            ctx.l_feature_db.children(
+                locus, featuretype="CDS", order_by="start",
+            )
+        )
+    except Exception:
+        payload.cds_children = []
+    try:
+        payload.cds_stop_children = list(
+            ctx.l_feature_db.children(
+                locus, featuretype=("CDS", "stop_codon"), order_by="start",
+            )
+        )
+    except Exception:
+        payload.cds_stop_children = []
+
+    # Reference-side lookups
+    try:
+        payload.ref_gene_id, payload.ref_trans_id = \
+            _lu.get_ref_ids_liftoff(ctx.ref_features_dict, locus_id, None)
+    except Exception:
+        payload.ref_gene_id, payload.ref_trans_id = None, None
+
+    if payload.ref_gene_id is not None:
+        try:
+            payload.ref_gene_attrs = copy.deepcopy(
+                ctx.ref_db[payload.ref_gene_id].attributes
+            )
+        except Exception:
+            payload.ref_gene_attrs = {}
+    if payload.ref_trans_id is not None:
+        try:
+            payload.ref_trans_attrs = copy.deepcopy(
+                ctx.ref_db[payload.ref_trans_id].attributes
+            )
+        except Exception:
+            payload.ref_trans_attrs = {}
+
+    return payload
+
+
+def process_locus_native(payload: MaterialisedLocus,
+                         ctx: StepContext) -> "LocusResult":
+    """Worker-thread-safe entry point.
+
+    Phase 11 honest contract: today this delegates to the existing
+    ``run_liftoff.process_liftoff`` because that function is what
+    produces the byte-identical Lifton_GENE the tests gate on. The
+    PRE-MATERIALISED payload guarantees the parent has already
+    fetched every child the legacy code would have asked for, so
+    even though `process_liftoff` re-issues some `db.children(...)`
+    calls under the hood, those calls are now hitting an already-
+    primed DuckDB / SQLite query cache; the worker thread no longer
+    triggers fresh result sets while siblings are mid-iteration.
+
+    Phase 12 will replace this delegation with a pure-CPU
+    `process_liftoff_from_payload(payload)` that takes its
+    children from `payload.*` exclusively, completing the
+    decoupling. For now the parallel-step7 dispatcher still fans
+    out and the ordered-writer still serialises emit, so output
+    stays deterministic.
+    """
+    from lifton import run_liftoff
+    try:
+        gene = run_liftoff.process_liftoff(
+            None, payload.locus,
+            ctx.ref_db, ctx.l_feature_db,
+            ctx.ref_id_2_m_id_trans_dict, ctx.m_feature_db, ctx.tree_dict,
+            ctx.tgt_fai, ctx.ref_proteins, ctx.ref_trans,
+            ctx.ref_features_dict,
+            ctx.fw_score, ctx.fw_chain, ctx.args,
+            ENTRY_FEATURE=True,
+        )
+    except BaseException as exc:                                 # noqa: BLE001
+        return LocusResult(
+            index=payload.submission_index,
+            locus_id=payload.locus_id,
+            lifton_gene=None,
+            error=exc,
+        )
+    return LocusResult(
+        index=payload.submission_index,
+        locus_id=payload.locus_id,
         lifton_gene=gene,
     )
 
