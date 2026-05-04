@@ -78,7 +78,11 @@ class Lifton_GENE:
             self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
         self.__update_gene_copy(ref_features_dict)
         self.entry.id = gene_id
-        gene_interval = Interval(self.entry.start, self.entry.end, self.entry.id)
+        # V2.8: route via _make_interval so single-base genes don't crash.
+        from lifton.intervals import _make_interval
+        gene_interval = _make_interval(
+            self.entry.start, self.entry.end, self.entry.id,
+        )
         if self.entry.seqid not in tree_dict.keys():
             tree_dict[self.entry.seqid] = IntervalTree()
         tree_dict[self.entry.seqid].add(gene_interval)
@@ -180,11 +184,9 @@ class Lifton_GENE:
 
     def write_entry(self, fw, transcripts_stats_dict):
         if not self.tmp:
+            from lifton.io import gff3_writer
             try:
-                # Sanitize attributes to avoid gffutils formatting crashes
-                for k, vlist in self.entry.attributes.items():
-                    self.entry.attributes[k] = [str(v) for v in vlist] if isinstance(vlist, list) else str(vlist)
-                fw.write(str(self.entry) + "\n")
+                fw.write(gff3_writer.format_feature(self.entry) + "\n")
             except Exception as e:
                 logger.log_error(f"Failed to write GENE entry {self.entry.id}: {e}")
 
@@ -247,13 +249,12 @@ class LiftOn_FEATURE:
         return Lifton_feature
 
     def write_entry(self, fw):
+        from lifton.io import gff3_writer
         try:
-            for k, vlist in self.entry.attributes.items():
-                self.entry.attributes[k] = [str(v) for v in vlist] if isinstance(vlist, list) else str(vlist)
-            fw.write(str(self.entry) + "\n")
+            fw.write(gff3_writer.format_feature(self.entry) + "\n")
         except Exception as e:
             logger.log_error(f"Failed to write FEATURE entry {self.entry.id}: {e}")
-            
+
         for key, feature in self.features.items():
             feature.write_entry(fw)
 
@@ -791,17 +792,14 @@ class Lifton_TRANS:
         return (3 - accum_cds_length%3)%3
 
     def write_entry(self, fw):
-        # V1.5 fix: narrow the exception, log clearly, and SKIP child
-        # writes when the parent transcript row failed to emit.
-        # Otherwise the consumer sees orphan exon / CDS rows whose
-        # Parent= transcript never landed — corrupt GFF3.
-        # KeyboardInterrupt / SystemExit propagate (they're BaseException).
+        # V1.5 + V5.4-V5.6 + V5.9: route through canonical writer that
+        # percent-encodes reserved chars, sorts attributes (ID, Parent,
+        # alphabetical), and validates start <= end. Skip child writes
+        # if the parent fails so we don't ship orphan-Parent rows.
+        from lifton.io import gff3_writer
         try:
-            for k, vlist in self.entry.attributes.items():
-                self.entry.attributes[k] = [str(v) for v in vlist] if isinstance(vlist, list) else str(vlist)
-            fw.write(str(self.entry) + "\n")
+            fw.write(gff3_writer.format_feature(self.entry) + "\n")
         except (OSError, ValueError, TypeError, AttributeError) as e:
-            # OSError covers BrokenPipeError + filesystem errors.
             logger.log_error(
                 f"Failed to write TRANSCRIPT entry {self.entry.id}: {e}"
             )
@@ -862,10 +860,10 @@ class Lifton_EXON:
         self.cds = Lifton_cds
 
     def write_entry(self, fw):
+        # Route through canonical writer (V5.4-V5.6, V5.9).
+        from lifton.io import gff3_writer
         try:
-            for k, vlist in self.entry.attributes.items():
-                self.entry.attributes[k] = [str(v) for v in vlist] if isinstance(vlist, list) else str(vlist)
-            fw.write(str(self.entry) + "\n")
+            fw.write(gff3_writer.format_feature(self.entry) + "\n")
         except Exception as e:
             logger.log_error(f"Failed to write EXON entry {self.entry.id}: {e}")
 
@@ -888,10 +886,10 @@ class Lifton_CDS:
         self.entry.end = end
 
     def write_entry(self, fw):
+        # Route through canonical writer (V5.4-V5.6, V5.9).
+        from lifton.io import gff3_writer
         try:
-            for k, vlist in self.entry.attributes.items():
-                self.entry.attributes[k] = [str(v) for v in vlist] if isinstance(vlist, list) else str(vlist)
-            fw.write(str(self.entry) + "\n")
+            fw.write(gff3_writer.format_feature(self.entry) + "\n")
         except Exception as e:
             logger.log_error(f"Failed to write CDS entry {self.entry.id}: {e}")
 

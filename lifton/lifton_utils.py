@@ -557,6 +557,12 @@ def segments_overlap_length(segment1, segment2):
     s1, e1 = segment1
     s2, e2 = segment2
     ovp_len = min(e1, e2) - max(s1, s2) + 1
+    # V2.9 fix: disjoint segments produced negative overlap, which
+    # callers treating the value as "bp shared" would silently divide
+    # by. Clamp to 0 so the returned tuple always has ovp_len >= 0
+    # AND ovp_len > 0 ⟺ ovp.
+    if ovp_len < 0:
+        ovp_len = 0
     ovp = ovp_len > 0
     return ovp_len, ovp
 

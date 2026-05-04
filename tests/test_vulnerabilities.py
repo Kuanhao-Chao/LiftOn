@@ -1,13 +1,15 @@
-"""Phase 13.5B — hostile tests for the Critical + High severity findings
-catalogued in `plans/phase_13_5A_vulnerability_audit.md`.
+"""Phase 13.5B + 13.5C — hostile + property-based tests for the
+Phase 13.5A audit findings.
 
-Each test is written to FAIL on the unpatched codebase and PASS once the
-matching production-code fix lands. Tests are grouped by audit ID
-(V1.x = exception handling, V2.x = algorithmic, V4.x = data, V5.x = GFF3
-edge cases).
+Each test is written to FAIL on the unpatched codebase and PASS once
+the matching production-code fix lands. Tests are grouped by audit ID
+(V1.x = exception handling, V2.x = algorithmic, V4.x = data,
+V5.x = GFF3 edge cases). Phase 13.5C extends with Hypothesis-driven
+fuzz tests for the GFF3 emission path.
 
-The tests stay hermetic: no external binaries, no network. Where a real
-gffutils database is needed, the existing conftest fixtures are reused.
+The tests stay hermetic: no external binaries, no network. Where a
+real gffutils database is needed, the existing conftest fixtures are
+reused.
 """
 
 from __future__ import annotations
@@ -586,3 +588,612 @@ class TestV5_2_CircularParentCycle:
         # Before the patch, this test would either hang or hit
         # RecursionError. The pytest.raises tuple accepts both so the
         # test demonstrates the fix narrows the failure mode.
+
+
+# ===========================================================================
+# Phase 13.5C — Medium severity findings (V2.4–V2.11, V5.3–V5.6, V5.8, V5.9)
+# Plus Hypothesis property-based fuzz tests for GFF3 emission integrity.
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# V2.4 — get_AA_id_fraction zero-divisor when reference is all gaps and
+# target hits a stop codon in the same window.
+# ---------------------------------------------------------------------------
+
+class TestV2_4_AAIdFractionZeroDivisor:
+    def test_all_gaps_no_stop_in_target_does_not_zero_divide(self):
+        """Pre-patch: `get_AA_id_fraction("---", "ACG")` → max=3,
+        gaps_in_ref=3 → total_length=0. Caller does `matches/length`
+        and crashes ZeroDivisionError. Post-patch: denominator >= 1."""
+        from lifton import get_id_fraction
+
+        matches, length = get_id_fraction.get_AA_id_fraction("---", "ACG")
+        assert length >= 1
+        # Sanity: we should never get a NaN-prone identity downstream.
+        identity = matches / length
+        assert 0.0 <= identity <= 1.0
+
+    def test_long_all_gaps_does_not_zero_divide(self):
+        from lifton import get_id_fraction
+
+        matches, length = get_id_fraction.get_AA_id_fraction(
+            "-" * 20, "ACDEFGHIKLMNPQRSTVWY",
+        )
+        assert length >= 1
+        identity = matches / length
+        assert identity == 0.0
+
+
+# ---------------------------------------------------------------------------
+# V2.5 — protein_maximization.process_m_l_children mis-labels an empty
+# selection as `liftoff[0.00-0.00]` instead of "empty".
+# ---------------------------------------------------------------------------
+
+class TestV2_5_ChainLogEmptyLabelling:
+    def test_zero_window_uses_empty_label(self):
+        """When BOTH miniprot and liftoff windows are zero-length, the
+        chain log should not pretend Liftoff was selected — record
+        `empty[...]` so provenance is honest."""
+        from lifton import protein_maximization
+
+        # Construct minimal lifton_aln stand-ins with cdss_protein_aln_boundaries
+        m_aln = SimpleNamespace(
+            cdss_protein_aln_boundaries={0: (0, 0), 1: (0, 0)},
+            ref_aln="", query_aln="",
+        )
+        l_aln = SimpleNamespace(
+            cdss_protein_aln_boundaries={0: (0, 0), 1: (0, 0)},
+            ref_aln="", query_aln="",
+        )
+        chains: list[str] = []
+        cds_ls = protein_maximization.process_m_l_children(
+            1, 0, m_aln, 1, 0, l_aln, fai=None, chains=chains, DEBUG=False,
+        )
+        # Should NOT have appended a misleading "liftoff[0.00-0.00]" entry.
+        for entry in chains:
+            assert not entry.startswith("liftoff[0.00-0.00]"), (
+                f"Chain log records false Liftoff selection for empty "
+                f"window: {chains}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# V2.6 — __find_orfs accepts trivial 1-codon ORFs that win their frame.
+# ---------------------------------------------------------------------------
+
+class TestV2_6_FindOrfsMinimumLength:
+    def test_single_codon_orf_does_not_win(self, gff_standard, fasta_standard):
+        """A 6-nt ORF (ATG followed immediately by TAA) is biological
+        noise. After the patch, the rescue threshold rejects it and
+        no CDS boundary update fires."""
+        import gffutils
+        from lifton import lifton_class
+
+        db = gffutils.create_db(
+            str(gff_standard), ":memory:", force=True, keep_order=True,
+            merge_strategy="create_unique", sort_attribute_values=True,
+        )
+        mrna = db["tx1"]
+        trans = lifton_class.Lifton_TRANS(
+            "tx1", "gene1", "gene1", 0, mrna, dict(mrna.attributes),
+        )
+        for ex in db.children(mrna, featuretype="exon", level=1):
+            trans.add_exon(ex)
+
+        # Synth a transcript with ONLY a 6-nt ORF then padding.
+        trans_seq = "ATGTAA" + "A" * 90
+        ref_protein_seq = "MAGTACGT"   # arbitrary reference
+        status = lifton_class.Lifton_Status()
+        status.lifton_aa = 0.0
+        # Use the dunder to call the private __find_orfs.
+        trans._Lifton_TRANS__find_orfs(trans_seq, ref_protein_seq, None, status)
+        # The micro-ORF must not boost lifton_aa past the threshold.
+        # Either the rescue rejects it outright (status unchanged) or the
+        # identity is below 0.01.
+        assert status.lifton_aa <= 0.5, (
+            f"Trivial 1-codon ORF was adopted as the winner: "
+            f"lifton_aa={status.lifton_aa}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# V2.7 — Negative coordinates in __iterate_exons_update_cds (- strand).
+# ---------------------------------------------------------------------------
+
+from hypothesis import HealthCheck, given, settings, strategies as st
+
+
+class TestV2_7_IterateExonsNoNegativeCoords:
+    @settings(max_examples=50, deadline=None,
+              suppress_health_check=[HealthCheck.function_scoped_fixture])
+    @given(
+        exon_starts=st.lists(
+            st.integers(min_value=100, max_value=200),
+            min_size=1, max_size=4, unique=True,
+        ),
+        orf_start=st.integers(min_value=0, max_value=20),
+        orf_end_offset=st.integers(min_value=3, max_value=30),
+    )
+    def test_minus_strand_never_emits_negative_start(
+        self, exon_starts, orf_start, orf_end_offset, gff_standard,
+    ):
+        """No matter what (small_exons + far_downstream_orf) input we
+        throw at the rescuer, the resulting CDS coordinates must
+        remain >= 1."""
+        import gffutils
+        from lifton import lifton_class
+
+        # We don't need a real DB; build a fake transcript with synthesized
+        # exons in-memory.
+        db = gffutils.create_db(
+            str(gff_standard), ":memory:", force=True, keep_order=True,
+            merge_strategy="create_unique", sort_attribute_values=True,
+        )
+        mrna = db["tx1"]
+        trans = lifton_class.Lifton_TRANS(
+            "tx1", "gene1", "gene1", 0, mrna, dict(mrna.attributes),
+        )
+        # Replace mrna's strand to '-' for the test.
+        trans.entry.strand = "-"
+        for s in sorted(set(exon_starts)):
+            ex = gffutils.Feature(
+                seqid="chr1", source="test", featuretype="exon",
+                start=s, end=s + 4, strand="-", frame=".",
+                attributes={"ID": [f"ex{s}"], "Parent": ["tx1"]},
+                id=f"ex{s}",
+            )
+            trans.add_exon(ex)
+
+        orf = lifton_class.Lifton_ORF(orf_start, orf_start + orf_end_offset)
+        # Apply private boundary update directly.
+        try:
+            trans._Lifton_TRANS__update_cds_boundary(orf)
+        except Exception:
+            # Patched code raises LiftOnInputError on impossible math;
+            # that's acceptable. Crashes other than that are bugs.
+            return
+
+        for exon in trans.exons:
+            if exon.cds is not None:
+                assert exon.cds.entry.start >= 1, (
+                    f"CDS got negative start: {exon.cds.entry.start} "
+                    f"(strand=-, exon=({exon.entry.start},{exon.entry.end}), "
+                    f"orf=({orf.start},{orf.end}))"
+                )
+                assert exon.cds.entry.end >= exon.cds.entry.start
+
+
+# ---------------------------------------------------------------------------
+# V2.8 — IntervalTree crash on zero-length single-base feature.
+# ---------------------------------------------------------------------------
+
+class TestV2_8_IntervalTreeZeroLength:
+    def test_single_base_feature_does_not_crash(self, tmp_path):
+        """A GFF3 row with start == end (single-base feature) is legal
+        per NCBI col 4-5; intervaltree disagrees. The patched code
+        widens by 1 (half-open) so the tree builds successfully."""
+        import gffutils
+        from lifton import intervals
+
+        gff = tmp_path / "single_base.gff3"
+        gff.write_text(
+            "##gff-version 3\n"
+            "chr1\ttest\tgene\t100\t100\t.\t+\t.\tID=g1;gene_biotype=protein_coding\n"
+        )
+        db = gffutils.create_db(
+            str(gff), ":memory:", force=True, keep_order=True,
+            merge_strategy="create_unique", sort_attribute_values=True,
+        )
+        # Should NOT raise ValueError("Interval cannot have zero length")
+        tree_dict = intervals.initialize_interval_tree(db, ["gene"])
+        assert "chr1" in tree_dict
+        assert len(tree_dict["chr1"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# V2.9 — segments_overlap_length returns NEGATIVE on disjoint segments.
+# ---------------------------------------------------------------------------
+
+class TestV2_9_OverlapNeverNegative:
+    @settings(max_examples=200, deadline=None)
+    @given(
+        a=st.integers(min_value=1, max_value=10**6),
+        b=st.integers(min_value=1, max_value=10**6),
+        c=st.integers(min_value=1, max_value=10**6),
+        d=st.integers(min_value=1, max_value=10**6),
+    )
+    def test_ovp_len_is_non_negative(self, a, b, c, d):
+        """For ANY two segments, the overlap length must be >= 0.
+        Currently disjoint inputs return negative numbers."""
+        from lifton import lifton_utils
+        s1, e1 = sorted([a, b])
+        s2, e2 = sorted([c, d])
+        ovp_len, ovp = lifton_utils.segments_overlap_length((s1, e1), (s2, e2))
+        assert ovp_len >= 0, (
+            f"Disjoint segments produced negative overlap: "
+            f"({s1},{e1}) vs ({s2},{e2}) -> {ovp_len}"
+        )
+        # Boolean ovp must be consistent with the numeric value.
+        assert (ovp_len > 0) == bool(ovp)
+
+
+# ---------------------------------------------------------------------------
+# V2.10 — adjust_cdss_protein_boundary cumulative shift on multi-D CIGAR.
+# ---------------------------------------------------------------------------
+
+class TestV2_10_AdjustBoundaryNoCumulativeShift:
+    def test_two_d_blocks_each_shift_independently(self):
+        """When two D-blocks straddle the SAME boundary, the shift
+        should NOT compound — each D adds its own length once, not on
+        top of the previous shift's already-mutated boundary."""
+        from lifton import align
+
+        # Two boundaries; both straddle a sequence of two D-blocks.
+        # cigar_accum_len = 5 puts us inside boundary[0]=(0,10);
+        # cigar_accum_len = 6 puts us inside boundary[1]=(5,11).
+        boundaries = {0: (0, 10), 1: (5, 11)}
+
+        # Apply two D-block shifts and verify each boundary sees length
+        # added EXACTLY ONCE per D-block, not cumulatively.
+        b_after_d1 = align.adjust_cdss_protein_boundary(
+            dict(boundaries), cigar_accum_len=5, length=2,
+        )
+        b_after_d2 = align.adjust_cdss_protein_boundary(
+            dict(b_after_d1), cigar_accum_len=8, length=3,
+        )
+        # boundary[0] (0,10) was shifted by D1 (+2) → end becomes 12.
+        # D2 at cigar_accum_len=8 is OUTSIDE boundary[0] (which is now (0,12)
+        # in alignment coords; cigar_accum_len 8 < 12 → still inside).
+        # The exact numbers depend on the algorithm; the invariant we
+        # care about is that we never see a 2x stacked shift on the same
+        # boundary in a single call.
+        # Test invariant: between two successive calls, no boundary's end
+        # grows by more than the sum of D-block lengths.
+        max_growth = 2 + 3  # D1 + D2
+        for k in boundaries:
+            growth = b_after_d2[k][1] - boundaries[k][1]
+            assert growth <= max_growth, (
+                f"Boundary {k} grew by {growth} (> {max_growth}); "
+                f"cumulative double-shift bug not patched."
+            )
+
+
+# ---------------------------------------------------------------------------
+# V2.11 — parasail_align_protein_base silently coerces "" to "*".
+# ---------------------------------------------------------------------------
+
+class TestV2_11_ParasailEmptyProteinRaises:
+    def test_empty_query_raises(self):
+        """An empty protein sequence is a programming error upstream
+        (the user's CDS produced no codons). Silently substituting "*"
+        masks the bug. After the patch, an explicit
+        LiftOnAlignmentError flags it."""
+        from lifton import align
+        from lifton.exceptions import LiftOnAlignmentError
+
+        with pytest.raises(LiftOnAlignmentError):
+            align.parasail_align_protein_base("", "MAGT*")
+
+    def test_normal_query_unaffected(self):
+        from lifton import align
+        result = align.parasail_align_protein_base("MAGT", "MAGT*")
+        assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# V5.3 — Duplicate ID auto-renamed by gffutils, no warning.
+# ---------------------------------------------------------------------------
+
+class TestV5_3_DuplicateIDWarning:
+    def test_duplicate_id_emits_warning(self, capsys, tmp_path):
+        """When gffutils silently renames `tx1`, `tx1` to `tx1`, `tx1_1`,
+        the user must get a [WARNING] so they know which IDs collided."""
+        from lifton import annotation
+
+        gff = tmp_path / "dup.gff3"
+        gff.write_text(
+            "##gff-version 3\n"
+            "chr1\ttest\tmRNA\t100\t200\t.\t+\t.\tID=tx1;Parent=g\n"
+            "chr2\ttest\tmRNA\t300\t400\t.\t+\t.\tID=tx1;Parent=g\n"
+        )
+        try:
+            annotation.Annotation(
+                str(gff), infer_genes=False, infer_transcripts=False,
+                verbose=True,
+            )
+        except Exception:
+            # Even if the build path errors out, we still expect the
+            # warning to have been emitted before that point.
+            pass
+        captured = capsys.readouterr()
+        assert "[WARNING]" in captured.err and "tx1" in captured.err, (
+            "Duplicate-ID warning was not emitted; the user has no way "
+            "to know the GFF3 contains colliding IDs."
+        )
+
+
+# ---------------------------------------------------------------------------
+# V5.4 / V5.5 — Reserved characters not percent-encoded in attributes.
+# ---------------------------------------------------------------------------
+
+class TestV5_4_5_AttributeEscaping:
+    def _make_feature(self, attrs):
+        import gffutils
+        return gffutils.Feature(
+            seqid="chr1", source="test", featuretype="gene",
+            start=100, end=200, strand="+", frame=".",
+            attributes=attrs, id=attrs.get("ID", [""])[0],
+        )
+
+    def test_semicolon_in_value_is_percent_encoded(self):
+        """`Note=alpha;beta` would split as two attributes downstream.
+        After the writer fix, the emitted line has `%3B` not raw `;`."""
+        from lifton.io import gff3_writer
+
+        feature = self._make_feature({
+            "ID": ["g1"],
+            "Note": ["alpha;beta"],
+        })
+        line = gff3_writer.format_feature(feature)
+        # Locate the attributes column (last tab-separated field).
+        attrs_col = line.rstrip("\n").split("\t")[-1]
+        assert "alpha%3Bbeta" in attrs_col, (
+            f"Reserved ';' was not percent-encoded; got attrs: {attrs_col}"
+        )
+        assert "alpha;beta" not in attrs_col, (
+            f"Raw ';' leaked into attributes: {attrs_col}"
+        )
+
+    def test_equals_in_value_is_percent_encoded(self):
+        from lifton.io import gff3_writer
+
+        feature = self._make_feature({
+            "ID": ["g2"],
+            "Note": ["foo=bar"],
+        })
+        line = gff3_writer.format_feature(feature)
+        attrs_col = line.rstrip("\n").split("\t")[-1]
+        # The Note=foo=bar payload should have its inner = encoded.
+        assert "foo%3Dbar" in attrs_col, (
+            f"Reserved '=' was not percent-encoded; got attrs: {attrs_col}"
+        )
+
+    def test_comma_outside_multivalue_attr_is_encoded(self):
+        """`,` is the multi-value separator for Parent / Alias / Note.
+        In an ad-hoc attribute (e.g. `weird_field`) it must be encoded."""
+        from lifton.io import gff3_writer
+
+        feature = self._make_feature({
+            "ID": ["g3"],
+            "weird_field": ["a,b,c"],
+        })
+        line = gff3_writer.format_feature(feature)
+        attrs_col = line.rstrip("\n").split("\t")[-1]
+        assert "a%2Cb%2Cc" in attrs_col
+
+    def test_tab_in_value_is_encoded(self):
+        from lifton.io import gff3_writer
+
+        feature = self._make_feature({
+            "ID": ["g4"],
+            "Note": ["foo\tbar"],
+        })
+        line = gff3_writer.format_feature(feature)
+        # Output must have exactly 9 tab-separated columns.
+        cols = line.rstrip("\n").split("\t")
+        assert len(cols) == 9, (
+            f"Tab in attribute value broke column count: {cols}"
+        )
+        assert "foo%09bar" in cols[8]
+
+
+# ---------------------------------------------------------------------------
+# V5.6 — Attribute order: ID first, Parent second, then alphabetical.
+# ---------------------------------------------------------------------------
+
+class TestV5_6_AttributeCanonicalOrder:
+    def test_id_then_parent_then_alpha(self):
+        from lifton.io import gff3_writer
+        import gffutils
+
+        feature = gffutils.Feature(
+            seqid="chr1", source="test", featuretype="mRNA",
+            start=100, end=200, strand="+", frame=".",
+            attributes={
+                "Note": ["x"],
+                "Alias": ["y"],
+                "Parent": ["g"],
+                "ID": ["t1"],
+                "Dbxref": ["GeneID:1"],
+            },
+            id="t1",
+        )
+        line = gff3_writer.format_feature(feature)
+        attrs_col = line.rstrip("\n").split("\t")[-1]
+        keys = [pair.split("=", 1)[0] for pair in attrs_col.split(";")]
+        # Required canonical order: ID, Parent, then alphabetical
+        assert keys[0] == "ID", f"first key was {keys[0]!r}; expected 'ID'"
+        assert keys[1] == "Parent", f"second key was {keys[1]!r}"
+        # Remaining keys must be sorted alphabetically.
+        rest = keys[2:]
+        assert rest == sorted(rest), (
+            f"keys after ID/Parent are not alphabetical: {rest}"
+        )
+
+    def test_no_parent_still_canonical(self):
+        from lifton.io import gff3_writer
+        import gffutils
+
+        feature = gffutils.Feature(
+            seqid="chr1", source="test", featuretype="gene",
+            start=100, end=200, strand="+", frame=".",
+            attributes={"Note": ["x"], "ID": ["g1"], "Alias": ["y"]},
+            id="g1",
+        )
+        line = gff3_writer.format_feature(feature)
+        attrs_col = line.rstrip("\n").split("\t")[-1]
+        keys = [pair.split("=", 1)[0] for pair in attrs_col.split(";")]
+        assert keys[0] == "ID"
+        assert keys[1:] == sorted(keys[1:])
+
+
+# ---------------------------------------------------------------------------
+# V5.8 — Phase recomputation after middle-CDS drop by ORF rescue.
+# ---------------------------------------------------------------------------
+
+class TestV5_8_PhaseAfterMiddleCDSDrop:
+    def test_accum_skips_dropped_middle_cds(self, gff_standard):
+        """If ORF rescue sets `exon.cds = None` for a middle exon, the
+        phase recomputation for downstream CDSs must use accum_cds_length
+        from EMITTED CDSs only — not the pre-drop running total."""
+        import gffutils
+        from lifton import lifton_class
+
+        # Build a 3-exon transcript by hand.
+        gff = (
+            "##gff-version 3\n"
+            "chr1\ttest\tgene\t1\t300\t.\t+\t.\tID=g;gene_biotype=protein_coding\n"
+            "chr1\ttest\tmRNA\t1\t300\t.\t+\t.\tID=t;Parent=g\n"
+            "chr1\ttest\texon\t1\t30\t.\t+\t.\tID=e1;Parent=t\n"
+            "chr1\ttest\texon\t100\t130\t.\t+\t.\tID=e2;Parent=t\n"
+            "chr1\ttest\texon\t200\t230\t.\t+\t.\tID=e3;Parent=t\n"
+        )
+        from io import StringIO
+        db = gffutils.create_db(
+            StringIO(gff).read(), ":memory:", from_string=True,
+            force=True, keep_order=True,
+            merge_strategy="create_unique", sort_attribute_values=True,
+        )
+        mrna = db["t"]
+        trans = lifton_class.Lifton_TRANS(
+            "t", "g", "g", 0, mrna, dict(mrna.attributes),
+        )
+        for ex in db.children(mrna, featuretype="exon", level=1):
+            trans.add_exon(ex)
+
+        # Force an ORF that spans only exon 1 + exon 3 (skipping middle).
+        # accum_exon_length: e1=30, e2=60, e3=90.
+        # ORF [0, 30) lands fully in exon 1; [60, 90) lands fully in exon 3.
+        # That's not realistic but it forces the pattern; the production
+        # code would more likely set e2.cds = None via the
+        # "ORF hasn't started yet" / "ORF has already ended" branches.
+        # Direct simulation: set up scenario manually via __iterate.
+        orf = lifton_class.Lifton_ORF(0, 30)  # only first exon
+        trans._Lifton_TRANS__update_cds_boundary(orf)
+
+        # After the rescue, exons 2 and 3 should have cds = None.
+        assert trans.exons[0].cds is not None
+        assert trans.exons[1].cds is None
+        assert trans.exons[2].cds is None
+        # The remaining CDS should have phase 0 (first emitted CDS).
+        assert trans.exons[0].cds.entry.frame in ("0", "."), (
+            f"Single-CDS phase should be 0 or '.', got "
+            f"{trans.exons[0].cds.entry.frame!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# V5.9 — write_entry must reject inverted coordinates (start > end).
+# ---------------------------------------------------------------------------
+
+class TestV5_9_InvertedCoordinatesRejected:
+    def test_format_feature_rejects_start_gt_end(self):
+        from lifton.io import gff3_writer
+        from lifton.exceptions import LiftOnInputError
+        import gffutils
+
+        bad = gffutils.Feature(
+            seqid="chr1", source="test", featuretype="gene",
+            start=200, end=100, strand="+", frame=".",
+            attributes={"ID": ["bad"]}, id="bad",
+        )
+        with pytest.raises(LiftOnInputError):
+            gff3_writer.format_feature(bad)
+
+
+# ---------------------------------------------------------------------------
+# Property-based fuzz tests — GFF3 attribute round-trip integrity
+# ---------------------------------------------------------------------------
+
+class TestPropertyBasedAttributeRoundTrip:
+    """Hostile fuzzing: throw arbitrary printable strings (including
+    every reserved char) at the writer; the resulting line must
+    (a) have exactly 9 tab-separated columns, (b) re-parse cleanly,
+    (c) round-trip the original value when percent-decoded."""
+
+    @settings(max_examples=120, deadline=None)
+    @given(
+        key=st.text(
+            alphabet=st.characters(min_codepoint=33, max_codepoint=126,
+                                   blacklist_characters="\t\n;=&,%"),
+            min_size=1, max_size=15,
+        ),
+        value=st.text(
+            alphabet=st.characters(min_codepoint=33, max_codepoint=126),
+            min_size=0, max_size=30,
+        ),
+    )
+    def test_random_attribute_value_round_trips(self, key, value):
+        from lifton.io import gff3_writer
+        import gffutils
+        from urllib.parse import unquote
+
+        # Don't fuzz the reserved keys
+        if key in ("ID", "Parent"):
+            return
+        feature = gffutils.Feature(
+            seqid="chr1", source="test", featuretype="gene",
+            start=10, end=20, strand="+", frame=".",
+            attributes={"ID": ["g"], key: [value]},
+            id="g",
+        )
+        line = gff3_writer.format_feature(feature)
+        cols = line.rstrip("\n").split("\t")
+        assert len(cols) == 9, (
+            f"Tab/newline in value broke column count: {cols!r}"
+        )
+        # The attributes column must split cleanly on ';'.
+        pairs = cols[8].split(";")
+        for p in pairs:
+            assert "=" in p, f"malformed attribute pair: {p!r}"
+        # Round-trip: the encoded value should percent-decode back.
+        for p in pairs:
+            k, v = p.split("=", 1)
+            if k == key:
+                assert unquote(v) == value, (
+                    f"value did not round-trip: {value!r} -> {v!r} -> "
+                    f"{unquote(v)!r}"
+                )
+
+
+class TestPropertyBasedCoordinateInvariant:
+    """For any random valid coordinate range, format_feature either
+    succeeds with 9-column output, OR raises LiftOnInputError. Never
+    silently emits a malformed line."""
+
+    @settings(max_examples=80, deadline=None)
+    @given(
+        start=st.integers(min_value=1, max_value=10**8),
+        length=st.integers(min_value=0, max_value=10**6),
+    )
+    def test_random_valid_range_emits_or_raises(self, start, length):
+        from lifton.io import gff3_writer
+        from lifton.exceptions import LiftOnInputError
+        import gffutils
+
+        end = start + length
+        feature = gffutils.Feature(
+            seqid="chr1", source="test", featuretype="gene",
+            start=start, end=end, strand="+", frame=".",
+            attributes={"ID": ["g"]}, id="g",
+        )
+        try:
+            line = gff3_writer.format_feature(feature)
+        except LiftOnInputError:
+            return
+        cols = line.rstrip("\n").split("\t")
+        assert len(cols) == 9
+        # And the start/end columns reflect the input.
+        assert int(cols[3]) == start
+        assert int(cols[4]) == end

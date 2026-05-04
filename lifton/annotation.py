@@ -323,6 +323,11 @@ class Annotation:
         disable_genes       = not self.infer_genes
         disable_transcripts = not self.infer_transcripts
 
+        # V5.3: pre-scan the input for duplicate ID rows so we can WARN
+        # the user before gffutils silently auto-renames them. The scan
+        # is O(n) — single pass, regex-free.
+        self._warn_on_duplicate_ids(self.file_name)
+
         # ── Strategy 1: user's chosen merge_strategy ─────────────────────────
         print(
             f"\n[LiftOn] Building annotation database: {self.file_name}",
@@ -684,6 +689,41 @@ class Annotation:
             # (i.e. during __init__ before _get_db_connection is called).
             raise AttributeError(name)
         raise AttributeError(f"'Annotation' object has no attribute {name!r}")
+
+    def _warn_on_duplicate_ids(self, path: str) -> None:
+        """V5.3: surface duplicate ``ID=`` rows BEFORE gffutils
+        silently auto-renames them via `create_unique`. The user gets
+        an actionable warning naming the offending IDs."""
+        seen: dict[str, int] = {}
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                for raw in fh:
+                    if not raw or raw.startswith("#"):
+                        continue
+                    cols = raw.rstrip("\r\n").split("\t")
+                    if len(cols) != 9:
+                        continue
+                    attrs = cols[8]
+                    # Cheap ID extraction — no full parser needed.
+                    for pair in attrs.split(";"):
+                        if pair.startswith("ID="):
+                            ident = pair[3:]
+                            seen[ident] = seen.get(ident, 0) + 1
+                            break
+        except OSError:
+            return
+        dups = sorted(k for k, v in seen.items() if v > 1)
+        if dups:
+            preview = ", ".join(dups[:5])
+            more = f" (+{len(dups) - 5} more)" if len(dups) > 5 else ""
+            logger.log_warning(
+                f"Duplicate ID rows detected in {path}: {preview}{more}. "
+                "gffutils will auto-rename collisions using "
+                "`create_unique` (suffixed _1, _2, …); downstream "
+                "lookups against the original IDs may miss the renamed "
+                "rows. To preserve all rows, ensure each feature has a "
+                "unique ID upstream."
+            )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -32,11 +32,17 @@ def get_AA_id_fraction(reference, target):
         if letter == target[i]:
             matches += 1
         if target[i] == "*":
-            break        
-    if max(len(reference), len(target)) == 0:  
+            break
+    if max(len(reference), len(target)) == 0:
         return matches, 1
     # Modify the region length by considering gaps in the reference (as long as it's a open reading frame)
-    total_length = max(len(reference), len(target)) - gaps_in_ref    
+    total_length = max(len(reference), len(target)) - gaps_in_ref
+    # V2.4 fix: when the reference is all gaps (or a stop-codon truncation
+    # leaves total_length == 0), avoid producing a denominator that would
+    # ZeroDivision in the caller. Identity is undefined in this case;
+    # returning (matches, 1) keeps the value bounded in [0, 1].
+    if total_length <= 0:
+        return matches, 1
     return matches, total_length
 
 
