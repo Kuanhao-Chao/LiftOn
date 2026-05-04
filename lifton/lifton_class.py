@@ -791,13 +791,22 @@ class Lifton_TRANS:
         return (3 - accum_cds_length%3)%3
 
     def write_entry(self, fw):
+        # V1.5 fix: narrow the exception, log clearly, and SKIP child
+        # writes when the parent transcript row failed to emit.
+        # Otherwise the consumer sees orphan exon / CDS rows whose
+        # Parent= transcript never landed — corrupt GFF3.
+        # KeyboardInterrupt / SystemExit propagate (they're BaseException).
         try:
             for k, vlist in self.entry.attributes.items():
                 self.entry.attributes[k] = [str(v) for v in vlist] if isinstance(vlist, list) else str(vlist)
             fw.write(str(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write TRANSCRIPT entry {self.entry.id}: {e}")
-            
+        except (OSError, ValueError, TypeError, AttributeError) as e:
+            # OSError covers BrokenPipeError + filesystem errors.
+            logger.log_error(
+                f"Failed to write TRANSCRIPT entry {self.entry.id}: {e}"
+            )
+            return
+
         # Write out the exons first
         for exon in self.exons:
             exon.write_entry(fw)

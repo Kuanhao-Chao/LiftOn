@@ -96,7 +96,10 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
             ctx.args,
             ENTRY_FEATURE=True,
         )
-    except BaseException as exc:    # noqa: BLE001 — package + continue
+    except Exception as exc:        # V1.4 fix: narrowed from BaseException
+        # KeyboardInterrupt, SystemExit, GeneratorExit are BaseException
+        # but NOT Exception, so they propagate and let Ctrl-C kill the
+        # whole pool instead of being silently packaged into LocusResult.
         return LocusResult(
             index=submission_index,
             locus_id=getattr(locus, "id", "<unknown>"),
@@ -157,7 +160,7 @@ def materialise_locus(submission_index: int, locus,
     aliasing.
     """
     import copy
-    from lifton import lifton_utils as _lu
+    from lifton import lifton_utils as _lu, logger
 
     locus_id = getattr(locus, "id", "<unknown>")
     payload = MaterialisedLocus(
@@ -166,12 +169,17 @@ def materialise_locus(submission_index: int, locus,
         locus_id=locus_id,
     )
 
-    # All DB reads happen on the parent thread.
+    # V1.3 fix: each except is narrowed to Exception (so KeyboardInterrupt
+    # propagates) AND emits a structured warning so the user can see WHY a
+    # locus came back empty. Parent-thread DB reads only.
     try:
         payload.children_l1 = list(
             ctx.l_feature_db.children(locus, level=1)
         )
-    except Exception:
+    except Exception as exc:
+        logger.log_warning(
+            f"materialise_locus({locus_id}): children(level=1) failed: {exc}"
+        )
         payload.children_l1 = []
     try:
         payload.exon_children = list(
@@ -179,7 +187,10 @@ def materialise_locus(submission_index: int, locus,
                 locus, featuretype="exon", level=1, order_by="start",
             )
         )
-    except Exception:
+    except Exception as exc:
+        logger.log_warning(
+            f"materialise_locus({locus_id}): exon children failed: {exc}"
+        )
         payload.exon_children = []
     try:
         payload.cds_children = list(
@@ -187,7 +198,10 @@ def materialise_locus(submission_index: int, locus,
                 locus, featuretype="CDS", order_by="start",
             )
         )
-    except Exception:
+    except Exception as exc:
+        logger.log_warning(
+            f"materialise_locus({locus_id}): CDS children failed: {exc}"
+        )
         payload.cds_children = []
     try:
         payload.cds_stop_children = list(
@@ -195,14 +209,21 @@ def materialise_locus(submission_index: int, locus,
                 locus, featuretype=("CDS", "stop_codon"), order_by="start",
             )
         )
-    except Exception:
+    except Exception as exc:
+        logger.log_warning(
+            f"materialise_locus({locus_id}): CDS+stop_codon children "
+            f"failed: {exc}"
+        )
         payload.cds_stop_children = []
 
     # Reference-side lookups
     try:
         payload.ref_gene_id, payload.ref_trans_id = \
             _lu.get_ref_ids_liftoff(ctx.ref_features_dict, locus_id, None)
-    except Exception:
+    except Exception as exc:
+        logger.log_warning(
+            f"materialise_locus({locus_id}): ref-id lookup failed: {exc}"
+        )
         payload.ref_gene_id, payload.ref_trans_id = None, None
 
     if payload.ref_gene_id is not None:
@@ -210,14 +231,22 @@ def materialise_locus(submission_index: int, locus,
             payload.ref_gene_attrs = copy.deepcopy(
                 ctx.ref_db[payload.ref_gene_id].attributes
             )
-        except Exception:
+        except Exception as exc:
+            logger.log_warning(
+                f"materialise_locus({locus_id}): ref_gene_attrs deepcopy "
+                f"failed for {payload.ref_gene_id}: {exc}"
+            )
             payload.ref_gene_attrs = {}
     if payload.ref_trans_id is not None:
         try:
             payload.ref_trans_attrs = copy.deepcopy(
                 ctx.ref_db[payload.ref_trans_id].attributes
             )
-        except Exception:
+        except Exception as exc:
+            logger.log_warning(
+                f"materialise_locus({locus_id}): ref_trans_attrs deepcopy "
+                f"failed for {payload.ref_trans_id}: {exc}"
+            )
             payload.ref_trans_attrs = {}
 
     return payload
@@ -255,7 +284,7 @@ def process_locus_native(payload: MaterialisedLocus,
             ctx.fw_score, ctx.fw_chain, ctx.args,
             ENTRY_FEATURE=True,
         )
-    except BaseException as exc:                                 # noqa: BLE001
+    except Exception as exc:        # V1.4 fix: narrowed from BaseException
         return LocusResult(
             index=payload.submission_index,
             locus_id=payload.locus_id,

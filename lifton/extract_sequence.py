@@ -1,4 +1,6 @@
 from Bio.Seq import Seq
+from lifton import logger
+from lifton.exceptions import LiftOnInputError
 
 def determine_file_format(file_path):
     """Detect if the input file is GTF or GFF3 format.
@@ -88,14 +90,20 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
     # print(f"Parent: {feature.id};  exon: {len(children_exons)}; CDS: {len(children_CDSs)}")
     if len(children_exons) > 0 or len(children_CDSs) > 0:
         if len(children_exons) > 0:
+            # V1.2 fix: log instead of swallowing silently. A user whose
+            # transcript silently disappears can't debug it; a [WARNING]
+            # gives them the feature id and the underlying cause.
             try:
                 trans_seq = get_dna_sequence(feature, ref_fai, children_exons)
                 if trans_seq:
                     trans_seq = trans_seq.upper()
                     ref_trans[feature.id] = trans_seq
             except Exception as e:
-                pass
-                
+                logger.log_warning(
+                    f"extract_features: failed to extract transcript "
+                    f"sequence for {feature.id}: {e}"
+                )
+
         if len(children_CDSs) > 0:
             try:
                 protein_seq = get_protein_sequence(feature, ref_fai, children_CDSs)
@@ -103,7 +111,10 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
                     protein_seq = protein_seq.upper()
                     ref_proteins[feature.id] = protein_seq
             except Exception as e:
-                pass
+                logger.log_warning(
+                    f"extract_features: failed to extract protein "
+                    f"sequence for {feature.id}: {e}"
+                )
     else:
         for child in ref_db.db_connection.children(feature, level=1, order_by='start'):
             __inner_extract_feature(ref_db, child, ref_fai, ref_trans, ref_proteins)
@@ -132,6 +143,14 @@ def get_dna_sequence(parent_feature, fasta, features):
     if chrom not in fasta.keys():
         return sequence
     for start, end in merged_features:
+        # V2.1 fix: GFF3 is 1-based inclusive; pyfaidx is 0-based half-open.
+        # Negative `start - 1` silently wraps to the chromosome's tail and
+        # corrupts the extracted sequence. Reject explicitly.
+        if start < 1:
+            raise LiftOnInputError(
+                f"get_dna_sequence: feature on {chrom} has start={start}; "
+                "GFF3 coordinates must be 1-based inclusive (start >= 1)."
+            )
         sequence += str(fasta[chrom][start -1: end])
     if strand == "-":
         sequence = str(Seq(sequence).reverse_complement())

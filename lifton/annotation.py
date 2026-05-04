@@ -23,6 +23,7 @@ from lifton.annotation_validator import (
     print_db_build_error,
     print_db_build_success,
 )
+from lifton.exceptions import LiftOnInputError
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -115,11 +116,11 @@ class Annotation:
         file_format = self._detect_file_format()
 
         if file_format == "GTF format":
-            self._handle_gtf_input(file_name, infer_genes, infer_transcripts)
+            self._handle_gtf_input(self.file_name, infer_genes, infer_transcripts)
         elif file_format == "Unknown format":
             if self.verbose:
                 logger.log_warning(
-                    f"Could not determine file format for {file_name!r}. "
+                    f"Could not determine file format for {self.file_name!r}. "
                     "Assuming GFF3."
                 )
             self.infer_genes        = infer_genes
@@ -208,10 +209,18 @@ class Annotation:
                         "Using original GTF."
                     )
             else:
-                if self.verbose:
-                    logger.log_warning(
-                        "GTF→GFF3 conversion produced no output. Using original GTF."
-                    )
+                # V1.9 fix: when the user explicitly requests
+                # auto-conversion AND every conversion strategy failed,
+                # surface the failure as LiftOnInputError instead of
+                # silently using the (likely unparseable) raw GTF and
+                # blowing up 5 minutes later inside gffutils.
+                raise LiftOnInputError(
+                    "GTF→GFF3 auto-conversion failed: neither gffread "
+                    "nor agat produced a valid GFF3 output for the "
+                    "input GTF. Either install one of these tools, "
+                    "pre-convert the file, or pass "
+                    "`auto_convert_gtf=False` to use the GTF directly."
+                )
         else:
             self.infer_genes       = infer_genes
             self.infer_transcripts = infer_transcripts

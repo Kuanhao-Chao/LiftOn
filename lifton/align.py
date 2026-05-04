@@ -4,6 +4,32 @@ from cigar import Cigar
 from lifton import get_id_fraction, lifton_class
 
 
+# V4.2 fix: bases acceptable to parasail's ACGTN matrix below. Anything
+# outside this set (IUPAC ambiguity codes R/Y/S/W/K/M/B/D/H/V, gap '-',
+# space, lowercase, ...) is normalised to N before alignment. Crashing
+# parasail's C kernel on an IUPAC code is the worst-case behaviour the
+# Phase 13.5A audit flagged as High.
+_PARASAIL_DNA_ALPHABET = frozenset("ACGTN*")
+
+
+def _sanitise_for_parasail_dna(seq: str) -> str:
+    """Normalise a nucleotide sequence to the {A,C,G,T,N,*} alphabet.
+
+    parasail.matrix_create("ACGTN*", ...) only knows scores for these
+    characters; any other byte (e.g. IUPAC ambiguity codes R/Y/W/S/K/M)
+    can either crash the C kernel or score garbage. Coerce them to N
+    so the kernel handles them as 'unknown nucleotide'.
+    """
+    if not seq:
+        return seq
+    upper = seq.upper()
+    if all(ch in _PARASAIL_DNA_ALPHABET for ch in upper):
+        return upper
+    return "".join(
+        ch if ch in _PARASAIL_DNA_ALPHABET else "N" for ch in upper
+    )
+
+
 def adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, length):
     """
         This function adjust CDS protein boundaries based on CIGAR string on protein alignment.
@@ -99,9 +125,14 @@ def parasail_align_DNA_base(trans_seq, ref_trans_seq):
         Returns:
         extracted_parasail_res: parasail alignment result
     """
-    matrix = parasail.matrix_create("ACGT*", 1, -3)
+    # V4.2 fix: extend the matrix alphabet to include 'N' AND sanitise
+    # both inputs so any IUPAC ambiguity code present in real-world
+    # reference data is converted to 'N' before reaching the C kernel.
+    matrix = parasail.matrix_create("ACGTN*", 1, -3)
     gap_open = 5
     gap_extend = 2
+    trans_seq = _sanitise_for_parasail_dna(trans_seq)
+    ref_trans_seq = _sanitise_for_parasail_dna(ref_trans_seq)
     # Return: (Query, Target)
     extracted_parasail_res = parasail.nw_trace_scan_sat(trans_seq, ref_trans_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res

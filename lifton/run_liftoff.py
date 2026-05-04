@@ -1,6 +1,8 @@
 import subprocess
 import os, copy
+import gffutils
 from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
+from lifton.exceptions import LiftOnInputError
 from lifton.liftoff import liftoff_main
 from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
@@ -158,13 +160,13 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
             lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
 
 
-def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=False):
+def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=False, _visited=None):
     """
         This function processes liftoff annotation.
 
         Parameters:
         - lifton_gene: Lifton gene instance
-        - locus: feature instance 
+        - locus: feature instance
         - ref_db: reference database
         - l_feature_db: liftoff feature database
         - ref_id_2_m_id_trans_dict: reference id to miniprot transcript ids dictionary
@@ -179,34 +181,53 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         - write_chains: write chains or not
         - DEBUG: debug mode
         - ENTRY_FEATURE: True if the feature is the root feature for a gene locus
+        - _visited: V5.2 cycle-detection set (internal — do not pass)
 
         Returns:
         lifton_gene: LiftOn gene instance
     """
+    # V5.2 fix: detect circular Parent= cycles before they trigger
+    # RecursionError. Track every locus.id seen on this descent.
+    if _visited is None:
+        _visited = set()
+    locus_id_for_cycle = getattr(locus, "id", None)
+    if locus_id_for_cycle is not None:
+        if locus_id_for_cycle in _visited:
+            raise LiftOnInputError(
+                f"Circular Parent reference detected at feature "
+                f"{locus_id_for_cycle!r}: this row's Parent chain forms a "
+                f"cycle, which is not permitted by the GFF3 specification."
+            )
+        _visited = _visited | {locus_id_for_cycle}
+
     exon_children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
-    if lifton_gene is None and ENTRY_FEATURE:   
+    if lifton_gene is None and ENTRY_FEATURE:
         # Gene (1st) features
         lifton_gene, ref_gene_id, ref_trans_id = initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, with_exons=len(exon_children)>0)
-        if lifton_gene.ref_gene_id is None: return None            
+        if lifton_gene.ref_gene_id is None: return None
     if len(exon_children) == 0:
         parent_feature = None
-        if ENTRY_FEATURE: # Gene (1st) features without direct exons 
+        if ENTRY_FEATURE: # Gene (1st) features without direct exons
             parent_feature = lifton_gene
         else: # Middle features without exons
             parent_feature = lifton_gene.add_feature(copy.deepcopy(locus))
         features = l_feature_db.children(locus, level=1)
         for feature in list(features):
-            process_liftoff(parent_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args)
+            process_liftoff(parent_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, _visited=_visited)
     else:
-        if ENTRY_FEATURE: # Gene (1st) features with direct exons 
+        if ENTRY_FEATURE: # Gene (1st) features with direct exons
             ref_trans_id = ref_gene_id
-        else: # Transcript features with direct exons 
+        else: # Transcript features with direct exons
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, locus.id)
         lifton_status = lifton_class.Lifton_Status()
         lifton_status.annotation = "Liftoff"
+        # V1.1a fix: narrow bare `except:` to the actual exceptions a
+        # missing reference transcript can raise. KeyError is the
+        # gffbase / dict-style miss; FeatureNotFoundError is gffutils.
+        # KeyboardInterrupt and SystemExit now correctly propagate.
         try: # Test if the reference transcript exists. Skip if not.
             ref_db[ref_trans_id]
-        except:
+        except (KeyError, gffutils.exceptions.FeatureNotFoundError):
             return None
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
         if cds_num > 0:

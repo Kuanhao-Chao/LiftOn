@@ -16,10 +16,15 @@ def check_miniprot_installed():
     miniprot_path = "miniprot"
     command = [miniprot_path, "--version"]
     installed = False
+    # V1.1b fix: narrow the bare `except:` so a real environmental failure
+    # (MemoryError, OSError, KeyboardInterrupt) is not silently misreported
+    # as "miniprot is not installed". Only the things that genuinely mean
+    # "binary is missing or unrunnable" return False here.
     try:
-        res = subprocess.run(command)
+        subprocess.run(command)
         installed = True
-    except: 
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            subprocess.SubprocessError):
         pass
     return installed
 
