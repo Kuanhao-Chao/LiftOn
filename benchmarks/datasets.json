@@ -1,0 +1,62 @@
+{
+  "_comment": "Phase 16 — biological benchmark dataset registry. URLs pull from the official JHU CCB FTP mirror that backs https://ccb.jhu.edu/lifton/content/same_species_liftover/index.html. The harness appends per-run -g, -o, and the positional <target.fa> <ref.fa>.",
+
+  "datasets": [
+    {
+      "id": "human",
+      "species": "Human (GRCh38 -> T2T-CHM13)",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/chm13v2.0.fa",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff",
+      "target_gff":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton.gff3",
+      "approx_size_gb": 6.0
+    },
+    {
+      "id": "mouse",
+      "species": "Mouse (GRCm39 -> NOD/SCID)",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/GRCm39_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/NOD_SCID_genomic.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/GRCm39_genomic.gff",
+      "target_gff":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse/lifton.gff3",
+      "approx_size_gb": 5.0
+    },
+    {
+      "id": "bee",
+      "species": "Honey bee (HAv3.1 -> ASM1932182v1)",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/bee_ref/HAv3.1_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/bee_ref/ASM1932182v1_genomic.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/bee_ref/HAv3.1_genomic.gff",
+      "target_gff":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/bee/lifton.gff3",
+      "approx_size_gb": 0.5
+    },
+    {
+      "id": "arabidopsis",
+      "species": "Thale cress (TAIR10 -> ASM2311539v1)",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/arabadop_ref/TAIR10.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/arabadop_ref/ASM2311539v1_genomic.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/arabadop_ref/TAIR10.gff",
+      "target_gff":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/arabadop/lifton.gff3",
+      "approx_size_gb": 0.3
+    },
+    {
+      "id": "rice",
+      "species": "Rice (IRGSP -> ASM3414082v1)",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/rice_ref/IRGSP_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/rice_ref/ASM3414082v1_genomic.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/rice_ref/IRGSP_genomic.gff",
+      "target_gff":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/rice/lifton.gff3",
+      "approx_size_gb": 0.5
+    }
+  ],
+
+  "lifton_flags": [
+    "--stream",
+    "--inmemory-liftoff",
+    "--locus-pipeline",
+    "-t", "8",
+    "--native",
+    "-copies"
+  ],
+
+  "evaluation_flags": ["-E"]
+}
