@@ -27,7 +27,7 @@ from tests.test_integration_pipeline import (  # noqa: F401
 
 
 def _drive(workspace, *, stream: bool, inmem: bool, threads: int,
-           native: bool, suffix: str) -> bytes:
+           native: bool, suffix: str, optimize: bool = False) -> bytes:
     from lifton import lifton as lifton_main
 
     out_gff = workspace["out"] / f"native_{suffix}.gff3"
@@ -49,6 +49,8 @@ def _drive(workspace, *, stream: bool, inmem: bool, threads: int,
         argv += ["-t", str(threads), "--locus-pipeline"]
     if native:
         argv.append("--native")
+    if optimize:
+        argv.append("--optimize")
     args = lifton_main.parse_args(argv)
     lifton_main.run_all_lifton_steps(args)
     return out_gff.read_bytes()
@@ -117,3 +119,59 @@ class TestFullNativeMatrix:
             f"Lengths: {[(k, len(outputs[k])) for k in diverged]}"
         )
         assert all(len(v) > 0 for v in outputs.values())
+
+
+# ---------------------------------------------------------------------------
+# --optimize v2 lane scaffold — SEPARATE, re-baselineable golden
+# ---------------------------------------------------------------------------
+
+class TestOptimizeFlagScaffold:
+    """The opt-in v2 lane (`--optimize`) is a SEPARATE contract from the frozen
+    24-cell default matrix (``TestFullNativeMatrix``, which stays byte-frozen).
+
+    As of the verified-protein-maximization-merge iteration, `--optimize` MAY
+    change output bytes — but only by reverting a Liftoff/miniprot merge that
+    would lower a transcript's protein identity below pure Liftoff. The
+    contract is therefore **monotonic, not byte-identical**: for every emitted
+    transcript, the `--optimize` protein identity must be >= the default path's
+    (output bytes may differ ONLY on reverted transcripts), and the set of
+    emitted transcripts is unchanged. The benchmark loop
+    (``scripts/benchmark_gate.py`` + the fast subset) proves the aggregate gain.
+    """
+
+    @staticmethod
+    def _protein_identity_by_mrna(gff_bytes):
+        """Map mRNA ID -> protein_identity (float) parsed from a GFF3 blob."""
+        out = {}
+        for line in gff_bytes.decode().splitlines():
+            if not line or line.startswith("#"):
+                continue
+            cols = line.split("\t")
+            if len(cols) < 9 or cols[2] != "mRNA":
+                continue
+            attrs = dict(kv.split("=", 1) for kv in cols[8].split(";") if "=" in kv)
+            if "ID" in attrs and "protein_identity" in attrs:
+                out[attrs["ID"]] = float(attrs["protein_identity"])
+        return out
+
+    def test_optimize_never_regresses_protein_identity(
+            self, integration_workspace, hermetic_pipeline):
+        default = _drive(integration_workspace,
+                         stream=False, inmem=False, threads=1,
+                         native=False, suffix="opt_default", optimize=False)
+        optimized = _drive(integration_workspace,
+                           stream=False, inmem=False, threads=1,
+                           native=False, suffix="opt_on", optimize=True)
+        assert len(default) > 0
+        assert len(optimized) > 0
+        d = self._protein_identity_by_mrna(default)
+        o = self._protein_identity_by_mrna(optimized)
+        # Same transcripts emitted (the merge only re-selects CDS, never drops
+        # or adds transcripts).
+        assert set(o) == set(d), "optimize changed the set of emitted transcripts"
+        # Monotonic floor: --optimize never lowers protein identity vs default.
+        for mrna_id, d_id in d.items():
+            assert o[mrna_id] >= d_id - 1e-6, (
+                f"--optimize regressed protein identity for {mrna_id}: "
+                f"{o[mrna_id]:.6f} < {d_id:.6f}"
+            )

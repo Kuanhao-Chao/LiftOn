@@ -177,8 +177,8 @@ class Lifton_GENE:
         lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only)
         return lifton_aln, good_trans
 
-    def update_cds_list(self, trans_id, cds_list):
-        self.transcripts[trans_id].update_cds_list(cds_list)
+    def update_cds_list(self, trans_id, cds_list, optimize=False):
+        self.transcripts[trans_id].update_cds_list(cds_list, optimize=optimize)
         self.update_boundaries()
 
     def add_lifton_gene_status_attrs(self, source):
@@ -317,7 +317,7 @@ class Lifton_TRANS:
             exon_idx += 1
         return exon_idx
 
-    def update_cds_list(self, cds_list):
+    def update_cds_list(self, cds_list, optimize=False):
         idx_exon_itr = 0
         new_exons = []
         # Reverse CDS list if the strand is "-" => CDSs are in small to large order
@@ -354,19 +354,28 @@ class Lifton_TRANS:
                     ovp_exons.append(cp_exon)
                 # |cccc|  |eeee|
                 elif exon.entry.start > only_cds.entry.end:
-                    processed_ovp_exons = True
-                    merged_exon = copy.deepcopy(exon)
-                    if len(ovp_exons) == 0:
-                        # CDS lies entirely before this exon and did not
-                        # overlap any earlier exon
-                        merged_exon.entry.start = only_cds.entry.start
-                        merged_exon.entry.end = only_cds.entry.end
+                    if optimize and processed_ovp_exons:
+                        # --optimize bug-fix: the CDS-bearing exon has ALREADY
+                        # been emitted; this is a further downstream exon (3' UTR).
+                        # The default path re-emits a duplicate CDS exon for EVERY
+                        # such exon (corrupting multi-exon transcripts whose CDS
+                        # spans only the leading exon(s)); under --optimize emit it
+                        # as a plain UTR exon instead.
+                        new_exons.append(exon)
                     else:
-                        merged_exon.entry.start = ovp_exons[0].entry.start
-                        merged_exon.entry.end = ovp_exons[-1].entry.end
-                    merged_exon.add_lifton_cds(only_cds)
-                    new_exons.append(merged_exon)
-                    new_exons.append(exon)
+                        processed_ovp_exons = True
+                        merged_exon = copy.deepcopy(exon)
+                        if len(ovp_exons) == 0:
+                            # CDS lies entirely before this exon and did not
+                            # overlap any earlier exon
+                            merged_exon.entry.start = only_cds.entry.start
+                            merged_exon.entry.end = only_cds.entry.end
+                        else:
+                            merged_exon.entry.start = ovp_exons[0].entry.start
+                            merged_exon.entry.end = ovp_exons[-1].entry.end
+                        merged_exon.add_lifton_cds(only_cds)
+                        new_exons.append(merged_exon)
+                        new_exons.append(exon)
                 idx_exon_itr += 1
             if not processed_ovp_exons:
                 # CDS extends to or past the end of all exons

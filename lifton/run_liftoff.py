@@ -139,10 +139,69 @@ def lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_tran
     return lifton_trans, len(cdss_list)
 
 
+def _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status):
+    """Capture the exact state that ``update_cds_list`` + a trial re-alignment
+    mutate, so the verified-merge (``--optimize``) path can revert to pure
+    Liftoff when the merge does not improve protein identity.
+
+    ``update_cds_list`` replaces ``lifton_trans.exons`` and resets the
+    transcript/gene boundaries (``Lifton_TRANS.update_boundaries`` sets
+    start/end from the exon list; ``Lifton_GENE.update_boundaries`` grows the
+    gene span). A trial ``orf_search_protein(eval_only=True)`` additionally
+    mutates ``lifton_status`` (via ``align_coding_seq``/``align_trans_seq``/
+    ``find_variants``) and appends to ``entry.attributes['mutation']``. We
+    snapshot all of these.
+    """
+    st = lifton_status
+    mut = lifton_trans.entry.attributes.get("mutation")
+    return {
+        "exons": copy.deepcopy(lifton_trans.exons),
+        "trans_start": lifton_trans.entry.start,
+        "trans_end": lifton_trans.entry.end,
+        "gene_start": lifton_gene.entry.start,
+        "gene_end": lifton_gene.entry.end,
+        "mutation": copy.deepcopy(mut) if mut is not None else None,
+        "status": (st.liftoff, st.miniprot, st.lifton_dna, st.lifton_aa,
+                   st.eval_dna, st.eval_aa, st.annotation, list(st.status)),
+    }
+
+
+def _restore_status_and_mutation(lifton_trans, lifton_status, snap):
+    """Undo the trial re-alignment's side effects on ``lifton_status`` and the
+    ``mutation`` attribute so the canonical ``orf_search_protein`` re-derives
+    identical state. In the accepted-merge case this makes the ``--optimize``
+    output byte-for-byte identical to the default path."""
+    (liftoff, miniprot, lifton_dna, lifton_aa,
+     eval_dna, eval_aa, annotation, status) = snap["status"]
+    lifton_status.liftoff = liftoff
+    lifton_status.miniprot = miniprot
+    lifton_status.lifton_dna = lifton_dna
+    lifton_status.lifton_aa = lifton_aa
+    lifton_status.eval_dna = eval_dna
+    lifton_status.eval_aa = eval_aa
+    lifton_status.annotation = annotation
+    lifton_status.status = list(status)
+    if snap["mutation"] is None:
+        lifton_trans.entry.attributes.pop("mutation", None)
+    else:
+        lifton_trans.entry.attributes["mutation"] = copy.deepcopy(snap["mutation"])
+
+
+def _restore_merge_structure(lifton_gene, lifton_trans, snap):
+    """Revert the transcript exon/CDS structure + transcript/gene boundaries to
+    the pre-merge (pure Liftoff) snapshot."""
+    lifton_trans.exons = snap["exons"]
+    lifton_trans.entry.start = snap["trans_start"]
+    lifton_trans.entry.end = snap["trans_end"]
+    lifton_gene.entry.start = snap["gene_start"]
+    lifton_gene.entry.end = snap["gene_end"]
+
+
 def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                                  ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                  tgt_fai, ref_trans_id, ref_proteins, ref_trans,
-                                 fw_chain, write_chains, lifton_status, DEBUG):
+                                 fw_chain, write_chains, lifton_status, DEBUG,
+                                 optimize=False):
     """
         This function process liftoff annotation with protein.
         (1) Only Liftoff annotation: directly apply 
@@ -168,6 +227,7 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
     liftoff_aln = lifton_utils.LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
     # miniprot alignment
     miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_miniprot_alignment(locus.seqid, locus, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
+    orf_done = False
     if liftoff_aln is None:
         lifton_status.annotation = "no_ref_protein"
     elif liftoff_aln.identity == 1:
@@ -180,7 +240,50 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
             cds_list, chains = protein_maximization.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai, DEBUG)
             if write_chains:
                 lifton_utils.write_lifton_chains(fw_chain, lifton_trans.entry.id, chains)
-            lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
+            if not optimize:
+                # Default path (byte-frozen): apply the chained CDS unconditionally.
+                lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
+            else:
+                # --optimize: BEST-OF-FULL-OUTCOME verified merge. Compare the
+                # final EMITTED protein of two candidates and keep the better:
+                #   (1) no-merge: pure Liftoff + ORF-rescue  (== the no-miniprot
+                #       default result for this transcript), and
+                #   (2) merge: chained CDS + ORF-rescue.
+                # Both are scored AFTER ORF-rescue via the same path the
+                # benchmark re-aligns on, so the choice is exact. Because
+                # candidate (1) is the no-miniprot baseline, this makes enabling
+                # miniprot a STRICT per-transcript win (emitted identity >=
+                # no-miniprot), turning the protein-maximization merge from
+                # net-negative (catastrophic backfires) into a guaranteed gain.
+                _snap0 = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
+                # Candidate 1: Liftoff + ORF-rescue (eval_only=False runs rescue).
+                lifton_status.lifton_aa = 0
+                lifton_gene.orf_search_protein(
+                    lifton_trans.entry.id, ref_trans_id, tgt_fai,
+                    ref_proteins, ref_trans, lifton_status)
+                _liftoff_outcome = lifton_status.lifton_aa
+                _snapL = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
+                # Reset to the pre-merge raw state, then build candidate 2.
+                _restore_merge_structure(lifton_gene, lifton_trans, _snap0)
+                _restore_status_and_mutation(lifton_trans, lifton_status, _snap0)
+                lifton_status.lifton_aa = 0
+                lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list, optimize=True)
+                lifton_gene.orf_search_protein(
+                    lifton_trans.entry.id, ref_trans_id, tgt_fai,
+                    ref_proteins, ref_trans, lifton_status)
+                _merge_outcome = lifton_status.lifton_aa
+                if _merge_outcome >= _liftoff_outcome:
+                    # Keep the merge candidate (structure + status already set).
+                    lifton_status.annotation = "LiftOn_chaining_algorithm"
+                else:
+                    # Revert to the Liftoff + ORF-rescue candidate.
+                    _restore_merge_structure(lifton_gene, lifton_trans, _snapL)
+                    _restore_status_and_mutation(lifton_trans, lifton_status, _snapL)
+                    lifton_status.annotation = "Liftoff"
+                # Both candidates already ran ORF-rescue; tell process_liftoff to
+                # skip the canonical orf_search_protein so it is not run twice.
+                orf_done = True
+    return orf_done
 
 
 def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=False, _visited=None):
@@ -253,13 +356,17 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         except (KeyError, gffutils.exceptions.FeatureNotFoundError):
             return None
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
+        orf_done = False
         if cds_num > 0:
-            process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
+            orf_done = process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                                         ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                         tgt_fai, ref_trans_id, ref_proteins, ref_trans,
-                                        fw_chain, args.write_chains, lifton_status, args.debug)
-        if not args.no_orf_search:
-            lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status) 
+                                        fw_chain, args.write_chains, lifton_status, args.debug,
+                                        optimize=getattr(args, "optimize", False))
+        # Under --optimize the merge path already ran ORF-rescue on both
+        # candidates (orf_done); avoid running it a second time here.
+        if not args.no_orf_search and not orf_done:
+            lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
         # lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("Liftoff")
         lifton_gene.add_lifton_trans_status_attrs(lifton_trans.entry.id, lifton_status)
