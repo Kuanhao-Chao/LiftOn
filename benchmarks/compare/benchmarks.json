@@ -1,0 +1,122 @@
+{
+  "_comment": "6-benchmark registry for the three-way Liftoff/miniprot/LiftOn comparison. Paths verified 2026-06. ref_proteins keyed by NP_/XP_ protein accession (matches miniprot Target) except human_mane which translates MANE CDS with rna-NM_ headers (transcript space).",
+  "tools": {
+    "liftoff_bin": "/home/kh.chao/miniconda3/envs/lifton_devel/bin/liftoff",
+    "miniprot_bin": "/ccb/sw/bin/miniprot",
+    "minimap2_bin": "/ccb/sw/bin/minimap2",
+    "samtools_bin": "/home/kh.chao/bin/samtools",
+    "lifton_bin": "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "lifton_python": "/home/kh.chao/miniconda3/envs/lifton_devel/bin/python",
+    "liftofftools_bin": "/home/kh.chao/miniconda3/envs/liftofftools/bin/liftofftools",
+    "extra_path": "/ccb/sw/bin:/home/kh.chao/bin"
+  },
+  "benchmarks": [
+    {
+      "id": "human_mane",
+      "species": "Human GRCh38 -> CHM13 (MANE)",
+      "cross_species": false,
+      "main": true,
+      "ref_genome": "/ccb/salz2/kh.chao/LiftOn/test/GRCh38_chr22.fa",
+      "ref_gff": "/ccb/salz2/kh.chao/OpenSpliceAI_exp/MANE.GRCh38.v1.3.refseq_genomic.gff",
+      "ref_proteins": null,
+      "tgt_genome": "/ccb/salz2/kh.chao/LiftOn/test/chm13_chr22.fa",
+      "ref_chrom": "chr22",
+      "tgt_chrom": "chr22",
+      "ready_subset": true,
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "bee",
+      "species": "Honey bee HAv3.1 -> ASM1932182v1",
+      "cross_species": false,
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/bee/Amel_HAv3.1_genomic.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_genomic.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/bee/HAv3.1_protein.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/bee/ASM1932182v1_genomic.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "mouse",
+      "species": "Mouse GRCm39 -> NOD_SCID",
+      "cross_species": false,
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_protein.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/mouse/NOD_SCID_genomic.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "human_to_chimp",
+      "species": "Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1",
+      "cross_species": true,
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_genomic.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/GRCh38.p14_refseq_protein.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "mouse_to_rat",
+      "species": "Mouse GRCm39 -> Rat mRatBN7.2",
+      "cross_species": true,
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_protein.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/cross_species/mouse_to_rat/mRatBN7.2_genomic.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "rice",
+      "species": "Rice IRGSP -> ASM3414082v1",
+      "cross_species": false,
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_protein.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/rice/ASM3414082v1_genomic.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "arabidopsis",
+      "species": "Arabidopsis TAIR10 -> ASM2311539v1",
+      "cross_species": false,
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/arabadop/ASM2311539v1_genomic.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    },
+    {
+      "id": "drosophila",
+      "species": "D. melanogaster -> D. erecta",
+      "cross_species": true,
+      "_note": "tgt uses d.erecta_genomic_bk.fna; d.erecta_genomic.fna is mode 0600 owned by another user and unreadable.",
+      "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna",
+      "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff",
+      "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_protein.faa",
+      "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.erecta_genomic_bk.fna",
+      "ref_chrom": "AUTO_LARGEST_CODING",
+      "tgt_chrom": "AUTO_SYNTENIC",
+      "miniprot_target_space": "transcript",
+      "annotation_database": "RefSeq"
+    }
+  ]
+}
