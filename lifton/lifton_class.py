@@ -51,6 +51,11 @@ class Lifton_feature:
         self.copy_num = 0
         self.is_protein_coding = False
         self.is_non_coding = False
+        # raw GFF feature type (e.g. gene, mRNA, tRNA, lnc_RNA, pseudogene) and
+        # biotype, captured for all-feature-type completeness reporting. Metadata
+        # only — never affects the GFF3 written to -o.
+        self.feature_type = None
+        self.biotype = None
         self.children = set()
 
 

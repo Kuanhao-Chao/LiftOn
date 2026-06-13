@@ -356,6 +356,7 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
         for locus in ref_db.db_connection.features_of_type(f_itr):
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
             feature = lifton_class.Lifton_feature(locus.id)
+            feature.feature_type = locus.featuretype
             # Write out reference gene features IDs
             # Decide if its type
             # Check for gene type/biotype attribute in order of preference
@@ -382,6 +383,7 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                     gene_type_key = "biotype"
 
             if gene_type_key is not None:
+                feature.biotype = locus.attributes[gene_type_key][0]
                 if locus.attributes[gene_type_key][0] == "protein_coding" and len(CDS_children) > 0:
                     feature.is_protein_coding = True
                     fw_gene.write(f"{locus.id}\tcoding\n")
