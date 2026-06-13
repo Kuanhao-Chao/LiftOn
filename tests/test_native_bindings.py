@@ -321,12 +321,29 @@ class TestThreadSafetyGuardWithNative:
         from lifton.parallel import _backend_supports_threads
         assert _backend_supports_threads(native=True) is True
 
-    def test_guard_returns_false_when_gffutils_in_workers(self, monkeypatch):
-        """Phase 11 honest contract: SQLite (gffutils) cannot tolerate
-        cross-thread access regardless of pre-materialisation. The
-        guard refuses to fan out when any input DB is gffutils."""
+    def test_guard_returns_true_when_gffutils_under_native(self, monkeypatch):
+        """Phase 17 (option b — completed Phase 12 materialisation):
+        under ``--native``, workers consume :class:`MaterialisedLocus`
+        payloads through the read-only proxy DBs in
+        ``lifton.locus_pipeline._build_proxied_ctx``. They never touch
+        the real FeatureDB connection, so SQLite's hard-thread-binding
+        no longer applies — gffutils backends are safe to fan out
+        under ``--native`` exactly the same way gffbase backends are."""
         monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
-        # Define a class whose __module__ starts with "gffutils".
+        monkeypatch.delenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", raising=False)
+        FakeSqlite = type("FakeSqliteDB", (), {})
+        FakeSqlite.__module__ = "gffutils.interface"
+        from lifton.parallel import _backend_supports_threads
+        assert _backend_supports_threads(FakeSqlite(), native=True) is True
+
+    def test_guard_returns_false_when_gffutils_with_block_envvar(self,
+                                                                 monkeypatch):
+        """Pre-Phase-17 strict-rejection behaviour preserved behind the
+        opt-out ``LIFTON_PARALLEL_BLOCK_GFFUTILS`` env var. Useful only
+        as a regression escape hatch if a future change re-introduces
+        a worker-side DB read against a SQLite connection."""
+        monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        monkeypatch.setenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", "1")
         FakeSqlite = type("FakeSqliteDB", (), {})
         FakeSqlite.__module__ = "gffutils.interface"
         from lifton.parallel import _backend_supports_threads
@@ -418,11 +435,19 @@ class TestParallelStep7WithNative:
         # Output still deterministic via the ordered-writer.
         assert fw.getvalue() == "0\n1\n2\n3\n"
 
-    def test_native_falls_back_on_sqlite_backend(self, monkeypatch):
-        """gffutils backend stays serial under --native because SQLite
-        connections cannot cross threads."""
+    def test_native_unlocks_pool_on_gffutils_under_phase17(self, monkeypatch):
+        """Phase 17 (option b) inverts the Phase 11 contract: under
+        ``--native``, gffutils SQLite backends now ALSO unlock the
+        ThreadPoolExecutor, because workers go through the
+        materialised-payload + proxy-DB path and never touch the
+        SQLite connection from a non-creator thread.
+
+        Pre-Phase-17 this test asserted ``constructed["n"] == 0``
+        (fell back to serial). Under Phase 17 the same fixture
+        unlocks parallelism."""
         from lifton import parallel, run_liftoff, locus_pipeline
         monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        monkeypatch.delenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", raising=False)
         from concurrent.futures import ThreadPoolExecutor as _real_TPE
         constructed = {"n": 0}
 
@@ -437,6 +462,61 @@ class TestParallelStep7WithNative:
 
         class FakeSqliteDB:
             __module__ = "gffutils.interface"   # SQLite-shaped
+            def features_of_type(self, ft): yield from loci
+            def children(self, *a, **kw): return iter([])
+            def __getitem__(self, fid): raise KeyError(fid)
+
+        def fake(*args, ENTRY_FEATURE=False, **kw):
+            locus = args[1]
+            gene = mock.MagicMock()
+            gene.ref_gene_id = "ok"
+            gene.write_entry.side_effect = (
+                lambda fw, stats: fw.write(f"{locus._idx}\n")
+            )
+            return gene
+
+        monkeypatch.setattr(run_liftoff, "process_liftoff", fake)
+
+        db = FakeSqliteDB()
+        ctx = locus_pipeline.StepContext(
+            ref_db=db, l_feature_db=db, m_feature_db=None,
+            ref_id_2_m_id_trans_dict={}, tree_dict={},
+            tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
+            ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
+            args=SimpleNamespace(native=True),
+        )
+        fw = io.StringIO()
+        stats = {"coding": {}, "non-coding": {}, "other": {}}
+        n = parallel.parallel_step7(
+            ["gene"], db, ctx, fw, stats, threads=4,
+        )
+        assert n == 4
+        # Phase 17 contract: pool IS created on gffutils under --native.
+        assert constructed["n"] == 1
+        # Output still deterministic via the ordered-writer.
+        assert fw.getvalue() == "0\n1\n2\n3\n"
+
+    def test_native_falls_back_on_sqlite_under_block_envvar(self,
+                                                            monkeypatch):
+        """The opt-out ``LIFTON_PARALLEL_BLOCK_GFFUTILS=1`` restores
+        the pre-Phase-17 serial-fallback behaviour for gffutils."""
+        from lifton import parallel, run_liftoff, locus_pipeline
+        monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        monkeypatch.setenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", "1")
+        from concurrent.futures import ThreadPoolExecutor as _real_TPE
+        constructed = {"n": 0}
+
+        class TPESpy(_real_TPE):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
+        loci = [SimpleNamespace(id=f"l_{i}", _idx=i) for i in range(4)]
+
+        class FakeSqliteDB:
+            __module__ = "gffutils.interface"
             def features_of_type(self, ft): yield from loci
             def children(self, *a, **kw): return iter([])
 
@@ -465,7 +545,7 @@ class TestParallelStep7WithNative:
             ["gene"], db, ctx, fw, stats, threads=4,
         )
         assert n == 4
-        # Pool NOT created — fell back to serial under SQLite guard.
+        # With the block env var, fall back to serial.
         assert constructed["n"] == 0
         assert fw.getvalue() == "0\n1\n2\n3\n"
 

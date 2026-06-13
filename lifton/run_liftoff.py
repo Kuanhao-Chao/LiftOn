@@ -1,5 +1,5 @@
 import subprocess
-import os, copy
+import os, copy, sys
 import gffutils
 from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnInputError
@@ -43,6 +43,18 @@ def run_liftoff(output_dir, ref_db, args):
     liftoff_args.u = liftoff_outdir + "unmapped_features.txt"
 
     inmemory = bool(getattr(args, "inmemory_liftoff", False))
+    # Phase 16 Tier 3: raise the recursion limit before delegating to
+    # the vendored Liftoff library. Real-world reference annotations
+    # (NCBI RefSeq, GENCODE) drive Liftoff's recursive feature-hierarchy
+    # traversal deep enough to exceed Python's default 1000-frame limit
+    # on the human/mouse benchmark datasets. 10× headroom is the right
+    # shape for bounded-but-deep traversal while staying well within
+    # the OS thread stack (Linux default 8 MB ≈ ~13K Python frames).
+    # Pathological cycles will still surface — Tier 2's full-traceback
+    # dump in the except below pinpoints the recursive function so a
+    # precise cycle-guard fix can land in a follow-up phase.
+    _orig_recursion_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(max(_orig_recursion_limit, 10000))
     try:
         if inmemory:
             from lifton.liftoff import inmemory_emitter
@@ -54,10 +66,21 @@ def run_liftoff(output_dir, ref_db, args):
         else:
             liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
     except Exception as e:
+        import traceback
         logger.log_error(f"Liftoff encountered a fatal error during native execution: {e}")
+        # Phase 16 Tier 2: emit the full traceback so the deepest LiftOn /
+        # vendored-Liftoff frame is visible in stderr. Without this the
+        # exception's str() form (e.g. "maximum recursion depth exceeded
+        # while calling a Python object" for a RecursionError) gives no
+        # hint as to which file is recursing.
+        logger.log_error(
+            "Full Python traceback (deepest frame is the failing call):\n"
+            + traceback.format_exc().rstrip("\n")
+        )
         logger.log_error("LiftOn cannot proceed without a valid Liftoff baseline annotation.")
-        import sys
         sys.exit(1)
+    finally:
+        sys.setrecursionlimit(_orig_recursion_limit)
 
     if args.polish:
         liftoff_annotation += "_polished"

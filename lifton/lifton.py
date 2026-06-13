@@ -5,6 +5,24 @@ from pyfaidx import Fasta
 import os, sys
 import time
 
+
+def _describe_annotation_source(x):
+    """Render a Liftoff/miniprot annotation DB source for the
+    "Creating X annotation database" log lines.
+
+    Normally a path string. Under ``--inmemory-liftoff`` and
+    ``--stream``, however, the value is the full GFF3 as an in-memory
+    ``bytes`` blob. f-string interpolation of that blob produces a
+    single multi-megabyte stderr line (Phase 16 follow-up: the bee
+    benchmark previously emitted a 33 MB single-line stderr from
+    this site). Bytes values are rendered as a brief length summary
+    so log files stay grep-able and small; path values pass through
+    unchanged.
+    """
+    if isinstance(x, (bytes, bytearray)):
+        return f"<in-memory bytes, {len(x):,} bytes>"
+    return x
+
 def args_gffutils(parser):
     gffutils_grp = parser.add_argument_group('* gffutils parameters')
     gffutils_grp.add_argument(
@@ -186,6 +204,16 @@ def args_optional(parser):
              'how alignments are produced, not which alignments. '
              'Falls back gracefully when mappy is not installed.'
     )
+    parser.add_argument(
+        '--optimize', dest='optimize', action='store_true', default=False,
+        help='Opt-in v2 accuracy/speed lane (RESERVED — no behavior change '
+             'yet). Unlike the byte-identical fast-path flags above, future '
+             'work behind --optimize is permitted to CHANGE output bytes '
+             '(smarter Liftoff/miniprot merge, banded/seeded alignment, '
+             'sharded dispatch). It carries its own evolving golden and must '
+             'be proven to beat the default path on the benchmark suite '
+             'before promotion. The default path stays byte-frozen.'
+    )
 
 
 def parse_args(arglist):
@@ -312,10 +340,39 @@ def run_all_lifton_steps(args):
         target_seqids=target_seqids,
         strict=getattr(args, "strict_gff", False),
     ).validate(args.reference_annotation)
-    for f in findings:
-        logger.log(str(f), debug=True)
-    if getattr(args, "strict_gff", False) and any(
-            f.severity == "error" for f in findings):
+    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
+    # thousands of `unencoded_reserved_char` findings on Dbxref values
+    # (DBTAG:ID is technically reserved-char-bearing). The previous
+    # unconditional per-finding stderr dump produced 100+ MB stderr
+    # logs that buried real errors. Strict mode keeps per-row stderr
+    # output (users opted in); the default path now writes findings to
+    # a side-car file under stats/ and prints one summary line.
+    _strict_gff = getattr(args, "strict_gff", False)
+    if _strict_gff:
+        for f in findings:
+            logger.log(str(f), debug=True)
+    elif findings:
+        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
+        try:
+            with open(findings_path, "w") as fw:
+                for f in findings:
+                    fw.write(str(f) + "\n")
+            n_err = sum(1 for f in findings if f.severity == "error")
+            n_warn = len(findings) - n_err
+            logger.log_info(
+                f">> GFF3 input validator: {len(findings)} finding(s) "
+                f"({n_err} error, {n_warn} warning) written to "
+                f"{findings_path}; pass --strict-gff to also dump "
+                f"per-row to stderr."
+            )
+        except OSError as exc:
+            logger.log_warning(
+                f"GFF3 input validator: could not write findings to "
+                f"{findings_path}: {exc}; falling back to stderr dump."
+            )
+            for f in findings:
+                logger.log(str(f), debug=True)
+    if _strict_gff and any(f.severity == "error" for f in findings):
         sys.exit(2)
     ################################
     # Step 1: Building database from the reference annotation
@@ -402,7 +459,7 @@ def run_all_lifton_steps(args):
     ################################
     # Step 5: Create liftoff and miniprot database
     ################################
-    logger.log(f"\n>> Creating liftoff annotation database : {liftoff_annotation}", debug=True)
+    logger.log(f"\n>> Creating liftoff annotation database : {_describe_annotation_source(liftoff_annotation)}", debug=True)
     l_feature_db = annotation.Annotation(
         liftoff_annotation,
         infer_genes=False,
@@ -414,7 +471,7 @@ def run_all_lifton_steps(args):
         auto_convert_gtf=False
     ).db_connection
     t8 = time.process_time()
-    logger.log(f">> Creating miniprot annotation database : {miniprot_annotation}", debug=True)
+    logger.log(f">> Creating miniprot annotation database : {_describe_annotation_source(miniprot_annotation)}", debug=True)
     if miniprot_annotation is not None:
         m_feature_db = annotation.Annotation(
             miniprot_annotation,
@@ -446,6 +503,7 @@ def run_all_lifton_steps(args):
     fw_extra_copy = open(f"{stats_dir}/extra_copy_features.txt", "w")
     fw_mapped_feature = open(f'{stats_dir}/mapped_feature.txt', 'w')
     fw_mapped_trans = open(f'{stats_dir}/mapped_transcript.txt', 'w')
+    fw_feature_type = open(f'{stats_dir}/completeness_by_feature_type.txt', 'w')
     fw_chain = open(f"{lifton_outdir}/chain.txt", "w") if args.write_chains else None
 
     t9 = time.process_time()
@@ -488,6 +546,7 @@ def run_all_lifton_steps(args):
         fw_score=fw_score,
         fw_chain=fw_chain,
         args=args,
+        optimize=bool(getattr(args, "optimize", False)),
     )
     _threads = int(getattr(args, "threads", 1) or 1)
     _use_pool = bool(getattr(args, "locus_pipeline", False)) and _threads > 1
@@ -519,7 +578,7 @@ def run_all_lifton_steps(args):
     # Step 9: Printing stats
     ################################
     try:
-        stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
+        stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug, fw_feature_type=fw_feature_type)
     except Exception as e:
         logger.log_error(f"Failed to print report: {e}")
     finally:
@@ -530,6 +589,7 @@ def run_all_lifton_steps(args):
         fw_extra_copy.close()
         fw_mapped_feature.close()
         fw_mapped_trans.close()
+        fw_feature_type.close()
         if args.write_chains: fw_chain.close()
 
     ################################

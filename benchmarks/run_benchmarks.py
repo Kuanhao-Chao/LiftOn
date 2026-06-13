@@ -184,9 +184,27 @@ def _parse_gnu_time(log: str) -> dict:
         line = line.strip()
         for prefix, key in _GNU_KEYS.items():
             if line.startswith(prefix):
-                out[key] = line.split(":", 1)[1].strip()
+                # Slice past the matched prefix rather than splitting on
+                # the first colon — the wall-clock prefix itself
+                # contains colons (`(h:mm:ss or m:ss)`), so a naive
+                # split(":", 1) would cut inside the prefix and capture
+                # garbage like "mm:ss or m:ss): 2:19.75" instead of the
+                # numeric value.
+                out[key] = line[len(prefix):].lstrip(": ").strip()
                 break
     return out
+
+
+def _safe_float(x: Any, default: float) -> float:
+    """Convert ``x`` to float, returning ``default`` on failure or when
+    ``x`` is None / empty. Used at the time-log parsing call site so
+    one malformed field never collapses the whole benchmark report."""
+    if x is None or x == "":
+        return default
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return default
 
 
 def _parse_bsd_time(log: str) -> dict:
@@ -263,21 +281,29 @@ def run_profiled(argv: list[str], *, label: str, log_dir: Path,
     rc = proc.returncode
 
     parsed: dict[str, Any] = {}
+    user = 0.0
+    sys_t = 0.0
+    rss_kb = 0.0
     if prefix is not None and time_path.exists():
         log_text = time_path.read_text(errors="replace")
         if kind == "gnu":
             parsed = _parse_gnu_time(log_text)
             if "wall_clock_str" in parsed:
-                wall = _wall_clock_str_to_seconds(parsed["wall_clock_str"])
-            user = float(parsed.get("user_cpu_seconds") or 0.0)
-            sys_t = float(parsed.get("sys_cpu_seconds") or 0.0)
-            rss_kb = float(parsed.get("max_rss_kb") or 0.0)
+                try:
+                    wall = _wall_clock_str_to_seconds(parsed["wall_clock_str"])
+                except (ValueError, IndexError) as exc:
+                    log(f"  ! could not parse wall-clock from "
+                        f"{time_path} ({exc!s}); falling back to "
+                        f"in-process timer ({wall:.2f}s).")
+            user = _safe_float(parsed.get("user_cpu_seconds"), 0.0)
+            sys_t = _safe_float(parsed.get("sys_cpu_seconds"), 0.0)
+            rss_kb = _safe_float(parsed.get("max_rss_kb"), 0.0)
         else:
             parsed = _parse_bsd_time(log_text)
-            wall = float(parsed.get("wall_clock_seconds") or wall)
-            user = float(parsed.get("user_cpu_seconds") or 0.0)
-            sys_t = float(parsed.get("sys_cpu_seconds") or 0.0)
-            rss_kb = float(parsed.get("max_rss_kb") or 0.0)
+            wall = _safe_float(parsed.get("wall_clock_seconds"), wall)
+            user = _safe_float(parsed.get("user_cpu_seconds"), 0.0)
+            sys_t = _safe_float(parsed.get("sys_cpu_seconds"), 0.0)
+            rss_kb = _safe_float(parsed.get("max_rss_kb"), 0.0)
     else:
         # Fallback to in-process rusage. Note: only sees current proc,
         # NOT the LiftOn child — so it's a lower bound. Use only when

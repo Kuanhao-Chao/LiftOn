@@ -12,7 +12,14 @@ setuptools.setup(
 	url="https://github.com/Kuanhao-Chao/Lifton",
 	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "cigar>=0.1.3", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0', 'pytest>=7.0.0',
 	# Phase 6.1 (vendored gffbase) runtime requirements:
-	'duckdb>=1.0', 'pyarrow>=14'],
+	'duckdb>=1.0', 'pyarrow>=14',
+	# Phase 16 Tier 5: mappy unlocks the in-process minimap2 path under
+	# `--native` (lifton/liftoff/native_align.py). Without it, --native
+	# silently degrades to the subprocess path with a stderr warning
+	# per call. Declaring it here makes the advertised flag actually
+	# deliver native speed; the runtime still falls back gracefully if
+	# the wheel is unavailable on a given platform.
+	'mappy'],
 	include_package_data=True,
 	package_data={
 		# Ship the vendored gffbase Rust extension and its bundled fixtures.
