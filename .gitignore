@@ -1,10 +1,25 @@
-scripts/
+scripts/*
+!scripts/benchmark_gate.py
+!scripts/hooks/
+!scripts/hooks/pre-push
 experiments/
 lifton_protein.gff3
 lifton.gff3
 results/
 data/
 slides/
+
+# Benchmark comparison harness: keep code, exclude generated data + scratch
+benchmarks/compare/work/
+benchmarks/compare/__pycache__/
+benchmarks/compare/*.bak
+benchmarks/compare/run_optab.py
+benchmarks/compare/run_optab_eval.py
+benchmarks/compare/score_abc.py
+
+# Large publication binaries (kept locally, out of git history)
+*.pdf
+*.docx
 .DS_Store
 docs/.vscode/
 paper/
