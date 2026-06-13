@@ -125,6 +125,20 @@ class TestAnnotationParserDirty:
         feat = ann.db_connection["gNeg"]
         assert feat.start == -5  # Bug: should have been rejected
 
+    def test_negative_coordinates_strictly_rejected_under_gffbase(
+            self, gff_negative_coords, monkeypatch):
+        """Under LIFTON_USE_GFFBASE=1 the gffbase parser correctly
+        rejects negative col-4 values at parse time per NCBI spec.
+        (The default gffutils path is permissive; users who want the
+        strict behaviour opt in via the env var or --strict-gff.)"""
+        from lifton.gffbase.exceptions import GFFFormatError
+        monkeypatch.setenv("LIFTON_USE_GFFBASE", "1")
+        with pytest.raises((GFFFormatError, ValueError, SystemExit)):
+            annotation.Annotation(
+                str(gff_negative_coords), False, False, "create_unique",
+                None, True, False,
+            )
+
     def test_duplicate_id_collision_resolved_via_create_unique(
             self, gff_duplicate_id_collision):
         """Two rows with the same ID but different (seqid, type) — true
@@ -197,7 +211,18 @@ class TestMalformedCoordinates:
         )
         feat = ann.db_connection["gbad"]
         assert feat.start == 200
-        assert feat.end == 100  # Bug: should be unreachable
+
+    def test_start_gt_end_strictly_rejected_under_gffbase(
+            self, gff_malformed_coords, monkeypatch):
+        """gffbase rejects start>end at parse time. Available via
+        LIFTON_USE_GFFBASE=1."""
+        from lifton.gffbase.exceptions import GFFFormatError
+        monkeypatch.setenv("LIFTON_USE_GFFBASE", "1")
+        with pytest.raises((GFFFormatError, ValueError, SystemExit)):
+            annotation.Annotation(
+                str(gff_malformed_coords), False, False, "create_unique",
+                None, True, False,
+            )
 
     def test_downstream_segment_overlap_handles_inverted_segment(self):
         """If the parser ever lets an inverted segment through, downstream
