@@ -4,6 +4,7 @@ import argparse
 from pyfaidx import Fasta
 import os, sys
 import time
+import concurrent.futures
 
 
 def _describe_annotation_source(x):
@@ -203,6 +204,30 @@ def args_optional(parser):
              'byte-identical to the subprocess path; this flag changes '
              'how alignments are produced, not which alignments. '
              'Falls back gracefully when mappy is not installed.'
+    )
+    parser.add_argument(
+        '--serial-aligners', dest='serial_aligners', action='store_true',
+        default=False,
+        help='Restore the pre-Iteration-6 SEQUENTIAL Step 4: run Liftoff '
+             '(DNA) then miniprot (protein) one after the other instead of '
+             'the default (concurrent) overlap. The default now dispatches '
+             'miniprot (an independent subprocess) to a background thread '
+             'while Liftoff runs on the main thread (Liftoff reads the '
+             'main-thread-bound SQLite reference DB, so it cannot move off '
+             'it), collapsing Step-4 wall from t_liftoff + t_miniprot to '
+             'max(t_liftoff, t_miniprot). The concurrent default is '
+             'byte-identical to this serial path (only miniprot\'s timing '
+             'moves); use --serial-aligners on core-constrained machines '
+             '(concurrent peak is ~N+1 cores with --threads N) or to keep '
+             'the two tools\' console logs from interleaving.'
+    )
+    parser.add_argument(
+        '--parallel-aligners', dest='parallel_aligners', action='store_true',
+        default=False,
+        help='No-op alias (kept for backward compatibility). The Step-4 '
+             'Liftoff/miniprot overlap that this flag used to gate is now '
+             'the DEFAULT (Iteration 6 promotion), so --parallel-aligners '
+             'has no effect; pass --serial-aligners to opt out.'
     )
     parser.add_argument(
         '--optimize', dest='optimize', action='store_true', default=False,
@@ -509,11 +534,57 @@ def run_all_lifton_steps(args):
     # Step 4: Run liftoff & miniprot
     ################################
     t5 = time.process_time()
-    liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, ref_db, args)
-    t6 = time.process_time()
-    miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
-
-    t7 = time.process_time()
+    # Output-neutral perf probe: Step 4 is subprocess-dominated, so
+    # process_time (parent-CPU only) cannot measure it. Capture WALL time
+    # around the whole block and emit one stderr line when LIFTON_PERF_STEP4
+    # is set — lets the --parallel-aligners A/B isolate the overlap saving
+    # from Step-7 noise without touching the output GFF3 or time.txt.
+    _w4_start = time.perf_counter()
+    if not getattr(args, "serial_aligners", False):
+        # Iteration 6 (PROMOTED to default): overlap the two independent
+        # external aligners so wall-clock = max(t_liftoff, t_miniprot) instead
+        # of the sum. They read the same inputs and write disjoint output dirs
+        # (liftoff/ vs miniprot/), consumed separately at Step 5, so the output
+        # bytes are unchanged — only miniprot's *timing* moves. This is a
+        # byte-neutral default flip; --serial-aligners restores the old
+        # sequential path (and --parallel-aligners is a kept no-op alias).
+        #
+        # Liftoff MUST stay on THIS (main) thread: it reads the reference
+        # gffutils DB whose SQLite connection is bound to the thread that
+        # created it (Step 1), and sqlite3 forbids cross-thread use
+        # (`SQLite objects created in a thread can only be used in that same
+        # thread`). miniprot is an independent subprocess that never touches
+        # ref_db, so IT is the one dispatched to a background worker.
+        # .result() re-raises the worker's exception on the main thread,
+        # preserving the serial fail-fast (run_miniprot returns None on
+        # failure; run_liftoff sys.exit(1) still fires inline here).
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="lifton-miniprot") as _ex:
+            _f_mini = _ex.submit(
+                lifton_utils.exec_miniprot, lifton_outdir, args,
+                tgt_genome, ref_proteins_file)
+            liftoff_annotation = lifton_utils.exec_liftoff(
+                lifton_outdir, ref_db, args)
+            miniprot_annotation = _f_mini.result()
+        # The two tools overlapped, so the per-tool t5->t6 / t6->t7 split is
+        # meaningless; collapse t6 onto t7 so the --measure_time report's
+        # "Run liftoff & miniprot" line (t6 - t5) covers the whole concurrent
+        # region and "Create liftoff database" (t8 - t6) stays DB-only. Under
+        # this flag that entry is overlapped CPU time (process_time was never
+        # a wall-clock proxy; the true wall delta lives in the A/B harness).
+        t6 = time.process_time()
+        t7 = t6
+    else:
+        liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, ref_db, args)
+        t6 = time.process_time()
+        miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
+        t7 = time.process_time()
+    if os.environ.get("LIFTON_PERF_STEP4"):
+        _mode = "serial" if getattr(args, "serial_aligners", False) else "parallel"
+        sys.stderr.write(
+            f"[LiftOn][perf] Step4 wall ({_mode}): "
+            f"{time.perf_counter() - _w4_start:.2f}s\n")
+        sys.stderr.flush()
     ################################
     # Step 5: Create liftoff and miniprot database
     ################################
