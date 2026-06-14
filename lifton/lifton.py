@@ -220,6 +220,23 @@ def args_optional(parser):
              'use only for reproducing legacy output. The default path now '
              'runs the verified best-of-outcome merge instead.'
     )
+    parser.add_argument(
+        '--full-dp-align', dest='full_dp_align', action='store_true', default=False,
+        help='Restore the exact pre-Iteration-3 giant-only alignment: full '
+             'Needleman-Wunsch DP for every non-giant gene (gate 8000 aa / '
+             '25000 nt); giants still memory-bounded-windowed so it cannot OOM. '
+             'The default is now "band everything" (anchor-windowed above '
+             '~2500 aa / 8000 nt: 1.4-2.6x faster, identity-exact on '
+             'same-species lifts). Use this for manuscript reproduction or '
+             'maximal accuracy on divergent inputs. For PURE full DP including '
+             'giants, set LIFTON_ALIGN_WINDOW_AA/NT to a huge value.'
+    )
+    parser.add_argument(
+        '--fast-align', dest='fast_align', action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). Band-everything '
+             'alignment that this flag used to gate is now the DEFAULT, so '
+             '--fast-align has no effect; use --full-dp-align to opt OUT.'
+    )
 
 
 def parse_args(arglist):
@@ -298,6 +315,13 @@ def parse_args(arglist):
 
 def run_all_lifton_steps(args):
     t1 = time.process_time()
+    # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
+    # import). --full-dp-align restores the exact pre-Iteration-3 giant-only path
+    # for manuscript reproduction / paranoid accuracy. Lazy import keeps `align`
+    # (which pulls in the lifton_class↔lifton_utils cycle) off the module top.
+    if getattr(args, "full_dp_align", False):
+        from lifton import align as _align
+        _align.configure_alignment(band=False)
     ################################
     # Step 0: Reading target & reference genomes
     ################################

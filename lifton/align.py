@@ -1,8 +1,94 @@
+import os
 import parasail
 from Bio.Seq import Seq
 from cigar import Cigar
-from lifton import get_id_fraction, lifton_class
+from lifton import get_id_fraction, lifton_class, windowed_align
 from lifton.exceptions import LiftOnAlignmentError
+
+
+# Alignment kernel: `parasail.nw_trace_scan_sat` is full O(L²) Needleman–Wunsch
+# in time AND memory, so a titin-scale alignment (protein ~35 k aa, transcript
+# ~106 kb) costs tens of GB + tens of seconds and OOM-crashes typical machines
+# (memory `lifton-giant-gene-align-blowup`). Above a length gate we route to the
+# anchor-windowed aligner (`windowed_align`) — bounded in time/memory, and exact
+# (== full DP) wherever anchors exist or a divergent region is below the giant
+# boundary; only true giants take an approximate memory-bounded split.
+#
+# Iteration 3 makes "band everything" the DEFAULT: the gate is low (2500 aa /
+# 8000 nt) so the whole O(L²) mid-tail is windowed, with a fine band (cap 1500)
+# and the exact-DP fallback raised to the giant boundary. End-to-end 1.4–2.6×
+# faster, 3.5–4.5× less peak RSS; identity-exact on same-species lifts,
+# mean-neutral on cross-species (benchmarks/compare/fast_align_ab.py). Escape
+# hatches restore the pre-Iteration-3 behaviour:
+#   --full-dp-align / LIFTON_FULL_DP_ALIGN  -> exact giant-only path: full DP for
+#       every non-giant gene (gate 8000 aa / 25000 nt); giants still windowed so
+#       it can't OOM. configure_alignment(band=False).
+#   LIFTON_ALIGN_WINDOW_AA/NT=<huge>        -> pure full DP incl. giants
+#       (manuscript reproduction; OOM-prone on titin-scale genes).
+# Tiny genes (fixtures, median ~476 aa) stay below the 2500 gate → exact full DP
+# → the 24-cell byte-identity matrix stays green with no golden edit.
+
+# Band-everything (default) vs giant-only (--full-dp-align) tuned constants.
+_BAND_AA, _BAND_NT, _BAND_CAP = 2500, 8000, 1500
+_GIANT_AA, _GIANT_NT, _GIANT_CAP = 8000, 25000, 6000
+# Exact-DP fallback bound for anchor-less regions (band mode only): up to the
+# giant boundary stays exact; only beyond it falls back to the bounded split.
+_BAND_MAX_FULLDP_AA, _BAND_MAX_FULLDP_NT = _GIANT_AA, _GIANT_NT
+
+# Explicit env pins win over the flag (force pure full DP for reproduction).
+_ENV_PINNED_AA = "LIFTON_ALIGN_WINDOW_AA" in os.environ
+_ENV_PINNED_NT = "LIFTON_ALIGN_WINDOW_NT" in os.environ
+_ENV_PINNED_CAP = "LIFTON_ALIGN_WINDOW_CAP" in os.environ
+
+# Effective thresholds. Default = band-everything; explicit env vars win.
+_ALIGN_WINDOW_AA = int(os.environ.get("LIFTON_ALIGN_WINDOW_AA", str(_BAND_AA)))
+_ALIGN_WINDOW_NT = int(os.environ.get("LIFTON_ALIGN_WINDOW_NT", str(_BAND_NT)))
+# Per-type exact-DP fallback bound passed into windowed_traceback (None → the
+# aligner defaults it to WINDOW_CAP, i.e. fallback off / giant-only behaviour).
+_ALIGN_MAX_FULLDP_AA = _BAND_MAX_FULLDP_AA
+_ALIGN_MAX_FULLDP_NT = _BAND_MAX_FULLDP_NT
+_FAST_ALIGN_ACTIVE = True
+
+
+def configure_alignment(band=True):
+    """Switch the alignment kernel between "band everything" (default, Iteration
+    3) and the exact giant-only path (--full-dp-align, pre-Iteration-3). Called
+    from `lifton.run_all_lifton_steps` only when --full-dp-align flips it off;
+    the import-time module state is already band-everything. Symmetric, so it is
+    safe to toggle in tests. Explicit `LIFTON_ALIGN_WINDOW_{AA,NT,CAP}` env vars
+    are honoured over the flag (pure-full-DP reproduction escape hatch)."""
+    global _ALIGN_WINDOW_AA, _ALIGN_WINDOW_NT
+    global _ALIGN_MAX_FULLDP_AA, _ALIGN_MAX_FULLDP_NT, _FAST_ALIGN_ACTIVE
+    _FAST_ALIGN_ACTIVE = bool(band)
+    aa, nt, cap = (_BAND_AA, _BAND_NT, _BAND_CAP) if band else \
+                  (_GIANT_AA, _GIANT_NT, _GIANT_CAP)
+    if not _ENV_PINNED_AA:
+        _ALIGN_WINDOW_AA = aa
+    if not _ENV_PINNED_NT:
+        _ALIGN_WINDOW_NT = nt
+    if not _ENV_PINNED_CAP:
+        windowed_align.set_window_cap(cap)
+    if band:
+        _ALIGN_MAX_FULLDP_AA = _BAND_MAX_FULLDP_AA
+        _ALIGN_MAX_FULLDP_NT = _BAND_MAX_FULLDP_NT
+    else:
+        _ALIGN_MAX_FULLDP_AA = None
+        _ALIGN_MAX_FULLDP_NT = None
+
+
+# Backward-compatible alias (the flag was --fast-align during development).
+def configure_fast_align(enabled=True):
+    """Deprecated alias of configure_alignment(band=...)."""
+    configure_alignment(band=enabled)
+
+
+# Apply the default alignment mode at import (single source of truth, incl. the
+# window cap). Band-everything by default; LIFTON_FULL_DP_ALIGN selects the exact
+# giant-only baseline for subprocess benchmarks (the CLI --full-dp-align flag
+# does the same in-process). Explicit LIFTON_ALIGN_WINDOW_* env still wins.
+_FULL_DP_ALIGN_ENV = os.environ.get(
+    "LIFTON_FULL_DP_ALIGN", "") not in ("", "0", "false", "False")
+configure_alignment(band=not _FULL_DP_ALIGN_ENV)
 
 
 # V4.2 fix: bases acceptable to parasail's ACGTN matrix below. Anything
@@ -106,7 +192,12 @@ def parasail_align_protein_base(protein_seq, ref_protein_seq):
             "and reference."
         )
     # Return: (Query, Target)
-    extracted_parasail_res = parasail.nw_trace_scan_sat(protein_seq, ref_protein_seq, gap_open, gap_extend, matrix)
+    if max(len(protein_seq), len(ref_protein_seq)) > _ALIGN_WINDOW_AA:
+        extracted_parasail_res = windowed_align.windowed_traceback(
+            protein_seq, ref_protein_seq, gap_open, gap_extend, matrix,
+            is_dna=False, max_fulldp=_ALIGN_MAX_FULLDP_AA)
+    else:
+        extracted_parasail_res = parasail.nw_trace_scan_sat(protein_seq, ref_protein_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res
 
 
@@ -151,7 +242,12 @@ def parasail_align_DNA_base(trans_seq, ref_trans_seq):
     trans_seq = _sanitise_for_parasail_dna(trans_seq)
     ref_trans_seq = _sanitise_for_parasail_dna(ref_trans_seq)
     # Return: (Query, Target)
-    extracted_parasail_res = parasail.nw_trace_scan_sat(trans_seq, ref_trans_seq, gap_open, gap_extend, matrix)
+    if max(len(trans_seq), len(ref_trans_seq)) > _ALIGN_WINDOW_NT:
+        extracted_parasail_res = windowed_align.windowed_traceback(
+            trans_seq, ref_trans_seq, gap_open, gap_extend, matrix,
+            is_dna=True, max_fulldp=_ALIGN_MAX_FULLDP_NT)
+    else:
+        extracted_parasail_res = parasail.nw_trace_scan_sat(trans_seq, ref_trans_seq, gap_open, gap_extend, matrix)
     return extracted_parasail_res
 
 

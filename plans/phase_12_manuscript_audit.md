@@ -558,3 +558,83 @@ as the reproduction switch — *or* keep the manuscript as the documented
 `--legacy-merge` behaviour and add a one-line note that the shipped default
 additionally reverts identity-lowering merges. This parallels items #1/#2
 above (a manuscript erratum vs a code reconciliation).
+
+---
+
+## 5. Erratum (post-Phase-12, 2026-06-13): giant-gene windowed alignment
+
+> **Scope:** an intentional change to the alignment kernel for very long
+> sequences, made after the Iteration-2 performance diagnostic.
+
+**What the manuscript says (Methods §71-72).** Per-transcript DNA and protein
+identity are computed from a **full Needleman–Wunsch** alignment
+(`parasail.nw_trace_scan_sat`) of the lifted sequence against the reference.
+
+**What the code now does.** Full NW is O(L²) in **time and memory**, which on
+giant genes is catastrophic: a single titin DNA alignment (~106 kb transcript)
+is ~106k × 106k ≈ 1.1e10 cells whose traceback matrix is tens of GB. The mouse
+benchmark peaked at ~48 GB and 1264 s, almost all of it in ~14 giant genes
+(titin, nebulin, obscurin, mucins …), and OOM-crashes any machine under ~48 GB.
+Above a length gate (`LIFTON_ALIGN_WINDOW_AA` = 8000 aa, `LIFTON_ALIGN_WINDOW_NT`
+= 25000 nt) LiftOn now computes the alignment with an **anchor-windowed** method
+(`lifton/windowed_align.py`): unique-k-mer anchors are chained co-linearly and
+the small windows between them are aligned with full NW and concatenated. Below
+the gate the exact full-NW path is unchanged.
+
+**Effect on results.** Identity below the gate is **bit-identical** to the
+manuscript method. Above the gate it is essentially exact (validated on real
+titin protein: Δ identity = +0.00000): the A/B
+(`benchmarks/compare/align_window_ab.py`, mouse, windowed vs forced full-DP) gives
+**2.2× faster, 16.9× less peak RSS (44.9 GB → 2.6 GB), 0 non-giant transcripts
+changed**; among giants, coding `protein_identity` Δ = 0.0 and long non-coding
+`dna_identity` shifts by ≤0.001, with no structural/coordinate change. Set
+`LIFTON_ALIGN_WINDOW_AA`/`_NT` to a huge value to reproduce the pure full-NW
+manuscript scores exactly.
+
+**Manuscript action required (user's call):** add a sentence to Methods §71-72
+noting that alignments above ~8 kaa / ~25 kb use an anchor-windowed NW
+(identity-preserving) to bound memory on giant genes; cite the env override for
+exact full-NW reproduction. Lower-impact than items #1/#2 (it does not change
+normal-gene scores at all).
+
+
+## 6. Erratum (post-Phase-12, 2026-06-14): band-everything alignment is the default
+
+> **Scope:** Iteration 3 extends the anchor-windowed aligner from *giants only*
+> (§5) to *all transcript sizes*, making it the default. Unlike §5, this **does**
+> change normal-gene scores (mean-neutral) — a deliberate speed/accuracy trade
+> promoted through the loop's decision gate.
+
+**What changed.** The windowing gate is lowered from 8000 aa / 25000 nt to
+**2500 aa / 8000 nt** with a finer band (`WINDOW_CAP` 1500) and the exact-DP
+fallback for anchor-less regions raised to the giant boundary
+(`lifton/align.py:configure_alignment(band=True)`, applied at import). So the
+whole O(L²) mid-tail — not just giants — is windowed. Windowing is exact
+(== full NW) wherever unique-k-mer anchors exist (the common homologous case) or
+a divergent region is below the giant boundary; only true-giant anchor-less
+regions take a bounded approximate split.
+
+**Effect on results (A/B `benchmarks/compare/fast_align_ab.py`, default vs
+`--full-dp-align`, `-t 1`):** **mouse 2.59×, mouse_to_rat 2.14×, drosophila
+1.43× wall-clock; 3.5–4.5× less peak RSS.** Accuracy splits by divergence:
+- **Same-species (mouse, mouse_to_rat lift): identity-exact** — 0 of 13,780
+  scored transcripts changed.
+- **Cross-species (drosophila): mean-neutral** — 16 / 7,946 changed (3 improved,
+  3 regressed by ≤1.2% on already-imperfect alignments), mean Δ ≈ −3e-6.
+- Completeness (gene/transcript/CDS counts) unchanged on all three.
+
+**Decision gate (passed).** Promotion required speedup ≥ 5% wall AND mean
+identity Δ ≥ −1e-3 AND completeness unchanged — met on every dataset. The
+24-cell byte-identity matrix stays green with **no golden edit** because the
+synthetic fixtures (~33 aa) are far below the 2500 gate (still exact full NW).
+
+**Reproduction escape hatches.** `--full-dp-align` (or `LIFTON_FULL_DP_ALIGN=1`)
+restores the exact pre-Iteration-3 giant-only path; `LIFTON_ALIGN_WINDOW_{AA,NT}`
+set huge gives pure full NW including giants (manuscript scores exactly).
+`--fast-align` is a kept no-op alias (band-everything is the default).
+
+**Manuscript action required (user's call):** extend the §5 sentence to state
+that *all* protein/transcript alignments above ~2.5 kaa / ~8 kb (not just giants)
+use anchor-windowed NW by default — exact on same-species lifts, mean-neutral on
+cross-species — with `--full-dp-align` for the exact giant-only path and the env
+override for pure full-NW reproduction.

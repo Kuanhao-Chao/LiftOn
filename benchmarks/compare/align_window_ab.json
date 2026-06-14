@@ -1,0 +1,73 @@
+[
+  {
+    "benchmark": "mouse",
+    "wall_s": {
+      "windowed": 799.0,
+      "fulldp": 1783.0
+    },
+    "peak_rss_mb": {
+      "windowed": 2649.0,
+      "fulldp": 44860.0
+    },
+    "n_giant_transcripts": 26,
+    "n_differing_transcripts": 6,
+    "n_unexpected_diffs_nongiant": 0,
+    "unexpected_diff_ids": [],
+    "differing_transcripts": [
+      "rna-XM_006498812.3",
+      "rna-XM_006499688.5",
+      "rna-XM_006499690.5",
+      "rna-XR_004941095.1",
+      "rna-XR_004941096.1",
+      "rna-XR_004941109.1"
+    ],
+    "max_giant_pid_delta": [
+      "rna-XM_036160536.1",
+      0.0
+    ],
+    "giant_pid_deltas_top": [
+      [
+        "rna-XM_036160536.1",
+        0.0
+      ],
+      [
+        "rna-XM_011239589.4",
+        0.0
+      ],
+      [
+        "rna-NM_028004.2",
+        0.0
+      ],
+      [
+        "rna-XR_004941095.1",
+        0.0
+      ],
+      [
+        "rna-XM_036160528.1",
+        0.0
+      ],
+      [
+        "rna-XM_036160524.1",
+        0.0
+      ],
+      [
+        "rna-XM_036160534.1",
+        0.0
+      ],
+      [
+        "rna-XR_865942.3",
+        0.0
+      ],
+      [
+        "rna-XR_004941096.1",
+        0.0
+      ],
+      [
+        "rna-XM_006499690.5",
+        0.0
+      ]
+    ],
+    "speedup": 2.2,
+    "rss_reduction": 16.9
+  }
+]
