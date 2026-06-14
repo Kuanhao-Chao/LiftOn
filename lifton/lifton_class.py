@@ -84,13 +84,20 @@ class Lifton_GENE:
         self.__update_gene_copy(ref_features_dict)
         self.entry.id = gene_id
         # V2.8: route via _make_interval so single-base genes don't crash.
-        from lifton.intervals import _make_interval
-        gene_interval = _make_interval(
-            self.entry.start, self.entry.end, self.entry.id,
-        )
-        if self.entry.seqid not in tree_dict.keys():
-            tree_dict[self.entry.seqid] = IntervalTree()
-        tree_dict[self.entry.seqid].add(gene_interval)
+        # Iteration-5 --lift-gene-like: only `gene`-type loci join the interval
+        # tree that gates miniprot protein-rescue suppression (Step 8). That was
+        # always the tree's contract (features was historically ["gene"]); adding
+        # pseudogenes/ncRNA_genes here would let them suppress a miniprot
+        # coding-gene rescue just by overlapping it. Default path lifts only
+        # `gene`, so this is a no-op there (byte-identical, 24-cell green).
+        if self.entry.featuretype == "gene":
+            from lifton.intervals import _make_interval
+            gene_interval = _make_interval(
+                self.entry.start, self.entry.end, self.entry.id,
+            )
+            if self.entry.seqid not in tree_dict.keys():
+                tree_dict[self.entry.seqid] = IntervalTree()
+            tree_dict[self.entry.seqid].add(gene_interval)
         # Decide if its type
         # Check for gene type/biotype attribute in order of preference
         gene_type_key = None

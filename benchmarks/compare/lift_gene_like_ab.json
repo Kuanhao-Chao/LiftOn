@@ -1,0 +1,90 @@
+[
+  {
+    "benchmark": "drosophila",
+    "gene_like_types": [
+      "gene",
+      "pseudogene"
+    ],
+    "type_counts": {
+      "off": {
+        "gene": 4048
+      },
+      "on": {
+        "gene": 4048,
+        "pseudogene": 21
+      }
+    },
+    "recovered_off_on": {
+      "pseudogene": [
+        0,
+        21
+      ]
+    },
+    "pseudogene_off": 0,
+    "pseudogene_on": 21,
+    "gene_off": 4048,
+    "gene_on": 4048,
+    "off_lines": 92607,
+    "on_lines": 92678,
+    "on_only_lines": 71,
+    "off_only_lines": 0,
+    "gene_lift_unchanged": true,
+    "validate_on": {
+      "exit": 1,
+      "n_error_lines": 3
+    },
+    "validate_off": {
+      "exit": 1,
+      "n_error_lines": 3
+    },
+    "wall_s": {
+      "off": 204.2,
+      "on": 201.1
+    },
+    "promote": true
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "gene_like_types": [
+      "gene",
+      "pseudogene"
+    ],
+    "type_counts": {
+      "off": {
+        "gene": 945
+      },
+      "on": {
+        "gene": 945,
+        "pseudogene": 124
+      }
+    },
+    "recovered_off_on": {
+      "pseudogene": [
+        0,
+        124
+      ]
+    },
+    "pseudogene_off": 0,
+    "pseudogene_on": 124,
+    "gene_off": 945,
+    "gene_on": 945,
+    "off_lines": 60082,
+    "on_lines": 60257,
+    "on_only_lines": 175,
+    "off_only_lines": 0,
+    "gene_lift_unchanged": true,
+    "validate_on": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "validate_off": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "wall_s": {
+      "off": 125.3,
+      "on": 126.0
+    },
+    "promote": true
+  }
+]

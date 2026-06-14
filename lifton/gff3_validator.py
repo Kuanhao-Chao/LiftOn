@@ -51,6 +51,11 @@ TRANSCRIPT_TYPES = {
 EXON_TYPES    = {"exon"}
 CDS_TYPES     = {"CDS"}
 REGION_TYPES  = {"region"}
+# NCBI RefSeq permits exon/CDS DIRECTLY under a pseudogene (or transposable
+# element) with no intervening transcript level. Accept these as valid
+# exon/CDS parents so faithfully-lifted pseudogenes (Iteration-5
+# --lift-gene-like) don't trip the exon/CDS parent-type hierarchy checks.
+DIRECT_EXON_PARENT_TYPES = {"pseudogene", "transposable_element"}
 
 VALID_STRANDS = {"+", "-", "."}
 VALID_PHASES  = {0, 1, 2}
@@ -655,7 +660,8 @@ def _check_hierarchy(
                     ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if parent_rec.ftype not in TRANSCRIPT_TYPES:
+                if (parent_rec.ftype not in TRANSCRIPT_TYPES
+                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES):
                     issue_counts["exon_wrong_parent"] += 1
                     if issue_counts["exon_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
@@ -675,7 +681,8 @@ def _check_hierarchy(
                     ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if parent_rec.ftype not in TRANSCRIPT_TYPES:
+                if (parent_rec.ftype not in TRANSCRIPT_TYPES
+                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES):
                     issue_counts["cds_wrong_parent"] += 1
                     if issue_counts["cds_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(

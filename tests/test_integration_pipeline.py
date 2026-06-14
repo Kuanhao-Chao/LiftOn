@@ -280,3 +280,86 @@ def test_pipeline_does_not_call_external_tools(integration_workspace,
     # this assertion proves the short-circuit fired.
     lifton_main.run_all_lifton_steps(args)
     assert out_gff.exists()
+
+
+# ---------------------------------------------------------------------------
+# Iteration 5: --lift-gene-like (lift gene-like features beyond `gene`)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def gene_like_workspace(tmp_path):
+    """A protein-coding gene PLUS a gene-like pseudogene (has an exon child) at
+    401-499. The pseudogene is present in both the ref and the pre-baked Liftoff
+    GFF, so it is lifted ONLY when --lift-gene-like expands the feature list
+    beyond `gene`. (Kept separate from `integration_workspace` so the byte-
+    identity matrix fixture is untouched.)"""
+    work = tmp_path / "work"
+    work.mkdir()
+    chrom = ["A"] * 600
+    exon1 = "ATG" + "GCT" * 32          # 99 nt coding
+    exon2 = ("GCT" * 32) + "TAA"        # 99 nt coding
+    for i, ch in enumerate(exon1):
+        chrom[100 + i] = ch
+    for i, ch in enumerate(exon2):
+        chrom[300 + i] = ch
+    for i, ch in enumerate("GCT" * 33):  # 99 nt pseudogene body (no ATG/stop needed)
+        chrom[400 + i] = ch
+    seq = "".join(chrom)
+
+    ref_fa = work / "ref.fa"
+    ref_fa.write_text(">chr1\n" + _wrap(seq))
+    tgt_fa = work / "tgt.fa"
+    tgt_fa.write_text(">chr1\n" + _wrap(seq))
+
+    gene_block = (
+        "chr1\t{src}\tgene\t101\t399\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\t{src}\tmRNA\t101\t399\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\t{src}\texon\t101\t199\t.\t+\t.\tID=exon1;Parent=tx1\n"
+        "chr1\t{src}\texon\t301\t399\t.\t+\t.\tID=exon2;Parent=tx1\n"
+        "chr1\t{src}\tCDS\t101\t199\t.\t+\t0\tID=cds1;Parent=tx1\n"
+        "chr1\t{src}\tCDS\t301\t399\t.\t+\t0\tID=cds2;Parent=tx1\n"
+        "chr1\t{src}\tpseudogene\t401\t499\t.\t+\t.\tID=pg1;gene_biotype=pseudogene\n"
+        "chr1\t{src}\texon\t401\t499\t.\t+\t.\tID=pgexon1;Parent=pg1\n"
+    )
+    ref_gff = work / "ref.gff3"
+    ref_gff.write_text("##gff-version 3\n" + gene_block.format(src="test"))
+    liftoff_gff = work / "liftoff.gff3"
+    liftoff_gff.write_text("##gff-version 3\n" + gene_block.format(src="Liftoff"))
+    miniprot_gff = work / "miniprot.gff3"
+    miniprot_gff.write_text(
+        "##gff-version 3\n"
+        "chr1\tminiprot\tmRNA\t101\t399\t.\t+\t.\tID=MP1;Target=tx1 1 66\n"
+        "chr1\tminiprot\tCDS\t101\t199\t.\t+\t0\tID=MP1.cds1;Parent=MP1\n"
+        "chr1\tminiprot\tCDS\t301\t399\t.\t+\t0\tID=MP1.cds2;Parent=MP1\n"
+    )
+    out_dir = work / "out"
+    out_dir.mkdir()
+    return {"ref_fa": ref_fa, "tgt_fa": tgt_fa, "ref_gff": ref_gff,
+            "liftoff": liftoff_gff, "miniprot": miniprot_gff, "out": out_dir}
+
+
+def _run_gene_like(ws, lift_gene_like):
+    from lifton import lifton as lifton_main
+    out_gff = ws["out"] / "lifton.gff3"
+    argv = [str(ws["tgt_fa"]), str(ws["ref_fa"]),
+            "-g", str(ws["ref_gff"]), "-L", str(ws["liftoff"]),
+            "-M", str(ws["miniprot"]), "-o", str(out_gff),
+            "-ad", "RefSeq", "--force"]
+    if lift_gene_like:
+        argv.append("--lift-gene-like")
+    lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv))
+    body = out_gff.read_text()
+    return [ln.split("\t")[2] for ln in body.splitlines()
+            if ln.strip() and not ln.startswith("#")]
+
+
+class TestLiftGeneLike:
+    def test_flag_on_emits_pseudogene(self, gene_like_workspace, hermetic_pipeline):
+        types = _run_gene_like(gene_like_workspace, lift_gene_like=True)
+        assert "pseudogene" in types          # gene-like pseudogene captured
+        assert "gene" in types                # the coding gene still lifted
+
+    def test_default_omits_pseudogene(self, gene_like_workspace, hermetic_pipeline):
+        types = _run_gene_like(gene_like_workspace, lift_gene_like=False)
+        assert "pseudogene" not in types      # default lifts only `gene`
+        assert "gene" in types

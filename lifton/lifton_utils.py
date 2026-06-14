@@ -246,6 +246,36 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
+def get_gene_like_feature_types(ref_db, sample_cap=5000):
+    """Auto-detect the "gene-like" top-level parent feature types in the
+    reference annotation: every feature type that has at least one TOP-LEVEL
+    instance (no Parent) bearing a child feature (a transcript/exon hierarchy).
+
+    This generalises the lift beyond the hardcoded `["gene"]` default to
+    pseudogenes, ncRNA_gene, structured mobile elements, etc., in an
+    annotation-source-agnostic way (Iteration 5 `--lift-gene-like`). Childless
+    meta/regulatory features (region, enhancer, promoter, match, …) and pure
+    child types (CDS, exon, mRNA, …, which carry a Parent) are excluded.
+
+    `sample_cap` bounds the per-type scan so a child-heavy type (e.g. CDS, whose
+    instances all carry Parent and are skipped) cannot trigger a full-DB walk;
+    realistic gene-like types surface a child-bearing top-level instance far
+    within the cap. Falls back to `["gene"]` if nothing qualifies.
+    """
+    conn = ref_db.db_connection
+    gene_like = set()
+    for ftype in conn.featuretypes():
+        for i, locus in enumerate(conn.features_of_type(ftype)):
+            if i >= sample_cap:
+                break
+            if "Parent" in locus.attributes:
+                continue                      # child-level instance; keep looking
+            if any(True for _ in conn.children(locus, level=1)):
+                gene_like.add(ftype)
+                break                         # one child-bearing top-level is enough
+    return sorted(gene_like) if gene_like else ["gene"]
+
+
 def LiftOn_eval_alignment(eval_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
     eval_aln = align.lifton_parasail_align(eval_trans, locus, tgt_fai, ref_proteins, ref_trans_id)
     if eval_aln != None:

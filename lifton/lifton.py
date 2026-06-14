@@ -237,6 +237,17 @@ def args_optional(parser):
              'alignment that this flag used to gate is now the DEFAULT, so '
              '--fast-align has no effect; use --full-dp-align to opt OUT.'
     )
+    parser.add_argument(
+        '--lift-gene-like', dest='lift_gene_like', action='store_true', default=False,
+        help='Lift ALL gene-like feature types (auto-detected), not just '
+             '`gene`: every reference top-level parent type that has a '
+             'transcript/exon hierarchy (pseudogenes, ncRNA_gene, structured '
+             'mobile elements, ...). Childless meta/regulatory features '
+             '(region, enhancer, promoter, match) are excluded. By default '
+             'LiftOn lifts only `gene`, silently dropping these; this captures '
+             'them. Ignored if -f/--features is given (your file wins). Adds '
+             'new features to the output; existing gene lifts are unchanged.'
+    )
 
 
 def parse_args(arglist):
@@ -415,6 +426,23 @@ def run_all_lifton_steps(args):
     ################################
     # Step 2: Get all reference features to liftover
     ################################
+    # Iteration 5 --lift-gene-like: when the user did NOT supply an explicit
+    # -f/--features list, auto-detect every gene-like top-level parent type
+    # (pseudogenes, ncRNA_gene, ...) from the reference and write it to a temp
+    # feature_types file. Setting args.features here makes BOTH this Step-2 call
+    # and the vendored Liftoff invocation (Step 4, which reads args.features)
+    # lift the same expanded set. Default OFF -> args.features stays None ->
+    # get_parent_features_to_lift returns ["gene"] (byte-identical default).
+    _lift_gene_like_injected = False
+    if getattr(args, "lift_gene_like", False) and args.features is None:
+        gene_like = lifton_utils.get_gene_like_feature_types(ref_db)
+        auto_path = os.path.join(intermediate_dir, "auto_feature_types.txt")
+        with open(auto_path, "w") as fw:
+            fw.write("\n".join(gene_like) + "\n")
+        args.features = auto_path
+        _lift_gene_like_injected = True
+        logger.log_info(f">> --lift-gene-like: auto-detected gene-like feature "
+                        f"types {gene_like} (written to {auto_path})")
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir, args)
 
@@ -544,7 +572,16 @@ def run_all_lifton_steps(args):
         ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
     else:
         ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = {}, {}
-    tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
+    # The interval tree gates miniprot protein-rescue suppression (Step 8): a
+    # miniprot mRNA overlapping a tree locus is dropped as redundant. That set
+    # must stay the protein-coding "primary" lift (`gene`) — Iteration-5
+    # --lift-gene-like adds pseudogenes/ncRNA_genes to `features` for PROCESSING,
+    # but they must NOT suppress a miniprot coding-gene rescue just by overlapping
+    # it (that lost CG3303/Plac8l1 etc. in the A/B). When the flag expanded the
+    # default, seed the tree with ["gene"]; otherwise tree == features (so the
+    # default path — and the 24-cell matrix — is byte-identical).
+    tree_features = ["gene"] if _lift_gene_like_injected else features
+    tree_dict = intervals.initialize_interval_tree(l_feature_db, tree_features)
     transcripts_stats_dict = {'coding': {}, 'non-coding': {}, 'other': {}}
     processed_features = 0
     
