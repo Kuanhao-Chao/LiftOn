@@ -168,12 +168,14 @@ class TestLocusPipelineSemantics:
     def test_locus_pipeline_with_threads_4_creates_pool(
             self, integration_workspace, hermetic_pipeline, monkeypatch):
         """With LIFTON_PARALLEL_FORCE + a gffbase backend the dispatcher
-        creates at least one ThreadPoolExecutor (a worker pool, plus a
-        prefetcher pool when the backend DB is on-disk).
+        creates at least one ThreadPoolExecutor.
 
-        Iteration 8 note: ``>= 1`` (not ``== 1``) because the
-        materialise step now runs through a prefetcher pool for on-disk
-        DBs in addition to the main worker pool.
+        ``>= 1`` (not ``== 1``) keeps this robust to the dispatch shape.
+        Iteration 10 fused the materialise + process phases into ONE pool
+        on the on-disk path (so a viable run now builds a single fused pool,
+        not a prefetcher pool + a worker pool); the exact-count contracts are
+        pinned in ``tests/test_fuse_step7.py`` (fused → 1, ``LIFTON_FUSE_STEP7=0``
+        two-phase → 2).
         """
         monkeypatch.setenv("LIFTON_USE_GFFBASE", "1")
         monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")

@@ -29,6 +29,7 @@ import os
 import pickle
 import sys
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable, Iterator, Optional, Tuple
 
@@ -320,58 +321,118 @@ def parallel_step7(
     materialised = list(submission)
     processed = len(materialised)
 
-    # Iteration 8: parallel Step 7 ALWAYS pre-materialises each locus
-    # into a :class:`MaterialisedLocus` payload so workers consume it
-    # through the read-only proxy DBs (`process_locus_native`) and never
-    # touch the shared FeatureDB connection. This is what makes the
-    # parallel path backend-agnostic AND thread-safe WITHOUT --native
-    # (pre-Iteration-8 the materialise step was gated behind
-    # `native_active`). Workers still delegate to the legacy
-    # `run_liftoff.process_liftoff` via the proxy ctx for gene assembly,
-    # so byte-identity carries through (pinned by the 24-cell matrix,
-    # whose native=False threaded cells now exercise exactly this path).
+    # Iteration 10: parallel Step 7 FUSES materialise + process into one
+    # pipelined pool. Each worker materialises ITS OWN locus (reads from a
+    # thread-local re-opened DB via `_ThreadLocalCtxFactory`) and then
+    # immediately processes it (`process_locus_native`, which reads only the
+    # materialised payload's in-process caches + the parent ctx's non-DB
+    # fields). The SQLite-bound materialise on one locus overlaps the
+    # GIL-released parasail on others, so wall collapses from the
+    # pre-Iteration-10 `T_materialise + T_process` (a 4-thread prefetcher pool
+    # drained FULLY before the worker pool started — a hard barrier) toward
+    # `max(T_materialise, T_process)`.
     #
-    # Phase 17c Item 2b: when the DBs are on disk, the materialise step
-    # runs in a small prefetcher pool of 2-4 threads, each holding a
-    # thread-local re-opened FeatureDB connection. This shrinks the
-    # parent-thread serial bottleneck (~33 s on bee, ~84 s projected
-    # on rice, ~5 min on human at 110K transcripts). When the factory
-    # cannot reopen thread-local DBs (in-memory blob backends), fall
-    # back to the serial parent-thread materialise loop.
+    # Byte-identity carries through unchanged: the fused worker builds the
+    # SAME `MaterialisedLocus` payload (same locus, same on-disk DB,
+    # `order_by='start'`) the prefetcher pool built, and runs the SAME
+    # `process_locus_native`; only the SCHEDULING changes. Pinned by the
+    # 24-cell matrix (its on-disk gffutils cells take the fused path) +
+    # tests/test_fresh_parallel_step7.py.
+    #
+    # The fuse applies only when `factory.viable` (DBs on-disk, re-openable
+    # per thread); in-memory/blob backends keep the serial parent-thread
+    # materialise + worker pool. `LIFTON_FUSE_STEP7=0` restores the
+    # pre-Iteration-10 two-phase prefetcher-pool path (escape hatch + A/B
+    # baseline). `LIFTON_FUSE_MAT_CONCURRENCY=k` (default unset) caps how many
+    # workers may be inside the materialise half at once (a Semaphore) — the
+    # lever if SQLite contention ever regresses the fused win.
     from lifton.locus_pipeline import (
         materialise_locus, process_locus_native,
         _ThreadLocalCtxFactory, materialise_locus_with_factory,
     )
     factory = _ThreadLocalCtxFactory(ctx)
-    if factory.viable and len(materialised) > 0:
-        # Phase 17c parallel prefetcher pool. Cap at 4 prefetchers
-        # since the marginal gain plateaus (~50-60 % reduction at
-        # N=4 per the Phase 17 exploration sizing); larger pool
-        # increases SQLite contention without commensurate speedup.
-        prefetch_workers = min(4, int(threads),
-                               max(1, len(materialised)))
-        payloads = [None] * len(materialised)
-        with ThreadPoolExecutor(
-                max_workers=prefetch_workers,
-                thread_name_prefix="lifton-prefetch") as _pf_pool:
-            _pf_futures = {
-                _pf_pool.submit(
-                    materialise_locus_with_factory,
-                    idx, locus, factory,
-                ): idx
+    _fuse_enabled = os.environ.get("LIFTON_FUSE_STEP7", "1") != "0"
+    fused = _fuse_enabled and factory.viable and len(materialised) > 0
+
+    _mat_sema = None
+    if fused:
+        _k = os.environ.get("LIFTON_FUSE_MAT_CONCURRENCY")
+        if _k:
+            try:
+                _mat_sema = threading.Semaphore(max(1, int(_k)))
+            except ValueError:
+                _mat_sema = None
+
+    if fused:
+        payloads = None  # workers materialise on their own thread
+
+        def _mat_and_process(idx, locus):
+            # Materialise + process on ONE worker thread. Wrap the
+            # materialise half so a failure becomes a per-locus error
+            # LocusResult (mirrors process_locus_native) instead of
+            # crashing the pool; Exception (not BaseException) so
+            # KeyboardInterrupt/SystemExit still propagate.
+            try:
+                if _mat_sema is not None:
+                    with _mat_sema:
+                        payload = materialise_locus_with_factory(
+                            idx, locus, factory)
+                else:
+                    payload = materialise_locus_with_factory(
+                        idx, locus, factory)
+            except Exception as exc:
+                return LocusResult(
+                    index=idx,
+                    locus_id=getattr(locus, "id", "<unknown>"),
+                    lifton_gene=None,
+                    error=exc,
+                )
+            return process_locus_native(payload, ctx)
+
+        def _submit(ex):
+            return {
+                ex.submit(_mat_and_process, idx, locus): idx
                 for idx, (_feature, locus) in materialised
             }
-            for _fut in as_completed(_pf_futures):
-                _p = _fut.result()
-                payloads[_p.submission_index] = _p
     else:
-        # In-memory backends or non-extractable dbfn — keep the
-        # serial parent-thread materialise loop (correct, just no
-        # prefetcher speedup).
-        payloads = [
-            materialise_locus(idx, locus, ctx)
-            for idx, (_feature, locus) in materialised
-        ]
+        # Non-fused: build payloads up front, then the worker pool processes
+        # them. Viable-but-fuse-disabled (LIFTON_FUSE_STEP7=0) rebuilds the
+        # pre-Iteration-10 prefetcher pool (the A/B `two_phase` baseline);
+        # non-viable (in-memory/blob) uses the serial parent-thread loop.
+        if factory.viable and len(materialised) > 0:
+            # Phase 17c parallel prefetcher pool. Cap at 4 prefetchers
+            # since the marginal gain plateaus (~50-60 % reduction at
+            # N=4 per the Phase 17 exploration sizing); larger pool
+            # increases SQLite contention without commensurate speedup.
+            prefetch_workers = min(4, int(threads),
+                                   max(1, len(materialised)))
+            payloads = [None] * len(materialised)
+            with ThreadPoolExecutor(
+                    max_workers=prefetch_workers,
+                    thread_name_prefix="lifton-prefetch") as _pf_pool:
+                _pf_futures = {
+                    _pf_pool.submit(
+                        materialise_locus_with_factory,
+                        idx, locus, factory,
+                    ): idx
+                    for idx, (_feature, locus) in materialised
+                }
+                for _fut in as_completed(_pf_futures):
+                    _p = _fut.result()
+                    payloads[_p.submission_index] = _p
+        else:
+            # In-memory backends or non-extractable dbfn — serial
+            # parent-thread materialise loop (correct, no prefetch speedup).
+            payloads = [
+                materialise_locus(idx, locus, ctx)
+                for idx, (_feature, locus) in materialised
+            ]
+
+        def _submit(ex):
+            return {
+                ex.submit(process_locus_native, p, ctx): p.submission_index
+                for p in payloads
+            }
 
     # Phase 15d: bounded ordered-writer with on-disk spill, opt-in via
     # ctx.args.writer_max_pending (default = unbounded ⇒ legacy heap
@@ -389,16 +450,7 @@ def parallel_step7(
             progress_every=progress_every,
         )
         with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-            if payloads is not None:
-                futures = {
-                    ex.submit(process_locus_native, p, ctx): p.submission_index
-                    for p in payloads
-                }
-            else:
-                futures = {
-                    ex.submit(process_locus, idx, locus, ctx=ctx): idx
-                    for idx, (_feature, locus) in materialised
-                }
+            futures = _submit(ex)
             for fut in as_completed(futures):
                 writer.offer(fut.result())
         writer.drain()
@@ -413,16 +465,7 @@ def parallel_step7(
     pending: list = []  # min-heap keyed by submission index
 
     with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-        if payloads is not None:
-            futures = {
-                ex.submit(process_locus_native, p, ctx): p.submission_index
-                for p in payloads
-            }
-        else:
-            futures = {
-                ex.submit(process_locus, idx, locus, ctx=ctx): idx
-                for idx, (_feature, locus) in materialised
-            }
+        futures = _submit(ex)
 
         for fut in as_completed(futures):
             result: LocusResult = fut.result()
