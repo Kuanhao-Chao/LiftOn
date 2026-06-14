@@ -46,6 +46,11 @@ def _load_cached_profiles(wd: Path, mode: str) -> dict:
     mp = wd / "tools" / "logs" / "miniprot.profile.json"
     if mp.exists():
         profiles["miniprot"] = json.loads(mp.read_text())
+    # lifton_optimize is genes-mode only
+    if mode == "genes":
+        op = wd / "tools" / "logs" / "lifton_optimize.profile.json"
+        if op.exists():
+            profiles["lifton_optimize"] = json.loads(op.read_text())
     return profiles
 
 

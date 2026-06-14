@@ -14,8 +14,14 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
+# TOOLS drives the 3-way grouped-bar/scatter/distribution plots (kept uncluttered
+# at 3 series). MASTER_TOOLS additionally includes the optional lifton_optimize
+# 4th variant for the tabular views (master table + flat tsv); the optimize story
+# is told in detail by the dedicated default-vs-optimize delta section.
 TOOLS = ["liftoff", "miniprot", "lifton"]
-TOOL_COLORS = {"liftoff": "#4c78a8", "miniprot": "#f58518", "lifton": "#54a24b"}
+MASTER_TOOLS = ["liftoff", "miniprot", "lifton", "lifton_optimize"]
+TOOL_COLORS = {"liftoff": "#4c78a8", "miniprot": "#f58518", "lifton": "#54a24b",
+               "lifton_optimize": "#b279a2"}
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # sub-feature types where id-match recovery is unreliable (LiftOn re-ids CDS/exon
@@ -172,7 +178,7 @@ def _master_table(data) -> str:
            "|---|---|---|---|---|---|---|---|---|---|\n")
     rows = []
     for bid, d in data.items():
-        for tool in TOOLS:
+        for tool in MASTER_TOOLS:
             s = d["summaries"].get(tool)
             if not s:
                 continue
@@ -215,6 +221,74 @@ def _signed(x, pct=False):
         return "—"
     s = f"{100*x:+.1f}%" if pct else f"{x:+.3f}"
     return s
+
+
+def _load_pi_tsv(work_dir: Path, tool: str) -> dict:
+    """ref_mrna_id -> protein_identity for coding, recovered, scored transcripts,
+    read from the genes-mode eval TSV (mirrors score_abc.load_pi)."""
+    tsv = work_dir / "eval" / f"{tool}.transcripts.tsv"
+    out = {}
+    if not tsv.exists():
+        return out
+    lines = tsv.read_text().splitlines()
+    if not lines:
+        return out
+    hdr = lines[0].split("\t")
+    try:
+        i_id, i_pi, i_cod = (hdr.index("ref_mrna_id"), hdr.index("protein_identity"),
+                             hdr.index("is_coding"))
+    except ValueError:
+        return out
+    for ln in lines[1:]:
+        c = ln.split("\t")
+        if len(c) <= max(i_id, i_pi, i_cod) or c[i_cod] != "1" or c[i_pi] == "":
+            continue
+        try:
+            out[c[i_id]] = float(c[i_pi])
+        except ValueError:
+            pass
+    return out
+
+
+def _optimize_delta_table(data) -> str:
+    """LiftOn default vs --optimize, per benchmark: aggregate means + per-transcript
+    deltas (n improved / regressed / mean Δ), then top improvements and EVERY
+    regression listed explicitly. The merge is double-edged, so any regression must
+    be visible, not hidden inside a favorable aggregate."""
+    if not any(d["summaries"].get("lifton_optimize") for d in data.values()):
+        return ""
+    hdr = ("| Benchmark | Mean prot id (default) | Mean (optimize) | Δ mean | n common "
+           "| improved | regressed | mean Δ/transcript |\n"
+           "|---|---|---|---|---|---|---|---|\n")
+    rows, details = [], []
+    for bid, d in data.items():
+        s = d["summaries"]
+        lt, op = s.get("lifton"), s.get("lifton_optimize")
+        if not lt or not op:
+            continue
+        m_def = (lt.get("protein_identity") or {}).get("mean")
+        m_opt = (op.get("protein_identity") or {}).get("mean")
+        dmean = (m_opt - m_def) if (m_def is not None and m_opt is not None) else None
+        pd_, po = _load_pi_tsv(d["work_dir"], "lifton"), _load_pi_tsv(d["work_dir"], "lifton_optimize")
+        common = sorted(set(pd_) & set(po))
+        improved = [t for t in common if po[t] > pd_[t] + 1e-6]
+        regressed = [t for t in common if po[t] < pd_[t] - 1e-6]
+        mdelta = (sum(po[t] - pd_[t] for t in common) / len(common)) if common else None
+        rows.append("| {} | {} | {} | {} | {} | {} | {} | {} |".format(
+            d["manifest"].get("id", bid), _fmt(m_def), _fmt(m_opt), _signed(dmean),
+            len(common), len(improved), len(regressed),
+            f"{mdelta:+.5f}" if mdelta is not None else "—"))
+        bullets = [f"  - +{po[t]-pd_[t]:.4f}  `{t}`  ({pd_[t]:.4f} → {po[t]:.4f})"
+                   for t in sorted(improved, key=lambda t: po[t] - pd_[t], reverse=True)[:5]]
+        bullets += [f"  - **{po[t]-pd_[t]:.4f}  `{t}`  ({pd_[t]:.4f} → {po[t]:.4f})  ← regression**"
+                    for t in sorted(regressed, key=lambda t: po[t] - pd_[t])]
+        if bullets:
+            details.append(f"\n**{d['manifest'].get('id', bid)}** — top improvements"
+                           + (" + all regressions" if regressed else "") + ":\n"
+                           + "\n".join(bullets) + "\n")
+    if not rows:
+        return ""
+    return hdr + "\n".join(rows) + "\n" + "".join(details)
 
 
 def _crosscheck_table(data) -> str:
@@ -487,6 +561,17 @@ def write_report(data, out_md: Path, main_id: str = "human_mane", log=print) -> 
     md.append("Positive Δ = LiftOn better. The thesis: LiftOn ≥ Liftoff on protein identity and "
               "completeness by fusing miniprot's protein evidence.\n")
     md.append(_headtohead_table(data))
+    opt_delta = _optimize_delta_table(data)
+    if opt_delta:
+        md.append("\n## 2b. LiftOn default vs `--optimize` (per-transcript protein-identity delta)\n")
+        md.append("The opt-in `--optimize` lane runs a best-of-outcome Liftoff↔miniprot merge "
+                  "(keeps, per locus, whichever of Liftoff+ORF-rescue vs merge+ORF-rescue scores "
+                  "higher) plus a `update_cds_list` multi-exon corruption fix. Positive Δ = optimize "
+                  "better. The merge is **double-edged** — it rescues some transcripts hugely but can "
+                  "backfire on others — so every per-transcript regression is listed explicitly below, "
+                  "not hidden in the aggregate. (Deltas computed by re-aligning the emitted protein, "
+                  "independent of LiftOn's internal score.)\n")
+        md.append(opt_delta)
     md.append("\n## 3. Plots\n")
     md.append("### Completeness\n\n" + plots["completeness"] + "\n")
     md.append("\n### Mean protein identity\n\n" + plots["protein_id"] + "\n")
@@ -533,7 +618,7 @@ def build_master_json_tsv(data, out_dir: Path):
     for bid, d in data.items():
         by_mode = d.get("summaries_by_mode") or {"genes": d["summaries"]}
         for mode, summ in by_mode.items():
-            for tool in TOOLS:
+            for tool in MASTER_TOOLS:
                 s = summ.get(tool)
                 if not s:
                     continue

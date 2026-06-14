@@ -497,3 +497,64 @@ manuscript should mention them in a future revision:
 ```
 
 No code modified. Audit complete; pending user decision on items #1 and #2.
+
+---
+
+## 4. Erratum (post-Phase-12, 2026-06-13): best-of-outcome merge promoted to default
+
+> **Scope:** unlike the rest of this audit (read-only), this records an
+> **intentional algorithm change to the default path**, made after the
+> Iteration-1 merge-accuracy study and approved under the user's standing
+> "promote proven wins to default" policy.
+
+**What the manuscript says (Methods §60-69, protein-maximization "PM"
+algorithm).** For each protein chunk, LiftOn compares the Liftoff and miniprot
+partial protein identities and **takes the higher-identity source's CDS for
+that chunk, applied unconditionally** to build the merged transcript (then
+ORF-rescue runs). This is the chaining-then-apply behaviour described in
+Algorithm S3.
+
+**What the code now does (default path).** The unconditional apply is the
+**merge double-edge**: `process_m_l_children` picks a miniprot chunk purely on
+`m_identity > l_identity` with no frame/splice check, so a locally-higher
+chunk can frameshift every downstream exon and *lower* the emitted protein
+identity. The default now runs **best-of-outcome** in
+`run_liftoff.process_liftoff_with_protein`: it builds the merged CDS, runs
+ORF-rescue, and **keeps it only if its emitted protein identity is ≥ the pure
+Liftoff+ORF-rescue candidate's**, otherwise it reverts to Liftoff for that
+transcript. The chunk-selection rule (Methods §63-65) is unchanged; the
+promotion adds a **whole-transcript accept/revert guard on top of it**.
+
+**Reproducing the manuscript number.** The pre-promotion unconditional merge
+(exactly the manuscript's PM behaviour) is preserved byte-for-byte behind
+**`--legacy-merge`**. Any figure/table computed against published LiftOn
+output should add `--legacy-merge`; the no-flag default now reports the
+best-of-outcome numbers.
+
+**Evidence for the change (independent re-alignment evaluator, cached
+`-L`/`-M`, `benchmarks/compare/legacy_merge_ab.py`):**
+
+| Dataset | default (best-of-outcome) vs legacy (unconditional) | improved / regressed |
+|---|---|---|
+| drosophila (cross-species, merge fires) | default **0.92578** vs legacy 0.92208 = **+0.0037** mean protein identity; completeness preserved (339/339); 105 corrupting merges reverted (6699→6594 kept) | 115 / 1 |
+| mouse_to_rat, chr18 (mammalian cross-species) | default **0.9092** vs legacy 0.90398 = **+0.0052** mean protein identity; completeness preserved (121/121); 89 corrupting merges reverted (1983→1894 kept) | 91 / 0 |
+| mouse_to_rat, chr2 (full chromosome, earlier 3-state run) | **+0.0067** mean protein identity | 294 / 2 |
+| same-species (human_mane, arabidopsis, rice) | ~inert (Liftoff near-perfect → merge rarely fires) | — |
+
+A **chunk-level frame-consistency gate** was also trialled and found inert
+(drosophila) and mildly harmful (mouse_to_rat 0 improved / 23 regressed) —
+best-of-outcome's whole-transcript revert subsumes it — so it was **not**
+adopted and its code was removed.
+
+**Cost.** Best-of-outcome runs ORF-rescue for both candidates, so it is
+~25 % slower per merged locus; a byte-identical fast-path
+(`run_liftoff._optimize_fast_enabled`, default on) skips the second candidate
+whenever the merge already wins (perfect protein, or structurally-identical
+CDS).
+
+**Manuscript action required (user's call):** revise Methods §60-69 to describe
+the best-of-outcome accept/revert guard as the default and cite `--legacy-merge`
+as the reproduction switch — *or* keep the manuscript as the documented
+`--legacy-merge` behaviour and add a one-line note that the shipped default
+additionally reverts identity-lowering merges. This parallels items #1/#2
+above (a manuscript erratum vs a code reconciliation).

@@ -107,7 +107,9 @@ def process_m_l_children(
         )
         return []
 
-    if m_identity > l_identity:
+    miniprot_wins = m_identity > l_identity
+
+    if miniprot_wins:
         cds_ls = create_lifton_entries(
             m_c_idx, m_c_idx_last, m_lifton_aln,
             l_c_idx, l_c_idx_last, l_lifton_aln,

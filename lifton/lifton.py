@@ -206,13 +206,19 @@ def args_optional(parser):
     )
     parser.add_argument(
         '--optimize', dest='optimize', action='store_true', default=False,
-        help='Opt-in v2 accuracy/speed lane (RESERVED — no behavior change '
-             'yet). Unlike the byte-identical fast-path flags above, future '
-             'work behind --optimize is permitted to CHANGE output bytes '
-             '(smarter Liftoff/miniprot merge, banded/seeded alignment, '
-             'sharded dispatch). It carries its own evolving golden and must '
-             'be proven to beat the default path on the benchmark suite '
-             'before promotion. The default path stays byte-frozen.'
+        help='No-op alias (kept for backward compatibility). The best-of-'
+             'outcome verified Liftoff/miniprot merge that this flag used to '
+             'gate is now the DEFAULT, so --optimize has no effect. Reserved '
+             'for future opt-in v2 accuracy/speed work.'
+    )
+    parser.add_argument(
+        '--legacy-merge', dest='legacy_merge', action='store_true', default=False,
+        help='Restore the pre-promotion Liftoff/miniprot merge: apply the '
+             'protein-maximization chained CDS UNCONDITIONALLY (no best-of-'
+             'outcome verification). This is the published-manuscript merge '
+             'and can silently frameshift downstream CDS on divergent inputs; '
+             'use only for reproducing legacy output. The default path now '
+             'runs the verified best-of-outcome merge instead.'
     )
 
 
@@ -546,7 +552,6 @@ def run_all_lifton_steps(args):
         fw_score=fw_score,
         fw_chain=fw_chain,
         args=args,
-        optimize=bool(getattr(args, "optimize", False)),
     )
     _threads = int(getattr(args, "threads", 1) or 1)
     _use_pool = bool(getattr(args, "locus_pipeline", False)) and _threads > 1

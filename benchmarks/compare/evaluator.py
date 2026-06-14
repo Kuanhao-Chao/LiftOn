@@ -427,6 +427,11 @@ def evaluate_all(manifest: dict, work_dir: Path, profiles: dict, force: bool,
         "miniprot": work_dir / "tools" / "miniprot" / "miniprot.gff3",
         "lifton": work_dir / tools_sub / "lifton" / "lifton.gff3",
     }
+    # 4th variant (genes-mode only): LiftOn with --optimize. evaluate_tool keys
+    # purely on the tool-name string, so it scores identically to "lifton"
+    # (resolve_liftoff_lifton, transcript DNA basis).
+    if mode == "genes":
+        tool_gffs["lifton_optimize"] = work_dir / "tools" / "lifton_optimize" / "lifton.gff3"
     # present tools, preserving the liftoff/miniprot/lifton order
     present = []
     for tool, gff in tool_gffs.items():

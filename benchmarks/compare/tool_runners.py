@@ -33,6 +33,20 @@ def _save_profile(pr, path: Path) -> dict:
     return d
 
 
+def _clean_input_dbs(*gffs) -> None:
+    """Unlink stale gffutils '<gff>_db' SQLite siblings so the next lifton run
+    rebuilds the input DBs fresh. Re-running lifton on cached -L/-M inputs
+    otherwise hits a stale/partial sibling ("table features already exists") or,
+    worse, a db built from a now-superseded GFF (e.g. an old protein-space
+    miniprot that silently suppresses the merge). Deterministic — the inputs are
+    unchanged, lifton rebuilds. All paths live under work/<id>/subset|tools/
+    (salz3), never the read-only salz2 originals."""
+    for g in gffs:
+        dbf = Path(str(g) + "_db")
+        if dbf.exists():
+            dbf.unlink()
+
+
 def _mode_dirs(work_dir: Path, mode: str):
     """Return (tools_root, done_suffix) for a feature mode. "genes" keeps the
     legacy paths (tools/, *.done) so already-run results stay byte-identical;
@@ -126,25 +140,36 @@ def run_miniprot(bench: dict, manifest: dict, work_dir: Path, tools: dict,
 
 def run_lifton(bench: dict, manifest: dict, work_dir: Path, tools: dict,
                threads: int, force: bool, log=print, mode="genes",
-               types_file=None) -> dict:
+               types_file=None, optimize=False) -> dict:
+    # The optimize variant is a parallel, separately-cached run (own dir +
+    # sentinel + profile) so the byte-frozen default lifton output is never
+    # disturbed. It is genes-mode only (the merge is a coding-protein refinement;
+    # allfeat adds only non-coding top-level types it never touches).
+    name = "lifton_optimize" if optimize else "lifton"
     tools_root, suf = _mode_dirs(work_dir, mode)
-    out_dir = tools_root / "lifton"
+    out_dir = tools_root / name
     log_dir = tools_root / "logs"
-    done = work_dir / ".done" / f"lifton{suf}.done"
-    out_gff = out_dir / "lifton.gff3"
-    prof_path = log_dir / "lifton.profile.json"
+    done = work_dir / ".done" / f"{name}{suf}.done"
+    out_gff = out_dir / "lifton.gff3"   # keep the filename; the dir disambiguates
+    prof_path = log_dir / f"{name}.profile.json"
     if done.exists() and not force and out_gff.exists():
-        log(f"  [lifton:{mode}] cached")
+        log(f"  [{name}:{mode}] cached")
         return json.loads(prof_path.read_text()) if prof_path.exists() else {}
     out_dir.mkdir(parents=True, exist_ok=True)
     p = manifest["paths"]
     liftoff_gff = tools_root / "liftoff" / "liftoff.gff3"          # mode-specific
     miniprot_gff = work_dir / "tools" / "miniprot" / "miniprot.gff3"  # shared, mode-independent
     if not liftoff_gff.exists():
-        raise RuntimeError(f"lifton:{mode} needs {liftoff_gff} (run liftoff mode={mode} first)")
+        raise RuntimeError(f"{name}:{mode} needs {liftoff_gff} (run liftoff mode={mode} first)")
     if not miniprot_gff.exists():
-        raise RuntimeError(f"lifton:{mode} needs the shared miniprot {miniprot_gff} "
+        raise RuntimeError(f"{name}:{mode} needs the shared miniprot {miniprot_gff} "
                            f"(run genes mode first)")
+    # Any run that proceeds here is non-cached and reuses the cached -L/-M inputs;
+    # clear stale gffutils '<gff>_db' siblings first so lifton rebuilds from the
+    # current GFFs (guards against a stale protein-space miniprot db suppressing
+    # the merge). run_all_tools runs lifton/lifton_optimize sequentially, so the
+    # shared input DBs are never raced.
+    _clean_input_dbs(p["ref_gff"], liftoff_gff, miniprot_gff)
     argv = [
         tools["lifton_bin"], "-t", str(threads), "-copies",
         "-ad", bench.get("annotation_database", "RefSeq"),
@@ -160,21 +185,23 @@ def run_lifton(bench: dict, manifest: dict, work_dir: Path, tools: dict,
     # serial default; -L/-M are still honoured (the native aligners never run).
     if threads and threads > 1:
         argv += ["--native", "--locus-pipeline"]
+    if optimize:
+        argv += ["--optimize"]   # opt-in best-of-outcome merge + Case-1 fix
     if mode != "genes":
         if types_file is None:
             raise RuntimeError(f"lifton mode {mode!r} requires a feature-types file")
         argv += ["-f", str(types_file)]   # process all listed top-level types
     argv += [p["tgt_fa"], p["ref_fa"]]
-    pr = run_profiled(argv, label="lifton", log_dir=log_dir,
+    pr = run_profiled(argv, label=name, log_dir=log_dir,
                       env=_compose_env(tools), log=log)
     if pr.exit_code != 0:
-        raise RuntimeError(f"lifton failed (exit {pr.exit_code}); see {pr.stderr_path}")
+        raise RuntimeError(f"{name} failed (exit {pr.exit_code}); see {pr.stderr_path}")
     if not out_gff.exists() or out_gff.stat().st_size == 0:
-        raise RuntimeError(f"lifton produced no/empty output {out_gff}")
+        raise RuntimeError(f"{name} produced no/empty output {out_gff}")
     prof = _save_profile(pr, prof_path)
     done.parent.mkdir(parents=True, exist_ok=True)
     done.write_text("ok\n")
-    log(f"  [lifton:{mode}] {pr.wall_clock_seconds:.1f}s, {pr.peak_rss_mb:.0f} MB")
+    log(f"  [{name}:{mode}] {pr.wall_clock_seconds:.1f}s, {pr.peak_rss_mb:.0f} MB")
     return prof
 
 
@@ -200,4 +227,10 @@ def run_all_tools(bench, manifest, work_dir, tools, threads, force, log=print,
         profiles["miniprot"] = json.loads(mp_prof.read_text()) if mp_prof.exists() else {}
     profiles["lifton"] = run_lifton(bench, manifest, work_dir, tools, threads,
                                     force, log, mode=mode, types_file=types_file)
+    # 4th variant: LiftOn with --optimize (best-of-outcome merge). Genes-mode
+    # only; runs after the default lifton (sequential → no shared-DB race).
+    if mode == "genes":
+        profiles["lifton_optimize"] = run_lifton(
+            bench, manifest, work_dir, tools, threads, force, log,
+            mode=mode, types_file=types_file, optimize=True)
     return profiles

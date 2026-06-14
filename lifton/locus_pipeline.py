@@ -40,8 +40,7 @@ class StepContext:
     ref_features_dict: dict
     fw_score: Any                   # text file handle (writes are short)
     fw_chain: Optional[Any]         # text file handle or None
-    args: Any                       # argparse.Namespace
-    optimize: bool = False          # --optimize v2 lane (RESERVED; no-op today)
+    args: Any                       # argparse.Namespace (carries --legacy-merge etc.)
 
 
 @dataclass
@@ -81,12 +80,8 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
     # matches the lazy-import pattern used elsewhere in lifton/.
     from lifton import run_liftoff
 
-    # --optimize v2 lane (RESERVED): future output-mutating accuracy/speed work
-    # (smarter Liftoff/miniprot merge, banded/seeded alignment) branches from
-    # ctx.optimize here. Today it is a pure pass-through, byte-identical to the
-    # default path. TODO(v2): wire the alternate per-locus refinement.
-    _optimize = bool(getattr(ctx, "optimize", False))  # noqa: F841
-
+    # The merge mode (default best-of-outcome vs --legacy-merge) is read from
+    # ctx.args inside process_liftoff, so nothing extra is threaded here.
     try:
         gene = run_liftoff.process_liftoff(
             None, locus,

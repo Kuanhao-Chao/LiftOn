@@ -101,6 +101,90 @@ def integration_workspace(tmp_path):
 
 
 @pytest.fixture
+def merge_firing_workspace(tmp_path):
+    """A workspace where the Liftoff/miniprot **merge actually fires**.
+
+    ``integration_workspace`` uses identical ref/tgt genomes with a perfect
+    ORF, so ``liftoff_aln.identity == 1`` and the protein-maximization merge
+    branch in ``run_liftoff.process_liftoff_with_protein`` is never entered —
+    any test driven off it is vacuous w.r.t. the merge.
+
+    Here the **target** carries a lesion in the lifted CDS region (101-199):
+    three ``GCT`` (Ala) codons are mutated to ``GAT`` (Asp), so Liftoff's
+    lifted protein is imperfect (identity < 1) and the merge branch is taken.
+    A pre-baked miniprot annotation supplies a CDS over the **correct** ORF
+    copy the target also carries at 301-399; the miniprot mRNA *span*
+    (101-399) overlaps the Liftoff locus so the miniprot-overlap gate
+    (``lifton_utils.LiftOn_miniprot_alignment`` Check 1) passes and the chunk
+    is admitted, so ``has_valid_miniprot`` is True and the chaining algorithm
+    runs. The emitted transcript carries ``status=LiftOn_chaining_algorithm``.
+
+    This is the basis for ``TestMergePromotion`` — it exercises the promoted
+    best-of-outcome default end-to-end (the full per-candidate compare branch,
+    since the merge protein identity here is < 1.0)."""
+    work = tmp_path / "work"
+    work.mkdir()
+
+    correct_cds = "ATG" + "GCT" * 31 + "TAA"                       # M + A*31 + stop
+    mutated_cds = "ATG" + "GCT" * 9 + "GAT" * 3 + "GCT" * 19 + "TAA"  # 3x A->D
+    assert len(correct_cds) == 99 and len(mutated_cds) == 99
+
+    def build_chrom(region_101, region_301):
+        chrom = ["A"] * 600
+        for i, ch in enumerate(region_101):
+            chrom[100 + i] = ch
+        for i, ch in enumerate(region_301):
+            chrom[300 + i] = ch
+        return "".join(chrom)
+
+    ref_seq = build_chrom(correct_cds, "A" * 99)            # reference: correct ORF at 101-199
+    tgt_seq = build_chrom(mutated_cds, correct_cds)         # target: lesion at 101-199, correct at 301-399
+
+    ref_fa = work / "ref.fa"
+    ref_fa.write_text(">chr1\n" + _wrap(ref_seq))
+    tgt_fa = work / "tgt.fa"
+    tgt_fa.write_text(">chr1\n" + _wrap(tgt_seq))
+
+    ref_gff = work / "ref.gff3"
+    ref_gff.write_text(
+        "##gff-version 3\n"
+        "chr1\ttest\tgene\t101\t199\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\ttest\tmRNA\t101\t199\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\ttest\texon\t101\t199\t.\t+\t.\tID=exon1;Parent=tx1\n"
+        "chr1\ttest\tCDS\t101\t199\t.\t+\t0\tID=cds1;Parent=tx1\n"
+    )
+
+    # Liftoff: CDS at 101-199 (the lesioned region) -> imperfect protein.
+    liftoff_gff = work / "liftoff.gff3"
+    liftoff_gff.write_text(
+        "##gff-version 3\n"
+        "chr1\tLiftoff\tgene\t101\t199\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\tLiftoff\tmRNA\t101\t199\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\tLiftoff\texon\t101\t199\t.\t+\t.\tID=exon1;Parent=tx1\n"
+        "chr1\tLiftoff\tCDS\t101\t199\t.\t+\t0\tID=cds1;Parent=tx1\n"
+    )
+
+    # Miniprot: mRNA SPAN 101-399 overlaps the Liftoff locus (101-199) so the
+    # overlap gate passes; its CDS sits at 301-399 where the correct ORF lives,
+    # so the chained chunk wins on protein identity and the merge fires.
+    miniprot_gff = work / "miniprot.gff3"
+    miniprot_gff.write_text(
+        "##gff-version 3\n"
+        "chr1\tminiprot\tmRNA\t101\t399\t.\t+\t.\tID=MP1;Target=tx1 1 33\n"
+        "chr1\tminiprot\tCDS\t301\t399\t.\t+\t0\tID=MP1.cds1;Parent=MP1\n"
+    )
+
+    out_dir = work / "out"
+    out_dir.mkdir()
+
+    return {
+        "ref_fa": ref_fa, "tgt_fa": tgt_fa, "ref_gff": ref_gff,
+        "liftoff": liftoff_gff, "miniprot": miniprot_gff,
+        "out": out_dir, "work": work,
+    }
+
+
+@pytest.fixture
 def hermetic_pipeline(monkeypatch):
     """Patch the miniprot installation guard so the test does not require
     the miniprot binary on PATH. Also patch the run_liftoff fall-through

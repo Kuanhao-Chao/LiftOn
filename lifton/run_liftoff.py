@@ -141,8 +141,8 @@ def lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_tran
 
 def _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status):
     """Capture the exact state that ``update_cds_list`` + a trial re-alignment
-    mutate, so the verified-merge (``--optimize``) path can revert to pure
-    Liftoff when the merge does not improve protein identity.
+    mutate, so the default best-of-outcome verified-merge path can revert to
+    pure Liftoff when the merge does not improve protein identity.
 
     ``update_cds_list`` replaces ``lifton_trans.exons`` and resets the
     transcript/gene boundaries (``Lifton_TRANS.update_boundaries`` sets
@@ -169,8 +169,8 @@ def _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status):
 def _restore_status_and_mutation(lifton_trans, lifton_status, snap):
     """Undo the trial re-alignment's side effects on ``lifton_status`` and the
     ``mutation`` attribute so the canonical ``orf_search_protein`` re-derives
-    identical state. In the accepted-merge case this makes the ``--optimize``
-    output byte-for-byte identical to the default path."""
+    identical state. In the accepted-merge case this keeps the emitted output
+    consistent with a direct merge-then-ORF pass."""
     (liftoff, miniprot, lifton_dna, lifton_aa,
      eval_dna, eval_aa, annotation, status) = snap["status"]
     lifton_status.liftoff = liftoff
@@ -197,11 +197,23 @@ def _restore_merge_structure(lifton_gene, lifton_trans, snap):
     lifton_gene.entry.end = snap["gene_end"]
 
 
+def _optimize_fast_enabled():
+    """Best-of-outcome fast path: skip the redundant Liftoff+ORF candidate when
+    the merge already wins regardless of it (perfect protein, or a structural
+    no-op vs Liftoff). Byte-identical to computing both candidates — pinned by
+    TestOptimizeFlagScaffold + the drosophila byte-diff. On by default; set
+    LIFTON_OPTIMIZE_FAST=0 to force computing both candidates."""
+    env = os.environ.get("LIFTON_OPTIMIZE_FAST")
+    if env is None:
+        return True
+    return env.strip().lower() not in ("", "0", "false", "no", "off")
+
+
 def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                                  ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                  tgt_fai, ref_trans_id, ref_proteins, ref_trans,
                                  fw_chain, write_chains, lifton_status, DEBUG,
-                                 optimize=False):
+                                 legacy_merge=False):
     """
         This function process liftoff annotation with protein.
         (1) Only Liftoff annotation: directly apply 
@@ -237,51 +249,78 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
         # Liftoff protein annotation is not perfect
         if has_valid_miniprot:
             lifton_status.annotation = "LiftOn_chaining_algorithm"
-            cds_list, chains = protein_maximization.chaining_algorithm(liftoff_aln, miniprot_aln, tgt_fai, DEBUG)
+            cds_list, chains = protein_maximization.chaining_algorithm(
+                liftoff_aln, miniprot_aln, tgt_fai, DEBUG)
             if write_chains:
                 lifton_utils.write_lifton_chains(fw_chain, lifton_trans.entry.id, chains)
-            if not optimize:
-                # Default path (byte-frozen): apply the chained CDS unconditionally.
+            if legacy_merge:
+                # Legacy path (--legacy-merge): apply the chained CDS
+                # unconditionally — the pre-promotion default, kept for
+                # published-manuscript reproduction. Can silently frameshift
+                # downstream CDS (the merge double-edge the new default fixes).
                 lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list)
             else:
-                # --optimize: BEST-OF-FULL-OUTCOME verified merge. Compare the
+                # DEFAULT (best-of-outcome verified merge). Compare the
                 # final EMITTED protein of two candidates and keep the better:
                 #   (1) no-merge: pure Liftoff + ORF-rescue  (== the no-miniprot
                 #       default result for this transcript), and
                 #   (2) merge: chained CDS + ORF-rescue.
-                # Both are scored AFTER ORF-rescue via the same path the
-                # benchmark re-aligns on, so the choice is exact. Because
-                # candidate (1) is the no-miniprot baseline, this makes enabling
-                # miniprot a STRICT per-transcript win (emitted identity >=
-                # no-miniprot), turning the protein-maximization merge from
-                # net-negative (catastrophic backfires) into a guaranteed gain.
+                # Both are scored AFTER ORF-rescue via the same path the benchmark
+                # re-aligns on, so the choice is exact; enabling miniprot becomes a
+                # STRICT per-transcript win (emitted identity >= no-miniprot),
+                # turning the protein-maximization merge from net-negative
+                # (catastrophic backfires) into a guaranteed gain. Proven on
+                # drosophila (+0.0012 mean PI) and mouse_to_rat (+0.0067,
+                # 294 improved / 2 regressed).
+                #
+                # The merge candidate (2) is evaluated FIRST so the (expensive)
+                # Liftoff + ORF-rescue candidate (1) — two parasail alignments and
+                # possibly a 3-frame ORF scan — can be SKIPPED whenever the merge
+                # already wins regardless of it:
+                #   (a) merge reaches a perfect protein (>=1.0): Liftoff is <=1.0
+                #       and ties go to merge, so merge is kept; or
+                #   (b) the chained CDS is structurally identical to the Liftoff
+                #       CDS: the two candidates are the same computation → tie →
+                #       merge kept.
+                # In both, the always-both-candidates code keeps the merge
+                # candidate, so skipping candidate (1) is byte-identical (pinned by
+                # TestOptimizeFlagScaffold + the drosophila byte-diff). Set
+                # LIFTON_OPTIMIZE_FAST=0 to force computing both candidates.
+                _merge_noop = (
+                    sorted((c.start, c.end) for c in liftoff_aln.cds_children)
+                    == sorted((lc.entry.start, lc.entry.end) for lc in cds_list))
                 _snap0 = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
-                # Candidate 1: Liftoff + ORF-rescue (eval_only=False runs rescue).
-                lifton_status.lifton_aa = 0
-                lifton_gene.orf_search_protein(
-                    lifton_trans.entry.id, ref_trans_id, tgt_fai,
-                    ref_proteins, ref_trans, lifton_status)
-                _liftoff_outcome = lifton_status.lifton_aa
-                _snapL = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
-                # Reset to the pre-merge raw state, then build candidate 2.
-                _restore_merge_structure(lifton_gene, lifton_trans, _snap0)
-                _restore_status_and_mutation(lifton_trans, lifton_status, _snap0)
+                # Candidate 2 (merge) first, from the raw pre-merge state.
                 lifton_status.lifton_aa = 0
                 lifton_gene.update_cds_list(lifton_trans.entry.id, cds_list, optimize=True)
                 lifton_gene.orf_search_protein(
                     lifton_trans.entry.id, ref_trans_id, tgt_fai,
                     ref_proteins, ref_trans, lifton_status)
                 _merge_outcome = lifton_status.lifton_aa
-                if _merge_outcome >= _liftoff_outcome:
-                    # Keep the merge candidate (structure + status already set).
+                if _optimize_fast_enabled() and (_merge_outcome >= 1.0 or _merge_noop):
+                    # Merge wins without computing the Liftoff candidate; keep it
+                    # (structure + status are already the merge candidate's).
                     lifton_status.annotation = "LiftOn_chaining_algorithm"
                 else:
-                    # Revert to the Liftoff + ORF-rescue candidate.
-                    _restore_merge_structure(lifton_gene, lifton_trans, _snapL)
-                    _restore_status_and_mutation(lifton_trans, lifton_status, _snapL)
-                    lifton_status.annotation = "Liftoff"
-                # Both candidates already ran ORF-rescue; tell process_liftoff to
-                # skip the canonical orf_search_protein so it is not run twice.
+                    _snapM = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
+                    # Candidate 1: Liftoff + ORF-rescue, from the raw pre-merge state.
+                    _restore_merge_structure(lifton_gene, lifton_trans, _snap0)
+                    _restore_status_and_mutation(lifton_trans, lifton_status, _snap0)
+                    lifton_status.lifton_aa = 0
+                    lifton_gene.orf_search_protein(
+                        lifton_trans.entry.id, ref_trans_id, tgt_fai,
+                        ref_proteins, ref_trans, lifton_status)
+                    _liftoff_outcome = lifton_status.lifton_aa
+                    if _merge_outcome >= _liftoff_outcome:
+                        # Keep the merge candidate: restore its snapshot.
+                        _restore_merge_structure(lifton_gene, lifton_trans, _snapM)
+                        _restore_status_and_mutation(lifton_trans, lifton_status, _snapM)
+                        lifton_status.annotation = "LiftOn_chaining_algorithm"
+                    else:
+                        # Keep Liftoff (current state IS the Liftoff candidate).
+                        lifton_status.annotation = "Liftoff"
+                # Candidate(s) already ran ORF-rescue; tell process_liftoff to skip
+                # the canonical orf_search_protein so it is not run twice.
                 orf_done = True
     return orf_done
 
@@ -362,9 +401,11 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
                                         ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                         tgt_fai, ref_trans_id, ref_proteins, ref_trans,
                                         fw_chain, args.write_chains, lifton_status, args.debug,
-                                        optimize=getattr(args, "optimize", False))
-        # Under --optimize the merge path already ran ORF-rescue on both
-        # candidates (orf_done); avoid running it a second time here.
+                                        legacy_merge=getattr(args, "legacy_merge", False))
+        # The default best-of-outcome merge path already ran ORF-rescue on both
+        # candidates (orf_done=True); avoid running it a second time here.
+        # Under --legacy-merge orf_done stays False, so the canonical ORF-rescue
+        # below runs after the unconditional merge (the pre-promotion behavior).
         if not args.no_orf_search and not orf_done:
             lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
         # lifton_utils.print_lifton_status(lifton_trans.entry.id, locus, lifton_status, DEBUG=args.debug)

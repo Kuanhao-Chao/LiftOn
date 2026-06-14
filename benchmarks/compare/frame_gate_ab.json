@@ -1,0 +1,41 @@
+[
+  {
+    "benchmark": "drosophila",
+    "mean_pi": {
+      "state1_default": 0.92457,
+      "state2_bestof": 0.92578,
+      "state3_bestof_framegate": 0.92578
+    },
+    "delta_vs_state1": {
+      "state2": {
+        "n_common": 7111,
+        "improved": 119,
+        "regressed": 4,
+        "net_per_transcript": 0.001655
+      },
+      "state3": {
+        "n_common": 7111,
+        "improved": 119,
+        "regressed": 4,
+        "net_per_transcript": 0.001655
+      }
+    },
+    "delta_state3_vs_state2": {
+      "n_common": 7125,
+      "improved": 0,
+      "regressed": 0,
+      "net_per_transcript": 0.0
+    },
+    "merge_kept": {
+      "state1": 6699,
+      "state2": 6594,
+      "state3": 6593
+    },
+    "fallback_to_liftoff": {
+      "state1": 1225,
+      "state2": 1330,
+      "state3": 1331
+    },
+    "state2_wall_s": 179.79
+  }
+]

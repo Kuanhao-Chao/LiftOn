@@ -67,13 +67,14 @@
     },
     {
       "id": "mouse_to_rat",
-      "species": "Mouse GRCm39 -> Rat mRatBN7.2",
+      "species": "Mouse GRCm39 chr18 -> Rat mRatBN7.2",
       "cross_species": true,
+      "_note": "ref_chrom pinned to chr18 (NC_000084.7, 2343 mRNA / 1064 genes) instead of AUTO_LARGEST_CODING (chr2, NC_000068.8, 8170 mRNA) to make the mammalian cross-species A/B ~3.5x faster while still firing plenty of merges. tgt_chrom stays AUTO_SYNTENIC (minimap2 finds the syntenic rat chromosome).",
       "ref_genome": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.fna",
       "ref_gff": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_genomic.gff",
       "ref_proteins": "/ccb/salz2/jheinz3/shared/lifton/mouse/GRCm39_protein.faa",
       "tgt_genome": "/ccb/salz2/jheinz3/shared/lifton/cross_species/mouse_to_rat/mRatBN7.2_genomic.fna",
-      "ref_chrom": "AUTO_LARGEST_CODING",
+      "ref_chrom": "NC_000084.7",
       "tgt_chrom": "AUTO_SYNTENIC",
       "miniprot_target_space": "transcript",
       "annotation_database": "RefSeq"

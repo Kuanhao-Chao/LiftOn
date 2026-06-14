@@ -1,49 +1,17 @@
 benchmark	feature_mode	species	tool	completeness_coding	completeness_all	completeness_feature_total	n_recovered_coding	n_reference_coding	mean_protein_identity	median_protein_identity	pct_identical	mean_dna_identity	dna_basis	n_extra_copies	wall_clock_seconds	peak_rss_mb
 human_mane	genes	Human GRCh38 -> CHM13 (MANE)	liftoff	0.99764	0.99764	0.99764	422	423	0.99308	1.0	0.72275	0.9979	transcript	0	15.32	552.546875
 human_mane	genes	Human GRCh38 -> CHM13 (MANE)	miniprot	1.0	1.0		423	423	0.98974	1.0	0.60993	0.99514	cds	5	2.31	721.90234375
-human_mane	genes	Human GRCh38 -> CHM13 (MANE)	lifton	0.99764	0.99764	0.99764	422	423	0.99425	1.0	0.72275	0.9979	transcript	2	20.0	1500.91015625
-human_mane	allfeat	Human GRCh38 -> CHM13 (MANE)	liftoff	0.99764	0.99764	0.99764	422	423	0.99308	1.0	0.72275	0.9979	transcript	0	14.36	551.92578125
-human_mane	allfeat	Human GRCh38 -> CHM13 (MANE)	miniprot	1.0	1.0		423	423	0.98974	1.0	0.60993	0.99514	cds	5	2.31	721.90234375
-human_mane	allfeat	Human GRCh38 -> CHM13 (MANE)	lifton	0.99764	0.99764	0.99764	422	423	0.99425	1.0	0.72275	0.9979	transcript	2	29.06	1508.4765625
-bee	genes	Honey bee HAv3.1 -> ASM1932182v1	liftoff	0.99744	0.99744	0.96665	3122	3130	0.98248	1.0	0.72998	0.99641	transcript	0	32.82	1266.9296875
-bee	genes	Honey bee HAv3.1 -> ASM1932182v1	miniprot	0.99808	0.99808		3124	3130	0.98074	1.0	0.63284	0.99592	cds	29	4.29	1532.2734375
-bee	genes	Honey bee HAv3.1 -> ASM1932182v1	lifton	0.99744	0.99744	0.96665	3122	3130	0.99161	1.0	0.73062	0.99641	transcript	0	224.32999999999998	11006.3828125
-bee	allfeat	Honey bee HAv3.1 -> ASM1932182v1	liftoff	0.99744	0.99744	0.96684	3122	3130	0.98248	1.0	0.72998	0.99641	transcript	0	32.64	1266.4453125
-bee	allfeat	Honey bee HAv3.1 -> ASM1932182v1	miniprot	0.99808	0.99808		3124	3130	0.98074	1.0	0.63284	0.99592	cds	29	4.29	1532.2734375
-bee	allfeat	Honey bee HAv3.1 -> ASM1932182v1	lifton	0.99744	0.99744	0.96684	3122	3130	0.99161	1.0	0.73062	0.99641	transcript	0	227.39	11048.10546875
-mouse	genes	Mouse GRCm39 -> NOD_SCID	liftoff	0.93966	0.93966	0.78821	7677	8170	0.99026	1.0	0.74439	0.9939	transcript	0	152.34	3308.140625
-mouse	genes	Mouse GRCm39 -> NOD_SCID	miniprot	0.95716	0.95716		7820	8170	0.97959	1.0	0.60806	0.98758	cds	110	33.76	2081.953125
-mouse	genes	Mouse GRCm39 -> NOD_SCID	lifton	0.93966	0.93966	0.78821	7677	8170	0.99408	1.0	0.74439	0.9939	transcript	0	1846.16	44856.125
-mouse	allfeat	Mouse GRCm39 -> NOD_SCID	liftoff	0.93782	0.93782	0.87936	7662	8170	0.99129	1.0	0.74585	0.99402	transcript	0	155.4	3312.92578125
-mouse	allfeat	Mouse GRCm39 -> NOD_SCID	miniprot	0.95716	0.95716		7820	8170	0.97959	1.0	0.60806	0.98758	cds	110	33.76	2081.953125
-mouse	allfeat	Mouse GRCm39 -> NOD_SCID	lifton	0.93782	0.93782	0.87936	7662	8170	0.99503	1.0	0.74585	0.99402	transcript	0	1838.47	44700.2109375
-human_to_chimp	genes	Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1	liftoff	0.99034	0.99034	0.32282	12718	12842	0.96495	0.99516	0.2065	0.98417	transcript	0	301.36	4744.953125
-human_to_chimp	genes	Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1	miniprot	0.99938	0.99938		12834	12842	0.96538	0.99392	0.15763	0.98852	cds	398	60.53	6075.01171875
-human_to_chimp	genes	Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1	lifton	0.99034	0.99034	0.32282	12718	12842	0.98064	0.99517	0.2069	0.98417	transcript	0	1250.13	11268.734375
-human_to_chimp	allfeat	Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1	liftoff	0.98357	0.98357	0.71866	12631	12842	0.97022	0.99522	0.20748	0.98394	transcript	1	559.54	5103.06640625
-human_to_chimp	allfeat	Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1	miniprot	0.99938	0.99938		12834	12842	0.96538	0.99392	0.15763	0.98852	cds	398	60.53	6075.01171875
-human_to_chimp	allfeat	Human GRCh38 -> Chimp NHGRI_mPanTro3-v1.1	lifton	0.98357	0.98357	0.71866	12631	12842	0.98202	0.99522	0.20788	0.98394	transcript	0	1342.77	11229.5703125
-mouse_to_rat	genes	Mouse GRCm39 -> Rat mRatBN7.2	liftoff	0.90379	0.90379	0.73385	7384	8170	0.85883	0.95763	0.04881	0.87477	transcript	0	497.6	5049.00390625
-mouse_to_rat	genes	Mouse GRCm39 -> Rat mRatBN7.2	miniprot	0.93635	0.93635		7650	8170	0.87626	0.9547	0.04144	0.92188	cds	127	38.29	2200.0625
-mouse_to_rat	genes	Mouse GRCm39 -> Rat mRatBN7.2	lifton	0.90379	0.90379	0.73385	7384	8170	0.91039	0.95775	0.04881	0.87477	transcript	0	1868.96	44692.33984375
-mouse_to_rat	allfeat	Mouse GRCm39 -> Rat mRatBN7.2	liftoff	0.90245	0.90245	0.78417	7373	8170	0.85922	0.95766	0.04888	0.8749	transcript	0	535.3	4871.9609375
-mouse_to_rat	allfeat	Mouse GRCm39 -> Rat mRatBN7.2	miniprot	0.93635	0.93635		7650	8170	0.87626	0.9547	0.04144	0.92188	cds	127	38.29	2200.0625
-mouse_to_rat	allfeat	Mouse GRCm39 -> Rat mRatBN7.2	lifton	0.90245	0.90245	0.78417	7373	8170	0.91073	0.9578	0.04888	0.8749	transcript	0	1899.23	44675.01953125
-rice	genes	Rice IRGSP -> ASM3414082v1	liftoff	1.0	1.0	0.97572	5850	5850	0.99864	1.0	0.99538	0.99994	transcript	2	31.18	926.24609375
-rice	genes	Rice IRGSP -> ASM3414082v1	miniprot	1.0	1.0		5850	5850	0.99521	1.0	0.91573	0.99807	cds	64	4.52	606.375
-rice	genes	Rice IRGSP -> ASM3414082v1	lifton	1.0	1.0	0.97572	5850	5850	0.99905	1.0	0.99538	0.99994	transcript	0	123.01	1504.02734375
-rice	allfeat	Rice IRGSP -> ASM3414082v1	liftoff	1.0	1.0	0.99126	5850	5850	0.99864	1.0	0.99538	0.99994	transcript	2	29.22	933.9296875
-rice	allfeat	Rice IRGSP -> ASM3414082v1	miniprot	1.0	1.0		5850	5850	0.99521	1.0	0.91573	0.99807	cds	64	4.52	606.375
-rice	allfeat	Rice IRGSP -> ASM3414082v1	lifton	1.0	1.0	0.99126	5850	5850	0.99905	1.0	0.99538	0.99994	transcript	0	131.37	1491.21484375
-arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	liftoff	0.99834	0.94721	0.91601	12632	12653	0.99871	1.0	0.99533	0.99994	transcript	12	81.09	2280.0625
-arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	miniprot	0.99953	0.94834		12647	12653	0.99586	1.0	0.92283	0.99743	cds	287	8.14	401.89453125
-arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	lifton	0.99834	0.94721	0.91601	12632	12653	0.99896	1.0	0.99533	0.99994	transcript	0	196.91	1493.65625
-arabidopsis	allfeat	Arabidopsis TAIR10 -> ASM2311539v1	liftoff	0.99834	0.99648	0.98967	12632	12653	0.99871	1.0	0.99541	0.99984	transcript	10	80.91	2291.21484375
-arabidopsis	allfeat	Arabidopsis TAIR10 -> ASM2311539v1	miniprot	0.99953	0.94834		12647	12653	0.99586	1.0	0.92283	0.99743	cds	287	8.14	401.89453125
-arabidopsis	allfeat	Arabidopsis TAIR10 -> ASM2311539v1	lifton	0.99834	0.99648	0.98967	12632	12653	0.99896	1.0	0.99541	0.99984	transcript	0	225.28	1558.1328125
-drosophila	genes	D. melanogaster -> D. erecta	liftoff	0.98166	0.98166	0.90811	7118	7251	0.90846	0.95789	0.04767	0.8903	transcript	0	124.21	3133.10546875
-drosophila	genes	D. melanogaster -> D. erecta	miniprot	0.99035	0.99035		7181	7251	0.92086	0.95789	0.04094	0.91861	cds	73	6.65	431.16015625
-drosophila	genes	D. melanogaster -> D. erecta	lifton	0.98166	0.98166	0.90811	7118	7251	0.92457	0.958	0.04767	0.8903	transcript	0	241.84	2502.0859375
-drosophila	allfeat	D. melanogaster -> D. erecta	liftoff	0.98111	0.98111	0.91351	7114	7251	0.90846	0.95789	0.0477	0.89023	transcript	0	143.97	3277.74609375
-drosophila	allfeat	D. melanogaster -> D. erecta	miniprot	0.99035	0.99035		7181	7251	0.92086	0.95789	0.04094	0.91861	cds	73	6.65	431.16015625
-drosophila	allfeat	D. melanogaster -> D. erecta	lifton	0.98111	0.98111	0.91351	7114	7251	0.92458	0.958	0.0477	0.89023	transcript	0	257.24	2479.48046875
+human_mane	genes	Human GRCh38 -> CHM13 (MANE)	lifton	0.99764	0.99764	0.99764	422	423	0.99425	1.0	0.72275	0.9979	transcript	2	14.45	2306.95703125
+human_mane	genes	Human GRCh38 -> CHM13 (MANE)	lifton_optimize	0.99764	0.99764	0.99764	422	423	0.99425	1.0	0.72275	0.9979	transcript	2	14.36	2178.0625
+drosophila	genes	D. melanogaster -> D. erecta	liftoff	0.98166	0.98166	0.90811	7118	7251	0.90846	0.95789	0.04767	0.8903	transcript	0	117.97999999999999	3126.9765625
+drosophila	genes	D. melanogaster -> D. erecta	miniprot	0.99021	0.99021		7180	7251	0.9208	0.95789	0.04095	0.9191	cds	73	6.57	431.10546875
+drosophila	genes	D. melanogaster -> D. erecta	lifton	0.98166	0.98166	0.90811	7118	7251	0.92457	0.958	0.04767	0.8903	transcript	0	148.15	4824.71875
+drosophila	genes	D. melanogaster -> D. erecta	lifton_optimize	0.98345	0.98345	0.91009	7131	7251	0.92578	0.958	0.04758	0.88986	transcript	9	187.39	5079.4375
+arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	liftoff	0.99834	0.94721	0.91601	12632	12653	0.99871	1.0	0.99533	0.99994	transcript	12	68.85	2280.59375
+arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	miniprot	0.99953	0.94834		12647	12653	0.99585	1.0	0.92283	0.99743	cds	287	8.01	401.8984375
+arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	lifton	0.99834	0.94721	0.91601	12632	12653	0.99896	1.0	0.99533	0.99994	transcript	0	233.46	5085.51953125
+arabidopsis	genes	Arabidopsis TAIR10 -> ASM2311539v1	lifton_optimize	0.99834	0.94721	0.91601	12632	12653	0.99897	1.0	0.99533	0.99993	transcript	5	230.35	5032.2421875
+rice	genes	Rice IRGSP -> ASM3414082v1	liftoff	1.0	1.0	0.97572	5850	5850	0.99864	1.0	0.99538	0.99994	transcript	2	27.85	926.68359375
+rice	genes	Rice IRGSP -> ASM3414082v1	miniprot	1.0	1.0		5850	5850	0.9951	1.0	0.91573	0.99808	cds	63	4.34	606.37890625
+rice	genes	Rice IRGSP -> ASM3414082v1	lifton	1.0	1.0	0.97572	5850	5850	0.99905	1.0	0.99538	0.99994	transcript	0	116.08	3252.73046875
+rice	genes	Rice IRGSP -> ASM3414082v1	lifton_optimize	1.0	1.0	0.97572	5850	5850	0.99905	1.0	0.99538	0.99994	transcript	3	109.11	3085.24609375

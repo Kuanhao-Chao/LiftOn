@@ -52,7 +52,7 @@ CI (`.github/workflows/tests.yml`, Python 3.12) installs `minimap2` + `miniprot`
 
 ### Optional fast-path flags
 
-Six flags toggle alternate paths. The four I/O / scheduling fast-paths (`--stream`, `--inmemory-liftoff`, `--threads`/`--locus-pipeline`, `--native`) are **byte-identical to the default output** — the 24-cell matrix test pins this; use them to optimise wall-clock or memory, never to change algorithms. The remaining two (`--strict-gff`, `--validate-output`) are validation gates that don't alter output bytes but can change the exit code.
+Seven flags toggle alternate paths. The four I/O / scheduling fast-paths (`--stream`, `--inmemory-liftoff`, `--threads`/`--locus-pipeline`, `--native`) are **byte-identical to the default output** — the 24-cell matrix test pins this; use them to optimise wall-clock or memory, never to change algorithms. Two (`--strict-gff`, `--validate-output`) are validation gates that don't alter output bytes but can change the exit code. The last, **`--legacy-merge`**, *does* change output: it restores the pre-promotion *unconditional* Liftoff↔miniprot merge (the default now runs the verified **best-of-outcome** merge — see *The byte-identity contract*). The legacy `--optimize` flag is a kept **no-op alias** (best-of-outcome, which it used to gate, is now the default).
 
 | Flag | Phase | What it changes |
 |---|---|---|
@@ -62,6 +62,7 @@ Six flags toggle alternate paths. The four I/O / scheduling fast-paths (`--strea
 | `--native` | 10/11 | Drive `minimap2` through the `mappy` PyO3 binding in-process; route miniprot through the `pyminiprot`-shaped facade. **As of Phase 17b**, `--native` unlocks Step-7 threading on *any* backend (including SQLite-backed gffutils) — workers no longer touch the DB connection directly; they read from materialised proxy DBs. The old "gffutils serialises under `--native`" behaviour is now opt-in via `LIFTON_PARALLEL_BLOCK_GFFUTILS=1`. `LIFTON_PARALLEL_FORCE=1` still force-enables threading even without `--native`. |
 | `--strict-gff` | 5 | Run the NCBI GFF3 input-side validator on the reference annotation; exit non-zero on any spec violation. |
 | `--validate-output` (+ `--validate-verbose`) | 13.5C | After writing, re-validate the output GFF3 with the in-tree `gff3_validator`; print a structured report. |
+| `--legacy-merge` | 7 | **Changes output bytes.** Restore the pre-promotion *unconditional* Liftoff↔miniprot merge. The default now keeps, per transcript, the better of {merge+ORF, Liftoff+ORF} (best-of-outcome, `run_liftoff.process_liftoff_with_protein`); `--legacy-merge` reverts to applying the chained CDS unconditionally (manuscript reproduction / A-B baseline). `--optimize` is a kept no-op alias of the default. |
 
 ## Big-picture architecture
 
@@ -126,6 +127,8 @@ The defining test of the whole codebase is the **24-cell matrix** at `tests/test
 - `tests/test_native_matrix.py` — full 24-cell
 
 Any change that touches the alignment kernel, the writer, the directive carrier, the ID-formation logic, or the per-locus result shape must keep this gate green. Phase 14's banded-alignment / mappy-seeded extension proposals were explicitly **deferred** because they would mutate alignment output by ~0.1% and break the gate.
+
+**Scope clarification (best-of-outcome merge promotion, Iteration 1).** The 24-cell matrix pins *fast-path equivalence* (the `--stream × --inmemory-liftoff × --threads × --native` axes all reproduce the default), which is **orthogonal to the merge algorithm**. As of the best-of-outcome promotion, the default *merge* output is **no longer byte-frozen against the pre-promotion default**: when miniprot supplies a higher-identity chunk, the default now emits whichever of {merge+ORF-rescue, Liftoff+ORF-rescue} yields the higher emitted protein identity per transcript, instead of applying the chained CDS unconditionally. The 24-cell matrix stays green because the synthetic fixture has a perfect ORF (`liftoff_aln.identity == 1`) so the merge branch never fires there; `--legacy-merge` reproduces the pre-promotion bytes, and `tests/test_native_matrix.py::TestMergePromotion` (on the `merge_firing_workspace` fixture) pins the promoted behaviour: the merge fires (`status=LiftOn_chaining_algorithm`), `--optimize` is a byte-for-byte no-op alias, and the default never scores below `--legacy-merge`. The aggregate accuracy win is proven on real divergent data by `benchmarks/compare/legacy_merge_ab.py` (drosophila +0.0037 mean protein identity, 115 improved / 1 regressed; mouse_to_rat chr18 +0.0052, 91 improved / 0 regressed — both completeness-preserving, by reverting corrupting merges; the larger mouse chr2 run earlier confirmed +0.0067, 294/2). `mouse_to_rat` is pinned to chr18 (`NC_000084.7`, 2343 mRNA) for a ~3.5×-faster mammalian A/B; `benchmarks/compare/build_inputs.py` rebuilds one benchmark's `-L`/`-M` after a `ref_chrom` change. Promoting any further output-changing accuracy win follows the same recipe: keep the 24-cell matrix green (or deliberately re-baseline with a manuscript erratum), add a merge-firing/behaviour test, and prove the aggregate gain in the benchmark loop.
 
 ## Test-suite guarantees
 
