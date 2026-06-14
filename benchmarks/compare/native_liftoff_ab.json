@@ -1,0 +1,92 @@
+[
+  {
+    "benchmark": "bee",
+    "counts": {
+      "subprocess": {
+        "gene": 1544,
+        "transcript": 3680,
+        "CDS": 27495
+      },
+      "native": {
+        "gene": 1544,
+        "transcript": 3680,
+        "CDS": 27420
+      }
+    },
+    "native_gene_ratio": 1.0,
+    "identity": {
+      "n_sub": 3680,
+      "n_native": 3680,
+      "n_shared": 3680,
+      "native_only": 0,
+      "sub_only": 0,
+      "mean_id_delta": -0.001963,
+      "improved": 5,
+      "regressed": 27
+    },
+    "wall_s": {
+      "subprocess": 138.1,
+      "native": 160.0
+    }
+  },
+  {
+    "benchmark": "drosophila",
+    "counts": {
+      "subprocess": {
+        "gene": 4049,
+        "transcript": 7947,
+        "CDS": 37305
+      },
+      "native": {
+        "gene": 4058,
+        "transcript": 7943,
+        "CDS": 36434
+      }
+    },
+    "native_gene_ratio": 1.0022,
+    "identity": {
+      "n_sub": 7947,
+      "n_native": 7943,
+      "n_shared": 7925,
+      "native_only": 18,
+      "sub_only": 22,
+      "mean_id_delta": -0.015951,
+      "improved": 44,
+      "regressed": 477
+    },
+    "wall_s": {
+      "subprocess": 279.9,
+      "native": 358.8
+    }
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "counts": {
+      "subprocess": {
+        "gene": 945,
+        "transcript": 3114,
+        "CDS": 23633
+      },
+      "native": {
+        "gene": 950,
+        "transcript": 3119,
+        "CDS": 23632
+      }
+    },
+    "native_gene_ratio": 1.0053,
+    "identity": {
+      "n_sub": 3114,
+      "n_native": 3119,
+      "n_shared": 3098,
+      "native_only": 21,
+      "sub_only": 16,
+      "mean_id_delta": -0.000165,
+      "improved": 0,
+      "regressed": 2
+    },
+    "wall_s": {
+      "subprocess": 242.6,
+      "native": 543.1
+    }
+  }
+]

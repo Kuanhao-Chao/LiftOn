@@ -1,6 +1,17 @@
 # ---------------------------------------------------------------------------
 # Phase 11 — native (in-process) alignment path for the vendored Liftoff.
 #
+# OPT-IN as of Iteration 7 (LIFTON_NATIVE_LIFTOFF_ALIGN=1), NOT implied by
+# --native. The A/B (benchmarks/compare/native_liftoff_ab.py) showed this
+# in-process mappy Liftoff alignment is strictly inferior to the subprocess
+# path: slower (the per-query `aligner.map()` Python loop below does not batch
+# like minimap2's C threading — up to ~2.2× on mouse_to_rat) and slightly less
+# accurate cross-species (mappy's Aligner can't take --end-bonus/-p). Kept for
+# environments without a minimap2 binary and as a base for future batching.
+# The Iteration-7 --eqx fix (minimap_facade._translate_mm2_options) is what
+# makes this path map anything at all (without MM_F_EQX it emitted M CIGAR the
+# parser counts as zero aligned bases — the fresh---native empty-output bug).
+#
 # Replaces the per-chromosome `subprocess.run([minimap2, ...])` + SAM file
 # write + pysam re-parse in `align_features.py` with an in-memory
 # `MinimapAligner.map(...)` round-trip. The entry point

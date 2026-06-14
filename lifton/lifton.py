@@ -196,13 +196,15 @@ def args_optional(parser):
     )
     parser.add_argument(
         '--native', dest='native', action='store_true', default=False,
-        help='Phase 10 native bindings: drive minimap2 alignment '
-             'through `mappy` (real PyO3 binding) and miniprot through '
-             'the pyminiprot-shaped facade (subprocess today, swappable '
-             'for a real PyO3 binding when it ships). Eliminates '
-             'subprocess fork+exec overhead per query. Output GFF3 is '
-             'byte-identical to the subprocess path; this flag changes '
-             'how alignments are produced, not which alignments. '
+        help='Phase 10 native bindings: route miniprot through the '
+             'pyminiprot-shaped facade and unlock in-process Step-7 '
+             'threading (Phase 17b). As of Iteration 7, --native does NOT '
+             'route Liftoff\'s minimap2 alignment through `mappy` by '
+             'default — that in-process path is slower and slightly less '
+             'accurate than the subprocess minimap2 path (mappy can\'t take '
+             '--end-bonus/-p), so Liftoff alignment stays on the proven '
+             'subprocess path. Set LIFTON_NATIVE_LIFTOFF_ALIGN=1 to opt the '
+             'mappy Liftoff path back in (e.g. no minimap2 binary on PATH). '
              'Falls back gracefully when mappy is not installed.'
     )
     parser.add_argument(

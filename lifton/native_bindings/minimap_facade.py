@@ -14,9 +14,14 @@
 from __future__ import annotations
 
 import threading
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 from .types import MinimapHit
+
+# minimap2 feature flag for extended (`=`/`X`) CIGAR ops — the C constant
+# `MM_F_EQX` that `--eqx` sets. mappy ORs `extra_flags` into the option set,
+# so passing this makes `Aligner.map()` emit `=`/`X` instead of `M`.
+MM_F_EQX = 0x4000000
 
 
 def is_mappy_available() -> bool:
@@ -25,6 +30,40 @@ def is_mappy_available() -> bool:
         return True
     except ImportError:
         return False
+
+
+def _translate_mm2_options(mm2_options: str, best_n: int) -> Tuple[int, int]:
+    """Translate the subset of Liftoff's ``mm2_options`` string that mappy's
+    ``Aligner`` constructor can honour into ``(extra_flags, best_n)``.
+
+    Liftoff's default is ``-a --end-bonus 5 --eqx -N 50 -p 0.5``. Critically,
+    **``--eqx`` is mandatory**: the downstream Liftoff CIGAR parser
+    (``align_features.get_cigar_operations`` → match=7/mismatch=8) only counts
+    ``=``/``X`` ops, so without ``MM_F_EQX`` mappy's default ``M`` CIGAR parses
+    to *zero* aligned bases and every feature is reported unmapped (the
+    fresh-``--native`` "maps nothing" bug). ``-N`` maps to ``best_n``. ``-a``
+    (SAM output) is irrelevant to mappy's object API. ``-p`` (secondary/primary
+    score ratio) and ``--end-bonus`` are **not exposed** by mappy's constructor,
+    so they cannot be replicated here — they only fine-tune copy/secondary
+    sensitivity (``-copies``) and end alignment, not whether a feature maps;
+    the small resulting difference from the subprocess path is acceptable
+    (Liftoff is itself non-deterministic across runs).
+    """
+    extra_flags = 0
+    toks = [t for t in mm2_options.split() if t]
+    i = 0
+    while i < len(toks):
+        t = toks[i]
+        if t == "--eqx":
+            extra_flags |= MM_F_EQX
+        elif t == "-N" and i + 1 < len(toks):
+            try:
+                best_n = int(toks[i + 1])
+            except ValueError:
+                pass
+            i += 1
+        i += 1
+    return extra_flags, best_n
 
 
 class MinimapAligner:
@@ -50,6 +89,11 @@ class MinimapAligner:
                 "`pip install mappy` or `conda install -c bioconda mappy`."
             )
         import mappy
+        # Translate Liftoff's mm2_options into the mappy-honourable subset.
+        # MM_F_EQX (`--eqx`) is load-bearing: without it mappy emits `M`
+        # CIGAR and the downstream Liftoff parser counts zero aligned bases,
+        # mapping nothing (the fresh-`--native` empty-output bug).
+        extra_flags, best_n = _translate_mm2_options(mm2_options, best_n)
         # mappy.Aligner is thread-safe for `.map(seq)`; storing a
         # single instance per process is the recommended pattern.
         self._aligner = mappy.Aligner(
@@ -57,6 +101,7 @@ class MinimapAligner:
             preset=preset,
             n_threads=threads,
             best_n=best_n,
+            extra_flags=extra_flags,
         )
         if not self._aligner:
             raise RuntimeError(

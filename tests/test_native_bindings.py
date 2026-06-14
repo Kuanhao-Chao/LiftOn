@@ -152,6 +152,75 @@ class TestMinimapAlignerRealRoundTrip:
         assert result is None or isinstance(result, MinimapHit)
 
 
+class TestMm2OptionsTranslation:
+    """Iteration 7: `_translate_mm2_options` turns Liftoff's mm2_options
+    string into the mappy-honourable subset. The `--eqx` → MM_F_EQX mapping
+    is load-bearing (without it fresh `--native` Liftoff maps nothing)."""
+
+    def test_default_liftoff_options_set_eqx_and_best_n(self):
+        from lifton.native_bindings.minimap_facade import (
+            _translate_mm2_options, MM_F_EQX)
+        # Liftoff's default mm2_options.
+        flags, best_n = _translate_mm2_options(
+            "-a --end-bonus 5 --eqx -N 50 -p 0.5", best_n=999)
+        assert flags & MM_F_EQX, "--eqx must set MM_F_EQX"
+        assert best_n == 50, "-N must override best_n"
+
+    def test_empty_options_are_inert(self):
+        from lifton.native_bindings.minimap_facade import _translate_mm2_options
+        flags, best_n = _translate_mm2_options("", best_n=50)
+        assert flags == 0
+        assert best_n == 50
+
+    def test_eqx_alone_sets_flag(self):
+        from lifton.native_bindings.minimap_facade import (
+            _translate_mm2_options, MM_F_EQX)
+        flags, _ = _translate_mm2_options("--eqx", best_n=50)
+        assert flags == MM_F_EQX
+
+    def test_no_eqx_leaves_flag_clear(self):
+        from lifton.native_bindings.minimap_facade import (
+            _translate_mm2_options, MM_F_EQX)
+        flags, _ = _translate_mm2_options("-a -N 10", best_n=50)
+        assert not (flags & MM_F_EQX)
+
+
+class TestEqxCigarRoundTrip:
+    """End-to-end proof of the fresh-`--native` fix at the facade level:
+    with Liftoff's `--eqx` in mm2_options, mappy must emit extended
+    (`=`/`X`) CIGAR ops — the ops the downstream Liftoff parser counts as
+    aligned bases. Without it, mappy emits plain `M` and the parser maps
+    nothing."""
+
+    def _query_with_one_mismatch(self, seq):
+        window = list(seq[1000:1200])
+        window[100] = "A" if window[100] != "A" else "C"
+        return "".join(window)
+
+    def test_eqx_options_emit_extended_cigar(self, tiny_fasta):
+        fp, seq = tiny_fasta
+        q = self._query_with_one_mismatch(seq)
+        aligner = MinimapAligner(str(fp), preset="map-ont", threads=1,
+                                 mm2_options="--eqx -N 50")
+        hits = list(aligner.map("q", q))
+        assert hits, "expected at least one hit for a near-perfect query"
+        cig = hits[0].cigar_str
+        assert ("=" in cig or "X" in cig), (
+            f"--eqx must yield extended CIGAR ops, got {cig!r}")
+
+    def test_without_eqx_emits_plain_M(self, tiny_fasta):
+        fp, seq = tiny_fasta
+        q = self._query_with_one_mismatch(seq)
+        aligner = MinimapAligner(str(fp), preset="map-ont", threads=1,
+                                 mm2_options="")
+        hits = list(aligner.map("q", q))
+        assert hits
+        cig = hits[0].cigar_str
+        assert "=" not in cig and "X" not in cig, (
+            f"without --eqx mappy should emit plain M CIGAR, got {cig!r}")
+        assert "M" in cig
+
+
 class TestMinimapAlignerMissingMappy:
     def test_clear_error_when_mappy_unavailable(self, monkeypatch):
         from lifton.native_bindings import minimap_facade
