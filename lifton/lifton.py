@@ -188,11 +188,16 @@ def args_optional(parser):
     parser.add_argument(
         '--locus-pipeline', dest='locus_pipeline', action='store_true',
         default=False,
-        help='Phase 9 locus-major fan-out: dispatch Step 7 (per-Liftoff-'
-             'gene processing) through a ThreadPoolExecutor sized by '
-             '--threads. Output is emitted in submission order so '
-             '--threads N is byte-identical to --threads 1; this flag '
-             'changes scheduling, not algorithms.'
+        help='Locus-major fan-out: dispatch Step 7 (per-Liftoff-gene '
+             'processing) through a ThreadPoolExecutor sized by --threads. '
+             'Output is emitted in submission order so --threads N is '
+             'byte-identical to --threads 1; this flag changes scheduling, '
+             'not algorithms. As of Iteration 8 this works on the DEFAULT '
+             '(gffutils) backend WITHOUT --native — per-locus work runs '
+             'against materialised proxy DBs, so any backend is thread-safe '
+             '(set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
+             'serial-on-gffutils). Note: combined with the default '
+             'concurrent Step 4, peak busy cores can reach ~N+1.'
     )
     parser.add_argument(
         '--native', dest='native', action='store_true', default=False,
@@ -689,10 +694,23 @@ def run_all_lifton_steps(args):
     )
     _threads = int(getattr(args, "threads", 1) or 1)
     _use_pool = bool(getattr(args, "locus_pipeline", False)) and _threads > 1
+    # Output-neutral perf probe: Step 7 is the per-locus wall-clock hot
+    # spot, but it runs inside the same process so process_time mixes it
+    # with worker CPU. Capture WALL time around the dispatch and emit one
+    # stderr line when LIFTON_PERF_STEP7 is set — lets the Iteration-8
+    # fresh-parallel A/B isolate the Step-7 speedup (no --native needed)
+    # without touching the output GFF3 or time.txt.
+    _w7_start = time.perf_counter()
     processed_features = _parallel.parallel_step7(
         features, l_feature_db, _ctx, fw, transcripts_stats_dict,
         threads=_threads if _use_pool else 1,
     )
+    if os.environ.get("LIFTON_PERF_STEP7"):
+        _mode = f"pool x{_threads}" if _use_pool else "serial"
+        sys.stderr.write(
+            f"[LiftOn][perf] Step7 wall ({_mode}): "
+            f"{time.perf_counter() - _w7_start:.2f}s\n")
+        sys.stderr.flush()
 
     t11 = time.process_time()
     ################################

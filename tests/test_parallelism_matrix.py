@@ -167,9 +167,14 @@ class TestLocusPipelineSemantics:
 
     def test_locus_pipeline_with_threads_4_creates_pool(
             self, integration_workspace, hermetic_pipeline, monkeypatch):
-        """With the LIFTON_PARALLEL_FORCE escape hatch set the
-        dispatcher really creates a ThreadPoolExecutor (the default
-        guard would have fallen back to serial)."""
+        """With LIFTON_PARALLEL_FORCE + a gffbase backend the dispatcher
+        creates at least one ThreadPoolExecutor (a worker pool, plus a
+        prefetcher pool when the backend DB is on-disk).
+
+        Iteration 8 note: ``>= 1`` (not ``== 1``) because the
+        materialise step now runs through a prefetcher pool for on-disk
+        DBs in addition to the main worker pool.
+        """
         monkeypatch.setenv("LIFTON_USE_GFFBASE", "1")
         monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")
 
@@ -199,34 +204,92 @@ class TestLocusPipelineSemantics:
         args = lifton_main.parse_args(argv)
         lifton_main.run_all_lifton_steps(args)
         assert out_gff.exists()
-        assert constructed["n"] == 1
+        assert constructed["n"] >= 1
 
-    def test_locus_pipeline_falls_back_on_sqlite_backend(
-            self, integration_workspace, hermetic_pipeline, capsys):
-        """When --locus-pipeline + threads>1 is requested but the
-        backend is gffutils (SQLite), the dispatcher must fall back
-        to serial with a warning. Output remains byte-identical to
-        a serial run."""
+    def test_locus_pipeline_parallel_on_sqlite_by_default(
+            self, integration_workspace, hermetic_pipeline, monkeypatch):
+        """Iteration 8: --locus-pipeline + threads>1 on the DEFAULT
+        gffutils (SQLite) backend now runs PARALLEL (via the
+        materialised-payload + proxy-DB path) WITHOUT --native — it no
+        longer silently downgrades to serial. A ThreadPoolExecutor is
+        created and the output stays byte-identical to a serial run.
+        """
+        from lifton import parallel
+        original = parallel.ThreadPoolExecutor
+        constructed = {"n": 0}
+
+        class TPESpy(original):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
         from lifton import lifton as lifton_main
-        out_serial = integration_workspace["out"] / "fallback_serial.gff3"
-        out_attempted = integration_workspace["out"] / "fallback_attempted.gff3"
+        out_serial = integration_workspace["out"] / "default_serial.gff3"
+        out_parallel = integration_workspace["out"] / "default_parallel.gff3"
 
-        # Serial reference (no flag)
-        argv1 = [
+        base = [
             str(integration_workspace["tgt_fa"]),
             str(integration_workspace["ref_fa"]),
             "-g", str(integration_workspace["ref_gff"]),
             "-L", str(integration_workspace["liftoff"]),
             "-M", str(integration_workspace["miniprot"]),
-            "-o", str(out_serial),
             "-ad", "RefSeq", "--force",
         ]
-        lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv1))
+        # Serial reference (no pool expected)
+        lifton_main.run_all_lifton_steps(
+            lifton_main.parse_args(base + ["-o", str(out_serial)]))
+        assert constructed["n"] == 0, "serial run unexpectedly created a pool"
 
-        # Attempted parallel on SQLite — should fall back to serial
-        argv2 = argv1[:-1] + ["--force", "--locus-pipeline", "-t", "4"]
-        argv2[argv2.index(str(out_serial))] = str(out_attempted)
-        lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv2))
+        # Parallel on the default gffutils backend — a pool IS created.
+        lifton_main.run_all_lifton_steps(lifton_main.parse_args(
+            base + ["-o", str(out_parallel), "--locus-pipeline", "-t", "4"]))
+        assert constructed["n"] >= 1, (
+            "parallel Step 7 did not create a ThreadPoolExecutor on the "
+            "default gffutils backend (silently fell back to serial?)"
+        )
+        # Byte-identical to serial — the whole point of the contract.
+        assert out_serial.read_bytes() == out_parallel.read_bytes()
 
-        # Output is byte-identical because the fallback ran serial
+    def test_block_gffutils_restores_serial_fallback(
+            self, integration_workspace, hermetic_pipeline, monkeypatch, capsys):
+        """The LIFTON_PARALLEL_BLOCK_GFFUTILS opt-out restores the
+        pre-Iteration-8 strict serial fallback on gffutils: no pool is
+        created, a warning is emitted, and output stays byte-identical.
+        """
+        monkeypatch.setenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", "1")
+
+        from lifton import parallel
+        original = parallel.ThreadPoolExecutor
+        constructed = {"n": 0}
+
+        class TPESpy(original):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(parallel, "ThreadPoolExecutor", TPESpy)
+
+        from lifton import lifton as lifton_main
+        out_serial = integration_workspace["out"] / "block_serial.gff3"
+        out_attempted = integration_workspace["out"] / "block_attempted.gff3"
+
+        base = [
+            str(integration_workspace["tgt_fa"]),
+            str(integration_workspace["ref_fa"]),
+            "-g", str(integration_workspace["ref_gff"]),
+            "-L", str(integration_workspace["liftoff"]),
+            "-M", str(integration_workspace["miniprot"]),
+            "-ad", "RefSeq", "--force",
+        ]
+        lifton_main.run_all_lifton_steps(
+            lifton_main.parse_args(base + ["-o", str(out_serial)]))
+
+        lifton_main.run_all_lifton_steps(lifton_main.parse_args(
+            base + ["-o", str(out_attempted), "--locus-pipeline", "-t", "4"]))
+
+        # Blocked → fell back to serial → no pool created, byte-identical.
+        assert constructed["n"] == 0
         assert out_serial.read_bytes() == out_attempted.read_bytes()
+        assert "LIFTON_PARALLEL_BLOCK_GFFUTILS" in capsys.readouterr().err

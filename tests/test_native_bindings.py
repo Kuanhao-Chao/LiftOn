@@ -426,10 +426,28 @@ class TestThreadSafetyGuardWithNative:
         from lifton.parallel import _backend_supports_threads
         assert _backend_supports_threads(FakeGffbase(), native=True) is True
 
-    def test_guard_returns_false_when_native_inactive(self, monkeypatch):
+    def test_guard_returns_true_when_native_inactive(self, monkeypatch):
+        """Iteration 8: the guard is decoupled from --native. Parallel
+        Step 7 always routes through the materialise + proxy-DB path
+        (workers never touch a shared connection), so the guard now
+        returns True even with native=False. The only ways back to
+        serial-on-gffutils are LIFTON_PARALLEL_BLOCK_GFFUTILS (per-
+        backend) or simply not passing --locus-pipeline / --threads>1."""
         monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        monkeypatch.delenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", raising=False)
         from lifton.parallel import _backend_supports_threads
-        assert _backend_supports_threads(native=False) is False
+        assert _backend_supports_threads(native=False) is True
+
+    def test_guard_returns_false_when_native_inactive_and_gffutils_blocked(
+            self, monkeypatch):
+        """The BLOCK opt-out still rejects gffutils regardless of
+        native — the documented escape hatch back to serial."""
+        monkeypatch.delenv("LIFTON_PARALLEL_FORCE", raising=False)
+        monkeypatch.setenv("LIFTON_PARALLEL_BLOCK_GFFUTILS", "1")
+        FakeSqlite = type("FakeSqliteDB", (), {})
+        FakeSqlite.__module__ = "gffutils.interface"
+        from lifton.parallel import _backend_supports_threads
+        assert _backend_supports_threads(FakeSqlite(), native=False) is False
 
     def test_force_env_var_overrides_native_false(self, monkeypatch):
         monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")
