@@ -1,0 +1,102 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_scored": {
+      "default": 7125,
+      "orf_best": 7125
+    },
+    "n_complete": {
+      "default": 339,
+      "orf_best": 339
+    },
+    "mean_pi": {
+      "default": 0.92578,
+      "orf_best": 0.92575
+    },
+    "mean_pi_delta": -3e-05,
+    "delta_counts": {
+      "n_common": 7125,
+      "improved": 4,
+      "regressed": 59,
+      "net_per_transcript": -3.3e-05
+    },
+    "completeness": {
+      "counts": {
+        "default": {
+          "gene": 4048,
+          "transcript": 7946,
+          "CDS": 37391,
+          "total": 92675
+        },
+        "orf_best": {
+          "gene": 4048,
+          "transcript": 7946,
+          "CDS": 37394,
+          "total": 92676
+        }
+      },
+      "unchanged": false
+    },
+    "wall_s": {
+      "default": 146.62,
+      "orf_best": 141.12
+    },
+    "gate": {
+      "bar": 0.003,
+      "mean_delta_ge_bar": false,
+      "completeness_unchanged": false,
+      "regressed_le_10pct_improved": false,
+      "pass": false
+    }
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_scored": {
+      "default": 2121,
+      "orf_best": 2121
+    },
+    "n_complete": {
+      "default": 121,
+      "orf_best": 121
+    },
+    "mean_pi": {
+      "default": 0.9092,
+      "orf_best": 0.90928
+    },
+    "mean_pi_delta": 8e-05,
+    "delta_counts": {
+      "n_common": 2121,
+      "improved": 3,
+      "regressed": 23,
+      "net_per_transcript": 7.3e-05
+    },
+    "completeness": {
+      "counts": {
+        "default": {
+          "gene": 945,
+          "transcript": 3114,
+          "CDS": 23751,
+          "total": 60193
+        },
+        "orf_best": {
+          "gene": 945,
+          "transcript": 3114,
+          "CDS": 23767,
+          "total": 60220
+        }
+      },
+      "unchanged": false
+    },
+    "wall_s": {
+      "default": 99.12,
+      "orf_best": 93.49
+    },
+    "gate": {
+      "bar": 0.003,
+      "mean_delta_ge_bar": false,
+      "completeness_unchanged": false,
+      "regressed_le_10pct_improved": false,
+      "pass": false
+    }
+  }
+]
