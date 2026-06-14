@@ -1,0 +1,131 @@
+[
+  {
+    "benchmark": "mouse",
+    "byte_identical": true,
+    "step5_wall_s": {
+      "serial": 28.42,
+      "concurrent": 30.81
+    },
+    "step5_speedup": 0.92,
+    "step5_saved_pct": -8.4,
+    "total_wall_s": {
+      "serial": 359.5,
+      "concurrent": 346.9
+    },
+    "total_speedup": 1.04,
+    "total_saved_pct": 3.5,
+    "peak_rss_mb": {
+      "serial": 684.0,
+      "concurrent": 701.0
+    },
+    "rss_overhead_pct": 2.5,
+    "completeness": {
+      "counts": {
+        "serial": {
+          "gene": 2966,
+          "transcript": 10666,
+          "CDS": 105428,
+          "total": 255008
+        },
+        "concurrent": {
+          "gene": 2966,
+          "transcript": 10666,
+          "CDS": 105428,
+          "total": 255008
+        }
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "step5_win": false,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "drosophila",
+    "byte_identical": true,
+    "step5_wall_s": {
+      "serial": 11.85,
+      "concurrent": 13.22
+    },
+    "step5_speedup": 0.9,
+    "step5_saved_pct": -11.6,
+    "total_wall_s": {
+      "serial": 198.8,
+      "concurrent": 200.8
+    },
+    "total_speedup": 0.99,
+    "total_saved_pct": -1.0,
+    "peak_rss_mb": {
+      "serial": 533.0,
+      "concurrent": 628.0
+    },
+    "rss_overhead_pct": 18.0,
+    "completeness": {
+      "counts": {
+        "serial": {
+          "gene": 4048,
+          "transcript": 7946,
+          "CDS": 37391,
+          "total": 92675
+        },
+        "concurrent": {
+          "gene": 4048,
+          "transcript": 7946,
+          "CDS": 37391,
+          "total": 92675
+        }
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "step5_win": false,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "rice",
+    "byte_identical": true,
+    "step5_wall_s": {
+      "serial": 13.95,
+      "concurrent": 15.11
+    },
+    "step5_speedup": 0.92,
+    "step5_saved_pct": -8.3,
+    "total_wall_s": {
+      "serial": 124.0,
+      "concurrent": 122.7
+    },
+    "total_speedup": 1.01,
+    "total_saved_pct": 1.1,
+    "peak_rss_mb": {
+      "serial": 509.0,
+      "concurrent": 641.0
+    },
+    "rss_overhead_pct": 26.0,
+    "completeness": {
+      "counts": {
+        "serial": {
+          "gene": 4478,
+          "transcript": 7147,
+          "CDS": 34419,
+          "total": 91285
+        },
+        "concurrent": {
+          "gene": 4478,
+          "transcript": 7147,
+          "CDS": 34419,
+          "total": 91285
+        }
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "step5_win": false,
+      "completeness_unchanged": true
+    }
+  }
+]
