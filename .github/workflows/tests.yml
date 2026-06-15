@@ -66,5 +66,14 @@ jobs:
           --ignore=tests/test_vulnerabilities.py
     - name: Test using example from test dir
       run: |
-        cd test && bash -xeu lifton_chr22_example.sh
+        # actions/checkout@v4 does NOT pull git-LFS, so the LFS-tracked
+        # precomputed minimap2 index test/chm13_chr22.fa.mmi is checked out as a
+        # ~130-byte pointer file, not the real 151MB index. Liftoff/minimap2 then
+        # reads the pointer as its index, produces 0 alignments, and writes an
+        # empty liftoff.gff3 -> exit 1. Remove the stale pointer so Liftoff
+        # rebuilds the index from the regular (non-LFS) chm13_chr22.fa committed
+        # alongside it (verified: rebuilds to the identical 151MB index, 77856
+        # liftoff feature lines, exit 0). Cheaper + more robust than lfs:true
+        # (no LFS bandwidth/quota); local runs keep their cached .mmi untouched.
+        cd test && rm -f chm13_chr22.fa.mmi && bash -xeu lifton_chr22_example.sh
         
