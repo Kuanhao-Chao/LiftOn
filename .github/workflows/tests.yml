@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.11"
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip flake8
@@ -39,6 +39,19 @@ jobs:
     - name: Install lifton
       run: |
         python -m pip install -e .
+    - name: Run pytest (24-cell byte-identity matrix + unit/integration suite)
+      # The load-bearing byte-identity contract (tests/test_native_matrix.py) +
+      # the parallelism/promotion gates + the unit/integration suite. The 3
+      # excluded files `import hypothesis` at module scope (not an install_requires
+      # dep) and ERROR on collection without it — this is the same configuration
+      # the project's local gate runs (~584 tests). pytest itself ships in
+      # install_requires; the hermetic fixtures monkeypatch minimap2/miniprot so
+      # the suite needs neither. perf tests under tests/perf/ are marker-gated.
+      run: |
+        pytest tests/ -q \
+          --ignore=tests/test_property_based.py \
+          --ignore=tests/test_streaming_property.py \
+          --ignore=tests/test_vulnerabilities.py
     - name: Test using example from test dir
       run: |
         cd test && bash -xeu lifton_chr22_example.sh

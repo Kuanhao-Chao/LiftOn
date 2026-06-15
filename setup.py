@@ -28,7 +28,11 @@ setuptools.setup(
 		'lifton.gffbase._rust': ['Cargo.toml', 'Cargo.lock'],
 		'lifton.gffbase._rust.src': ['*.rs'],
 	},
-	python_requires='>=3.6',
+	# Realistic floor (was '>=3.6'): the code uses PEP-585 builtin generics
+	# (list[...]/dict[...]) which are native in 3.9, and PEP-604 X|None
+	# annotations guarded by `from __future__ import annotations`. The dev env
+	# and CI run 3.11 (lifton.yml). >=3.9 drops only EOL Pythons 3.6-3.8.
+	python_requires='>=3.9',
 	packages=setuptools.find_packages(),
 	entry_points={'console_scripts': [
             'lifton = lifton.lifton:main',

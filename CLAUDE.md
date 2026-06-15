@@ -48,7 +48,7 @@ lifton ... --measure_time   # writes time.txt
 gff3-validate path/to/out.gff3
 ```
 
-CI (`.github/workflows/tests.yml`, Python 3.12) installs `minimap2` + `miniprot` and runs `flake8` (E9/F63/F7/F82 hard-fail, then a soft-warn lint pass) followed by the `test/lifton_chr22_example.sh` shell example. **CI does not run pytest** — pytest is the right local gate to run before any change lands. Note the **Python-version skew** between `setup.py` (`python_requires='>=3.6'`), `lifton.yml` (3.11), and CI (3.12); unifying these is on the cleanup list (`plans/phase_2_bottlenecks.md`).
+CI (`.github/workflows/tests.yml`, **Python 3.11** as of Iteration 14) installs `minimap2` + `miniprot` and runs `flake8` (E9/F63/F7/F82 hard-fail, then a soft-warn lint pass), then **`pytest tests/`** (Iteration 14 — the load-bearing 24-cell byte-identity matrix + the parallelism/promotion gates + the unit/integration suite, the same ~584-test configuration as the local gate, excluding the 3 `hypothesis`-dependent files), then the `test/lifton_chr22_example.sh` shell example. So the byte-identity contract is now **CI-enforced** on every push/PR (previously CI ran only flake8 + the shell example — the test suite was unprotected). The **Python-version skew** is largely closed: CI 3.11 now matches `lifton.yml` (3.11), and `setup.py` `python_requires` was bumped `>=3.6` → `>=3.9` (a realistic floor — the code uses PEP-585 builtin generics, native in 3.9). pytest remains the right local gate to run before any change lands.
 
 ### Optional fast-path flags
 
