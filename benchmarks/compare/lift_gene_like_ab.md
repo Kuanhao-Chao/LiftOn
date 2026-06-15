@@ -6,3 +6,6 @@ Both states share ONE gene-like Liftoff `-L` (built via the standalone liftoff b
 |---|---|---|---|---|---|---|---|
 | drosophila | gene,pseudogene | 0/21 | 4048/4048 | yes | +71 | 1/3 | yes |
 | mouse_to_rat | gene,pseudogene | 0/124 | 945/945 | yes | +175 | 1/2 | yes |
+| rice | gene,pseudogene | 0/158 | 4478/4478 | yes | +698 | 1/2 | yes |
+| arabidopsis | gene,pseudogene | 0/904 | 8750/8750 | yes | +3472 | 1/2 | yes |
+| bee | gene,pseudogene | 0/1 | 1541/1541 | yes | +2 | 1/2 | yes |

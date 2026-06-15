@@ -38,8 +38,8 @@
       "n_error_lines": 3
     },
     "wall_s": {
-      "off": 204.2,
-      "on": 201.1
+      "off": 221.6,
+      "on": 213.5
     },
     "promote": true
   },
@@ -82,8 +82,140 @@
       "n_error_lines": 2
     },
     "wall_s": {
-      "off": 125.3,
-      "on": 126.0
+      "off": 131.8,
+      "on": 133.0
+    },
+    "promote": true
+  },
+  {
+    "benchmark": "rice",
+    "gene_like_types": [
+      "gene",
+      "pseudogene"
+    ],
+    "type_counts": {
+      "off": {
+        "gene": 4478
+      },
+      "on": {
+        "gene": 4478,
+        "pseudogene": 158
+      }
+    },
+    "recovered_off_on": {
+      "pseudogene": [
+        0,
+        158
+      ]
+    },
+    "pseudogene_off": 0,
+    "pseudogene_on": 158,
+    "gene_off": 4478,
+    "gene_on": 4478,
+    "off_lines": 91285,
+    "on_lines": 91983,
+    "on_only_lines": 698,
+    "off_only_lines": 0,
+    "gene_lift_unchanged": true,
+    "validate_on": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "validate_off": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "wall_s": {
+      "off": 133.2,
+      "on": 135.4
+    },
+    "promote": true
+  },
+  {
+    "benchmark": "arabidopsis",
+    "gene_like_types": [
+      "gene",
+      "pseudogene"
+    ],
+    "type_counts": {
+      "off": {
+        "gene": 8750
+      },
+      "on": {
+        "gene": 8750,
+        "pseudogene": 904
+      }
+    },
+    "recovered_off_on": {
+      "pseudogene": [
+        0,
+        904
+      ]
+    },
+    "pseudogene_off": 0,
+    "pseudogene_on": 904,
+    "gene_off": 8750,
+    "gene_on": 8750,
+    "off_lines": 186090,
+    "on_lines": 189562,
+    "on_only_lines": 3472,
+    "off_only_lines": 0,
+    "gene_lift_unchanged": true,
+    "validate_on": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "validate_off": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "wall_s": {
+      "off": 240.7,
+      "on": 255.5
+    },
+    "promote": true
+  },
+  {
+    "benchmark": "bee",
+    "gene_like_types": [
+      "gene",
+      "pseudogene"
+    ],
+    "type_counts": {
+      "off": {
+        "gene": 1541
+      },
+      "on": {
+        "gene": 1541,
+        "pseudogene": 1
+      }
+    },
+    "recovered_off_on": {
+      "pseudogene": [
+        0,
+        1
+      ]
+    },
+    "pseudogene_off": 0,
+    "pseudogene_on": 1,
+    "gene_off": 1541,
+    "gene_on": 1541,
+    "off_lines": 65861,
+    "on_lines": 65863,
+    "on_only_lines": 2,
+    "off_only_lines": 0,
+    "gene_lift_unchanged": true,
+    "validate_on": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "validate_off": {
+      "exit": 1,
+      "n_error_lines": 2
+    },
+    "wall_s": {
+      "off": 107.2,
+      "on": 107.2
     },
     "promote": true
   }

@@ -338,28 +338,40 @@ def gene_like_workspace(tmp_path):
             "liftoff": liftoff_gff, "miniprot": miniprot_gff, "out": out_dir}
 
 
-def _run_gene_like(ws, lift_gene_like):
+def _run_gene_like(ws, *, gene_only=False, lift_gene_like=False):
     from lifton import lifton as lifton_main
     out_gff = ws["out"] / "lifton.gff3"
     argv = [str(ws["tgt_fa"]), str(ws["ref_fa"]),
             "-g", str(ws["ref_gff"]), "-L", str(ws["liftoff"]),
             "-M", str(ws["miniprot"]), "-o", str(out_gff),
             "-ad", "RefSeq", "--force"]
+    if gene_only:
+        argv.append("--gene-only")
     if lift_gene_like:
         argv.append("--lift-gene-like")
     lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv))
-    body = out_gff.read_text()
-    return [ln.split("\t")[2] for ln in body.splitlines()
-            if ln.strip() and not ln.startswith("#")]
+    body = out_gff.read_bytes()
+    types = [ln.split("\t")[2] for ln in body.decode().splitlines()
+             if ln.strip() and not ln.startswith("#")]
+    return types, body
 
 
 class TestLiftGeneLike:
-    def test_flag_on_emits_pseudogene(self, gene_like_workspace, hermetic_pipeline):
-        types = _run_gene_like(gene_like_workspace, lift_gene_like=True)
-        assert "pseudogene" in types          # gene-like pseudogene captured
+    def test_default_emits_pseudogene(self, gene_like_workspace, hermetic_pipeline):
+        # Iteration 12: the gene-like lift is now the DEFAULT.
+        types, _ = _run_gene_like(gene_like_workspace)
+        assert "pseudogene" in types          # gene-like pseudogene captured by default
         assert "gene" in types                # the coding gene still lifted
 
-    def test_default_omits_pseudogene(self, gene_like_workspace, hermetic_pipeline):
-        types = _run_gene_like(gene_like_workspace, lift_gene_like=False)
-        assert "pseudogene" not in types      # default lifts only `gene`
+    def test_gene_only_omits_pseudogene(self, gene_like_workspace, hermetic_pipeline):
+        # --gene-only is the opt-out: restores the pre-Iteration-12 gene-only lift.
+        types, _ = _run_gene_like(gene_like_workspace, gene_only=True)
+        assert "pseudogene" not in types      # opt-out lifts only `gene`
         assert "gene" in types
+
+    def test_lift_gene_like_alias_is_noop(self, gene_like_workspace, hermetic_pipeline):
+        # --lift-gene-like is now a kept no-op alias == default (byte-identical).
+        _, default_bytes = _run_gene_like(gene_like_workspace)
+        alias_types, alias_bytes = _run_gene_like(gene_like_workspace, lift_gene_like=True)
+        assert alias_bytes == default_bytes
+        assert "pseudogene" in alias_types

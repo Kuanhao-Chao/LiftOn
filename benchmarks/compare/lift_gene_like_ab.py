@@ -1,13 +1,18 @@
 #!/usr/bin/env python
-"""Iteration-5 A/B: --lift-gene-like (auto-detected) vs default (`gene` only).
+"""Gene-like-lift A/B: default gene-like lift vs `--gene-only` (Iter-5 → Iter-12).
 
-Design (isolates the flag effect cleanly):
+As of the Iteration-12 promotion the gene-like lift is the DEFAULT and
+`--gene-only` is the opt-out, so the two states below invert their flags vs the
+Iteration-5 framing (the OUTPUT bytes of each state are unchanged — only which
+flag selects the gene-only baseline vs the gene-like candidate moved).
+
+Design (isolates the effect cleanly):
   1. Build ONE gene-like Liftoff annotation via the PROVEN standalone `liftoff`
      binary with `-f <gene-like types>` (subprocess minimap2 — the same path that
      built the cached `-L`). It contains genes AND pseudogenes/etc.
   2. Run BOTH LiftOn states off that SAME `-L` + the cached `-M`:
-       state "off"  (no flag)          LiftOn processes only `gene`     ← default
-       state "on"   --lift-gene-like   LiftOn processes gene-like types ← candidate
+       state "off"  --gene-only   LiftOn processes only `gene`     ← gene-only baseline
+       state "on"   (no flag)      LiftOn processes gene-like types ← default (the promotion)
      Same `-L` → the gene lift is identical by construction; "on" only ADDS the
      gene-like loci. (We deliberately avoid LiftOn's in-process `--native`
      Liftoff here: that path mapped nothing in a fresh run — a separate latent
@@ -94,8 +99,13 @@ def _run_state(bid, p, state, liftoff_L, root, log=print):
     argv = [TOOLS["lifton_bin"], "-t", "1", "-copies", "-ad", _ann_db(bid),
             "-g", p["ref_gff"], "-L", str(liftoff_L), "-M", str(miniprot),
             "-o", str(out)]
-    if state == "on":
-        argv.append("--lift-gene-like")
+    # Post-Iteration-12 promotion: the gene-like lift is now the DEFAULT, so the
+    # gene-only baseline ("off") opts out via --gene-only; "on" = default (no
+    # flag — --lift-gene-like is a kept no-op alias). Pre-promotion this was
+    # reversed (off=no flag, on=--lift-gene-like); the bytes are the same, only
+    # the flag that selects each state moved.
+    if state == "off":
+        argv.append("--gene-only")
     argv += [p["tgt_fa"], p["ref_fa"]]
     pr = run_profiled(argv, label=f"lift_gene_like_{state}",
                       log_dir=root / "logs", env=_compose_env(TOOLS), log=log)
