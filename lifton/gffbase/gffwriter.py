@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import io  # noqa: F401 — used in the "io.IOBase" forward-ref annotation below
 import os
 import shutil
 import tempfile
