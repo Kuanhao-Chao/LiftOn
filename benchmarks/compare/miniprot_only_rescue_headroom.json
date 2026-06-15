@@ -1,0 +1,46 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_suppressed_candidates": 7222,
+    "by_reason": {
+      "PASS": 5474,
+      "no_ref_gene": 0,
+      "no_ref_protein": 0,
+      "processed_pseudogene": 119,
+      "length_ratio": 1629
+    },
+    "n_pass_filters": 5474,
+    "mp_aa_buckets": {
+      "<0.5": 33,
+      "[0.5,0.7)": 111,
+      "[0.7,0.85)": 542,
+      ">=0.85": 4788
+    },
+    "n_recoverable": 44,
+    "mean_mp_aa_recoverable": 0.92496,
+    "mean_local_liftoff_pi_recoverable": 0.68205,
+    "verdict": "GO (worth an A/B)"
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_suppressed_candidates": 2165,
+    "by_reason": {
+      "PASS": 1040,
+      "no_ref_gene": 0,
+      "no_ref_protein": 0,
+      "processed_pseudogene": 36,
+      "length_ratio": 1089
+    },
+    "n_pass_filters": 1040,
+    "mp_aa_buckets": {
+      "<0.5": 26,
+      "[0.5,0.7)": 40,
+      "[0.7,0.85)": 67,
+      ">=0.85": 907
+    },
+    "n_recoverable": 8,
+    "mean_mp_aa_recoverable": 0.987,
+    "mean_local_liftoff_pi_recoverable": 0.91707,
+    "verdict": "NO-GO / negligible"
+  }
+]

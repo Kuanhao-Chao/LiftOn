@@ -1,0 +1,24 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_corpus_transcripts": 7946,
+    "n_merge_fired": 6699,
+    "n_same_locus": 6699,
+    "n_would_change_same_locus": 26,
+    "mean_delta_over_changed": 0.01479,
+    "max_delta_same_locus": 0.23786,
+    "projected_corpus_pi_delta": 5e-05,
+    "n_diff_locus_would_change": 0
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_corpus_transcripts": 3114,
+    "n_merge_fired": 1983,
+    "n_same_locus": 1983,
+    "n_would_change_same_locus": 20,
+    "mean_delta_over_changed": 0.06325,
+    "max_delta_same_locus": 0.2675,
+    "projected_corpus_pi_delta": 0.00041,
+    "n_diff_locus_would_change": 0
+  }
+]

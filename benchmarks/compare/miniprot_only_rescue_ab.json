@@ -1,0 +1,72 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_scored": {
+      "default": 7125,
+      "weak_rescue": 7130
+    },
+    "mean_pi": {
+      "default": 0.92578,
+      "weak_rescue": 0.92671
+    },
+    "n_added": 5,
+    "mean_pi_added": 0.90508,
+    "frac_added_ge_0.7": 1.0,
+    "added_pis": [
+      0.837,
+      0.904,
+      0.904,
+      0.94,
+      0.94
+    ],
+    "n_lost": 0,
+    "common_improved": 36,
+    "common_regressed": 0,
+    "n_gene_lines": {
+      "default": 4048,
+      "weak_rescue": 4092
+    },
+    "n_extra_gene_models": 44,
+    "validate": {
+      "default_errs": 3,
+      "weak_errs": 3
+    },
+    "wall_s": {
+      "default": 162.7,
+      "weak_rescue": 209.3
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_scored": {
+      "default": 2121,
+      "weak_rescue": 2121
+    },
+    "mean_pi": {
+      "default": 0.9092,
+      "weak_rescue": 0.91174
+    },
+    "n_added": 0,
+    "mean_pi_added": null,
+    "frac_added_ge_0.7": null,
+    "added_pis": [],
+    "n_lost": 0,
+    "common_improved": 8,
+    "common_regressed": 0,
+    "n_gene_lines": {
+      "default": 945,
+      "weak_rescue": 953
+    },
+    "n_extra_gene_models": 8,
+    "validate": {
+      "default_errs": 2,
+      "weak_errs": 2
+    },
+    "wall_s": {
+      "default": 92.6,
+      "weak_rescue": 109.4
+    },
+    "gate_pass": false
+  }
+]
