@@ -9,15 +9,30 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref so rapid pushes don't pile up redundant
+# full builds (each rebuilds mappy from sdist + the 151MB chr22 minimap2 index).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Cap the job so a hung wget/test fails fast instead of burning the 6h default.
+    timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v4
+    # checkout@v6 / setup-python@v6 are the Node24-native majors (v4/v5 declared
+    # Node20 — deprecated 2025-09-19, force-migrated to Node24 on runners
+    # 2026-06-16, removed fall 2026); bumping now clears the deprecation warning
+    # and is future-proof. cache: pip restores ~/.cache/pip (keyed on setup.py)
+    # so the from-sdist mappy build isn't repeated on every run.
+    - uses: actions/checkout@v6
     - name: Set up Python 3.11
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: "3.11"
+        cache: pip
+        cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
         # The legacy sdist-only dep `cigar` (0.1.3) imports `pkg_resources` in
@@ -28,14 +43,18 @@ jobs:
         # and never rebuilds it (and the OTHER deps — mappy etc. — keep normal
         # build isolation, which they need for their own build deps like Cython).
         python -m pip install --upgrade pip "setuptools<81" wheel flake8
+        # hypothesis backs the 3 property/vulnerability test files (imported at
+        # module scope); installing it lets CI run the FULL suite with no
+        # --ignore. Not a runtime dep, so kept out of setup.py install_requires.
+        python -m pip install hypothesis
         python -m pip install --no-build-isolation cigar
         # zlib1g-dev: mappy has no wheel for this runner and builds from sdist.
         sudo apt-get install -y wget zlib1g-dev
-        wget https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
+        wget --tries=3 --timeout=30 https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
         tar xvf miniprot-0.13_x64-linux.tar.bz2
         cp miniprot-0.13_x64-linux/miniprot /usr/local/bin
         rm -rf miniprot-0.13_x64-linux*
-        wget https://github.com/lh3/minimap2/releases/download/v2.28/minimap2-2.28_x64-linux.tar.bz2
+        wget --tries=3 --timeout=30 https://github.com/lh3/minimap2/releases/download/v2.28/minimap2-2.28_x64-linux.tar.bz2
         tar xvf minimap2-2.28_x64-linux.tar.bz2
         mv minimap2-2.28_x64-linux/k8  minimap2-2.28_x64-linux/paftools.js  minimap2-2.28_x64-linux/minimap2 /usr/local/bin
         rm -rf minimap2-2.28_x64-linux*
@@ -51,22 +70,19 @@ jobs:
         # so this installs the wheel-based deps + builds mappy with its own
         # isolated build deps (Cython). lifton itself builds fine here.
         python -m pip install -e .
-    - name: Run pytest (24-cell byte-identity matrix + unit/integration suite)
+    - name: Run pytest (full suite incl. 24-cell byte-identity matrix)
       # The load-bearing byte-identity contract (tests/test_native_matrix.py) +
-      # the parallelism/promotion gates + the unit/integration suite. The 3
-      # excluded files `import hypothesis` at module scope (not an install_requires
-      # dep) and ERROR on collection without it — this is the same configuration
-      # the project's local gate runs (~584 tests). pytest itself ships in
+      # the parallelism/promotion gates + the unit/integration suite + the 3
+      # hypothesis-backed property/vulnerability files (hypothesis installed
+      # above) — the FULL suite, 662 tests, 0 --ignore. pytest ships in
       # install_requires; the hermetic fixtures monkeypatch minimap2/miniprot so
-      # the suite needs neither. perf tests under tests/perf/ are marker-gated.
+      # the suite needs neither. perf tests under tests/perf/ are marker-gated
+      # (registered in conftest; they don't run here).
       run: |
-        pytest tests/ -q \
-          --ignore=tests/test_property_based.py \
-          --ignore=tests/test_streaming_property.py \
-          --ignore=tests/test_vulnerabilities.py
+        pytest tests/ -q
     - name: Test using example from test dir
       run: |
-        # actions/checkout@v4 does NOT pull git-LFS, so the LFS-tracked
+        # actions/checkout (no lfs: true) does NOT pull git-LFS, so the LFS-tracked
         # precomputed minimap2 index test/chm13_chr22.fa.mmi is checked out as a
         # ~130-byte pointer file, not the real 151MB index. Liftoff/minimap2 then
         # reads the pointer as its index, produces 0 alignments, and writes an
