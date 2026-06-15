@@ -1,0 +1,57 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_scored": {
+      "default": 7125,
+      "relaxed": 7127
+    },
+    "mean_pi": {
+      "default": 0.92578,
+      "relaxed": 0.92564
+    },
+    "n_added": 2,
+    "mean_pi_added": 0.34599,
+    "frac_added_ge_0.7": 0.0,
+    "added_pis": [
+      0.132,
+      0.56
+    ],
+    "common_improved": 1,
+    "common_regressed": 0,
+    "validate": {
+      "default_errs": 3,
+      "relaxed_errs": 3
+    },
+    "wall_s": {
+      "default": 146.8,
+      "relaxed": 146.8
+    },
+    "gate_pass": false
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_scored": {
+      "default": 2121,
+      "relaxed": 2121
+    },
+    "mean_pi": {
+      "default": 0.9092,
+      "relaxed": 0.9092
+    },
+    "n_added": 0,
+    "mean_pi_added": null,
+    "frac_added_ge_0.7": null,
+    "added_pis": [],
+    "common_improved": 0,
+    "common_regressed": 0,
+    "validate": {
+      "default_errs": 2,
+      "relaxed_errs": 2
+    },
+    "wall_s": {
+      "default": 95.6,
+      "relaxed": 94.5
+    },
+    "gate_pass": false
+  }
+]
