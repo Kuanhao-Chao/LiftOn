@@ -20,8 +20,17 @@ jobs:
         python-version: "3.11"
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip flake8
-        sudo apt install wget
+        # The legacy sdist-only dep `cigar` (0.1.3) imports `pkg_resources` in
+        # its setup.py, which setuptools 81+ removed — so pip's default isolated
+        # build env (latest setuptools) fails to build it. Pin setuptools<81 +
+        # wheel here, then pre-build cigar with --no-build-isolation against that
+        # toolchain so the later normal `pip install -e .` finds cigar satisfied
+        # and never rebuilds it (and the OTHER deps — mappy etc. — keep normal
+        # build isolation, which they need for their own build deps like Cython).
+        python -m pip install --upgrade pip "setuptools<81" wheel flake8
+        python -m pip install --no-build-isolation cigar
+        # zlib1g-dev: mappy has no wheel for this runner and builds from sdist.
+        sudo apt-get install -y wget zlib1g-dev
         wget https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
         tar xvf miniprot-0.13_x64-linux.tar.bz2
         cp miniprot-0.13_x64-linux/miniprot /usr/local/bin
@@ -38,6 +47,9 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Install lifton
       run: |
+        # Normal build isolation: cigar is already installed (pre-built above),
+        # so this installs the wheel-based deps + builds mappy with its own
+        # isolated build deps (Cython). lifton itself builds fine here.
         python -m pip install -e .
     - name: Run pytest (24-cell byte-identity matrix + unit/integration suite)
       # The load-bearing byte-identity contract (tests/test_native_matrix.py) +
