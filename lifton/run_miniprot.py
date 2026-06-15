@@ -51,6 +51,77 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
     return b"".join(stdout_chunks), b"".join(stderr_chunks), rc
 
 
+def _resolve_miniprot_threads(threads):
+    """Resolve the miniprot thread count, honouring the LIFTON_MINIPROT_THREADS
+    escape hatch (Iteration 17).
+
+    Returns the integer thread count to request via ``-t``, or ``None`` to
+    request none (leaving miniprot at its own hard-coded binary default of 4 —
+    the pre-Iteration-17 behaviour). Semantics:
+
+      * env unset                 -> use ``threads`` (LiftOn's -t/--threads
+                                     budget), but gated to ``> 1`` so the
+                                     default ``-t 1`` run emits NO ``-t`` and is
+                                     byte-identical to the pre-Iteration-17
+                                     command.
+      * LIFTON_MINIPROT_THREADS=0 -> None (never add ``-t``; reproduces the old
+                                     fixed default — the clean A/B baseline /
+                                     opt-out).
+      * LIFTON_MINIPROT_THREADS=k -> k for k>=1 (explicit override that bypasses
+                                     the ``> 1`` gate so an A/B or user can pin
+                                     any count, including 1).
+
+    A non-integer env value is ignored (falls back to ``threads``) so a typo
+    cannot crash a run.
+    """
+    raw = os.environ.get("LIFTON_MINIPROT_THREADS")
+    if raw is not None and raw != "":
+        try:
+            forced = int(raw)
+        except (TypeError, ValueError):
+            forced = None
+        if forced is not None:
+            if forced <= 0:
+                return None          # =0 -> reproduce the old fixed default
+            return forced            # =k -> explicit override (bypasses gate)
+    # env unset / unparseable: use the LiftOn budget, gated to >1 so the
+    # default -t1 invocation is byte-identical (no -t emitted -> miniprot's
+    # own default of 4 threads, exactly as before Iteration 17).
+    try:
+        n = int(threads)
+    except (TypeError, ValueError):
+        n = 1
+    return n if n > 1 else None
+
+
+def _build_miniprot_command(miniprot_path, tgt_genome, ref_proteins_file,
+                            mp_options, threads):
+    """Build the miniprot subprocess command list (Iteration 17).
+
+    Plumbs LiftOn's -t/--threads into miniprot's own ``-t`` so it scales past
+    its hard-coded binary default of 4 threads. Previously miniprot ran at 4
+    regardless of LiftOn's -t, becoming the serial tail of the concurrent
+    Step 4 on cross-species data (where miniprot does heavy protein alignment).
+
+    The thread flag is appended only when BOTH:
+      * a thread count is resolved (see :func:`_resolve_miniprot_threads`), AND
+      * the user has not already supplied an explicit ``-t`` in ``mp_options``
+        (matched by an EXACT-token / glued-token check ``opt.startswith("-t")``
+        — NOT a bare substring, so ``--trans`` does not false-positive and
+        silently suppress the flag, and ``-t8`` / ``-t 8`` are both respected).
+
+    The default -t1 run resolves to ``None`` -> no ``-t`` added -> byte-identical
+    to the pre-Iteration-17 command.
+    """
+    opts = [opt for opt in mp_options.split(" ") if opt]
+    command = [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file] + opts
+    n = _resolve_miniprot_threads(threads)
+    user_set_threads = any(opt.startswith("-t") for opt in opts)
+    if n is not None and not user_set_threads:
+        command += ["-t", str(n)]
+    return command
+
+
 def check_miniprot_installed():
     """
         This function checks if miniprot is installed.
@@ -119,9 +190,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
     print("args.mp_options: ", args.mp_options)
-    command = (
-        [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file]
-        + [opt for opt in args.mp_options.split(" ") if opt]
+    command = _build_miniprot_command(
+        miniprot_path, tgt_genome, ref_proteins_file,
+        args.mp_options, getattr(args, "threads", 1),
     )
     print("miniprot: ", " ".join(command))
 
@@ -143,6 +214,7 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
                     mp_options=args.mp_options,
                     miniprot_path=miniprot_path,
                     ref_proteins_path=ref_proteins_file,
+                    threads=getattr(args, "threads", 1),
                 )
                 bundle = idx.align_all()
                 stdout_bytes = bundle.raw_bytes

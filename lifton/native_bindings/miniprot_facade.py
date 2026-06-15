@@ -78,11 +78,16 @@ class MiniprotIndex:
         mp_options: str = "",
         miniprot_path: str = "miniprot",
         ref_proteins_path: Optional[str] = None,
+        threads: int = 1,
     ):
         self.target_fa = target_fa
         self.mp_options = mp_options
         self.miniprot_path = miniprot_path
         self._ref_proteins_path = ref_proteins_path
+        # Iteration 17: scale miniprot's own -t with LiftOn's -t/--threads,
+        # matching the subprocess path in lifton.run_miniprot (the command is
+        # built by the shared _build_miniprot_command helper below).
+        self.threads = threads
         self._cached_bundle: Optional[GFF3Bundle] = None
 
         # If the real PyO3 binding ever appears, prefer it.
@@ -132,12 +137,16 @@ class MiniprotIndex:
             return self._cached_bundle
 
         # ── Subprocess fallback ─────────────────────────────────────
-        cmd = [
-            self.miniprot_path,
-            "--gff-only",
-            self.target_fa,
-            proteins,
-        ] + [opt for opt in self.mp_options.split(" ") if opt]
+        # Iteration 17: build the command via the shared helper so this
+        # native+streaming path scales miniprot's -t with LiftOn's -t exactly
+        # like the plain subprocess path (otherwise `--native --stream` would
+        # silently stay at miniprot's default 4 while plain `--stream` got -tN).
+        # Lazy import to avoid any import-order coupling with run_miniprot.
+        from lifton.run_miniprot import _build_miniprot_command
+        cmd = _build_miniprot_command(
+            self.miniprot_path, self.target_fa, proteins,
+            self.mp_options, self.threads,
+        )
 
         proc = subprocess.Popen(
             cmd,

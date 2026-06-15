@@ -1,0 +1,245 @@
+[
+  {
+    "benchmark": "drosophila",
+    "threads": "8",
+    "arm1_cached_L": {
+      "byte_identical": true,
+      "step4_wall_s": {
+        "mp_t4": 11.21,
+        "mp_tN": 6.57
+      },
+      "step4_speedup": 1.71,
+      "step4_saved_pct": 41.4,
+      "total_wall_s": {
+        "mp_t4": 151.7,
+        "mp_tN": 145.6
+      },
+      "total_speedup": 1.04,
+      "total_saved_pct": 4.0,
+      "peak_rss_mb": {
+        "mp_t4": 1500.0,
+        "mp_tN": 1438.0
+      },
+      "completeness": {
+        "counts": {
+          "mp_t4": {
+            "gene": 4048,
+            "transcript": 7946,
+            "CDS": 37370,
+            "total": 92613
+          },
+          "mp_tN": {
+            "gene": 4048,
+            "transcript": 7946,
+            "CDS": 37370,
+            "total": 92613
+          }
+        },
+        "unchanged": true
+      }
+    },
+    "arm2_fresh_both": {
+      "byte_identical": true,
+      "step4_wall_s": {
+        "mp_t4": 64.55,
+        "mp_tN": 61.41
+      },
+      "step4_speedup": 1.05,
+      "step4_saved_pct": 4.9,
+      "total_wall_s": {
+        "mp_t4": 230.9,
+        "mp_tN": 202.4
+      },
+      "total_speedup": 1.14,
+      "total_saved_pct": 12.4,
+      "peak_rss_mb": {
+        "mp_t4": 3145.0,
+        "mp_tN": 3229.0
+      },
+      "completeness": {
+        "counts": {
+          "mp_t4": {
+            "gene": 4069,
+            "transcript": 7945,
+            "CDS": 37300,
+            "total": 92544
+          },
+          "mp_tN": {
+            "gene": 4069,
+            "transcript": 7945,
+            "CDS": 37300,
+            "total": 92544
+          }
+        },
+        "unchanged": true
+      }
+    },
+    "gate": {
+      "byte_identical": true,
+      "miniprot_wall_win": true,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "threads": "8",
+    "arm1_cached_L": {
+      "byte_identical": true,
+      "step4_wall_s": {
+        "mp_t4": 18.32,
+        "mp_tN": 10.63
+      },
+      "step4_speedup": 1.72,
+      "step4_saved_pct": 42.0,
+      "total_wall_s": {
+        "mp_t4": 105.7,
+        "mp_tN": 98.6
+      },
+      "total_speedup": 1.07,
+      "total_saved_pct": 6.7,
+      "peak_rss_mb": {
+        "mp_t4": 1344.0,
+        "mp_tN": 1347.0
+      },
+      "completeness": {
+        "counts": {
+          "mp_t4": {
+            "gene": 945,
+            "transcript": 3114,
+            "CDS": 23675,
+            "total": 60013
+          },
+          "mp_tN": {
+            "gene": 945,
+            "transcript": 3114,
+            "CDS": 23675,
+            "total": 60013
+          }
+        },
+        "unchanged": true
+      }
+    },
+    "arm2_fresh_both": {
+      "byte_identical": true,
+      "step4_wall_s": {
+        "mp_t4": 106.01,
+        "mp_tN": 106.57
+      },
+      "step4_speedup": 0.99,
+      "step4_saved_pct": -0.5,
+      "total_wall_s": {
+        "mp_t4": 197.1,
+        "mp_tN": 196.8
+      },
+      "total_speedup": 1.0,
+      "total_saved_pct": 0.2,
+      "peak_rss_mb": {
+        "mp_t4": 3910.0,
+        "mp_tN": 3991.0
+      },
+      "completeness": {
+        "counts": {
+          "mp_t4": {
+            "gene": 1069,
+            "transcript": 3118,
+            "CDS": 23627,
+            "total": 60008
+          },
+          "mp_tN": {
+            "gene": 1069,
+            "transcript": 3118,
+            "CDS": 23627,
+            "total": 60008
+          }
+        },
+        "unchanged": true
+      }
+    },
+    "gate": {
+      "byte_identical": true,
+      "miniprot_wall_win": true,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "rice",
+    "threads": "8",
+    "arm1_cached_L": {
+      "byte_identical": true,
+      "step4_wall_s": {
+        "mp_t4": 7.13,
+        "mp_tN": 4.33
+      },
+      "step4_speedup": 1.65,
+      "step4_saved_pct": 39.3,
+      "total_wall_s": {
+        "mp_t4": 105.5,
+        "mp_tN": 101.9
+      },
+      "total_speedup": 1.04,
+      "total_saved_pct": 3.4,
+      "peak_rss_mb": {
+        "mp_t4": 1417.0,
+        "mp_tN": 1341.0
+      },
+      "completeness": {
+        "counts": {
+          "mp_t4": {
+            "gene": 4478,
+            "transcript": 7147,
+            "CDS": 34420,
+            "total": 91285
+          },
+          "mp_tN": {
+            "gene": 4478,
+            "transcript": 7147,
+            "CDS": 34420,
+            "total": 91285
+          }
+        },
+        "unchanged": true
+      }
+    },
+    "arm2_fresh_both": {
+      "byte_identical": true,
+      "step4_wall_s": {
+        "mp_t4": 18.99,
+        "mp_tN": 18.99
+      },
+      "step4_speedup": 1.0,
+      "step4_saved_pct": 0.0,
+      "total_wall_s": {
+        "mp_t4": 116.6,
+        "mp_tN": 116.3
+      },
+      "total_speedup": 1.0,
+      "total_saved_pct": 0.2,
+      "peak_rss_mb": {
+        "mp_t4": 1391.0,
+        "mp_tN": 1388.0
+      },
+      "completeness": {
+        "counts": {
+          "mp_t4": {
+            "gene": 4636,
+            "transcript": 7174,
+            "CDS": 34420,
+            "total": 91983
+          },
+          "mp_tN": {
+            "gene": 4636,
+            "transcript": 7174,
+            "CDS": 34420,
+            "total": 91983
+          }
+        },
+        "unchanged": true
+      }
+    },
+    "gate": {
+      "byte_identical": true,
+      "miniprot_wall_win": true,
+      "completeness_unchanged": true
+    }
+  }
+]
