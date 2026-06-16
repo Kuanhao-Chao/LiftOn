@@ -1,4 +1,4 @@
-from lifton import align, lifton_utils, lifton_class, get_id_fraction, variants, logger
+from lifton import align, coreutils, get_id_fraction, variants, logger
 import copy, os
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
@@ -251,7 +251,7 @@ class LiftOn_FEATURE:
                         feature_id_base = feature_id_base[:-len(suffix)]
             else:
                 # Fallback to get_ID_base if extra_copy_number is missing
-                feature_id_base = lifton_utils.get_ID_base(feature_id_base)
+                feature_id_base = coreutils.get_ID_base(feature_id_base)
 
             self.entry.id = f"{feature_id_base}_{copy_num}"
             self.entry.attributes["ID"] = [self.entry.id]
@@ -307,11 +307,11 @@ class Lifton_TRANS:
     def add_exon(self, gffutil_entry_exon):
         gffutil_entry_exon.attributes['Parent'] = [self.entry.id]
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
-        lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
+        coreutils.custom_bisect_insert(self.exons, Lifton_exon)
 
     def add_cds(self, gffutil_entry_cds):
         for exon in self.exons:
-            _, ovp = lifton_utils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
+            _, ovp = coreutils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
             if ovp:
                 gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
                 exon.add_cds(gffutil_entry_cds)
@@ -350,7 +350,7 @@ class Lifton_TRANS:
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
                 last_exon = exon
-                _, ovp = lifton_utils.segments_overlap_length(
+                _, ovp = coreutils.segments_overlap_length(
                     (exon.entry.start, exon.entry.end),
                     (only_cds.entry.start, only_cds.entry.end))
 
@@ -450,7 +450,7 @@ class Lifton_TRANS:
                     exon_end   = self.exons[exon_idx].entry.end
                     cds_start  = cds_list[cds_idx].entry.start
                     cds_end    = cds_list[cds_idx].entry.end
-                    _, ovp = lifton_utils.segments_overlap_length(
+                    _, ovp = coreutils.segments_overlap_length(
                         (exon_start, exon_end), (cds_start, cds_end))
                     # Exon ends before CDS begins → emit exon as UTR
                     if exon_end < cds_start:
@@ -483,7 +483,7 @@ class Lifton_TRANS:
                     cds_start = cds_list[cds_idx].entry.start
                     cds_end   = cds_list[cds_idx].entry.end
                     exon_start = exon.entry.start
-                    _, ovp = lifton_utils.segments_overlap_length(
+                    _, ovp = coreutils.segments_overlap_length(
                         (exon.entry.start, exon.entry.end), (cds_start, cds_end))
                     if ovp:
                         # First overlap found — emit and move on
@@ -523,7 +523,7 @@ class Lifton_TRANS:
                 exon = self.exons[exon_idx]
                 exon_start = exon.entry.start
                 exon_end   = exon.entry.end
-                _, ovp = lifton_utils.segments_overlap_length(
+                _, ovp = coreutils.segments_overlap_length(
                     (exon_start, exon_end), (cds_start, cds_end))
                 if exon_end < cds_start:
                     exon_idx += 1
@@ -707,7 +707,7 @@ class Lifton_TRANS:
                         curr_orf_len = orf_idx_e - orf_idx_s
                         if curr_orf_len > max_orf_len[frame]:
                             max_orf_len[frame] = curr_orf_len
-                            best_orf_per_frame[frame] = lifton_class.Lifton_ORF(
+                            best_orf_per_frame[frame] = Lifton_ORF(
                                 orf_idx_s, orf_idx_e)
                         # Advance past this ORF to avoid nested duplicates
                         i = orf_idx_e
