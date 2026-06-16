@@ -1,4 +1,5 @@
 from lifton import align, coreutils, get_id_fraction, variants, logger
+from lifton.io import feature_serializer
 import copy, os
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
@@ -196,28 +197,8 @@ class Lifton_GENE:
         self.transcripts[trans_id].add_lifton_trans_status_attrs(lifton_status)
 
     def write_entry(self, fw, transcripts_stats_dict):
-        if not self.tmp:
-            from lifton.io import gff3_writer
-            try:
-                fw.write(gff3_writer.format_feature(self.entry) + "\n")
-            except Exception as e:
-                logger.log_error(f"Failed to write GENE entry {self.entry.id}: {e}")
-
-        for key, trans in self.transcripts.items():
-            trans.write_entry(fw)
-            TYPE = ""
-            if self.is_protein_coding and trans.entry.featuretype == "mRNA":
-                TYPE = "coding"
-            elif self.is_non_coding and (trans.entry.featuretype == "ncRNA" or trans.entry.featuretype == "nc_RNA" or trans.entry.featuretype == "lncRNA" or trans.entry.featuretype == "lnc_RNA"):
-                TYPE = "non-coding"
-            else:
-                TYPE = "other"
-            if trans.ref_tran_id is None:
-                continue
-            if not trans.ref_tran_id in transcripts_stats_dict[TYPE].keys():
-                transcripts_stats_dict[TYPE][trans.ref_tran_id] = 1
-            else:
-                transcripts_stats_dict[TYPE][trans.ref_tran_id] += 1
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_gene(self, fw, transcripts_stats_dict)
 
     def update_boundaries(self):        
         for key, trans in self.transcripts.items():
@@ -262,14 +243,8 @@ class LiftOn_FEATURE:
         return Lifton_feature
 
     def write_entry(self, fw):
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write FEATURE entry {self.entry.id}: {e}")
-
-        for key, feature in self.features.items():
-            feature.write_entry(fw)
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_feature(self, fw)
 
     def print_feature(self):
         print(self.entry)
@@ -814,26 +789,8 @@ class Lifton_TRANS:
         return (3 - accum_cds_length%3)%3
 
     def write_entry(self, fw):
-        # V1.5 + V5.4-V5.6 + V5.9: route through canonical writer that
-        # percent-encodes reserved chars, sorts attributes (ID, Parent,
-        # alphabetical), and validates start <= end. Skip child writes
-        # if the parent fails so we don't ship orphan-Parent rows.
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except (OSError, ValueError, TypeError, AttributeError) as e:
-            logger.log_error(
-                f"Failed to write TRANSCRIPT entry {self.entry.id}: {e}"
-            )
-            return
-
-        # Write out the exons first
-        for exon in self.exons:
-            exon.write_entry(fw)
-        # Write out the CDSs second
-        for exon in self.exons:
-            if exon.cds is not None:
-                exon.cds.write_entry(fw)
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_trans(self, fw)
 
     def update_boundaries(self):
         self.entry.start = self.exons[0].entry.start
@@ -882,12 +839,8 @@ class Lifton_EXON:
         self.cds = Lifton_cds
 
     def write_entry(self, fw):
-        # Route through canonical writer (V5.4-V5.6, V5.9).
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write EXON entry {self.entry.id}: {e}")
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_exon(self, fw)
 
     def print_exon(self):
         print(f"\t\t{self.entry}")
@@ -908,12 +861,8 @@ class Lifton_CDS:
         self.entry.end = end
 
     def write_entry(self, fw):
-        # Route through canonical writer (V5.4-V5.6, V5.9).
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write CDS entry {self.entry.id}: {e}")
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_cds(self, fw)
 
     def print_cds(self):
         print(f"\t\t{self.entry}")
