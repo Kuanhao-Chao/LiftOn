@@ -120,10 +120,18 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
 
 
 def _stream_inner(ref_db, feature, ref_fai, ft, fp):
-    children_exons = list(ref_db.db_connection.children(
-        feature, featuretype='exon', level=1))
-    children_CDSs = list(ref_db.db_connection.children(
-        feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))
+    # Phase 18: one ordered children() query + an in-Python featuretype
+    # partition replaces the prior three per-feature queries (2x fewer
+    # SQLite round-trips on the common exon/CDS-bearing path, 3x on a bare
+    # gene parent). Byte-neutral: merge_children_intervals re-sorts the
+    # exon/CDS lists by start before concatenation, so the SQL row order is
+    # discarded for those branches; the recursive-descent branch below
+    # keeps order_by='start' (the only order-sensitive path).
+    all_children = list(ref_db.db_connection.children(
+        feature, level=1, order_by='start'))
+    children_exons = [c for c in all_children if c.featuretype == 'exon']
+    children_CDSs = [c for c in all_children
+                     if c.featuretype in ('start_codon', 'CDS', 'stop_codon')]
     if len(children_exons) > 0 or len(children_CDSs) > 0:
         if len(children_exons) > 0:
             try:
@@ -147,15 +155,19 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp):
                     f"extract_features_to_fasta: protein {feature.id}: {e}"
                 )
     else:
-        for child in ref_db.db_connection.children(
-                feature, level=1, order_by='start'):
+        for child in all_children:
             _stream_inner(ref_db, child, ref_fai, ft, fp)
 
 
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
     # If exon is the first level children
-    children_exons = list(ref_db.db_connection.children(feature, featuretype='exon', level=1))
-    children_CDSs = list(ref_db.db_connection.children(feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))
+    # Phase 18: collapse the prior 3 children() queries into one ordered
+    # query + in-Python partition (see _stream_inner for the byte-neutral
+    # argument; merge_children_intervals re-sorts, the else-branch keeps
+    # order_by='start').
+    all_children = list(ref_db.db_connection.children(feature, level=1, order_by='start'))
+    children_exons = [c for c in all_children if c.featuretype == 'exon']
+    children_CDSs = [c for c in all_children if c.featuretype in ('start_codon', 'CDS', 'stop_codon')]
     # print(f"Parent: {feature.id};  exon: {len(children_exons)}; CDS: {len(children_CDSs)}")
     if len(children_exons) > 0 or len(children_CDSs) > 0:
         if len(children_exons) > 0:
@@ -185,7 +197,7 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
                     f"sequence for {feature.id}: {e}"
                 )
     else:
-        for child in ref_db.db_connection.children(feature, level=1, order_by='start'):
+        for child in all_children:
             __inner_extract_feature(ref_db, child, ref_fai, ref_trans, ref_proteins)
             
 
