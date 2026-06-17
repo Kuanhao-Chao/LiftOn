@@ -296,6 +296,17 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
     return m_lifton_aln, has_valid_miniprot
 
 
+def _parent_type(ref_db, parent_id):
+    """Iteration 20: return the featuretype of the feature `parent_id`, or None
+    if it cannot be resolved. Used by get_ref_liffover_features to skip a child
+    instance whose parent is itself a lifted type (see extract_sequence's
+    parent_is_listed_type for the full rationale)."""
+    try:
+        return ref_db.db_connection[parent_id].featuretype
+    except Exception:
+        return None
+
+
 def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
     """
         This function gets the reference liftover features.
@@ -317,8 +328,20 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
     ref_trans_exon_num_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
+    feature_set = set(features)
     for f_itr in features:
         for locus in ref_db.db_connection.features_of_type(f_itr):
+            # Iteration 20: skip a child instance whose parent is itself one of
+            # the lifted types — it is lifted under its parent gene (the level-1
+            # transcripts loop below), so adding it here as its own locus would
+            # emit a duplicate gene model. Mirrors extract_sequence's
+            # parent_is_listed_type so extraction and lift stay consistent;
+            # inlined here to avoid a new import edge into lifton_utils. No-op on
+            # top-level-only annotations (parent type not in the lift set).
+            parents = locus.attributes.get("Parent")
+            if parents and any(
+                _parent_type(ref_db, pid) in feature_set for pid in parents):
+                continue
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
             feature = lifton_class.Lifton_feature(locus.id)
             feature.feature_type = locus.featuretype
