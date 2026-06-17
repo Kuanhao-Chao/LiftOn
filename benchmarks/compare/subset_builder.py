@@ -238,19 +238,31 @@ def build_subset_proteins(bench: dict, sub: dict, ref_gff_subset: Path,
         from lifton.extract_sequence import get_protein_sequence
         db = _build_db(ref_gff_subset)
         fa = pyfaidx.Fasta(str(ref_fa_subset))
+        seen = set()
         with open(out_faa, "w") as out:
-            for mrna in db.features_of_type("mRNA"):
-                cds = list(db.children(mrna, featuretype="CDS", order_by="start"))
-                if not cds:
-                    continue
-                prot = get_protein_sequence(mrna, fa, cds)
-                if not prot:
-                    continue
-                prot = prot.rstrip("*")
-                if not prot:
-                    continue
-                out.write(f">{mrna.id}\n{prot}\n")
-                n += 1
+            # RefSeq/NCBI annotate transcripts as 'mRNA'; Ensembl/gffread use
+            # 'transcript'. Iterate both featuretypes so the transcript-space
+            # protein extraction is annotation-source agnostic (a feature
+            # carries exactly one type, so RefSeq output is unchanged — it has
+            # no 'transcript' rows; the seen-set guards the rare GFF that mixes
+            # both). Previously hardcoding 'mRNA' produced 0 proteins on the
+            # gffread-Ensembl GFF3 -> empty miniprot -> the pair aborted.
+            for ftype in ("mRNA", "transcript"):
+                for mrna in db.features_of_type(ftype):
+                    if mrna.id in seen:
+                        continue
+                    cds = list(db.children(mrna, featuretype="CDS", order_by="start"))
+                    if not cds:
+                        continue
+                    prot = get_protein_sequence(mrna, fa, cds)
+                    if not prot:
+                        continue
+                    prot = prot.rstrip("*")
+                    if not prot:
+                        continue
+                    out.write(f">{mrna.id}\n{prot}\n")
+                    seen.add(mrna.id)
+                    n += 1
         log(f"  [proteins] translated {n} MANE/CDS proteins (transcript space)")
     else:
         allowed = sub["protein_accs"]
