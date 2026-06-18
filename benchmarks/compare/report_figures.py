@@ -50,7 +50,7 @@ DIVC_COLOR = {
 }
 
 plt.rcParams.update({
-    "font.size": 10,
+    "font.size": 11,
     "axes.titlesize": 11,
     "axes.titleweight": "bold",
     "axes.spines.top": False,
@@ -143,7 +143,13 @@ def fig_divergence_ladder(fw):
             vals = [r["mean_pi"].get(t) for r in recs
                     if isinstance(r["mean_pi"].get(t), float)]
             ys.append(sum(vals) / len(vals) if vals else np.nan)
-        ax.plot(x, ys, "o-", color=mr.TOOL_COLORS[t], label=LABEL[t], lw=2.3, ms=8)
+        # v1.0.8 ≈ 2.0 on this axis, so dash it (drawn on top) to stay visible
+        st = dict(lw=2.3, ms=8, ls="-", zorder=3)
+        if t == "lifton_stable":
+            st.update(ls=(0, (5, 2)), ms=6, zorder=5)
+        elif t == "lifton_devel":
+            st.update(zorder=4)
+        ax.plot(x, ys, marker="o", color=mr.TOOL_COLORS[t], label=LABEL[t], **st)
     ax.set_xticks(x)
     ax.set_xticklabels([mr.DIV_LABEL.get(c, c) for c in classes],
                        rotation=15, ha="right", fontsize=9)
@@ -156,12 +162,13 @@ def fig_divergence_ladder(fw):
 
 
 def fig_devel_vs_field(fw, vc):
-    fig = plt.figure(figsize=(11.5, 5.2))
-    gs = fig.add_gridspec(1, 2, width_ratios=[1.25, 0.9], wspace=0.28)
+    fig = plt.figure(figsize=(13.5, 7.5))
+    gs = fig.add_gridspec(1, 2, width_ratios=[1.35, 0.8], wspace=0.26)
     axB = fig.add_subplot(gs[0, 0])
     axC = fig.add_subplot(gs[0, 1])
 
-    # (B) devel - best baseline, comparison-eligible, grouped by divergence
+    # (A) devel - best baseline, comparison-eligible, grouped by divergence.
+    #     HORIZONTAL bars so all ~27 dataset names read cleanly (no rotation).
     recs = [r for r in _eligible(fw)]
     pts = []
     for r in recs:
@@ -174,22 +181,24 @@ def fig_devel_vs_field(fw, vc):
     labels = [_tag(r) for r, _ in pts]
     vals = [d for _, d in pts]
     colors = [DIVC_COLOR.get(r.get("divergence_class"), "#999999") for r, _ in pts]
-    bx = np.arange(len(pts))
-    axB.bar(bx, vals, color=colors)
-    axB.axhline(0, color="k", lw=0.8)
-    axB.set_xticks(bx)
-    axB.set_xticklabels(labels, rotation=55, ha="right", fontsize=7.5)
-    axB.set_ylabel("Δ mean protein identity\nvs best of (Liftoff, miniprot)")
-    axB.grid(axis="y", alpha=0.3)
+    by = np.arange(len(pts))
+    axB.barh(by, vals, color=colors)
+    axB.axvline(0, color="k", lw=0.8)
+    axB.set_yticks(by)
+    axB.set_yticklabels(labels, fontsize=8)
+    axB.invert_yaxis()
+    axB.margins(x=0.10)
+    axB.set_xlabel("Δ mean protein identity vs best of (Liftoff, miniprot)")
+    axB.grid(axis="x", alpha=0.3)
     for i, (r, d) in enumerate(pts):
         if d < 0:
-            axB.annotate(f"{mr._short_key(r['key'])}\n{d:+.4f}",
-                         xy=(i, d), xytext=(i, d - 0.012), ha="center", va="top",
-                         fontsize=7.5, arrowprops=dict(arrowstyle="-", lw=0.6))
+            axB.annotate(f"{d:+.4f}", xy=(d, i), xytext=(-4, 0),
+                         textcoords="offset points", ha="right", va="center",
+                         fontsize=7.5, color="#e45756", fontweight="bold")
     legend_handles = [Patch(facecolor=DIVC_COLOR[c], label=mr.DIV_LABEL[c])
                       for c in mr.DIV_ORDER if c in DIVC_COLOR]
-    axB.legend(handles=legend_handles, fontsize=8, loc="upper left", ncol=2,
-               title="divergence class", title_fontsize=8)
+    axB.legend(handles=legend_handles, fontsize=8, loc="upper left",
+               framealpha=0.9, title="divergence class", title_fontsize=8)
     _nwin = sum(1 for _, d in pts if d >= 0)
     _panel_title(axB, "A",
                  f"LiftOn 2.0 beats the best single method on {_nwin}/{len(pts)}")
