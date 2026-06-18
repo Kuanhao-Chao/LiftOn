@@ -381,11 +381,13 @@ def parallel_step7(
                     payload = materialise_locus_with_factory(
                         idx, locus, factory)
             except Exception as exc:
+                import traceback as _tb
                 return LocusResult(
                     index=idx,
                     locus_id=getattr(locus, "id", "<unknown>"),
                     lifton_gene=None,
                     error=exc,
+                    error_tb=_tb.format_exc(),
                 )
             return process_locus_native(payload, ctx)
 

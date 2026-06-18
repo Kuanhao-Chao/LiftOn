@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import copy as _copy
+import traceback as _traceback
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -53,6 +54,9 @@ class LocusResult:
     locus_id: str                    # gffutils-feature id, for logging
     lifton_gene: Optional[Any] = None
     error: Optional[BaseException] = None
+    error_tb: Optional[str] = None   # formatted traceback captured at the raise
+                                     # site, so the parent can log the real cause
+                                     # even when the exception's __str__ is broken
 
     @property
     def emittable(self) -> bool:
@@ -108,6 +112,7 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
             locus_id=getattr(locus, "id", "<unknown>"),
             lifton_gene=None,
             error=exc,
+            error_tb=_traceback.format_exc(),
         )
     return LocusResult(
         index=submission_index,
@@ -789,6 +794,7 @@ def process_locus_native(payload: MaterialisedLocus,
             locus_id=payload.locus_id,
             lifton_gene=None,
             error=exc,
+            error_tb=_traceback.format_exc(),
         )
     return LocusResult(
         index=payload.submission_index,
@@ -814,10 +820,25 @@ def consume(result: LocusResult, fw, transcripts_stats_dict: dict) -> bool:
     if result.error is not None:
         # Mirror the inline `try/except` in lifton.py:425-426 — log
         # to stderr, swallow the error, keep going.
+        #
+        # Format DEFENSIVELY: a worker can package an exception whose own
+        # __str__ returns a non-string (seen on full eudicot->monocot lifts:
+        # `TypeError: __str__ returned non-string (type NoneType)`), and the
+        # old `f"{result.error}"` then raised *inside the error handler*,
+        # crashing the whole run instead of skipping one locus. Prefer the
+        # traceback captured at the raise site (always a plain str); fall back
+        # to repr() (BaseException.__repr__ is robust), and to the type name
+        # as a last resort.
         from lifton import logger
+        detail = result.error_tb
+        if not detail:
+            try:
+                detail = repr(result.error)
+            except Exception:
+                detail = f"<unprintable {type(result.error).__name__}>"
         logger.log_error(
             f"Error during Liftoff gene processing ({result.locus_id}): "
-            f"{result.error}"
+            f"{detail}"
         )
         return False
     if not result.emittable:
