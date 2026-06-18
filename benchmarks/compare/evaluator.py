@@ -36,6 +36,18 @@ def _build_db(gff_path: str):
     which has a 3-strategy fallback for messy real-world GFFs (e.g. Liftoff
     output with thousands of duplicate ``ID=1.0`` features and multi-segment CDS
     sharing IDs — which plain ``create_unique`` chokes on)."""
+    # Always rebuild from the CURRENT GFF: unlink any stale gffutils sidecar
+    # first. Without this, re-scoring an OVERWRITTEN output GFF silently reused
+    # the previous run's `<gff>_db` (the LiftOn Annotation loader's force= did
+    # not rebuild the on-disk file), so the eval scored the OLD output — e.g. a
+    # corrected full devel.gff3 (7856 mRNA) was scored against a leftover
+    # 2730-mRNA DB, fabricating a spurious under-recovery. Mirrors
+    # tool_runners._clean_input_dbs for input GFFs.
+    for sidecar in (str(gff_path) + "_db", str(gff_path) + ".eval_db"):
+        try:
+            os.unlink(sidecar)
+        except FileNotFoundError:
+            pass
     try:
         return _lifton_annotation.Annotation(
             str(gff_path), infer_genes=False, infer_transcripts=False,

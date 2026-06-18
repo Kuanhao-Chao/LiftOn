@@ -59,6 +59,7 @@ DIVC_COLOR = {
     "cross_species": "#72b7b2",
     "close_cross_species": "#f58518",
     "distant_cross_species": "#e45756",
+    "very_distant_cross_species": "#b279a2",
 }
 
 plt.rcParams.update({
@@ -90,13 +91,17 @@ def _save(fig, name):
 
 
 def _both_completed(r):
-    """A subset record always counts; a full record only if NEITHER version's
-    coding completeness collapsed (i.e. v1.0.8 didn't crash partway)."""
+    """A subset record always counts; a full record counts unless v1.0.8
+    *crashed* on it — i.e. devel finished (>= floor) but v1.0.8 aborted mid-run
+    (< floor), leaving a partial annotation whose numbers are not comparable.
+    Fulls where both versions completed are kept even at low recall (the
+    extreme-distance flagships), since the comparison is then valid."""
     if r["mode"] != "full":
         return True
     cc = r.get("completeness_coding") or {}
-    return (cc.get("lifton_stable") or 0) >= _COMPLETE and \
-           (cc.get("lifton_devel") or 0) >= _COMPLETE
+    dev = cc.get("lifton_devel") or 0
+    sta = cc.get("lifton_stable") or 0
+    return not (dev >= _COMPLETE and sta < _COMPLETE)
 
 
 # --------------------------------------------------------------------------- #
@@ -157,7 +162,8 @@ def fig_accuracy(fw, vc):
     _panel_title(axC, "C", "Same inputs: many improved, ~none regressed")
 
     # ---- (B) devel − best baseline, per benchmark, grouped by divergence ----
-    recs = mr._fw_recs(fw, "subset") + mr._fw_recs(fw, "full")
+    recs = [r for r in mr._fw_recs(fw, "subset") + mr._fw_recs(fw, "full")
+            if _both_completed(r)]
     pts = []
     for r in recs:
         d = (r.get("devel_vs_best_baseline") or {}).get("meanpi")
@@ -186,7 +192,9 @@ def fig_accuracy(fw, vc):
                       for c in mr.DIV_ORDER if c in DIVC_COLOR]
     axB.legend(handles=legend_handles, fontsize=8, loc="upper left", ncol=2,
                title="divergence class", title_fontsize=8)
-    _panel_title(axB, "B", "LiftOn 2.0 beats the best single method on 19/20 datasets")
+    _nwin = sum(1 for _, d in pts if d >= 0)
+    _panel_title(axB, "B",
+                 f"LiftOn 2.0 beats the best single method on {_nwin}/{len(pts)} datasets")
 
     return _save(fig, "fig1_accuracy.png")
 

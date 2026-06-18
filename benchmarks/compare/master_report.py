@@ -57,10 +57,11 @@ GENE_LIKE = ("pseudogene", "ncRNA", "lnc_RNA", "lncRNA", "tRNA", "rRNA",
 
 # divergence ladder, easy → hard
 DIV_ORDER = ["same_species", "cross_species", "close_cross_species",
-             "distant_cross_species"]
+             "distant_cross_species", "very_distant_cross_species"]
 DIV_LABEL = {"same_species": "same-species", "cross_species": "cross-species",
              "close_cross_species": "close cross-sp.",
-             "distant_cross_species": "distant cross-sp."}
+             "distant_cross_species": "distant cross-sp.",
+             "very_distant_cross_species": "very distant cross-sp."}
 
 
 # --------------------------------------------------------------------------- #
@@ -356,9 +357,22 @@ def fig_validity(fw):
 # =========================================================================== #
 # aggregate stats for the executive summary
 # =========================================================================== #
+def _is_stable_crash(r):
+    """A full-genome record where v1.0.8 crashed mid-run (devel finished, v1.0.8
+    aborted with a partial annotation) — excluded from head-to-head accuracy
+    because its partial numbers are not comparable. Fulls where both versions
+    completed (even at low recall, e.g. the extreme-distance flagships) are kept."""
+    if r.get("mode") != "full":
+        return False
+    cc = r.get("completeness_coding") or {}
+    dev = cc.get("lifton_devel") or 0
+    sta = cc.get("lifton_stable") or 0
+    return dev >= 0.90 and sta < 0.90
+
+
 def _agg(fw, vc):
     a = {}
-    recs = list(fw.values())
+    recs = [r for r in fw.values() if not _is_stable_crash(r)]
     dvb = [(r, r.get("devel_vs_best_baseline", {}).get("meanpi")) for r in recs]
     dvb = [(r, d) for r, d in dvb if isinstance(d, float)]
     a["n_records"] = len(dvb)
@@ -470,8 +484,8 @@ def sec_methodology(fw, vc, bench):
     L.append(
         f"**Datasets.** {n_sub} subset benchmarks (one representative chromosome, for fast "
         f"per-transcript scoring) + {n_full} full-genome headline runs, spanning a divergence "
-        "ladder — same-species, cross-species, close- and distant-cross-species — and two "
-        "annotation databases (**RefSeq** and **Ensembl/GTF**). Targets are independent "
+        "ladder — same-species, cross-species, close-, distant-, and very-distant-cross-species "
+        "— and two annotation databases (**RefSeq** and **Ensembl/GTF**). Targets are independent "
         "assemblies, so a perfect lift is not guaranteed even same-species.")
     L.append("")
     L.append(
@@ -850,7 +864,7 @@ def main():
     parts.append(
         "# LiftOn — comprehensive comparison report\n\n"
         "**LiftOn devel** vs **LiftOn v1.0.8** vs **Liftoff (minimap2)** vs **miniprot**, "
-        "across a same-species → distant-cross-species divergence ladder and two annotation "
+        "across a same-species → very-distant-cross-species divergence ladder and two annotation "
         "databases (RefSeq, Ensembl/GTF). All accuracy numbers are a tool-neutral parasail "
         "re-score; \"minimap2\" denotes the Liftoff DNA-liftover baseline.\n")
     parts.append(sec_exec_summary(fw, vc, agg, figs))

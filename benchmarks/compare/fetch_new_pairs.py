@@ -28,6 +28,12 @@ NCBI = {
     "candida_albicans_to_dubliniensis": {"ref": "GCF_000182965.3", "tgt": "GCF_000026945.1"},
     "celegans_to_briggsae": {"ref": "GCF_000002985.6", "tgt": "GCF_000004555.2"},
     "chicken_to_quail": {"ref": "GCF_016699485.2", "tgt": "GCF_001577835.2"},
+    # --- distant cross-species ladders (2026-06-18): plant / fish / insect / fungi ---
+    "arabidopsis_to_lyrata": {"tgt": "GCF_000004255.2"},             # ref = on-disk TAIR10
+    "rice_to_sorghum": {"tgt": "GCF_000003195.3"},                   # ref = on-disk rice IRGSP
+    "zebrafish_to_medaka": {"ref": "GCF_000002035.6", "tgt": "GCF_002234675.1"},  # zebrafish ref also = human_to_zebrafish target
+    "drosophila_to_anopheles": {"tgt": "GCF_000005575.2"},           # ref = on-disk d.melanogaster
+    "cerevisiae_to_pombe": {"tgt": "GCF_000002945.2"},               # ref = on-disk yeast_cerevisiae ref
 }
 ENSEMBL = {
     "human_ensembl_gtf": {
@@ -38,7 +44,11 @@ ENSEMBL = {
     },
 }
 # reuse-only pairs (no download) — listed so the driver can no-op them cleanly
-REUSE = {"human_to_mouse", "human_pseudogene_stress"}
+# arabidopsis_to_rice: both genomes on-disk (TAIR10 ref + rice IRGSP target).
+# human_to_zebrafish: on-disk human ref + the zebrafish genome fetched for
+# zebrafish_to_medaka (so fetch zebrafish_to_medaka before building this pair).
+REUSE = {"human_to_mouse", "human_pseudogene_stress",
+         "arabidopsis_to_rice", "human_to_zebrafish"}
 
 
 def _run(argv, **kw):
