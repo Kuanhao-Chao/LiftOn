@@ -59,6 +59,26 @@ def _children(db, mrna, ftype):
         return []
 
 
+def _transcript_ftype(db):
+    """Choose the coding-transcript featuretype for a FeatureDB.
+
+    RefSeq/NCBI annotate coding transcripts as ``mRNA``; Ensembl/gffread GTF use
+    ``transcript``. Pick whichever DOMINATES (more features) rather than a strict
+    "mRNA if any else transcript" fallback, so a handful of stray ``mRNA`` rows in
+    an Ensembl-derived output (the lifton GFFs carry exactly one) don't flip the
+    choice and collapse scoring to that single feature. On RefSeq ``mRNA`` always
+    dominates -> byte-identical scoring on every existing RefSeq cell; on the
+    Ensembl pair ``transcript`` dominates -> the cell becomes scorable instead of
+    degenerate (n_reference_coding=0)."""
+    try:
+        n_m = db.count_features_of_type("mRNA")
+        n_t = db.count_features_of_type("transcript")
+    except Exception:
+        n_m = sum(1 for _ in db.features_of_type("mRNA"))
+        n_t = sum(1 for _ in db.features_of_type("transcript"))
+    return "transcript" if n_t > n_m else "mRNA"
+
+
 # sub-feature types excluded from the "overall feature completeness" aggregate
 # (we count genes / transcripts / ncRNAs / pseudogenes as features, not their
 # exon/CDS/UTR parts).
@@ -162,7 +182,7 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
     db = _build_db(ref_gff)
     fa = pyfaidx.Fasta(ref_fa)
     ref: dict[str, dict] = {}
-    for mrna in db.features_of_type("mRNA"):
+    for mrna in db.features_of_type(_transcript_ftype(db)):
         exons = _children(db, mrna, "exon")
         cds = _children(db, mrna, ("CDS", "stop_codon"))
         cds_only = [c for c in cds]
@@ -254,7 +274,7 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
     payloads = []   # (idx, mrna, exons, cds, ref_id) for valid ref_id only
     n_features = 0
     n_unmapped_id = 0
-    for mrna in db.features_of_type("mRNA"):
+    for mrna in db.features_of_type(_transcript_ftype(db)):
         n_features += 1
         if is_miniprot:
             ref_id = id_mapping.resolve_miniprot(mrna, target_map, space, acc_to_mrna, ref_ids)

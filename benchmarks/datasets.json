@@ -46,6 +46,32 @@
       "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/rice_ref/IRGSP_genomic.gff",
       "target_gff":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/rice/lifton.gff3",
       "approx_size_gb": 0.5
+    },
+
+    {
+      "_note": "Cross-species website examples (close + distant). URLs mirror https://ccb.jhu.edu/lifton/content/{close,distant}_species_liftover/. Added for registry parity; the comparison harness reuses on-disk copies under /ccb/salz2/jheinz3/shared/lifton/cross_species/ rather than refetching.",
+      "id": "human_to_chimp",
+      "species": "Human GRCh38 -> Chimpanzee (NHGRI_mPanTro3-v1.1)",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/human_to_chimp/NHGRI_mPanTro3-v1.1.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/NCBI_RefSeq_no_rRNA.gff",
+      "approx_size_gb": 7.0
+    },
+    {
+      "id": "drosophila",
+      "species": "D. melanogaster -> D. erecta",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/drosophila/d.menogaster_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/drosophila/d.erecta_genomic.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/drosophila/d.menogaster_genomic.gff",
+      "approx_size_gb": 0.4
+    },
+    {
+      "id": "mouse_to_rat",
+      "species": "Mouse GRCm39 -> Rat mRatBN7.2",
+      "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/GRCm39_genomic.fna",
+      "target_fa":    "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/cross_species/mouse_to_rat/mRatBN7.2_genomic.fna",
+      "reference_gff": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/mouse_ref/GRCm39_genomic.gff",
+      "approx_size_gb": 5.0
     }
   ],
 
