@@ -27,7 +27,7 @@ Headline improvements of **devel** over **v1.0.8**:
 
 ## 2. Methodology
 
-**Tools.** *Liftoff* lifts annotations by DNA alignment driven by **minimap2** (the "minimap2" baseline). *miniprot* aligns reference proteins to the target genome (the protein baseline). *LiftOn* combines both via a protein-maximization chaining merge + ORF rescue; we compare the previous stable release **v1.0.8** (tag `e503643d`, isolated `lifton_stable` conda env) against the current **devel** HEAD (`4496dd5`, `lifton_devel`).
+**Tools.** *Liftoff* lifts annotations by DNA alignment driven by **minimap2** (the "minimap2" baseline). *miniprot* aligns reference proteins to the target genome (the protein baseline). *LiftOn* combines both via a protein-maximization chaining merge + ORF rescue; we compare the previous stable release **v1.0.8** (tag `e503643d`, isolated `lifton_stable` conda env) against the current **devel** HEAD (`3ff6b9d`, `lifton_devel`).
 
 **Datasets.** 23 subset benchmarks (one representative chromosome, for fast per-transcript scoring) + 6 full-genome headline runs, spanning a divergence ladder — same-species, cross-species, close-, distant-, and very-distant-cross-species — and two annotation databases (**RefSeq** and **Ensembl/GTF**). Targets are independent assemblies, so a perfect lift is not guaranteed even same-species.
 
@@ -299,7 +299,7 @@ devel is ~40 commits of staged, individually-validated iterations on top of v1.0
 ### 9.1 Reproducibility
 
 - v1.0.8: tag `e503643d`, env `lifton_stable`, no `--native`.
-- devel: HEAD `4496dd5` (+ the Iteration-20 working-tree fix), env `lifton_devel`.
+- devel: HEAD `3ff6b9d` (gene-like child-lift fix + Step-7 crash fix, committed), env `lifton_devel`.
 - Neutral re-score: `benchmarks/compare/evaluator.py` (parasail kernel).
 - Source data: `version_compare.results.json`, `fourway_results.json`.
 - Detailed per-arm / per-dataset tables: `v1_0_8_vs_devel_report.md`, `fourway_report.md`, `coverage_matrix.md`.

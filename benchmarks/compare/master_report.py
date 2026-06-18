@@ -479,7 +479,7 @@ def sec_methodology(fw, vc, bench):
         "genome (the protein baseline). *LiftOn* combines both via a protein-maximization "
         "chaining merge + ORF rescue; we compare the previous stable release **v1.0.8** "
         "(tag `e503643d`, isolated `lifton_stable` conda env) against the current "
-        "**devel** HEAD (`4496dd5`, `lifton_devel`).")
+        "**devel** HEAD (`3ff6b9d`, `lifton_devel`).")
     L.append("")
     L.append(
         f"**Datasets.** {n_sub} subset benchmarks (one representative chromosome, for fast "
@@ -813,7 +813,7 @@ def sec_appendix(fw, vc):
     L.append("### 9.1 Reproducibility")
     L.append("")
     L.append("- v1.0.8: tag `e503643d`, env `lifton_stable`, no `--native`.")
-    L.append("- devel: HEAD `4496dd5` (+ the Iteration-20 working-tree fix), env `lifton_devel`.")
+    L.append("- devel: HEAD `3ff6b9d` (gene-like child-lift fix + Step-7 crash fix, committed), env `lifton_devel`.")
     L.append("- Neutral re-score: `benchmarks/compare/evaluator.py` (parasail kernel).")
     L.append("- Source data: `version_compare.results.json`, `fourway_results.json`.")
     L.append("- Detailed per-arm / per-dataset tables: `v1_0_8_vs_devel_report.md`, "
