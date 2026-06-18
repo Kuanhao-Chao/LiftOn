@@ -173,7 +173,7 @@ v1.0.8 lifts only the protein-coding `gene` hierarchy; devel auto-detects every 
 
 ![validity errors](figures/f8_validity_errors.png)
 
-*Figure 6. gff3-validate error counts, devel vs v1.0.8 (subset benchmarks). devel is at or below v1.0.8 throughout.*
+*Figure 6. gff3-validate error counts, devel vs v1.0.8 (subset benchmarks). devel is at or below v1.0.8 on every subset benchmark except yeast_cerevisiae_to_paradoxus (10→11), and is strictly better on all four full genomes (table below).*
 
 | benchmark | Liftoff err | miniprot err | v1.0.8 err | devel err |
 |---|---|---|---|---|

@@ -663,7 +663,9 @@ def sec_robustness(fw, vc, agg, figs):
     if figs.get("f8"):
         L.append(_img(figs["f8"], "validity errors",
                       "Figure 6. gff3-validate error counts, devel vs v1.0.8 (subset "
-                      "benchmarks). devel is at or below v1.0.8 throughout."))
+                      "benchmarks). devel is at or below v1.0.8 on every subset benchmark "
+                      "except yeast_cerevisiae_to_paradoxus (10→11), and is strictly "
+                      "better on all four full genomes (table below)."))
         L.append("")
     headers = ["benchmark", "Liftoff err", "miniprot err", "v1.0.8 err", "devel err"]
     rows = []
