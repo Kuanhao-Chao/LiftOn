@@ -358,6 +358,21 @@ def build_subset(bench: dict, work_dir: Path, tools: dict, threads: int = 8,
         shutil.copyfile(bench["tgt_genome"], tgt_fa)
         subprocess.run([samtools, "faidx", str(tgt_fa)], check=True)
         tgt_chroms = _faidx_seqids(str(tgt_fa), samtools)
+    elif bench.get("tgt_chrom") == "WHOLE":
+        # Very-distant pairs: genome-wide DNA synteny is gone, so there is no
+        # syntenic target chromosome to pick (choose_target_chroms would minimap2
+        # asm20->asm10 and then RAISE on zero hits). Feed the WHOLE target genome
+        # to Liftoff + miniprot — the correct setup when the ortholog's target
+        # chromosome is unknown; the reference is still subset to one chromosome
+        # so the run stays tractable. Symlink (not copy) to avoid duplicating a
+        # multi-GB genome; faidx the symlink so the .fai lands in the work dir.
+        if tgt_fa.exists() or tgt_fa.is_symlink():
+            tgt_fa.unlink()
+        tgt_fa.symlink_to(os.path.abspath(bench["tgt_genome"]))
+        subprocess.run([samtools, "faidx", str(tgt_fa)], check=True)
+        tgt_chroms = _faidx_seqids(str(tgt_fa), samtools)
+        log(f"  [synteny] WHOLE target genome: {len(tgt_chroms)} seqids "
+            f"(no chromosome subsetting)")
     else:
         tgt_chroms = choose_target_chroms(ref_fa, bench["tgt_genome"],
                                           sub_dir / "synteny", minimap2, threads, log)

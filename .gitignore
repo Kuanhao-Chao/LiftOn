@@ -11,6 +11,8 @@ slides/
 
 # Benchmark comparison harness: keep code, exclude generated data + scratch
 benchmarks/compare/work/
+benchmarks/compare/_rerun_fulls/
+benchmarks/compare/_rescore_fulls/
 benchmarks/compare/__pycache__/
 benchmarks/compare/*.bak
 benchmarks/compare/run_optab.py

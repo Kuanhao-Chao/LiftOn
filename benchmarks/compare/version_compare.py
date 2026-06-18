@@ -181,7 +181,16 @@ def _build_argv(version, paths, anndb, threads, L, M, out_gff, devel_fast):
     if M is not None:
         argv += ["-M", str(M)]
     if devel_fast and version.startswith("devel"):
-        argv += ["--stream", "--inmemory-liftoff", "--locus-pipeline"]
+        # BUG #2 (2026-06-18): --stream / --inmemory-liftoff UNDER-RECOVER (and
+        # can segfault) on large distant genomes — the in-memory miniprot drain
+        # drops Step-8 rescues at scale (full eudicot->monocot: 2730 vs the
+        # default path's 7856 mRNA). This is a byte-identity-at-scale defect the
+        # synthetic 24-cell fixture cannot see; tracked separately. Use ONLY
+        # --locus-pipeline here: parallel Step 7 with default (disk) I/O is the
+        # path the 24-cell matrix pins byte-identical at the stream=off /
+        # inmemory=off / -t4 cell, so full-genome devel stays both fast and
+        # correct. (Restore the in-memory flags once bug #2 is fixed.)
+        argv += ["--locus-pipeline"]
     argv += list(spec["extra_flags"])
     argv += ["-o", str(out_gff), str(paths["tgt_fa"]), str(paths["ref_fa"])]
     return argv
