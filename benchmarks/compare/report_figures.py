@@ -471,19 +471,152 @@ def fig_perf_improvement(vc):
     return _save(fig, "rfig_perf_improvement.png")
 
 
+# --------------------------------------------------------------------------- #
+# FULL-GENOME FIGURES — real-world whole-genome end-to-end runs (the 6 fulls).
+# These power the full-genome-focused website report; the mixed/subset figures
+# above remain generated but are no longer imported by the report.
+# --------------------------------------------------------------------------- #
+def _full_recs(fw):
+    """The full-genome records, ordered easy→hard by divergence class."""
+    return mr._fw_recs(fw, "full")
+
+
+def _is_stable_crash(r):
+    cc = r.get("completeness_coding") or {}
+    return (cc.get("lifton_devel") or 0) >= 0.90 and (cc.get("lifton_stable") or 0) < 0.90
+
+
+def fig_full_accuracy(fw):
+    recs = _full_recs(fw)
+    labels = [mr._short_key(r["key"]) for r in recs]
+    y = np.arange(len(recs))
+    h = 0.2
+    fig = plt.figure(figsize=(13.5, 5.6))
+    gs = fig.add_gridspec(1, 2, width_ratios=[1.25, 0.95], wspace=0.30)
+    axA = fig.add_subplot(gs[0, 0])
+    axB = fig.add_subplot(gs[0, 1])
+
+    # (A) four-way mean protein identity
+    for i, t in enumerate(mr.TOOLS):
+        vals = [r["mean_pi"].get(t) if isinstance(r["mean_pi"].get(t), float) else 0
+                for r in recs]
+        axA.barh(y + (1.5 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
+                 label=LABEL[t])
+    axA.set_yticks(y)
+    axA.set_yticklabels(labels, fontsize=9)
+    axA.invert_yaxis()
+    axA.set_xlim(0, 1.02)
+    axA.set_xlabel("mean protein identity (tool-neutral parasail re-score)")
+    axA.grid(axis="x", alpha=0.3)
+    axA.legend(fontsize=8.5, loc="lower right", ncol=2, framealpha=0.9)
+    _panel_title(axA, "A", "LiftOn 2.0 leads the single-method baselines on every whole genome")
+
+    # (B) devel − best single baseline (computed directly), colored by divergence
+    deltas = []
+    for r in recs:
+        lo, mp, dv = (r["mean_pi"].get("liftoff"), r["mean_pi"].get("miniprot"),
+                      r["mean_pi"].get("lifton_devel"))
+        deltas.append(dv - max(lo, mp) if None not in (lo, mp, dv) else None)
+    colors = [DIVC_COLOR.get(r.get("divergence_class"), "#999999") for r in recs]
+    axB.barh(y, [d or 0 for d in deltas], color=colors)
+    axB.axvline(0, color="k", lw=0.8)
+    axB.set_yticks(y)
+    axB.set_yticklabels(labels, fontsize=9)
+    axB.invert_yaxis()
+    axB.margins(x=0.22)
+    axB.set_xlabel("Δ mean protein identity\nvs best of (Liftoff, miniprot)")
+    axB.grid(axis="x", alpha=0.3)
+    for yi, d in zip(y, deltas):
+        if d is not None:
+            axB.annotate(f"{d:+.4f}", xy=(d, yi), xytext=(4, 0),
+                         textcoords="offset points", ha="left", va="center",
+                         fontsize=8, fontweight="bold")
+    _nwin = sum(1 for d in deltas if d is not None and d >= 0)
+    _panel_title(axB, "B", f"Lead grows with divergence ({_nwin}/{len(recs)} ≥ 0)")
+    fig.suptitle("Whole-genome accuracy — four tools, every full-genome run",
+                 fontsize=12.5, fontweight="bold", y=1.02)
+    return _save(fig, "rfig_full_accuracy.png")
+
+
+def fig_full_completeness(fw):
+    recs = _full_recs(fw)
+    labels = [mr._short_key(r["key"]) for r in recs]
+    y = np.arange(len(recs))
+    h = 0.2
+    fig, ax = plt.subplots(figsize=(11.5, 6.4))
+    for i, t in enumerate(mr.TOOLS):
+        vals = [(r["completeness_coding"].get(t) or 0) * 100
+                if isinstance(r["completeness_coding"].get(t), float) else 0
+                for r in recs]
+        ax.barh(y + (1.5 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
+                label=LABEL[t])
+    # mark the two genomes v1.0.8 crashed on (its bar is the partial run)
+    stable_y = y + (1.5 - 2) * h
+    for yi, r in zip(stable_y, recs):
+        if _is_stable_crash(r):
+            cs = (r["completeness_coding"].get("lifton_stable") or 0) * 100
+            ax.annotate(f"v1.0.8 crash ({cs:.0f}%)", xy=(cs, yi), xytext=(5, 0),
+                        textcoords="offset points", ha="left", va="center",
+                        fontsize=7.5, color="#e45756", fontweight="bold")
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 112)
+    ax.axvline(100, color="k", lw=0.6, ls=":", alpha=0.5)
+    ax.set_xlabel("coding-transcript completeness (% of reference)")
+    ax.legend(fontsize=8.5, loc="lower right", ncol=2, framealpha=0.9)
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_title("Whole-genome completeness — at extreme distance miniprot trades "
+                 "identity for recall", fontsize=11.5, fontweight="bold", loc="left")
+    return _save(fig, "rfig_full_completeness.png")
+
+
+def fig_full_validity(fw):
+    recs = _full_recs(fw)
+    labels = [mr._short_key(r["key"]) for r in recs]
+    sta = [mr._val_errs((r.get("validity") or {}).get("lifton_stable")) for r in recs]
+    dev = [mr._val_errs((r.get("validity") or {}).get("lifton_devel")) for r in recs]
+    y = np.arange(len(recs))
+    h = 0.38
+    fig, ax = plt.subplots(figsize=(10, 5.8))
+    ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn 2.0")
+    for yi, s, d in zip(y, sta, dev):
+        if isinstance(s, int) and isinstance(d, int):
+            ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
+                        fontsize=8, fontweight="bold",
+                        color="#3a8f5a" if d < s else "#e45756",
+                        xytext=(4, 0), textcoords="offset points")
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.invert_yaxis()
+    ax.set_xlabel("gff3-validate error count (lower is better)")
+    ax.legend(fontsize=8.5, loc="lower right")
+    ax.grid(axis="x", alpha=0.3)
+    ax.margins(x=0.16)
+    ax.set_title("Cleaner output on every whole genome — LiftOn 2.0 vs v1.0.8",
+                 fontsize=12, fontweight="bold", loc="left")
+    return _save(fig, "rfig_full_validity.png")
+
+
 def main():
     vc, fw, _ = mr._load()
     if not fw or not vc:
         sys.exit("ERROR: source JSON not found / empty — run the comparison harness first.")
     print(f"OUTDIR = {OUTDIR}")
+    # full-genome-focused figures (imported by the website report)
+    fig_full_accuracy(fw)
+    fig_full_completeness(fw)
+    fig_full_validity(fw)
+    fig_robustness(fw)
+    fig_perf_improvement(vc)
+    # legacy mixed/subset figures (still generated; no longer imported)
     fig_accuracy_fourway(fw)
     fig_divergence_ladder(fw)
     fig_devel_vs_field(fw, vc)
     fig_completeness(fw)
-    fig_robustness(fw)
     fig_validity(fw)
     fig_perf_fourway(fw)
-    fig_perf_improvement(vc)
     print("done.")
 
 
