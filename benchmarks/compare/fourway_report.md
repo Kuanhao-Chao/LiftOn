@@ -4,7 +4,7 @@ Each tool's predicted annotation is scored by the **same version-agnostic neutra
 
 Provenance: LiftOn v1.0.8 = the real `v1.0.8` tag binary (`e503643d`, no `--native`) in an isolated `lifton_stable` env; LiftOn devel = current `devel` HEAD. miniprot's `completeness_feature_total` is **n/a** by construction (its `MP*` ids never match reference feature ids; its protein identity and coding-completeness are still scored).
 
-_Records: 16 subset benchmark(s), 4 full-genome headline(s)._
+_Records: 23 subset benchmark(s), 6 full-genome headline(s)._
 
 ## Executive summary — the two headline deltas
 
@@ -17,19 +17,28 @@ _Records: 16 subset benchmark(s), 4 full-genome headline(s)._
 | human_pseudogene_stress | subset | same | +0.00066 | +0.00000 | +0.00316 | +0.00000 |
 | mouse | subset | same | +0.00000 | +0.00000 | +0.00382 | -0.01750 |
 | rice | subset | same | +0.00000 | +0.00000 | +0.00041 | +0.00000 |
+| arabidopsis_to_lyrata | subset | close_cross_species | +0.00860 | +0.00000 | +0.02807 | -0.03145 |
+| arabidopsis_to_rice | subset | very_distant_cross_species | +0.00147 | +0.00000 | +0.03583 | -0.59899 |
 | candida_albicans_to_dubliniensis | subset | close_cross_species | +0.00137 | +0.00000 | +0.01426 | -0.01035 |
 | celegans_to_briggsae | subset | distant_cross_species | +0.00083 | +0.00517 | +0.07210 | -0.40040 |
+| cerevisiae_to_pombe | subset | very_distant_cross_species | +0.00000 | +0.00000 | -0.05706 | -0.19296 |
 | chicken_to_quail | subset | distant_cross_species | +0.00755 | +0.00000 | +0.04987 | -0.02393 |
 | drosophila | subset | cross_species | +0.00368 | +0.00000 | +0.00499 | -0.00676 |
+| drosophila_to_anopheles | subset | very_distant_cross_species | +0.00225 | +0.00000 | +0.06112 | -0.58640 |
 | fly_mel_to_pseudoobscura | subset | distant_cross_species | +0.01362 | +0.00000 | +0.00623 | -0.12646 |
 | human_to_chimp | subset | cross_species | +0.00000 | +0.00000 | +0.01529 | -0.00904 |
 | human_to_mouse | subset | distant_cross_species | +0.01306 | +0.00000 | -0.00931 | -0.10921 |
+| human_to_zebrafish | subset | very_distant_cross_species | +0.00000 | +0.00000 | +0.00901 | -0.78613 |
 | mouse_to_rat | subset | cross_species | +0.00399 | +0.00000 | +0.05609 | -0.04183 |
+| rice_to_sorghum | subset | distant_cross_species | +0.00834 | +0.00000 | -0.00644 | -0.16786 |
 | yeast_cerevisiae_to_paradoxus | subset | close_cross_species | +0.00009 | +0.00131 | +0.00873 | -0.01955 |
+| zebrafish_to_medaka | subset | distant_cross_species | +0.00206 | +0.00000 | +0.02401 | -0.70390 |
 | arabidopsis | full | same | +0.00020 | +0.71665 | +0.00068 | -0.00037 |
 | bee | full | same | +0.00009 | +0.00000 | +0.00962 | -0.00307 |
 | rice | full | same | -0.00030 | +0.22532 | +0.00175 | -0.00082 |
+| arabidopsis_to_rice | full | very_distant_cross_species | +0.00054 | +0.00000 | +0.04069 | -0.61842 |
 | drosophila | full | cross_species | +0.00134 | -0.00319 | +0.00925 | -0.02030 |
+| human_to_zebrafish | full | very_distant_cross_species | -0.00199 | -0.00097 | +0.01642 | -0.77667 |
 
 ## Subset 4-way matrix
 
@@ -145,6 +154,46 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 - **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.00041, completeness +0.00000
 - **LiftOn devel speedup vs v1.0.8:** 1.14x
 
+### arabidopsis_to_lyrata — A. thaliana TAIR10 -> A. lyrata  (close_cross_species · _new_taxa_plant_close_; RefSeq; n_coding=12653)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.9378 | 0.82042 | 0.79649 | 0.93149 | 0.00982 | 11866 | 196.7 | 228 | 100/150 |
+| miniprot | 0.97115 | n/a | 0.84417 | 0.93261 | 0.00928 | 12288 | 18 | 1212 | 50/200 |
+| LiftOn v1.0.8 | 0.9397 | 0.82232 | 0.86364 | 0.93322 | 0.01048 | 11890 | 280.3 | 1344 | 67/151 |
+| LiftOn devel | 0.9397 | 0.82232 | 0.87224 | 0.93414 | 0.01056 | 11890 | 267.4 | 604 | 67/113 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00860, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.02807, completeness -0.03145
+- **LiftOn devel speedup vs v1.0.8:** 1.05x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 77644 | 1976 | 5892 | |
+| exon | 87301 | 29183 | 32446 | |
+
+### arabidopsis_to_rice — A. thaliana TAIR10 -> Rice (eudicot->monocot)  (very_distant_cross_species · _divergence_ladder_very_distant_plant_; RefSeq; n_coding=12653)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.01596 | 0.0218 | 0.19762 | 0.03846 | 0.00508 | 202 | 62.6 | 3037 | 100/105 |
+| miniprot | 0.77144 | n/a | 0.50782 | 0.51911 | 0.00051 | 9761 | 200.7 | 5945 | 50/200 |
+| LiftOn v1.0.8 | 0.17245 | 0.17772 | 0.54218 | 0.54269 | 0.00092 | 2182 | 83.9 | 1284 | 51/105 |
+| LiftOn devel | 0.17245 | 0.17772 | 0.54365 | 0.54348 | 0.00092 | 2182 | 82.2 | 511 | 51/105 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00147, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.03583, completeness -0.59899
+- **LiftOn devel speedup vs v1.0.8:** 1.02x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 77644 | 95 | 106 | |
+| exon | 87301 | 496 | 501 | |
+
 ### candida_albicans_to_dubliniensis — C. albicans -> C. dubliniensis  (close_cross_species · _new_taxa_fungi_; RefSeq; n_coding=1353)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
@@ -187,6 +236,19 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | mRNA | 7550 | 2519 | 2558 | |
 | pseudogene | 867 | 0 | 47 | ⬅ gene-like |
 
+### cerevisiae_to_pombe — S. cerevisiae -> S. pombe  (very_distant_cross_species · _divergence_ladder_very_distant_fungi_; RefSeq; n_coding=767)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.00522 | 0.00471 | 0.56201 | 0.73117 | 0 | 4 | 3.5 | 241 | 4/8 |
+| miniprot | 0.37419 | n/a | 0.41128 | 0.39634 | 0 | 287 | 5.6 | 1656 | 50/159 |
+| LiftOn v1.0.8 | 0.18123 | 0.16372 | 0.50495 | 0.48276 | 0 | 139 | 4.9 | 285 | 0/50 |
+| LiftOn devel | 0.18123 | 0.16372 | 0.50495 | 0.48276 | 0 | 139 | 5.4 | 235 | 0/50 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00000, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI -0.05706, completeness -0.19296
+- **LiftOn devel speedup vs v1.0.8:** 0.91x
+
 ### chicken_to_quail — Chicken GRCg7b -> Japanese quail  (distant_cross_species · _new_taxa_bird_; RefSeq; n_coding=9068)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
@@ -226,6 +288,26 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 |---|---|---|---|---|
 | CDS | 37963 | 1761 | 2182 | |
 | exon | 44245 | 19968 | 20233 | |
+
+### drosophila_to_anopheles — D. melanogaster -> Anopheles gambiae (fly->mosquito)  (very_distant_cross_species · _divergence_ladder_very_distant_insect_; RefSeq; n_coding=7251)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.07227 | 0.0621 | 0.2198 | 0.16433 | 0 | 524 | 53.9 | 229 | 100/104 |
+| miniprot | 0.75617 | n/a | 0.48961 | 0.49839 | 0.00128 | 5483 | 81.4 | 6245 | 50/200 |
+| LiftOn v1.0.8 | 0.16977 | 0.16949 | 0.54848 | 0.54839 | 0 | 1231 | 64 | 681 | 74/75 |
+| LiftOn devel | 0.16977 | 0.16949 | 0.55073 | 0.55072 | 0 | 1231 | 52.6 | 434 | 74/74 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00225, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.06112, completeness -0.58640
+- **LiftOn devel speedup vs v1.0.8:** 1.22x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 37963 | 17 | 35 | |
+| exon | 44245 | 904 | 908 | |
 
 ### fly_mel_to_pseudoobscura — D. melanogaster -> D. pseudoobscura  (distant_cross_species · _divergence_ladder_distant_insect_; RefSeq; n_coding=7251)
 
@@ -286,6 +368,19 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | CDS | 32174 | 454 | 1756 | |
 | exon | 42253 | 8554 | 9660 | |
 
+### human_to_zebrafish — Human GRCh38 chr20 -> Zebrafish (mammal->fish)  (very_distant_cross_species · _divergence_ladder_very_distant_vertebrate_; RefSeq; n_coding=3086)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.03014 | 0.00934 | 0.18393 | 0.05556 | 0 | 93 | 86.5 | 6833 | 84/102 |
+| miniprot | 0.84413 | n/a | 0.55574 | 0.56234 | 0 | 2605 | 100.7 | 11776 | 50/200 |
+| LiftOn v1.0.8 | 0.058 | 0.02148 | 0.56475 | 0.64449 | 0 | 179 | 24.7 | 341 | 51/52 |
+| LiftOn devel | 0.058 | 0.02148 | 0.56475 | 0.64449 | 0 | 179 | 23.9 | 365 | 51/52 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00000, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.00901, completeness -0.78613
+- **LiftOn devel speedup vs v1.0.8:** 1.03x
+
 ### mouse_to_rat — Mouse GRCm39 chr18 -> Rat mRatBN7.2  (cross_species; RefSeq; n_coding=2343)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
@@ -305,6 +400,26 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 |---|---|---|---|---|
 | CDS | 26986 | 1114 | 1877 | |
 | exon | 36459 | 13314 | 14008 | |
+
+### rice_to_sorghum — Rice IRGSP -> Sorghum bicolor  (distant_cross_species · _divergence_ladder_distant_plant_monocot_; RefSeq; n_coding=5850)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.70821 | 0.63318 | 0.41639 | 0.44 | 0.00049 | 4143 | 183.3 | 362 | 100/126 |
+| miniprot | 0.92957 | n/a | 0.68191 | 0.73756 | 0.00074 | 5438 | 60.1 | 7138 | 50/200 |
+| LiftOn v1.0.8 | 0.76171 | 0.68568 | 0.66713 | 0.71096 | 0.0009 | 4456 | 102.4 | 436 | 100/166 |
+| LiftOn devel | 0.76171 | 0.68568 | 0.67547 | 0.71565 | 0.0009 | 4456 | 112.8 | 495 | 100/143 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00834, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI -0.00644, completeness -0.16786
+- **LiftOn devel speedup vs v1.0.8:** 0.91x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 34421 | 842 | 1747 | |
+| exon | 45748 | 9576 | 10141 | |
 
 ### yeast_cerevisiae_to_paradoxus — S. cerevisiae -> S. paradoxus  (close_cross_species · _new_taxa_fungi_; RefSeq; n_coding=767)
 
@@ -326,6 +441,26 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | CDS | 808 | 39 | 42 | |
 | mRNA | 767 | 736 | 737 | |
 | pseudogene | 1 | 0 | 1 | ⬅ gene-like |
+
+### zebrafish_to_medaka — Zebrafish GRCz11 -> Medaka  (distant_cross_species · _divergence_ladder_distant_fish_; RefSeq; n_coding=2972)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.13392 | 0.07831 | 0.22343 | 0.13357 | 0 | 398 | 373.9 | 5957 | 100/144 |
+| miniprot | 0.88795 | n/a | 0.53279 | 0.50388 | 0 | 2639 | 170.9 | 7453 | 50/200 |
+| LiftOn v1.0.8 | 0.18405 | 0.08984 | 0.55474 | 0.63426 | 0 | 547 | 45.8 | 415 | 50/105 |
+| LiftOn devel | 0.18405 | 0.08984 | 0.5568 | 0.63426 | 0 | 547 | 43.4 | 393 | 50/105 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00206, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.02401, completeness -0.70390
+- **LiftOn devel speedup vs v1.0.8:** 1.06x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 27773 | 171 | 216 | |
+| exon | 44803 | 1296 | 1332 | |
 
 ## Full-genome headlines
 
@@ -413,6 +548,31 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | tRNA | 672 | 476 | 666 | ⬅ gene-like |
 | transcript | 3840 | 2703 | 3836 | |
 
+### arabidopsis_to_rice — A. thaliana TAIR10 -> Rice (eudicot->monocot)  (very_distant_cross_species · _divergence_ladder_very_distant_plant_; RefSeq; n_coding=48265)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.01554 | 0.02172 | 0.30904 | 0.16122 | 0 | 750 | n/a | n/a | 120/161 |
+| miniprot | 0.76666 | n/a | 0.50982 | 0.52071 | 0.00073 | 37003 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.14824 | 0.14977 | 0.54997 | 0.5504 | 0.00098 | 7155 | n/a | n/a | 226/105 |
+| LiftOn devel | 0.14824 | 0.15088 | 0.55051 | 0.55055 | 0.00098 | 7155 | n/a | n/a | 136/137 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00054, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.04069, completeness -0.61842
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 286264 | 348 | 351 | |
+| exon | 324848 | 1769 | 1809 | |
+| gene | 33468 | 7264 | 7266 | |
+| mRNA | 52177 | 7155 | 7193 | |
+| pseudogene | 4851 | 0 | 55 | ⬅ gene-like |
+| tRNA | 684 | 389 | 391 | ⬅ gene-like |
+| three_prime_UTR | 23 | 0 | 1 | |
+| transcript | 1826 | 29 | 43 | |
+
 ### drosophila — D. melanogaster -> D. erecta  (cross_species; RefSeq; n_coding=30799)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
@@ -437,4 +597,30 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | pseudogene | 339 | 0 | 120 | ⬅ gene-like |
 | rRNA | 134 | 66 | 83 | ⬅ gene-like |
 | tRNA | 317 | 281 | 282 | ⬅ gene-like |
+
+### human_to_zebrafish — Human GRCh38 chr20 -> Zebrafish (mammal->fish)  (very_distant_cross_species · _divergence_ladder_very_distant_vertebrate_; RefSeq; n_coding=144329)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.02817 | 0.01065 | 0.16318 | 0.09337 | 0.00025 | 4066 | n/a | n/a | 92/200 |
+| miniprot | 0.82178 | n/a | 0.54472 | 0.56578 | 0.0006 | 118607 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.04608 | 0.01943 | 0.56313 | 0.61828 | 0.00153 | 6651 | n/a | n/a | 107/152 |
+| LiftOn devel | 0.04511 | 0.01957 | 0.56114 | 0.61538 | 0.00156 | 6511 | n/a | n/a | 100/152 |
+
+- **LiftOn devel − v1.0.8:** mean PI -0.00199, completeness -0.00097, n_recovered -140
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01642, completeness -0.77667
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1835542 | 1500 | 1487 | |
+| V_gene_segment | 664 | 0 | 1 | |
+| exon | 2300886 | 6234 | 6179 | |
+| gene | 47782 | 3791 | 3763 | |
+| mRNA | 144415 | 6651 | 6511 | |
+| pseudogene | 19247 | 0 | 242 | ⬅ gene-like |
+| snRNA | 172 | 48 | 39 | ⬅ gene-like |
+| tRNA | 688 | 398 | 397 | ⬅ gene-like |
+| transcript | 14988 | 213 | 225 | |
 
