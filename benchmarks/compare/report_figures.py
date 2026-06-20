@@ -550,12 +550,19 @@ def fig_full_completeness(fw):
                 for r in recs]
         ax.barh(y + (1.5 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
                 label=LABEL[t])
-    # mark the two genomes v1.0.8 crashed on (its bar is the partial run)
+    # mark the genomes v1.0.8 crashed on. Where it left a scorable partial
+    # annotation (arabidopsis 28%, rice 77%) show that %; where it aborted with
+    # no scorable whole-genome output (maize, tomato pairs) show just "crash"
+    # at the axis origin rather than a misleading "0%".
     stable_y = y + (1.5 - 2) * h
     for yi, r in zip(stable_y, recs):
         if _is_stable_crash(r):
-            cs = (r["completeness_coding"].get("lifton_stable") or 0) * 100
-            ax.annotate(f"v1.0.8 crash ({cs:.0f}%)", xy=(cs, yi), xytext=(5, 0),
+            scc = r["completeness_coding"].get("lifton_stable")
+            if isinstance(scc, float):
+                txt, xpos = f"v1.0.8 crash ({scc*100:.0f}%)", scc * 100
+            else:
+                txt, xpos = "v1.0.8 crash", 0
+            ax.annotate(txt, xy=(xpos, yi), xytext=(5, 0),
                         textcoords="offset points", ha="left", va="center",
                         fontsize=7.5, color="#e45756", fontweight="bold")
     ax.set_yticks(y)
@@ -574,14 +581,18 @@ def fig_full_completeness(fw):
 def fig_full_validity(fw):
     recs = _full_recs(fw)
     labels = [mr._short_key(r["key"]) for r in recs]
-    sta = [mr._val_errs((r.get("validity") or {}).get("lifton_stable")) for r in recs]
-    dev = [mr._val_errs((r.get("validity") or {}).get("lifton_devel")) for r in recs]
+    # raw values keep None for cells where v1.0.8 crashed (no output to validate);
+    # coerce to 0 only for the bar height (→ no bar), keep raw for the annotation.
+    sta_raw = [mr._val_errs((r.get("validity") or {}).get("lifton_stable")) for r in recs]
+    dev_raw = [mr._val_errs((r.get("validity") or {}).get("lifton_devel")) for r in recs]
+    sta = [s if isinstance(s, int) else 0 for s in sta_raw]
+    dev = [d if isinstance(d, int) else 0 for d in dev_raw]
     y = np.arange(len(recs))
     h = 0.38
     fig, ax = plt.subplots(figsize=(10, 5.8))
     ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
     ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn 2.0")
-    for yi, s, d in zip(y, sta, dev):
+    for yi, s, d in zip(y, sta_raw, dev_raw):
         if isinstance(s, int) and isinstance(d, int):
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
                         fontsize=8, fontweight="bold",

@@ -373,6 +373,23 @@ def build_subset(bench: dict, work_dir: Path, tools: dict, threads: int = 8,
         tgt_chroms = _faidx_seqids(str(tgt_fa), samtools)
         log(f"  [synteny] WHOLE target genome: {len(tgt_chroms)} seqids "
             f"(no chromosome subsetting)")
+    elif bench.get("tgt_chrom") and bench["tgt_chrom"] != "AUTO_SYNTENIC":
+        # Pinned target chromosome: a concrete seqid was given (e.g. the same-species
+        # giant-genome pair maize B73->Mo17, whose largest chromosome is ~313 Mb, for
+        # which choose_target_chroms' whole-genome minimap2 asm20 SIGABRTs on the 2.2 Gb
+        # target). Skip the synteny scan and extract the named seqid directly -- exactly
+        # the chromosome AUTO_SYNTENIC would pick, for a faithful chr<->chr lift.
+        # (ready_subset and WHOLE are handled above; human_mane's chr22 takes the
+        # ready_subset branch, so this fires only for an explicitly pinned seqid.)
+        pin = bench["tgt_chrom"]
+        tgt_genome_seqids = set(_faidx_seqids(bench["tgt_genome"], samtools))
+        if pin not in tgt_genome_seqids:
+            raise RuntimeError(
+                f"{bench['id']}: pinned tgt_chrom {pin!r} not found in target genome "
+                f"{bench['tgt_genome']} (have e.g. {sorted(tgt_genome_seqids)[:5]})")
+        tgt_chroms = [pin]
+        samtools_extract(bench["tgt_genome"], tgt_chroms, tgt_fa, samtools)
+        log(f"  [synteny] pinned target chromosome: {pin} (synteny scan skipped)")
     else:
         tgt_chroms = choose_target_chroms(ref_fa, bench["tgt_genome"],
                                           sub_dir / "synteny", minimap2, threads, log)

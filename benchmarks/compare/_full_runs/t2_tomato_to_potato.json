@@ -1,0 +1,479 @@
+{
+  "full:t2_tomato_to_potato": {
+    "benchmark": "t2_tomato_to_potato",
+    "mode": "full",
+    "key": "full:t2_tomato_to_potato",
+    "species": "Solanum lycopersicum (Micro-Tom) -> Solanum tuberosum (potato)",
+    "cross_species": true,
+    "dimension": "tier2_close_plant_solanaceae",
+    "divergence_class": "close_cross_species",
+    "annotation_database": "RefSeq",
+    "n_reference_coding": 44391,
+    "n_reference_total": 44391,
+    "tools": [
+      "liftoff",
+      "miniprot",
+      "lifton_devel"
+    ],
+    "completeness_coding": {
+      "liftoff": 0.9251,
+      "miniprot": 0.99221,
+      "lifton_devel": 0.92963
+    },
+    "completeness_feature_total": {
+      "liftoff": 0.76677,
+      "miniprot": null,
+      "lifton_devel": 0.78095
+    },
+    "mean_pi": {
+      "liftoff": 0.76163,
+      "miniprot": 0.84034,
+      "lifton_devel": 0.8585
+    },
+    "median_pi": {
+      "liftoff": 0.9432,
+      "miniprot": 0.94527,
+      "lifton_devel": 0.94955
+    },
+    "pct_identical": {
+      "liftoff": 0.01131,
+      "miniprot": 0.00874,
+      "lifton_devel": 0.01197
+    },
+    "n_recovered_coding": {
+      "liftoff": 41066,
+      "miniprot": 44045,
+      "lifton_devel": 41267
+    },
+    "n_recovered_any": {
+      "liftoff": 41066,
+      "miniprot": 44045,
+      "lifton_devel": 41267
+    },
+    "wall_s": {
+      "liftoff": null,
+      "miniprot": null,
+      "lifton_devel": 3234.76
+    },
+    "peak_rss_mb": {
+      "liftoff": null,
+      "miniprot": null,
+      "lifton_devel": 7183.0234375
+    },
+    "validity": {
+      "liftoff": {
+        "exit": 1,
+        "n_errors": 128,
+        "n_warnings": 204,
+        "valid": false
+      },
+      "miniprot": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 200,
+        "valid": false
+      },
+      "lifton_devel": {
+        "exit": 1,
+        "n_errors": 158,
+        "n_warnings": 159,
+        "valid": false
+      }
+    },
+    "feature_census": {
+      "liftoff": {
+        "region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "gene": {
+          "n_reference": 40021,
+          "n_recovered": 30754,
+          "pct_recovered": 0.76845,
+          "n_extra_copies": 60,
+          "n_tool_features": 30816
+        },
+        "lnc_RNA": {
+          "n_reference": 5503,
+          "n_recovered": 4580,
+          "pct_recovered": 0.83227,
+          "n_extra_copies": 0,
+          "n_tool_features": 4580
+        },
+        "exon": {
+          "n_reference": 374374,
+          "n_recovered": 311724,
+          "pct_recovered": 0.83265,
+          "n_extra_copies": 63,
+          "n_tool_features": 311787
+        },
+        "mRNA": {
+          "n_reference": 44391,
+          "n_recovered": 41066,
+          "pct_recovered": 0.9251,
+          "n_extra_copies": 18,
+          "n_tool_features": 41084
+        },
+        "CDS": {
+          "n_reference": 275535,
+          "n_recovered": 250771,
+          "pct_recovered": 0.91012,
+          "n_extra_copies": 18,
+          "n_tool_features": 250789
+        },
+        "transcript": {
+          "n_reference": 3583,
+          "n_recovered": 3168,
+          "pct_recovered": 0.88418,
+          "n_extra_copies": 0,
+          "n_tool_features": 3168
+        },
+        "snoRNA": {
+          "n_reference": 311,
+          "n_recovered": 225,
+          "pct_recovered": 0.72347,
+          "n_extra_copies": 0,
+          "n_tool_features": 225
+        },
+        "pseudogene": {
+          "n_reference": 1457,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snRNA": {
+          "n_reference": 204,
+          "n_recovered": 140,
+          "pct_recovered": 0.68627,
+          "n_extra_copies": 0,
+          "n_tool_features": 140
+        },
+        "tRNA": {
+          "n_reference": 858,
+          "n_recovered": 772,
+          "pct_recovered": 0.89977,
+          "n_extra_copies": 37,
+          "n_tool_features": 809
+        },
+        "primary_transcript": {
+          "n_reference": 101,
+          "n_recovered": 73,
+          "pct_recovered": 0.72277,
+          "n_extra_copies": 0,
+          "n_tool_features": 73
+        },
+        "miRNA": {
+          "n_reference": 134,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "rRNA": {
+          "n_reference": 5879,
+          "n_recovered": 112,
+          "pct_recovered": 0.01905,
+          "n_extra_copies": 5,
+          "n_tool_features": 117
+        },
+        "cDNA_match": {
+          "n_reference": 3025,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "SRP_RNA": {
+          "n_reference": 3,
+          "n_recovered": 3,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 3
+        },
+        "_overall_": {
+          "n_reference": 105498,
+          "n_recovered": 80893,
+          "pct_recovered": 0.76677,
+          "n_extra_copies": 0,
+          "n_tool_features": 81015
+        }
+      },
+      "miniprot": {
+        "region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "gene": {
+          "n_reference": 40021,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "lnc_RNA": {
+          "n_reference": 5503,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "exon": {
+          "n_reference": 374374,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mRNA": {
+          "n_reference": 44391,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 49133
+        },
+        "CDS": {
+          "n_reference": 275535,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 279349
+        },
+        "transcript": {
+          "n_reference": 3583,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snoRNA": {
+          "n_reference": 311,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "pseudogene": {
+          "n_reference": 1457,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snRNA": {
+          "n_reference": 204,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tRNA": {
+          "n_reference": 858,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "primary_transcript": {
+          "n_reference": 101,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "miRNA": {
+          "n_reference": 134,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "rRNA": {
+          "n_reference": 5879,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "cDNA_match": {
+          "n_reference": 3025,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "SRP_RNA": {
+          "n_reference": 3,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "_overall_": {
+          "n_reference": 105498,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 49133
+        }
+      },
+      "lifton_devel": {
+        "region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "gene": {
+          "n_reference": 40021,
+          "n_recovered": 30970,
+          "pct_recovered": 0.77384,
+          "n_extra_copies": 1364,
+          "n_tool_features": 32334
+        },
+        "lnc_RNA": {
+          "n_reference": 5503,
+          "n_recovered": 4562,
+          "pct_recovered": 0.829,
+          "n_extra_copies": 0,
+          "n_tool_features": 4562
+        },
+        "exon": {
+          "n_reference": 374374,
+          "n_recovered": 146690,
+          "pct_recovered": 0.39183,
+          "n_extra_copies": 171476,
+          "n_tool_features": 321489
+        },
+        "mRNA": {
+          "n_reference": 44391,
+          "n_recovered": 41267,
+          "pct_recovered": 0.92963,
+          "n_extra_copies": 1302,
+          "n_tool_features": 42569
+        },
+        "CDS": {
+          "n_reference": 275535,
+          "n_recovered": 16155,
+          "pct_recovered": 0.05863,
+          "n_extra_copies": 0,
+          "n_tool_features": 252201
+        },
+        "transcript": {
+          "n_reference": 3583,
+          "n_recovered": 3200,
+          "pct_recovered": 0.89311,
+          "n_extra_copies": 0,
+          "n_tool_features": 3200
+        },
+        "snoRNA": {
+          "n_reference": 311,
+          "n_recovered": 225,
+          "pct_recovered": 0.72347,
+          "n_extra_copies": 0,
+          "n_tool_features": 225
+        },
+        "pseudogene": {
+          "n_reference": 1457,
+          "n_recovered": 1074,
+          "pct_recovered": 0.73713,
+          "n_extra_copies": 0,
+          "n_tool_features": 1074
+        },
+        "snRNA": {
+          "n_reference": 204,
+          "n_recovered": 139,
+          "pct_recovered": 0.68137,
+          "n_extra_copies": 0,
+          "n_tool_features": 139
+        },
+        "tRNA": {
+          "n_reference": 858,
+          "n_recovered": 773,
+          "pct_recovered": 0.90093,
+          "n_extra_copies": 0,
+          "n_tool_features": 773
+        },
+        "primary_transcript": {
+          "n_reference": 101,
+          "n_recovered": 73,
+          "pct_recovered": 0.72277,
+          "n_extra_copies": 0,
+          "n_tool_features": 73
+        },
+        "miRNA": {
+          "n_reference": 134,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "rRNA": {
+          "n_reference": 5879,
+          "n_recovered": 103,
+          "pct_recovered": 0.01752,
+          "n_extra_copies": 0,
+          "n_tool_features": 103
+        },
+        "cDNA_match": {
+          "n_reference": 3025,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "SRP_RNA": {
+          "n_reference": 3,
+          "n_recovered": 3,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 3
+        },
+        "_overall_": {
+          "n_reference": 105498,
+          "n_recovered": 82389,
+          "pct_recovered": 0.78095,
+          "n_extra_copies": 0,
+          "n_tool_features": 85055
+        }
+      }
+    },
+    "devel_vs_stable": {
+      "meanpi": null,
+      "completeness": null,
+      "n_recovered": null
+    },
+    "devel_vs_best_baseline": {
+      "meanpi": 0.01816,
+      "completeness": -0.06258
+    }
+  }
+}

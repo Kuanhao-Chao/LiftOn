@@ -4,7 +4,7 @@ Each tool's predicted annotation is scored by the **same version-agnostic neutra
 
 Provenance: LiftOn v1.0.8 = the real `v1.0.8` tag binary (`e503643d`, no `--native`) in an isolated `lifton_stable` env; LiftOn devel = current `devel` HEAD. miniprot's `completeness_feature_total` is **n/a** by construction (its `MP*` ids never match reference feature ids; its protein identity and coding-completeness are still scored).
 
-_Records: 23 subset benchmark(s), 6 full-genome headline(s)._
+_Records: 34 subset benchmark(s), 17 full-genome headline(s)._
 
 ## Executive summary — the two headline deltas
 
@@ -17,6 +17,8 @@ _Records: 23 subset benchmark(s), 6 full-genome headline(s)._
 | human_pseudogene_stress | subset | same | +0.00066 | +0.00000 | +0.00316 | +0.00000 |
 | mouse | subset | same | +0.00000 | +0.00000 | +0.00382 | -0.01750 |
 | rice | subset | same | +0.00000 | +0.00000 | +0.00041 | +0.00000 |
+| t1_maize_b73_to_mo17 | subset | same | +0.00413 | -0.00012 | +0.01170 | -0.02392 |
+| t1_tomato_microtom_to_heinz | subset | same | +0.00344 | +0.00000 | +0.01324 | -0.00510 |
 | arabidopsis_to_lyrata | subset | close_cross_species | +0.00860 | +0.00000 | +0.02807 | -0.03145 |
 | arabidopsis_to_rice | subset | very_distant_cross_species | +0.00147 | +0.00000 | +0.03583 | -0.59899 |
 | candida_albicans_to_dubliniensis | subset | close_cross_species | +0.00137 | +0.00000 | +0.01426 | -0.01035 |
@@ -31,14 +33,34 @@ _Records: 23 subset benchmark(s), 6 full-genome headline(s)._
 | human_to_zebrafish | subset | very_distant_cross_species | +0.00000 | +0.00000 | +0.00901 | -0.78613 |
 | mouse_to_rat | subset | cross_species | +0.00399 | +0.00000 | +0.05609 | -0.04183 |
 | rice_to_sorghum | subset | distant_cross_species | +0.00834 | +0.00000 | -0.00644 | -0.16786 |
+| t2_human_to_gorilla | subset | close_cross_species | +0.00435 | +0.00000 | +0.01459 | +0.00000 |
+| t2_mouse_to_caroli | subset | close_cross_species | +0.00404 | +0.00000 | +0.02994 | -0.01799 |
+| t2_tomato_to_potato | subset | close_cross_species | +0.00281 | +0.00000 | +0.02964 | -0.10502 |
+| t3_dog_to_cat | subset | distant_cross_species | +0.01601 | +0.00000 | +0.03264 | +0.00000 |
+| t3_human_to_macaque | subset | distant_cross_species | +0.00359 | +0.00000 | +0.01600 | -0.00033 |
+| t3_human_to_marmoset | subset | distant_cross_species | +0.00783 | +0.00000 | +0.02233 | -0.00065 |
+| t4_drosophila_to_bee | subset | very_distant_cross_species | +0.00000 | +0.00000 | +0.07735 | -0.57412 |
+| t4_human_to_chicken | subset | very_distant_cross_species | +0.01301 | +0.00000 | +0.06722 | -0.63642 |
+| t4_human_to_xenopus | subset | very_distant_cross_species | +0.01416 | +0.00000 | +0.00127 | -0.78969 |
 | yeast_cerevisiae_to_paradoxus | subset | close_cross_species | +0.00009 | +0.00131 | +0.00873 | -0.01955 |
 | zebrafish_to_medaka | subset | distant_cross_species | +0.00206 | +0.00000 | +0.02401 | -0.70390 |
 | arabidopsis | full | same | +0.00020 | +0.71665 | +0.00068 | -0.00037 |
 | bee | full | same | +0.00009 | +0.00000 | +0.00962 | -0.00307 |
 | rice | full | same | -0.00030 | +0.22532 | +0.00175 | -0.00082 |
+| t1_maize_b73_to_mo17 | full | same | n/a | n/a | +0.00762 | -0.03355 |
+| t1_tomato_microtom_to_heinz | full | same | n/a | n/a | +0.01244 | -0.00491 |
 | arabidopsis_to_rice | full | very_distant_cross_species | +0.00054 | +0.00000 | +0.04069 | -0.61842 |
 | drosophila | full | cross_species | +0.00134 | -0.00319 | +0.00925 | -0.02030 |
 | human_to_zebrafish | full | very_distant_cross_species | -0.00199 | -0.00097 | +0.01642 | -0.77667 |
+| t2_human_to_gorilla | full | close_cross_species | +0.00119 | -0.00410 | +0.01687 | -0.10726 |
+| t2_mouse_to_caroli | full | close_cross_species | +0.00231 | -0.00374 | +0.02636 | -0.02895 |
+| t2_tomato_to_potato | full | close_cross_species | n/a | n/a | +0.01816 | -0.06258 |
+| t3_dog_to_cat | full | distant_cross_species | +0.00294 | -0.00264 | +0.03147 | -0.00877 |
+| t3_human_to_macaque | full | distant_cross_species | +0.00178 | -0.00724 | +0.03053 | -0.11371 |
+| t3_human_to_marmoset | full | distant_cross_species | +0.00127 | -0.00743 | +0.03727 | -0.11363 |
+| t4_drosophila_to_bee | full | very_distant_cross_species | +0.00000 | +0.00000 | +0.06876 | -0.58272 |
+| t4_human_to_chicken | full | very_distant_cross_species | -0.00022 | -0.00495 | +0.12881 | -0.61236 |
+| t4_human_to_xenopus | full | very_distant_cross_species | -0.00027 | -0.00160 | +0.11710 | -0.76949 |
 
 ## Subset 4-way matrix
 
@@ -153,6 +175,49 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 - **LiftOn devel − v1.0.8:** mean PI +0.00000, completeness +0.00000, n_recovered +0
 - **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.00041, completeness +0.00000
 - **LiftOn devel speedup vs v1.0.8:** 1.14x
+
+### t1_maize_b73_to_mo17 — Zea mays (B73) -> Zea mays (Mo17)  (same-species · _tier1_intra_species_plant_maize_; RefSeq; n_coding=8527)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.96106 | 0.86333 | 0.91737 | 0.99552 | 0.34739 | 8195 | 131 | 3848 | 100/150 |
+| miniprot | 0.98522 | n/a | 0.93817 | 0.9945 | 0.31365 | 8401 | 31.2 | 4116 | 50/200 |
+| LiftOn v1.0.8 | 0.96142 | 0.86359 | 0.94574 | 0.99554 | 0.34767 | 8198 | 251 | 1527 | 58/148 |
+| LiftOn devel | 0.9613 | 0.86338 | 0.94987 | 0.99554 | 0.34776 | 8197 | 227.1 | 595 | 58/114 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00413, completeness -0.00012, n_recovered -1
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01170, completeness -0.02392
+- **LiftOn devel speedup vs v1.0.8:** 1.11x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 51954 | 3063 | 3202 | |
+| exon | 74069 | 42707 | 43247 | |
+| gene | 6187 | 5873 | 5872 | |
+| mRNA | 8527 | 8198 | 8197 | |
+| transcript | 1152 | 873 | 871 | |
+
+### t1_tomato_microtom_to_heinz — Solanum lycopersicum (Micro-Tom) -> Solanum lycopersicum (Heinz 1706)  (same-species · _tier1_intra_species_plant_tomato_; RefSeq; n_coding=5685)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.99455 | 0.86972 | 0.96742 | 1 | 0.79975 | 5654 | 161 | 2168 | 100/106 |
+| miniprot | 0.99982 | n/a | 0.96754 | 1 | 0.73118 | 5684 | 8.3 | 917 | 50/200 |
+| LiftOn v1.0.8 | 0.99472 | 0.86987 | 0.97734 | 1 | 0.79961 | 5655 | 237.1 | 1907 | 53/49 |
+| LiftOn devel | 0.99472 | 0.86987 | 0.98078 | 1 | 0.79961 | 5655 | 139.3 | 549 | 53/42 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00344, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01324, completeness -0.00510
+- **LiftOn devel speedup vs v1.0.8:** 1.70x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 37105 | 29302 | 29801 | |
+| exon | 52411 | 45288 | 45747 | |
 
 ### arabidopsis_to_lyrata — A. thaliana TAIR10 -> A. lyrata  (close_cross_species · _new_taxa_plant_close_; RefSeq; n_coding=12653)
 
@@ -421,6 +486,178 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | CDS | 34421 | 842 | 1747 | |
 | exon | 45748 | 9576 | 10141 | |
 
+### t2_human_to_gorilla — Homo sapiens (GRCh38) -> Gorilla gorilla  (close_cross_species · _tier2_close_primate_; RefSeq; n_coding=3086)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.99935 | 0.38651 | 0.96327 | 0.99383 | 0.19585 | 3084 | 67 | 5536 | 100/100 |
+| miniprot | 0.99935 | n/a | 0.96396 | 0.99238 | 0.1618 | 3084 | 6.6 | 1067 | 50/200 |
+| LiftOn v1.0.8 | 0.99935 | 0.38651 | 0.9742 | 0.99383 | 0.19585 | 3084 | 292.9 | 35348 | 50/5 |
+| LiftOn devel | 0.99935 | 0.38651 | 0.97855 | 0.99383 | 0.19585 | 3084 | 158.7 | 468 | 50/1 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00435, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01459, completeness +0.00000
+- **LiftOn devel speedup vs v1.0.8:** 1.85x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 32174 | 4374 | 4872 | |
+| exon | 42253 | 18916 | 19400 | |
+
+### t2_mouse_to_caroli — Mus musculus (GRCm39) -> Mus caroli  (close_cross_species · _tier2_close_rodent_; RefSeq; n_coding=8170)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.97968 | 0.80637 | 0.93283 | 0.98958 | 0.15192 | 8004 | 283.7 | 3849 | 100/126 |
+| miniprot | 0.99767 | n/a | 0.93269 | 0.98701 | 0.1298 | 8151 | 24.4 | 1953 | 50/200 |
+| LiftOn v1.0.8 | 0.97968 | 0.80637 | 0.95873 | 0.98963 | 0.15217 | 8004 | 2092.2 | 44401 | 51/56 |
+| LiftOn devel | 0.97968 | 0.80637 | 0.96277 | 0.98967 | 0.15217 | 8004 | 465.9 | 676 | 51/35 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00404, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.02994, completeness -0.01799
+- **LiftOn devel speedup vs v1.0.8:** 4.49x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 109992 | 11677 | 13562 | |
+| exon | 142965 | 55812 | 57751 | |
+
+### t2_tomato_to_potato — Solanum lycopersicum (Micro-Tom) -> Solanum tuberosum (potato)  (close_cross_species · _tier2_close_plant_solanaceae_; RefSeq; n_coding=5685)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.1168 | 0.09155 | 0.84262 | 0.95497 | 0.00954 | 664 | 26.8 | 1062 | 100/135 |
+| miniprot | 0.22463 | n/a | 0.5696 | 0.54242 | 0.0047 | 1277 | 8.1 | 1237 | 50/200 |
+| LiftOn v1.0.8 | 0.11961 | 0.094 | 0.86945 | 0.95482 | 0.0093 | 680 | 40.3 | 453 | 51/81 |
+| LiftOn devel | 0.11961 | 0.094 | 0.87226 | 0.95489 | 0.0093 | 680 | 36.6 | 426 | 51/74 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00281, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.02964, completeness -0.10502
+- **LiftOn devel speedup vs v1.0.8:** 1.10x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 37105 | 87 | 208 | |
+| exon | 52411 | 1896 | 1996 | |
+
+### t3_dog_to_cat — Canis lupus familiaris (dog) -> Felis catus (cat)  (distant_cross_species · _tier3_moderate_carnivore_; RefSeq; n_coding=3951)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.98532 | 0.84458 | 0.71487 | 0.89146 | 0.02442 | 3893 | 258.8 | 5864 | 100/143 |
+| miniprot | 0.97418 | n/a | 0.80445 | 0.90429 | 0.02312 | 3849 | 24.4 | 5096 | 50/200 |
+| LiftOn v1.0.8 | 0.98532 | 0.84458 | 0.82108 | 0.89764 | 0.02467 | 3893 | 280.5 | 3182 | 59/133 |
+| LiftOn devel | 0.98532 | 0.84458 | 0.83709 | 0.89868 | 0.02467 | 3893 | 179 | 515 | 59/89 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.01601, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.03264, completeness +0.00000
+- **LiftOn devel speedup vs v1.0.8:** 1.57x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 40153 | 1501 | 4356 | |
+| exon | 54821 | 20097 | 22739 | |
+
+### t3_human_to_macaque — Homo sapiens (GRCh38) -> Macaca mulatta (rhesus macaque)  (distant_cross_species · _tier3_moderate_primate_; RefSeq; n_coding=3086)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.99903 | 0.38097 | 0.90935 | 0.97697 | 0.07445 | 3083 | 90.3 | 5658 | 100/107 |
+| miniprot | 0.99968 | n/a | 0.92715 | 0.97525 | 0.06224 | 3085 | 8 | 1274 | 50/200 |
+| LiftOn v1.0.8 | 0.99935 | 0.38112 | 0.93956 | 0.97701 | 0.07475 | 3084 | 278.6 | 34499 | 50/22 |
+| LiftOn devel | 0.99935 | 0.38112 | 0.94315 | 0.97705 | 0.07475 | 3084 | 149.2 | 546 | 50/14 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00359, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01600, completeness -0.00033
+- **LiftOn devel speedup vs v1.0.8:** 1.87x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 32174 | 1836 | 2871 | |
+| exon | 42253 | 16879 | 17939 | |
+
+### t3_human_to_marmoset — Homo sapiens (GRCh38) -> Callithrix jacchus (common marmoset)  (distant_cross_species · _tier3_moderate_primate_nwm_; RefSeq; n_coding=3086)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.99157 | 0.37429 | 0.84133 | 0.95116 | 0.04651 | 3060 | 151.3 | 9482 | 100/107 |
+| miniprot | 0.99287 | n/a | 0.88478 | 0.95236 | 0.03884 | 3064 | 11.8 | 2101 | 50/200 |
+| LiftOn v1.0.8 | 0.99222 | 0.37451 | 0.89928 | 0.95415 | 0.04681 | 3062 | 271.9 | 35947 | 51/46 |
+| LiftOn devel | 0.99222 | 0.37451 | 0.90711 | 0.95506 | 0.04681 | 3062 | 151.3 | 52 | 51/32 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00783, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.02233, completeness -0.00065
+- **LiftOn devel speedup vs v1.0.8:** 1.80x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 32174 | 1092 | 2707 | |
+| exon | 42253 | 15833 | 17444 | |
+
+### t4_drosophila_to_bee — Drosophila melanogaster -> Apis mellifera (honey bee)  (very_distant_cross_species · _tier4_distant_insect_; RefSeq; n_coding=7251)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.00662 | 0.01026 | 0.35965 | 0.3676 | 0 | 48 | 32.8 | 1766 | 67/98 |
+| miniprot | 0.66956 | n/a | 0.42476 | 0.42634 | 0.00082 | 4855 | 92.4 | 13129 | 50/200 |
+| LiftOn v1.0.8 | 0.09544 | 0.10808 | 0.50211 | 0.4915 | 0 | 692 | 39.7 | 664 | 52/50 |
+| LiftOn devel | 0.09544 | 0.10808 | 0.50211 | 0.4915 | 0 | 692 | 34.3 | 386 | 52/50 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00000, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.07735, completeness -0.57412
+- **LiftOn devel speedup vs v1.0.8:** 1.16x
+
+### t4_human_to_chicken — Homo sapiens (GRCh38) -> Gallus gallus (chicken)  (very_distant_cross_species · _tier4_distant_amniote_; RefSeq; n_coding=3086)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.23688 | 0.06711 | 0.25414 | 0.06688 | 0 | 731 | 148.5 | 20064 | 100/123 |
+| miniprot | 0.88626 | n/a | 0.65329 | 0.70803 | 0.00548 | 2735 | 64.5 | 10161 | 50/200 |
+| LiftOn v1.0.8 | 0.24984 | 0.07279 | 0.7075 | 0.77823 | 0 | 771 | 55.5 | 2036 | 72/74 |
+| LiftOn devel | 0.24984 | 0.07279 | 0.72051 | 0.77883 | 0 | 771 | 50.9 | 388 | 72/73 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.01301, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.06722, completeness -0.63642
+- **LiftOn devel speedup vs v1.0.8:** 1.09x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 32174 | 25 | 120 | |
+| exon | 42253 | 1511 | 1645 | |
+
+### t4_human_to_xenopus — Homo sapiens (GRCh38) -> Xenopus tropicalis (frog)  (very_distant_cross_species · _tier4_distant_tetrapod_; RefSeq; n_coding=3086)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.05671 | 0.01861 | 0.27082 | 0.14532 | 0 | 175 | 78.5 | 6184 | 100/102 |
+| miniprot | 0.86876 | n/a | 0.60514 | 0.63054 | 0 | 2681 | 71.4 | 1512 | 50/200 |
+| LiftOn v1.0.8 | 0.07907 | 0.02853 | 0.59225 | 0.64734 | 0 | 244 | 25.2 | 422 | 50/52 |
+| LiftOn devel | 0.07907 | 0.02853 | 0.60641 | 0.64734 | 0 | 244 | 24.1 | 366 | 50/52 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.01416, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.00127, completeness -0.78969
+- **LiftOn devel speedup vs v1.0.8:** 1.05x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 32174 | 7 | 18 | |
+
 ### yeast_cerevisiae_to_paradoxus — S. cerevisiae -> S. paradoxus  (close_cross_species · _new_taxa_fungi_; RefSeq; n_coding=767)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
@@ -548,6 +785,64 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | tRNA | 672 | 476 | 666 | ⬅ gene-like |
 | transcript | 3840 | 2703 | 3836 | |
 
+### t1_maize_b73_to_mo17 — Zea mays (B73) -> Zea mays (Mo17)  (same-species · _tier1_intra_species_plant_maize_; RefSeq; n_coding=57345)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.96905 | 0.85268 | 0.91517 | 0.99599 | 0.38068 | 55570 | n/a | n/a | 154/205 |
+| miniprot | 0.99881 | n/a | 0.94732 | 0.99491 | 0.32811 | 57277 | n/a | n/a | 50/200 |
+| LiftOn devel | 0.96526 | 0.89322 | 0.95494 | 0.9962 | 0.38556 | 55353 | 3408.7 | 27356 | 175/154 |
+
+- **LiftOn devel − v1.0.8:** mean PI n/a, completeness n/a, n_recovered n/a
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.00762, completeness -0.03355
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 346676 | 0 | 23478 | |
+| antisense_RNA | 1 | 0 | 1 | |
+| exon | 509115 | 0 | 329340 | |
+| gene | 44680 | 0 | 42188 | |
+| lnc_RNA | 7804 | 0 | 7281 | ⬅ gene-like |
+| mRNA | 57345 | 0 | 55353 | |
+| primary_transcript | 164 | 0 | 161 | |
+| pseudogene | 5222 | 0 | 4623 | ⬅ gene-like |
+| rRNA | 2439 | 0 | 1819 | ⬅ gene-like |
+| snRNA | 241 | 0 | 228 | ⬅ gene-like |
+| snoRNA | 655 | 0 | 567 | ⬅ gene-like |
+| tRNA | 1374 | 0 | 957 | ⬅ gene-like |
+| transcript | 8186 | 0 | 7380 | |
+
+### t1_tomato_microtom_to_heinz — Solanum lycopersicum (Micro-Tom) -> Solanum lycopersicum (Heinz 1706)  (same-species · _tier1_intra_species_plant_tomato_; RefSeq; n_coding=44391)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.99516 | 0.84577 | 0.9608 | 1 | 0.76267 | 44176 | n/a | n/a | 152/182 |
+| miniprot | 0.99966 | n/a | 0.96498 | 1 | 0.65475 | 44376 | n/a | n/a | 50/200 |
+| LiftOn devel | 0.99475 | 0.85899 | 0.97742 | 1 | 0.76343 | 44158 | 6550 | 7177 | 167/125 |
+
+- **LiftOn devel − v1.0.8:** mean PI n/a, completeness n/a, n_recovered n/a
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01244, completeness -0.00491
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 275535 | 0 | 34277 | |
+| SRP_RNA | 3 | 0 | 3 | |
+| exon | 374374 | 0 | 322713 | |
+| gene | 40021 | 0 | 34270 | |
+| lnc_RNA | 5503 | 0 | 5462 | ⬅ gene-like |
+| mRNA | 44391 | 0 | 44158 | |
+| primary_transcript | 101 | 0 | 101 | |
+| pseudogene | 1457 | 0 | 1400 | ⬅ gene-like |
+| rRNA | 5879 | 0 | 347 | ⬅ gene-like |
+| snRNA | 204 | 0 | 199 | ⬅ gene-like |
+| snoRNA | 311 | 0 | 308 | ⬅ gene-like |
+| tRNA | 858 | 0 | 836 | ⬅ gene-like |
+| transcript | 3583 | 0 | 3538 | |
+
 ### arabidopsis_to_rice — A. thaliana TAIR10 -> Rice (eudicot->monocot)  (very_distant_cross_species · _divergence_ladder_very_distant_plant_; RefSeq; n_coding=48265)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
@@ -623,4 +918,263 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | snRNA | 172 | 48 | 39 | ⬅ gene-like |
 | tRNA | 688 | 398 | 397 | ⬅ gene-like |
 | transcript | 14988 | 213 | 225 | |
+
+### t2_human_to_gorilla — Homo sapiens (GRCh38) -> Gorilla gorilla  (close_cross_species · _tier2_close_primate_; RefSeq; n_coding=144329)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.89649 | 0.37229 | 0.95703 | 0.99338 | 0.17309 | 129389 | n/a | n/a | 100/209 |
+| miniprot | 0.99974 | n/a | 0.96009 | 0.99142 | 0.13038 | 144292 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.89658 | 0.37236 | 0.97577 | 0.99346 | 0.17387 | 129403 | 27747 | 50077 | 128/189 |
+| LiftOn devel | 0.89248 | 0.40116 | 0.97696 | 0.99351 | 0.17443 | 128811 | 12051 | 44738 | 96/150 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00119, completeness -0.00410, n_recovered -592
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01687, completeness -0.10726
+- **LiftOn devel speedup vs v1.0.8:** 2.30x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1835542 | 213209 | 224945 | |
+| C_gene_segment | 44 | 28 | 31 | |
+| J_gene_segment | 128 | 55 | 60 | |
+| V_gene_segment | 664 | 256 | 445 | |
+| exon | 2300886 | 819561 | 844367 | |
+| gene | 47782 | 41788 | 41551 | |
+| lnc_RNA | 32088 | 29488 | 29341 | ⬅ gene-like |
+| mRNA | 144415 | 129467 | 128876 | |
+| primary_transcript | 2139 | 1707 | 1705 | |
+| pseudogene | 19247 | 0 | 16088 | ⬅ gene-like |
+| snRNA | 172 | 137 | 123 | ⬅ gene-like |
+| tRNA | 688 | 414 | 412 | ⬅ gene-like |
+| transcript | 14988 | 11731 | 13168 | |
+
+### t2_mouse_to_caroli — Mus musculus (GRCm39) -> Mus caroli  (close_cross_species · _tier2_close_rodent_; RefSeq; n_coding=96192)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.97265 | 0.79276 | 0.90796 | 0.98765 | 0.11682 | 93561 | n/a | n/a | 101/209 |
+| miniprot | 0.99793 | n/a | 0.92541 | 0.98536 | 0.0907 | 95993 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.97272 | 0.79282 | 0.94946 | 0.98812 | 0.11792 | 93568 | 22671 | 86406 | 152/162 |
+| LiftOn devel | 0.96898 | 0.82936 | 0.95177 | 0.98824 | 0.11841 | 93208 | 8201 | 29166 | 101/154 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00231, completeness -0.00374, n_recovered -360
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.02636, completeness -0.02895
+- **LiftOn devel speedup vs v1.0.8:** 2.76x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1194622 | 100707 | 115956 | |
+| C_gene_segment | 21 | 19 | 20 | |
+| J_gene_segment | 94 | 30 | 35 | |
+| V_gene_segment | 527 | 218 | 297 | |
+| exon | 1570915 | 608663 | 627768 | |
+| gene | 40200 | 37319 | 37098 | |
+| lnc_RNA | 23513 | 23110 | 23073 | ⬅ gene-like |
+| mRNA | 96192 | 93568 | 93208 | |
+| primary_transcript | 1227 | 852 | 851 | |
+| pseudogene | 10365 | 0 | 7907 | ⬅ gene-like |
+| rRNA | 64 | 20 | 17 | ⬅ gene-like |
+| snRNA | 1000 | 739 | 729 | ⬅ gene-like |
+| snoRNA | 1330 | 967 | 963 | ⬅ gene-like |
+| transcript | 11340 | 10541 | 10917 | |
+
+### t2_tomato_to_potato — Solanum lycopersicum (Micro-Tom) -> Solanum tuberosum (potato)  (close_cross_species · _tier2_close_plant_solanaceae_; RefSeq; n_coding=44391)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.9251 | 0.76677 | 0.76163 | 0.9432 | 0.01131 | 41066 | n/a | n/a | 128/204 |
+| miniprot | 0.99221 | n/a | 0.84034 | 0.94527 | 0.00874 | 44045 | n/a | n/a | 50/200 |
+| LiftOn devel | 0.92963 | 0.78095 | 0.8585 | 0.94955 | 0.01197 | 41267 | 3234.8 | 7183 | 158/159 |
+
+- **LiftOn devel − v1.0.8:** mean PI n/a, completeness n/a, n_recovered n/a
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.01816, completeness -0.06258
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 275535 | 0 | 16155 | |
+| SRP_RNA | 3 | 0 | 3 | |
+| exon | 374374 | 0 | 146690 | |
+| gene | 40021 | 0 | 30970 | |
+| lnc_RNA | 5503 | 0 | 4562 | ⬅ gene-like |
+| mRNA | 44391 | 0 | 41267 | |
+| primary_transcript | 101 | 0 | 73 | |
+| pseudogene | 1457 | 0 | 1074 | ⬅ gene-like |
+| rRNA | 5879 | 0 | 103 | ⬅ gene-like |
+| snRNA | 204 | 0 | 139 | ⬅ gene-like |
+| snoRNA | 311 | 0 | 225 | ⬅ gene-like |
+| tRNA | 858 | 0 | 773 | ⬅ gene-like |
+| transcript | 3583 | 0 | 3200 | |
+
+### t3_dog_to_cat — Canis lupus familiaris (dog) -> Felis catus (cat)  (distant_cross_species · _tier3_moderate_carnivore_; RefSeq; n_coding=62347)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.9822 | 0.85037 | 0.69504 | 0.89916 | 0.03618 | 61237 | n/a | n/a | 100/200 |
+| miniprot | 0.98887 | n/a | 0.83942 | 0.93258 | 0.03289 | 61653 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.98274 | 0.85083 | 0.86795 | 0.93504 | 0.03964 | 61271 | 18263 | 46214 | 159/200 |
+| LiftOn devel | 0.9801 | 0.86572 | 0.87089 | 0.93548 | 0.03971 | 61106 | n/a | n/a | 107/180 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00294, completeness -0.00264, n_recovered -165
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.03147, completeness -0.00877
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 772925 | 27866 | 44894 | |
+| exon | 1009715 | 329400 | 350705 | |
+| gene | 35509 | 32297 | 32120 | |
+| lnc_RNA | 24231 | 22744 | 22734 | ⬅ gene-like |
+| mRNA | 62347 | 61271 | 61106 | |
+| pseudogene | 4909 | 0 | 2507 | ⬅ gene-like |
+| rRNA | 14 | 12 | 14 | ⬅ gene-like |
+| snRNA | 1131 | 332 | 295 | ⬅ gene-like |
+| tRNA | 436 | 304 | 309 | ⬅ gene-like |
+| transcript | 5076 | 4913 | 4931 | |
+
+### t3_human_to_macaque — Homo sapiens (GRCh38) -> Macaca mulatta (rhesus macaque)  (distant_cross_species · _tier3_moderate_primate_; RefSeq; n_coding=144329)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.89122 | 0.36527 | 0.89019 | 0.97624 | 0.07343 | 128629 | n/a | n/a | 100/211 |
+| miniprot | 0.99784 | n/a | 0.90994 | 0.97316 | 0.05489 | 144017 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.89137 | 0.36536 | 0.93869 | 0.97737 | 0.07467 | 128650 | 30051 | 49343 | 147/183 |
+| LiftOn devel | 0.88413 | 0.38803 | 0.94047 | 0.9775 | 0.07477 | 127605 | 11853 | 4474 | 98/157 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00178, completeness -0.00724, n_recovered -1045
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.03053, completeness -0.11371
+- **LiftOn devel speedup vs v1.0.8:** 2.54x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1835542 | 92589 | 121627 | |
+| C_gene_segment | 44 | 21 | 25 | |
+| J_gene_segment | 128 | 25 | 26 | |
+| V_gene_segment | 664 | 296 | 456 | |
+| exon | 2300886 | 708011 | 744857 | |
+| gene | 47782 | 40166 | 39872 | |
+| lnc_RNA | 32088 | 29087 | 29003 | ⬅ gene-like |
+| mRNA | 144415 | 128715 | 127670 | |
+| pseudogene | 19247 | 0 | 13282 | ⬅ gene-like |
+| snRNA | 172 | 88 | 66 | ⬅ gene-like |
+| snoRNA | 1300 | 786 | 783 | ⬅ gene-like |
+| tRNA | 688 | 383 | 382 | ⬅ gene-like |
+| transcript | 14988 | 11673 | 12842 | |
+
+### t3_human_to_marmoset — Homo sapiens (GRCh38) -> Callithrix jacchus (common marmoset)  (distant_cross_species · _tier3_moderate_primate_nwm_; RefSeq; n_coding=144329)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.8899 | 0.35963 | 0.80941 | 0.94803 | 0.0403 | 128439 | n/a | n/a | 100/211 |
+| miniprot | 0.99631 | n/a | 0.86379 | 0.94931 | 0.03127 | 143796 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.89011 | 0.35973 | 0.89979 | 0.95522 | 0.0421 | 128468 | 33993 | 49647 | 150/176 |
+| LiftOn devel | 0.88268 | 0.37926 | 0.90106 | 0.95559 | 0.04242 | 127396 | 12081 | 44739 | 100/170 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00127, completeness -0.00743, n_recovered -1072
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.03727, completeness -0.11363
+- **LiftOn devel speedup vs v1.0.8:** 2.81x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1835542 | 62665 | 107350 | |
+| C_gene_segment | 44 | 17 | 20 | |
+| V_gene_segment | 664 | 215 | 310 | |
+| Y_RNA | 4 | 4 | 3 | |
+| exon | 2300886 | 664974 | 718210 | |
+| gene | 47782 | 38771 | 38476 | |
+| lnc_RNA | 32088 | 28424 | 28296 | ⬅ gene-like |
+| mRNA | 144415 | 128530 | 127458 | |
+| pseudogene | 19247 | 0 | 11597 | ⬅ gene-like |
+| snRNA | 172 | 78 | 64 | ⬅ gene-like |
+| snoRNA | 1300 | 443 | 439 | ⬅ gene-like |
+| tRNA | 688 | 313 | 312 | ⬅ gene-like |
+| transcript | 14988 | 11561 | 12726 | |
+
+### t4_drosophila_to_bee — Drosophila melanogaster -> Apis mellifera (honey bee)  (very_distant_cross_species · _tier4_distant_insect_; RefSeq; n_coding=30799)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.00591 | 0.00777 | 0.22727 | 0.1324 | 0 | 182 | n/a | n/a | 100/152 |
+| miniprot | 0.66733 | n/a | 0.42797 | 0.42325 | 0.00268 | 20553 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.08461 | 0.08734 | 0.49673 | 0.48477 | 0.00307 | 2606 | 1141.6 | 29383 | 125/52 |
+| LiftOn devel | 0.08461 | 0.0877 | 0.49673 | 0.48477 | 0.00307 | 2606 | 575.4 | 47979 | 75/52 |
+
+- **LiftOn devel − v1.0.8:** mean PI +0.00000, completeness +0.00000, n_recovered +0
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.06876, completeness -0.58272
+- **LiftOn devel speedup vs v1.0.8:** 1.98x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| exon | 190719 | 369 | 382 | |
+| gene | 17559 | 2590 | 2588 | |
+| pseudogene | 339 | 0 | 13 | ⬅ gene-like |
+| rRNA | 134 | 10 | 21 | ⬅ gene-like |
+
+### t4_human_to_chicken — Homo sapiens (GRCh38) -> Gallus gallus (chicken)  (very_distant_cross_species · _tier4_distant_amniote_; RefSeq; n_coding=144329)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.23994 | 0.07365 | 0.15219 | 0.05996 | 0.00027 | 34630 | n/a | n/a | 100/200 |
+| miniprot | 0.85634 | n/a | 0.64493 | 0.69753 | 0.00249 | 123595 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.24893 | 0.07811 | 0.77396 | 0.83792 | 0.00597 | 35928 | 10383 | 49085 | 121/131 |
+| LiftOn devel | 0.24398 | 0.0772 | 0.77374 | 0.83708 | 0.0058 | 35213 | 4643 | 44739 | 100/159 |
+
+- **LiftOn devel − v1.0.8:** mean PI -0.00022, completeness -0.00495, n_recovered -715
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.12881, completeness -0.61236
+- **LiftOn devel speedup vs v1.0.8:** 2.24x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1835542 | 2618 | 2632 | |
+| V_gene_segment | 664 | 2 | 4 | |
+| exon | 2300886 | 69792 | 68513 | |
+| gene | 47782 | 6168 | 6060 | |
+| lnc_RNA | 32088 | 708 | 702 | ⬅ gene-like |
+| mRNA | 144415 | 35928 | 35213 | |
+| pseudogene | 19247 | 0 | 352 | ⬅ gene-like |
+| scRNA | 4 | 2 | 1 | |
+| snRNA | 172 | 31 | 25 | ⬅ gene-like |
+| tRNA | 688 | 209 | 210 | ⬅ gene-like |
+| transcript | 14988 | 2223 | 2178 | |
+
+### t4_human_to_xenopus — Homo sapiens (GRCh38) -> Xenopus tropicalis (frog)  (very_distant_cross_species · _tier4_distant_tetrapod_; RefSeq; n_coding=144329)
+
+| tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
+|---|---|---|---|---|---|---|---|---|---|
+| Liftoff | 0.0713 | 0.02347 | 0.1584 | 0.05108 | 0.00082 | 10291 | n/a | n/a | 100/200 |
+| miniprot | 0.85778 | n/a | 0.60055 | 0.63073 | 0.00117 | 123803 | n/a | n/a | 50/200 |
+| LiftOn v1.0.8 | 0.08989 | 0.03272 | 0.71792 | 0.76923 | 0.00218 | 12974 | 9018 | 44226 | 112/154 |
+| LiftOn devel | 0.08829 | 0.03276 | 0.71765 | 0.76635 | 0.00205 | 12743 | 3611 | 4474 | 100/154 |
+
+- **LiftOn devel − v1.0.8:** mean PI -0.00027, completeness -0.00160, n_recovered -231
+- **LiftOn devel − best(Liftoff, miniprot):** mean PI +0.11710, completeness -0.76949
+- **LiftOn devel speedup vs v1.0.8:** 2.50x
+
+Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
+
+| feature type | n_reference | v1.0.8 recovered | devel recovered | |
+|---|---|---|---|---|
+| CDS | 1835542 | 770 | 719 | |
+| exon | 2300886 | 18671 | 18463 | |
+| gene | 47782 | 4554 | 4509 | |
+| lnc_RNA | 32088 | 320 | 322 | ⬅ gene-like |
+| mRNA | 144415 | 12974 | 12743 | |
+| pseudogene | 19247 | 0 | 277 | ⬅ gene-like |
+| snRNA | 172 | 51 | 44 | ⬅ gene-like |
+| tRNA | 688 | 403 | 404 | ⬅ gene-like |
+| transcript | 14988 | 640 | 663 | |
 
