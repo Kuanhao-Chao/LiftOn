@@ -15,6 +15,7 @@ delegations to these functions, preserving the recursive dispatch
 (gene → trans → exon → CDS) exactly.
 """
 from lifton import logger
+from lifton.exceptions import LiftOnError
 from lifton.io import gff3_writer
 
 
@@ -57,9 +58,18 @@ def write_trans(trans, fw):
     # percent-encodes reserved chars, sorts attributes (ID, Parent,
     # alphabetical), and validates start <= end. Skip child writes
     # if the parent fails so we don't ship orphan-Parent rows.
+    #
+    # Iter-21: `format_feature` raises `LiftOnInputError` (a `LiftOnError`,
+    # NOT a ValueError) when a transcript has invalid coords — e.g. an
+    # inverted `start > end` mRNA produced by `update_cds_list` on a
+    # pathological no-valid-ORF model (full dog->cat crash). Catch the
+    # `LiftOnError` base too so one malformed transcript is skip-and-logged
+    # (matching the bare-`Exception` breadth of the sibling write_* funcs)
+    # instead of propagating out of the parent-thread consume() write phase
+    # and aborting the entire genome lift.
     try:
         fw.write(gff3_writer.format_feature(trans.entry) + "\n")
-    except (OSError, ValueError, TypeError, AttributeError) as e:
+    except (OSError, ValueError, TypeError, AttributeError, LiftOnError) as e:
         logger.log_error(
             f"Failed to write TRANSCRIPT entry {trans.entry.id}: {e}"
         )

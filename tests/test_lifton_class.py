@@ -427,6 +427,65 @@ class TestWriteEntry:
         assert "gene" not in feature_types
         assert "mRNA" in feature_types
 
+    def test_write_trans_skips_inverted_coords_without_aborting(
+            self, gff_standard, fake_args, ref_features_dict_one_gene,
+            tmp_path, capsys):
+        # Regression for the full dog->cat crash (Iter-21): an mRNA whose
+        # entry.start > entry.end makes format_feature raise LiftOnInputError,
+        # which write_trans's *narrow* except tuple did NOT catch — so it
+        # propagated out of the parent-thread consume() write phase and
+        # aborted the whole ~60k-transcript genome lift. The widened tuple
+        # (now catching LiftOnError) must skip-and-log the bad transcript.
+        from lifton.io import feature_serializer
+        db = annotation.Annotation(
+            str(gff_standard), False, False, "create_unique", None, True, False,
+        ).db_connection
+        gene = _build_lifton_gene(db, fake_args, ref_features_dict_one_gene)
+        bad = gene.add_transcript(
+            "txbad", copy.deepcopy(db["tx1"]), _trans_attrs(trans_id="txbad"),
+        )
+        bad.entry.start = 200   # inverted: start > end
+        bad.entry.end = 100
+
+        out = tmp_path / "bad.gff3"
+        with open(out, "w") as fw:
+            # Must NOT raise (pre-fix: LiftOnInputError propagated fatally).
+            feature_serializer.write_trans(bad, fw)
+        assert out.read_text() == ""  # inverted mRNA skipped, nothing written
+        assert "Failed to write TRANSCRIPT" in capsys.readouterr().err
+
+    def test_inverted_transcript_does_not_block_sibling(
+            self, gff_standard, fake_args, ref_features_dict_one_gene,
+            tmp_path, capsys):
+        # The production symptom: one malformed transcript must not prevent
+        # the rest of the gene (and the genome) from being written. dog->cat
+        # devel emitted only 11,048 mRNA instead of 61,435 before this fix.
+        db = annotation.Annotation(
+            str(gff_standard), False, False, "create_unique", None, True, False,
+        ).db_connection
+        gene = _build_lifton_gene(db, fake_args, ref_features_dict_one_gene)
+        good = gene.add_transcript(
+            "tx1", copy.deepcopy(db["tx1"]), _trans_attrs(),
+        )
+        good.add_exon(copy.deepcopy(db["exon1"]))
+        good.add_cds(copy.deepcopy(db["cds1"]))
+        bad = gene.add_transcript(
+            "txbad", copy.deepcopy(db["tx1"]), _trans_attrs(trans_id="txbad"),
+        )
+        bad.entry.start = 200   # inverted: start > end
+        bad.entry.end = 100
+
+        out = tmp_path / "mix.gff3"
+        with open(out, "w") as fw:
+            # Must complete without raising and still emit the good sibling.
+            gene.write_entry(fw, {"coding": {}, "non-coding": {}, "other": {}})
+        ftypes = [l.split("\t")[2]
+                  for l in out.read_text().splitlines() if l.strip()]
+        assert "gene" in ftypes            # gene line still emitted
+        assert ftypes.count("mRNA") == 1   # only the good transcript's mRNA
+        assert "exon" in ftypes            # good sibling's children present
+        assert "Failed to write TRANSCRIPT" in capsys.readouterr().err
+
 
 # ---------------------------------------------------------------------------
 # Lifton_EXON / Lifton_CDS leaf classes
