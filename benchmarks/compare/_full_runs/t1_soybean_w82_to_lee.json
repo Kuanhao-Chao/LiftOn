@@ -1,0 +1,35 @@
+{
+  "full:t1_soybean_w82_to_lee": {
+    "benchmark": "t1_soybean_w82_to_lee",
+    "mode": "full",
+    "key": "full:t1_soybean_w82_to_lee",
+    "species": "Glycine max (Williams 82) -> Glycine max (Lee)",
+    "cross_species": false,
+    "dimension": "tier1_intra_species_plant_soybean",
+    "divergence_class": "same_species",
+    "annotation_database": "RefSeq",
+    "n_reference_coding": null,
+    "n_reference_total": null,
+    "tools": [],
+    "completeness_coding": {},
+    "completeness_feature_total": {},
+    "mean_pi": {},
+    "median_pi": {},
+    "pct_identical": {},
+    "n_recovered_coding": {},
+    "n_recovered_any": {},
+    "wall_s": {},
+    "peak_rss_mb": {},
+    "validity": {},
+    "feature_census": {},
+    "devel_vs_stable": {
+      "meanpi": null,
+      "completeness": null,
+      "n_recovered": null
+    },
+    "devel_vs_best_baseline": {
+      "meanpi": null,
+      "completeness": null
+    }
+  }
+}

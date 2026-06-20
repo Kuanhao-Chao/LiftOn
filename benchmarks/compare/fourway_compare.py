@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -42,7 +43,10 @@ HERE = Path(__file__).resolve().parent
 WORK = HERE / "work"
 DATA = HERE.parent / "data"
 REG = json.loads((HERE / "benchmarks.json").read_text())
-RESULTS = HERE / "fourway_results.json"
+# Per-run results file (parallel-safe): FOURWAY_RESULTS_JSON lets concurrent
+# `--full` runs each write their OWN file (no race on the shared, unlocked _save
+# read-modify-write); merge them into fourway_results.json afterward.
+RESULTS = Path(os.environ.get("FOURWAY_RESULTS_JSON", str(HERE / "fourway_results.json")))
 
 TOOLS = ["liftoff", "miniprot", "lifton_stable", "lifton_devel"]
 # tool label -> version_compare VERSIONS key (only the two LiftOn columns map)

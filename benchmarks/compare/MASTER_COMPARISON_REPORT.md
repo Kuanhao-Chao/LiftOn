@@ -5,7 +5,7 @@
 
 ## 1. Executive summary
 
-**LiftOn devel is the most accurate tool in the field.** Across the 27 scored benchmarks, LiftOn devel matches or beats the better of the two single-method baselines (Liftoff/minimap2 and miniprot) on mean protein identity in **24/27** datasets, and matches or beats the previous stable release **v1.0.8** in **26/27**. Its advantage over the baselines is largest exactly where lift-over is hardest — distant cross-species pairs — because LiftOn's protein-maximization merge keeps the better of the DNA and protein evidence per transcript.
+**LiftOn devel is the most accurate tool in the field.** Across the 46 scored benchmarks, LiftOn devel matches or beats the better of the two single-method baselines (Liftoff/minimap2 and miniprot) on mean protein identity in **43/46** datasets, and matches or beats the previous stable release **v1.0.8** in **43/46**. Its advantage over the baselines is largest exactly where lift-over is hardest — distant cross-species pairs — because LiftOn's protein-maximization merge keeps the better of the DNA and protein evidence per transcript.
 
 Headline improvements of **devel** over **v1.0.8**:
 
@@ -29,7 +29,7 @@ Headline improvements of **devel** over **v1.0.8**:
 
 **Tools.** *Liftoff* lifts annotations by DNA alignment driven by **minimap2** (the "minimap2" baseline). *miniprot* aligns reference proteins to the target genome (the protein baseline). *LiftOn* combines both via a protein-maximization chaining merge + ORF rescue; we compare the previous stable release **v1.0.8** (tag `e503643d`, isolated `lifton_stable` conda env) against the current **devel** HEAD (`3ff6b9d`, `lifton_devel`).
 
-**Datasets.** 23 subset benchmarks (one representative chromosome, for fast per-transcript scoring) + 6 full-genome headline runs, spanning a divergence ladder — same-species, cross-species, close-, distant-, and very-distant-cross-species — and two annotation databases (**RefSeq** and **Ensembl/GTF**). Targets are independent assemblies, so a perfect lift is not guaranteed even same-species.
+**Datasets.** 34 subset benchmarks (one representative chromosome, for fast per-transcript scoring) + 17 full-genome headline runs, spanning a divergence ladder — same-species, cross-species, close-, distant-, and very-distant-cross-species — and two annotation databases (**RefSeq** and **Ensembl/GTF**). Targets are independent assemblies, so a perfect lift is not guaranteed even same-species.
 
 **Scoring is tool-neutral.** Every tool's output GFF3 is re-scored by the same parasail kernel (`benchmarks/compare/evaluator.py`): a lifted transcript's CDS is translated and aligned to the reference protein; **mean protein identity** is the mean over recovered coding transcripts. This *neutral* re-score ignores each tool's self-reported numbers (we separately track `self_vs_neutral_bias` as a sanity check). Tool transcripts are matched to reference ids copy-suffix-aware; miniprot via its `Target` attribute.
 
@@ -53,28 +53,50 @@ Headline improvements of **devel** over **v1.0.8**:
 | human_pseudogene_stress | same-species | RefSeq | 7,518 | 0.99318 | 0.98983 | 0.99568 | 0.99634 | +0.00316 |
 | mouse | same-species | RefSeq | 8,170 | 0.99026 | 0.97958 | 0.99408 | 0.99408 | +0.00382 |
 | rice | same-species | RefSeq | 5,850 | 0.99864 | 0.9951 | 0.99905 | 0.99905 | +0.00041 |
+| t1_maize_b73_to_mo17 | same-species | RefSeq | 8,527 | 0.91737 | 0.93817 | 0.94574 | 0.94987 | +0.01170 |
+| t1_tomato_microtom_to_heinz | same-species | RefSeq | 5,685 | 0.96742 | 0.96754 | 0.97734 | 0.98078 | +0.01324 |
 | drosophila | cross-species | RefSeq | 7,251 | 0.90845 | 0.92079 | 0.9221 | 0.92578 | +0.00499 |
 | human_to_chimp | cross-species | RefSeq | 12,842 | 0.96489 | 0.96528 | 0.98057 | 0.98057 | +0.01529 |
 | mouse_to_rat | cross-species | RefSeq | 2,343 | 0.85311 | 0.85239 | 0.90521 | 0.9092 | +0.05609 |
 | arabidopsis_to_lyrata | close cross-sp. | RefSeq | 12,653 | 0.79649 | 0.84417 | 0.86364 | 0.87224 | +0.02807 |
 | candida_albicans_to_dubliniensis | close cross-sp. | RefSeq | 1,353 | 0.87204 | 0.88266 | 0.89555 | 0.89692 | +0.01426 |
+| t2_human_to_gorilla | close cross-sp. | RefSeq | 3,086 | 0.96327 | 0.96396 | 0.9742 | 0.97855 | +0.01459 |
+| t2_mouse_to_caroli | close cross-sp. | RefSeq | 8,170 | 0.93283 | 0.93269 | 0.95873 | 0.96277 | +0.02994 |
+| t2_tomato_to_potato | close cross-sp. | RefSeq | 5,685 | 0.84262 | 0.5696 | 0.86945 | 0.87226 | +0.02964 |
 | yeast_cerevisiae_to_paradoxus | close cross-sp. | RefSeq | 767 | 0.89639 | 0.89896 | 0.9076 | 0.90769 | +0.00873 |
 | celegans_to_briggsae | distant cross-sp. | RefSeq | 7,550 | 0.41024 | 0.64726 | 0.71853 | 0.71936 | +0.07210 |
 | chicken_to_quail | distant cross-sp. | RefSeq | 9,068 | 0.82107 | 0.86142 | 0.90374 | 0.91129 | +0.04987 |
 | fly_mel_to_pseudoobscura | distant cross-sp. | RefSeq | 7,251 | 0.63161 | 0.78948 | 0.78209 | 0.79571 | +0.00623 |
 | human_to_mouse | distant cross-sp. | RefSeq | 3,086 | 0.49835 | 0.79104 | 0.76867 | 0.78173 | -0.00931 |
 | rice_to_sorghum | distant cross-sp. | RefSeq | 5,850 | 0.41639 | 0.68191 | 0.66713 | 0.67547 | -0.00644 |
+| t3_dog_to_cat | distant cross-sp. | RefSeq | 3,951 | 0.71487 | 0.80445 | 0.82108 | 0.83709 | +0.03264 |
+| t3_human_to_macaque | distant cross-sp. | RefSeq | 3,086 | 0.90935 | 0.92715 | 0.93956 | 0.94315 | +0.01600 |
+| t3_human_to_marmoset | distant cross-sp. | RefSeq | 3,086 | 0.84133 | 0.88478 | 0.89928 | 0.90711 | +0.02233 |
 | zebrafish_to_medaka | distant cross-sp. | RefSeq | 2,972 | 0.22343 | 0.53279 | 0.55474 | 0.5568 | +0.02401 |
 | arabidopsis_to_rice | very distant cross-sp. | RefSeq | 12,653 | 0.19762 | 0.50782 | 0.54218 | 0.54365 | +0.03583 |
 | cerevisiae_to_pombe | very distant cross-sp. | RefSeq | 767 | 0.56201 | 0.41128 | 0.50495 | 0.50495 | -0.05706 |
 | drosophila_to_anopheles | very distant cross-sp. | RefSeq | 7,251 | 0.2198 | 0.48961 | 0.54848 | 0.55073 | +0.06112 |
 | human_to_zebrafish | very distant cross-sp. | RefSeq | 3,086 | 0.18393 | 0.55574 | 0.56475 | 0.56475 | +0.00901 |
+| t4_drosophila_to_bee | very distant cross-sp. | RefSeq | 7,251 | 0.35965 | 0.42476 | 0.50211 | 0.50211 | +0.07735 |
+| t4_human_to_chicken | very distant cross-sp. | RefSeq | 3,086 | 0.25414 | 0.65329 | 0.7075 | 0.72051 | +0.06722 |
+| t4_human_to_xenopus | very distant cross-sp. | RefSeq | 3,086 | 0.27082 | 0.60514 | 0.59225 | 0.60641 | +0.00127 |
 | arabidopsis·full | same-species | RefSeq | 48,265 | 0.99836 | 0.99619 | 0.99884 | 0.99904 | +0.00068 |
 | bee·full | same-species | RefSeq | 23,471 | 0.98071 | 0.98046 | 0.99024 | 0.99033 | +0.00962 |
 | rice·full | same-species | RefSeq | 42,580 | 0.99643 | 0.99352 | 0.99848 | 0.99818 | +0.00175 |
+| t1_maize_b73_to_mo17·full | same-species | RefSeq | 57,345 | 0.91517 | 0.94732 | n/a | 0.95494 | +0.00762 |
+| t1_tomato_microtom_to_heinz·full | same-species | RefSeq | 44,391 | 0.9608 | 0.96498 | n/a | 0.97742 | +0.01244 |
 | drosophila·full | cross-species | RefSeq | 30,799 | 0.88695 | 0.91315 | 0.92106 | 0.9224 | +0.00925 |
+| t2_human_to_gorilla·full | close cross-sp. | RefSeq | 144,329 | 0.95703 | 0.96009 | 0.97577 | 0.97696 | +0.01687 |
+| t2_mouse_to_caroli·full | close cross-sp. | RefSeq | 96,192 | 0.90796 | 0.92541 | 0.94946 | 0.95177 | +0.02636 |
+| t2_tomato_to_potato·full | close cross-sp. | RefSeq | 44,391 | 0.76163 | 0.84034 | n/a | 0.8585 | +0.01816 |
+| t3_dog_to_cat·full | distant cross-sp. | RefSeq | 62,347 | 0.69504 | 0.83942 | 0.86795 | 0.87089 | +0.03147 |
+| t3_human_to_macaque·full | distant cross-sp. | RefSeq | 144,329 | 0.89019 | 0.90994 | 0.93869 | 0.94047 | +0.03053 |
+| t3_human_to_marmoset·full | distant cross-sp. | RefSeq | 144,329 | 0.80941 | 0.86379 | 0.89979 | 0.90106 | +0.03727 |
 | arabidopsis_to_rice·full | very distant cross-sp. | RefSeq | 48,265 | 0.30904 | 0.50982 | 0.54997 | 0.55051 | +0.04069 |
 | human_to_zebrafish·full | very distant cross-sp. | RefSeq | 144,329 | 0.16318 | 0.54472 | 0.56313 | 0.56114 | +0.01642 |
+| t4_drosophila_to_bee·full | very distant cross-sp. | RefSeq | 30,799 | 0.22727 | 0.42797 | 0.49673 | 0.49673 | +0.06876 |
+| t4_human_to_chicken·full | very distant cross-sp. | RefSeq | 144,329 | 0.15219 | 0.64493 | 0.77396 | 0.77374 | +0.12881 |
+| t4_human_to_xenopus·full | very distant cross-sp. | RefSeq | 144,329 | 0.1584 | 0.60055 | 0.71792 | 0.71765 | +0.11710 |
 
 ![devel minus best baseline](figures/f2_devel_vs_best_baseline.png)
 
@@ -112,28 +134,50 @@ On identical aligner inputs, devel's best-of-outcome merge improves many transcr
 | human_pseudogene_stress | 100.00% | 100.00% | 100.00% | 100.00% |
 | mouse | 93.97% | 95.72% | 93.97% | 93.97% |
 | rice | 100.00% | 100.00% | 100.00% | 100.00% |
+| t1_maize_b73_to_mo17 | 96.11% | 98.52% | 96.14% | 96.13% |
+| t1_tomato_microtom_to_heinz | 99.45% | 99.98% | 99.47% | 99.47% |
 | drosophila | 98.17% | 99.02% | 98.34% | 98.34% |
 | human_to_chimp | 99.03% | 99.94% | 99.03% | 99.03% |
 | mouse_to_rat | 90.74% | 94.92% | 90.74% | 90.74% |
 | arabidopsis_to_lyrata | 93.78% | 97.11% | 93.97% | 93.97% |
 | candida_albicans_to_dubliniensis | 95.79% | 97.64% | 96.60% | 96.60% |
+| t2_human_to_gorilla | 99.94% | 99.94% | 99.94% | 99.94% |
+| t2_mouse_to_caroli | 97.97% | 99.77% | 97.97% | 97.97% |
+| t2_tomato_to_potato | 11.68% | 22.46% | 11.96% | 11.96% |
 | yeast_cerevisiae_to_paradoxus | 95.44% | 98.04% | 95.96% | 96.09% |
 | celegans_to_briggsae | 22.28% | 73.92% | 33.36% | 33.88% |
 | chicken_to_quail | 96.97% | 99.38% | 96.99% | 96.99% |
 | fly_mel_to_pseudoobscura | 71.44% | 93.30% | 80.65% | 80.65% |
 | human_to_mouse | 84.41% | 96.05% | 85.13% | 85.13% |
 | rice_to_sorghum | 70.82% | 92.96% | 76.17% | 76.17% |
+| t3_dog_to_cat | 98.53% | 97.42% | 98.53% | 98.53% |
+| t3_human_to_macaque | 99.90% | 99.97% | 99.94% | 99.94% |
+| t3_human_to_marmoset | 99.16% | 99.29% | 99.22% | 99.22% |
 | zebrafish_to_medaka | 13.39% | 88.80% | 18.40% | 18.40% |
 | arabidopsis_to_rice | 1.60% | 77.14% | 17.24% | 17.24% |
 | cerevisiae_to_pombe | 0.52% | 37.42% | 18.12% | 18.12% |
 | drosophila_to_anopheles | 7.23% | 75.62% | 16.98% | 16.98% |
 | human_to_zebrafish | 3.01% | 84.41% | 5.80% | 5.80% |
+| t4_drosophila_to_bee | 0.66% | 66.96% | 9.54% | 9.54% |
+| t4_human_to_chicken | 23.69% | 88.63% | 24.98% | 24.98% |
+| t4_human_to_xenopus | 5.67% | 86.88% | 7.91% | 7.91% |
 | arabidopsis·full | 99.90% | 99.92% | 28.21% | 99.88% |
 | bee·full | 99.54% | 99.85% | 99.54% | 99.54% |
 | rice·full | 99.90% | 99.96% | 77.34% | 99.88% |
+| t1_maize_b73_to_mo17·full | 96.91% | 99.88% | n/a | 96.53% |
+| t1_tomato_microtom_to_heinz·full | 99.52% | 99.97% | n/a | 99.48% |
 | drosophila·full | 97.08% | 99.11% | 97.40% | 97.08% |
+| t2_human_to_gorilla·full | 89.65% | 99.97% | 89.66% | 89.25% |
+| t2_mouse_to_caroli·full | 97.27% | 99.79% | 97.27% | 96.90% |
+| t2_tomato_to_potato·full | 92.51% | 99.22% | n/a | 92.96% |
+| t3_dog_to_cat·full | 98.22% | 98.89% | 98.27% | 98.01% |
+| t3_human_to_macaque·full | 89.12% | 99.78% | 89.14% | 88.41% |
+| t3_human_to_marmoset·full | 88.99% | 99.63% | 89.01% | 88.27% |
 | arabidopsis_to_rice·full | 1.55% | 76.67% | 14.82% | 14.82% |
 | human_to_zebrafish·full | 2.82% | 82.18% | 4.61% | 4.51% |
+| t4_drosophila_to_bee·full | 0.59% | 66.73% | 8.46% | 8.46% |
+| t4_human_to_chicken·full | 23.99% | 85.63% | 24.89% | 24.40% |
+| t4_human_to_xenopus·full | 7.13% | 85.78% | 8.99% | 8.83% |
 
 ### 4.2 Full-genome recovery — devel completes what v1.0.8 abandons
 
@@ -172,9 +216,18 @@ v1.0.8 lifts only the protein-coding `gene` hierarchy; devel auto-detects every 
 | rice·full | snRNA | 71 | 59 | 71 | +12 |
 | drosophila·full | pseudogene | 339 | 0 | 120 | +120 |
 | drosophila·full | rRNA | 134 | 66 | 83 | +17 |
+| t2_human_to_gorilla·full | pseudogene | 19,247 | 0 | 16,088 | +16,088 |
+| t2_mouse_to_caroli·full | pseudogene | 10,365 | 0 | 7,907 | +7,907 |
+| t3_dog_to_cat·full | pseudogene | 4,909 | 0 | 2,507 | +2,507 |
+| t3_dog_to_cat·full | tRNA | 436 | 304 | 309 | +5 |
+| t3_human_to_macaque·full | pseudogene | 19,247 | 0 | 13,282 | +13,282 |
+| t3_human_to_marmoset·full | pseudogene | 19,247 | 0 | 11,597 | +11,597 |
 | arabidopsis_to_rice·full | pseudogene | 4,851 | 0 | 55 | +55 |
 | human_to_zebrafish·full | pseudogene | 19,247 | 0 | 242 | +242 |
-| celegans_to_briggsae | pseudogene | 867 | 0 | 47 | +47 |
+| t4_drosophila_to_bee·full | pseudogene | 339 | 0 | 13 | +13 |
+| t4_drosophila_to_bee·full | rRNA | 134 | 10 | 21 | +11 |
+| t4_human_to_chicken·full | pseudogene | 19,247 | 0 | 352 | +352 |
+| t4_human_to_xenopus·full | pseudogene | 19,247 | 0 | 277 | +277 |
 
 *(Top differences shown; full per-type census is in `fourway_report.md`.)*
 
@@ -204,28 +257,50 @@ v1.0.8 lifts only the protein-coding `gene` hierarchy; devel auto-detects every 
 | human_pseudogene_stress | 100 | 50 | 50 | 50 |
 | mouse | 100 | 50 | 50 | 50 |
 | rice | 100 | 50 | 50 | 50 |
+| t1_maize_b73_to_mo17 | 100 | 50 | 58 | 58 |
+| t1_tomato_microtom_to_heinz | 100 | 50 | 53 | 53 |
 | drosophila | 131 | 50 | 52 | 51 |
 | human_to_chimp | 100 | 50 | 50 | 50 |
 | mouse_to_rat | 100 | 50 | 50 | 50 |
 | arabidopsis_to_lyrata | 100 | 50 | 67 | 67 |
 | candida_albicans_to_dubliniensis | 100 | 50 | 43 | 35 |
+| t2_human_to_gorilla | 100 | 50 | 50 | 50 |
+| t2_mouse_to_caroli | 100 | 50 | 51 | 51 |
+| t2_tomato_to_potato | 100 | 50 | 51 | 51 |
 | yeast_cerevisiae_to_paradoxus | 85 | 50 | 10 | 11 |
 | celegans_to_briggsae | 100 | 50 | 56 | 54 |
 | chicken_to_quail | 100 | 50 | 54 | 54 |
 | fly_mel_to_pseudoobscura | 131 | 50 | 74 | 68 |
 | human_to_mouse | 100 | 50 | 51 | 51 |
 | rice_to_sorghum | 100 | 50 | 100 | 100 |
+| t3_dog_to_cat | 100 | 50 | 59 | 59 |
+| t3_human_to_macaque | 100 | 50 | 50 | 50 |
+| t3_human_to_marmoset | 100 | 50 | 51 | 51 |
 | zebrafish_to_medaka | 100 | 50 | 50 | 50 |
 | arabidopsis_to_rice | 100 | 50 | 51 | 51 |
 | cerevisiae_to_pombe | 4 | 50 | 0 | 0 |
 | drosophila_to_anopheles | 100 | 50 | 74 | 74 |
 | human_to_zebrafish | 84 | 50 | 51 | 51 |
+| t4_drosophila_to_bee | 67 | 50 | 52 | 52 |
+| t4_human_to_chicken | 100 | 50 | 72 | 72 |
+| t4_human_to_xenopus | 100 | 50 | 50 | 50 |
 | arabidopsis·full | 137 | 50 | 149 | 107 |
 | bee·full | 100 | 50 | 103 | 53 |
 | rice·full | 137 | 50 | 174 | 129 |
+| t1_maize_b73_to_mo17·full | 154 | 50 | None | 175 |
+| t1_tomato_microtom_to_heinz·full | 152 | 50 | None | 167 |
 | drosophila·full | 131 | 50 | 150 | 100 |
+| t2_human_to_gorilla·full | 100 | 50 | 128 | 96 |
+| t2_mouse_to_caroli·full | 101 | 50 | 152 | 101 |
+| t2_tomato_to_potato·full | 128 | 50 | None | 158 |
+| t3_dog_to_cat·full | 100 | 50 | 159 | 107 |
+| t3_human_to_macaque·full | 100 | 50 | 147 | 98 |
+| t3_human_to_marmoset·full | 100 | 50 | 150 | 100 |
 | arabidopsis_to_rice·full | 120 | 50 | 226 | 136 |
 | human_to_zebrafish·full | 92 | 50 | 107 | 100 |
+| t4_drosophila_to_bee·full | 100 | 50 | 125 | 75 |
+| t4_human_to_chicken·full | 100 | 50 | 121 | 100 |
+| t4_human_to_xenopus·full | 100 | 50 | 112 | 100 |
 
 
 ## 6. Performance & resources
@@ -261,11 +336,11 @@ devel ships seven byte-neutral performance iterations (concurrent aligners, para
 
 | divergence class | n benchmarks | Liftoff | miniprot | v1.0.8 | devel |
 |---|---|---|---|---|---|
-| same-species | 7 | 0.98577 | 0.98163 | 0.98917 | 0.9893 |
+| same-species | 9 | 0.97613 | 0.97524 | 0.98303 | 0.98398 |
 | cross-species | 3 | 0.90882 | 0.91282 | 0.93596 | 0.93852 |
-| close cross-sp. | 3 | 0.85497 | 0.87526 | 0.88893 | 0.89228 |
-| distant cross-sp. | 6 | 0.50018 | 0.71732 | 0.73248 | 0.74006 |
-| very distant cross-sp. | 4 | 0.29084 | 0.49111 | 0.54009 | 0.54102 |
+| close cross-sp. | 6 | 0.88394 | 0.84867 | 0.91153 | 0.91507 |
+| distant cross-sp. | 9 | 0.6074 | 0.76892 | 0.78387 | 0.79197 |
+| very distant cross-sp. | 7 | 0.29257 | 0.52109 | 0.56603 | 0.57044 |
 
 On same-species data all four cluster near identity; as divergence grows, Liftoff (DNA-only) falls fastest, miniprot (protein-only) holds up better, and LiftOn — which fuses both — leads throughout, by the widest margin on the distant pairs.
 

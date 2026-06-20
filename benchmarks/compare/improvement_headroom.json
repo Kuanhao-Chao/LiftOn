@@ -1,0 +1,4445 @@
+{
+  "results": [
+    {
+      "cell": "arabidopsis",
+      "divergence_class": "same_species",
+      "mode": "full",
+      "trust": "low_coverage_immaterial",
+      "n_ref_coding": 48265,
+      "devel_recovered_coding": 48207,
+      "devel_compl": 0.9988,
+      "A_rescue": {
+        "n_gap": 41,
+        "have_coords": 18,
+        "no_overlap_genuine_new": 18,
+        "overlap_dup": 0,
+        "floor": {
+          "0.3": {
+            "genuine_new": 18,
+            "compl_gain": 0.00037
+          },
+          "0.5": {
+            "genuine_new": 18,
+            "compl_gain": 0.00037
+          },
+          "0.7": {
+            "genuine_new": 18,
+            "compl_gain": 0.00037
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001331742.1",
+            "miniprot_pi": 1.0,
+            "ref_aa": "449",
+            "seqid": "CP096024.1"
+          },
+          {
+            "id": "rna-NM_100668.3",
+            "miniprot_pi": 1.0,
+            "ref_aa": "449",
+            "seqid": "CP096024.1"
+          },
+          {
+            "id": "rna-NM_001035916.3",
+            "miniprot_pi": 1.0,
+            "ref_aa": "449",
+            "seqid": "CP096024.1"
+          },
+          {
+            "id": "rna-NM_001331743.1",
+            "miniprot_pi": 1.0,
+            "ref_aa": "449",
+            "seqid": "CP096024.1"
+          },
+          {
+            "id": "rna-NM_001084183.1",
+            "miniprot_pi": 1.0,
+            "ref_aa": "92",
+            "seqid": "CP096024.1"
+          },
+          {
+            "id": "rna-NM_001084184.1",
+            "miniprot_pi": 1.0,
+            "ref_aa": "92",
+            "seqid": "CP096024.1"
+          }
+        ],
+        "examples_dup": [],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 0.439
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 10,
+          "0.1": 8,
+          "0.15": 6
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 7e-05,
+        "n_devel_rec_coding": 48207,
+        "cur_meanpi": 0.99904,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "bee",
+      "divergence_class": "same_species",
+      "mode": "full",
+      "trust": "low_coverage_immaterial",
+      "n_ref_coding": 23471,
+      "devel_recovered_coding": 23364,
+      "devel_compl": 0.99544,
+      "A_rescue": {
+        "n_gap": 74,
+        "have_coords": 4,
+        "no_overlap_genuine_new": 4,
+        "overlap_dup": 0,
+        "floor": {
+          "0.3": {
+            "genuine_new": 4,
+            "compl_gain": 0.00017
+          },
+          "0.5": {
+            "genuine_new": 3,
+            "compl_gain": 0.00013
+          },
+          "0.7": {
+            "genuine_new": 3,
+            "compl_gain": 0.00013
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_026440571.1",
+            "miniprot_pi": 0.975,
+            "ref_aa": "242",
+            "seqid": "CM033155.1"
+          },
+          {
+            "id": "rna-XM_026446314.1",
+            "miniprot_pi": 0.951,
+            "ref_aa": "246",
+            "seqid": "CM033155.1"
+          },
+          {
+            "id": "rna-XM_026440558.1",
+            "miniprot_pi": 0.996,
+            "ref_aa": "246",
+            "seqid": "CM033155.1"
+          }
+        ],
+        "examples_dup": [],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 0.054
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 18,
+          "0.1": 13,
+          "0.15": 12
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_006571971.3",
+            "devel_pi": 0.038,
+            "miniprot_pi": 0.772
+          },
+          {
+            "id": "rna-XM_006571972.3",
+            "devel_pi": 0.04,
+            "miniprot_pi": 0.733
+          },
+          {
+            "id": "rna-XM_026445981.1",
+            "devel_pi": 0.095,
+            "miniprot_pi": 0.777
+          }
+        ],
+        "proj_meanpi_gain": 0.00031,
+        "n_devel_rec_coding": 23364,
+        "cur_meanpi": 0.99033,
+        "n_egregious_stub": 3
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "drosophila",
+      "divergence_class": "same_species",
+      "mode": "full",
+      "trust": "ok",
+      "n_ref_coding": 30799,
+      "devel_recovered_coding": 29870,
+      "devel_compl": 0.96984,
+      "A_rescue": {
+        "n_gap": 717,
+        "have_coords": 717,
+        "no_overlap_genuine_new": 234,
+        "overlap_dup": 483,
+        "floor": {
+          "0.3": {
+            "genuine_new": 212,
+            "compl_gain": 0.00688
+          },
+          "0.5": {
+            "genuine_new": 198,
+            "compl_gain": 0.00643
+          },
+          "0.7": {
+            "genuine_new": 127,
+            "compl_gain": 0.00412
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001258843.1",
+            "miniprot_pi": 0.909,
+            "ref_aa": "1456",
+            "seqid": "NW_020825209.1"
+          },
+          {
+            "id": "rna-NM_001038766.3",
+            "miniprot_pi": 0.909,
+            "ref_aa": "1456",
+            "seqid": "NW_020825209.1"
+          },
+          {
+            "id": "rna-NM_001258844.1",
+            "miniprot_pi": 0.909,
+            "ref_aa": "1456",
+            "seqid": "NW_020825209.1"
+          },
+          {
+            "id": "rna-NM_001258845.1",
+            "miniprot_pi": 0.916,
+            "ref_aa": "1139",
+            "seqid": "NW_020825209.1"
+          },
+          {
+            "id": "rna-NM_057267.4",
+            "miniprot_pi": 0.966,
+            "ref_aa": "320",
+            "seqid": "NW_020825209.1"
+          },
+          {
+            "id": "rna-NM_001169333.2",
+            "miniprot_pi": 0.963,
+            "ref_aa": "321",
+            "seqid": "NW_020825209.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001103388.4",
+            "miniprot_pi": 0.826,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.784
+          },
+          {
+            "id": "rna-NM_130484.3",
+            "miniprot_pi": 0.824,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.779
+          },
+          {
+            "id": "rna-NM_001297830.1",
+            "miniprot_pi": 0.987,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.977
+          },
+          {
+            "id": "rna-NM_145103.2",
+            "miniprot_pi": 0.542,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.613
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 185,
+          "0.1": 150,
+          "0.15": 123
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001015383.2",
+            "devel_pi": 0.041,
+            "miniprot_pi": 0.915
+          },
+          {
+            "id": "rna-NM_001297786.2",
+            "devel_pi": 0.049,
+            "miniprot_pi": 0.865
+          },
+          {
+            "id": "rna-NM_001272131.2",
+            "devel_pi": 0.049,
+            "miniprot_pi": 0.865
+          },
+          {
+            "id": "rna-NM_143668.3",
+            "devel_pi": 0.049,
+            "miniprot_pi": 0.865
+          },
+          {
+            "id": "rna-NM_057872.5",
+            "devel_pi": 0.091,
+            "miniprot_pi": 0.836
+          }
+        ],
+        "proj_meanpi_gain": 0.00183,
+        "n_devel_rec_coding": 29870,
+        "cur_meanpi": 0.9224,
+        "n_egregious_stub": 25
+      },
+      "C_map_failed": {
+        "n_map_failed": 31,
+        "miniprot_recoverable_pi>=0.5": 20,
+        "examples": [
+          {
+            "id": "rna-NM_001297830.1",
+            "ref_aa": "237",
+            "lifted_dna_len": "444",
+            "miniprot_pi": 0.987
+          },
+          {
+            "id": "rna-NM_206655.2",
+            "ref_aa": "184",
+            "lifted_dna_len": "282",
+            "miniprot_pi": 0.551
+          },
+          {
+            "id": "rna-NM_132560.3",
+            "ref_aa": "570",
+            "lifted_dna_len": "252",
+            "miniprot_pi": 0.774
+          },
+          {
+            "id": "rna-NM_167709.3",
+            "ref_aa": "120",
+            "lifted_dna_len": "36",
+            "miniprot_pi": 0.579
+          },
+          {
+            "id": "rna-NM_001032094.2",
+            "ref_aa": "178",
+            "lifted_dna_len": "36",
+            "miniprot_pi": 0.436
+          }
+        ]
+      }
+    },
+    {
+      "cell": "human_ensembl_gtf",
+      "divergence_class": "same_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 2371,
+      "devel_recovered_coding": 2358,
+      "devel_compl": 0.99452,
+      "A_rescue": {
+        "n_gap": 12,
+        "have_coords": 12,
+        "no_overlap_genuine_new": 11,
+        "overlap_dup": 1,
+        "floor": {
+          "0.3": {
+            "genuine_new": 10,
+            "compl_gain": 0.00422
+          },
+          "0.5": {
+            "genuine_new": 10,
+            "compl_gain": 0.00422
+          },
+          "0.7": {
+            "genuine_new": 10,
+            "compl_gain": 0.00422
+          }
+        },
+        "examples_new": [
+          {
+            "id": "ENST00000619998",
+            "miniprot_pi": 0.987,
+            "ref_aa": "225",
+            "seqid": "chr22"
+          },
+          {
+            "id": "ENST00000652395",
+            "miniprot_pi": 0.983,
+            "ref_aa": "232",
+            "seqid": "chr22"
+          },
+          {
+            "id": "ENST00000620804",
+            "miniprot_pi": 0.995,
+            "ref_aa": "1639",
+            "seqid": "chr22"
+          },
+          {
+            "id": "ENST00000456303",
+            "miniprot_pi": 0.991,
+            "ref_aa": "105",
+            "seqid": "chr22"
+          },
+          {
+            "id": "ENST00000432134",
+            "miniprot_pi": 0.997,
+            "ref_aa": "310",
+            "seqid": "chr22"
+          },
+          {
+            "id": "ENST00000682920",
+            "miniprot_pi": 0.997,
+            "ref_aa": "285",
+            "seqid": "chr22"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "ENST00000390330",
+            "miniprot_pi": 0.938,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.938
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 3,
+          "0.1": 3,
+          "0.15": 2
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00038,
+        "n_devel_rec_coding": 2358,
+        "cur_meanpi": 0.95084,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "human_mane",
+      "divergence_class": "same_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 423,
+      "devel_recovered_coding": 422,
+      "devel_compl": 0.99764,
+      "A_rescue": {
+        "n_gap": 1,
+        "have_coords": 1,
+        "no_overlap_genuine_new": 0,
+        "overlap_dup": 1,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001128633.2",
+            "miniprot_pi": 0.995,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.997
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 2,
+          "0.1": 2,
+          "0.15": 2
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00164,
+        "n_devel_rec_coding": 422,
+        "cur_meanpi": 0.99425,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "human_pseudogene_stress",
+      "divergence_class": "same_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 7518,
+      "devel_recovered_coding": 7518,
+      "devel_compl": 1.0,
+      "A_rescue": {
+        "n_gap": 0,
+        "have_coords": 0,
+        "no_overlap_genuine_new": 0,
+        "overlap_dup": 0,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 4,
+          "0.1": 1,
+          "0.15": 0
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 7e-05,
+        "n_devel_rec_coding": 7518,
+        "cur_meanpi": 0.99634,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "mouse",
+      "divergence_class": "same_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 8170,
+      "devel_recovered_coding": 7664,
+      "devel_compl": 0.93807,
+      "A_rescue": {
+        "n_gap": 156,
+        "have_coords": 156,
+        "no_overlap_genuine_new": 35,
+        "overlap_dup": 121,
+        "floor": {
+          "0.3": {
+            "genuine_new": 8,
+            "compl_gain": 0.00098
+          },
+          "0.5": {
+            "genuine_new": 6,
+            "compl_gain": 0.00073
+          },
+          "0.7": {
+            "genuine_new": 6,
+            "compl_gain": 0.00073
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001355518.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "83",
+            "seqid": "JARLJY010000015.1"
+          },
+          {
+            "id": "rna-NM_001355517.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "83",
+            "seqid": "JARLJY010000015.1"
+          },
+          {
+            "id": "rna-NM_001355521.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "83",
+            "seqid": "JARLJY010000015.1"
+          },
+          {
+            "id": "rna-NM_025587.2",
+            "miniprot_pi": 0.738,
+            "ref_aa": "83",
+            "seqid": "JARLJY010000015.1"
+          },
+          {
+            "id": "rna-NM_001355520.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "83",
+            "seqid": "JARLJY010000015.1"
+          },
+          {
+            "id": "rna-NM_001355516.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "83",
+            "seqid": "JARLJY010000015.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_207561.2",
+            "miniprot_pi": 0.939,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.972
+          },
+          {
+            "id": "rna-XM_017318306.1",
+            "miniprot_pi": 0.98,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          },
+          {
+            "id": "rna-NM_146265.2",
+            "miniprot_pi": 1.0,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          },
+          {
+            "id": "rna-XM_036162784.1",
+            "miniprot_pi": 0.248,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 25,
+          "0.1": 21,
+          "0.15": 19
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001378700.1",
+            "devel_pi": 0.098,
+            "miniprot_pi": 0.594
+          }
+        ],
+        "proj_meanpi_gain": 0.00111,
+        "n_devel_rec_coding": 7664,
+        "cur_meanpi": 0.99408,
+        "n_egregious_stub": 1
+      },
+      "C_map_failed": {
+        "n_map_failed": 13,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": [
+          {
+            "id": "rna-XM_017319110.3",
+            "ref_aa": "819",
+            "lifted_dna_len": "696",
+            "miniprot_pi": 0.165
+          },
+          {
+            "id": "rna-XM_030251859.2",
+            "ref_aa": "819",
+            "lifted_dna_len": "693",
+            "miniprot_pi": 0.165
+          },
+          {
+            "id": "rna-XM_030251860.2",
+            "ref_aa": "819",
+            "lifted_dna_len": "657",
+            "miniprot_pi": 0.165
+          },
+          {
+            "id": "rna-XM_017319112.3",
+            "ref_aa": "819",
+            "lifted_dna_len": "1071",
+            "miniprot_pi": 0.165
+          },
+          {
+            "id": "rna-XM_017319115.3",
+            "ref_aa": "819",
+            "lifted_dna_len": "1026",
+            "miniprot_pi": 0.165
+          }
+        ]
+      }
+    },
+    {
+      "cell": "rice",
+      "divergence_class": "same_species",
+      "mode": "full",
+      "trust": "low_coverage_immaterial",
+      "n_ref_coding": 42580,
+      "devel_recovered_coding": 42526,
+      "devel_compl": 0.99873,
+      "A_rescue": {
+        "n_gap": 37,
+        "have_coords": 0,
+        "no_overlap_genuine_new": 0,
+        "overlap_dup": 0,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 0.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 13,
+          "0.1": 12,
+          "0.15": 8
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.0001,
+        "n_devel_rec_coding": 42526,
+        "cur_meanpi": 0.99818,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 1,
+        "miniprot_recoverable_pi>=0.5": 1,
+        "examples": [
+          {
+            "id": "rna-XM_026020772.1",
+            "ref_aa": "156",
+            "lifted_dna_len": "1920",
+            "miniprot_pi": 0.994
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t1_maize_b73_to_mo17",
+      "divergence_class": "same_species",
+      "mode": "full",
+      "trust": "ok",
+      "n_ref_coding": 57345,
+      "devel_recovered_coding": 54840,
+      "devel_compl": 0.95632,
+      "A_rescue": {
+        "n_gap": 2446,
+        "have_coords": 2446,
+        "no_overlap_genuine_new": 469,
+        "overlap_dup": 1977,
+        "floor": {
+          "0.3": {
+            "genuine_new": 390,
+            "compl_gain": 0.0068
+          },
+          "0.5": {
+            "genuine_new": 351,
+            "compl_gain": 0.00612
+          },
+          "0.7": {
+            "genuine_new": 342,
+            "compl_gain": 0.00596
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_035967794.1",
+            "miniprot_pi": 0.996,
+            "ref_aa": "233",
+            "seqid": "CM039150.1"
+          },
+          {
+            "id": "rna-NM_001157572.2",
+            "miniprot_pi": 0.996,
+            "ref_aa": "232",
+            "seqid": "CM039150.1"
+          },
+          {
+            "id": "rna-NM_001413062.1",
+            "miniprot_pi": 0.996,
+            "ref_aa": "233",
+            "seqid": "CM039150.1"
+          },
+          {
+            "id": "rna-NM_001413061.1",
+            "miniprot_pi": 0.996,
+            "ref_aa": "232",
+            "seqid": "CM039150.1"
+          },
+          {
+            "id": "rna-NM_001112290.1",
+            "miniprot_pi": 0.993,
+            "ref_aa": "150",
+            "seqid": "CM039150.1"
+          },
+          {
+            "id": "rna-XM_008667775.4",
+            "miniprot_pi": 0.731,
+            "ref_aa": "207",
+            "seqid": "CM039151.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_020544726.2",
+            "miniprot_pi": 0.996,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          },
+          {
+            "id": "rna-XM_035962285.1",
+            "miniprot_pi": 0.996,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          },
+          {
+            "id": "rna-XM_020544731.2",
+            "miniprot_pi": 0.996,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          },
+          {
+            "id": "rna-XM_035962282.1",
+            "miniprot_pi": 0.996,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 1739,
+          "0.1": 1591,
+          "0.15": 1468
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_035963548.1",
+            "devel_pi": 0.0,
+            "miniprot_pi": 1.0
+          },
+          {
+            "id": "rna-NM_001156180.1",
+            "devel_pi": 0.004,
+            "miniprot_pi": 1.0
+          },
+          {
+            "id": "rna-NM_001111827.2",
+            "devel_pi": 0.0,
+            "miniprot_pi": 0.992
+          },
+          {
+            "id": "rna-XM_020544446.1",
+            "devel_pi": 0.0,
+            "miniprot_pi": 0.981
+          },
+          {
+            "id": "rna-NM_001137488.2",
+            "devel_pi": 0.025,
+            "miniprot_pi": 0.991
+          }
+        ],
+        "proj_meanpi_gain": 0.01337,
+        "n_devel_rec_coding": 54840,
+        "cur_meanpi": 0.95494,
+        "n_egregious_stub": 179
+      },
+      "C_map_failed": {
+        "n_map_failed": 513,
+        "miniprot_recoverable_pi>=0.5": 413,
+        "examples": [
+          {
+            "id": "rna-XM_020544726.2",
+            "ref_aa": "780",
+            "lifted_dna_len": "5976",
+            "miniprot_pi": 0.996
+          },
+          {
+            "id": "rna-XM_035962285.1",
+            "ref_aa": "780",
+            "lifted_dna_len": "7776",
+            "miniprot_pi": 0.996
+          },
+          {
+            "id": "rna-XM_020544731.2",
+            "ref_aa": "780",
+            "lifted_dna_len": "7776",
+            "miniprot_pi": 0.996
+          },
+          {
+            "id": "rna-XM_035962282.1",
+            "ref_aa": "780",
+            "lifted_dna_len": "8517",
+            "miniprot_pi": 0.996
+          },
+          {
+            "id": "rna-NM_001147699.1",
+            "ref_aa": "150",
+            "lifted_dna_len": "195",
+            "miniprot_pi": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t1_tomato_microtom_to_heinz",
+      "divergence_class": "same_species",
+      "mode": "full",
+      "trust": "ok",
+      "n_ref_coding": 44391,
+      "devel_recovered_coding": 44135,
+      "devel_compl": 0.99423,
+      "A_rescue": {
+        "n_gap": 243,
+        "have_coords": 243,
+        "no_overlap_genuine_new": 18,
+        "overlap_dup": 225,
+        "floor": {
+          "0.3": {
+            "genuine_new": 18,
+            "compl_gain": 0.00041
+          },
+          "0.5": {
+            "genuine_new": 15,
+            "compl_gain": 0.00034
+          },
+          "0.7": {
+            "genuine_new": 15,
+            "compl_gain": 0.00034
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_069290318.1",
+            "miniprot_pi": 0.987,
+            "ref_aa": "77",
+            "seqid": "CM001064.4"
+          },
+          {
+            "id": "rna-XM_069293519.1",
+            "miniprot_pi": 0.976,
+            "ref_aa": "164",
+            "seqid": "CM001065.4"
+          },
+          {
+            "id": "rna-XM_069293522.1",
+            "miniprot_pi": 0.976,
+            "ref_aa": "164",
+            "seqid": "CM001065.4"
+          },
+          {
+            "id": "rna-XM_069297460.1",
+            "miniprot_pi": 0.845,
+            "ref_aa": "387",
+            "seqid": "CM001067.4"
+          },
+          {
+            "id": "rna-XM_069297461.1",
+            "miniprot_pi": 0.994,
+            "ref_aa": "329",
+            "seqid": "CM001067.4"
+          },
+          {
+            "id": "rna-XM_069297873.1",
+            "miniprot_pi": 0.994,
+            "ref_aa": "161",
+            "seqid": "CM001068.4"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_069296141.1",
+            "miniprot_pi": 0.126,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.581
+          },
+          {
+            "id": "rna-XM_069296169.1",
+            "miniprot_pi": 0.719,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.998
+          },
+          {
+            "id": "rna-XM_069296162.1",
+            "miniprot_pi": 0.13,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.581
+          },
+          {
+            "id": "rna-XM_069296179.1",
+            "miniprot_pi": 0.117,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.581
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 292,
+          "0.1": 265,
+          "0.15": 235
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_069297462.1",
+            "devel_pi": 0.005,
+            "miniprot_pi": 0.992
+          },
+          {
+            "id": "rna-XM_010316775.4",
+            "devel_pi": 0.017,
+            "miniprot_pi": 1.0
+          },
+          {
+            "id": "rna-XM_004230524.5",
+            "devel_pi": 0.017,
+            "miniprot_pi": 1.0
+          },
+          {
+            "id": "rna-XM_069295308.1",
+            "devel_pi": 0.035,
+            "miniprot_pi": 0.95
+          },
+          {
+            "id": "rna-XM_069286685.1",
+            "devel_pi": 0.073,
+            "miniprot_pi": 0.97
+          }
+        ],
+        "proj_meanpi_gain": 0.00255,
+        "n_devel_rec_coding": 44135,
+        "cur_meanpi": 0.97742,
+        "n_egregious_stub": 8
+      },
+      "C_map_failed": {
+        "n_map_failed": 23,
+        "miniprot_recoverable_pi>=0.5": 20,
+        "examples": [
+          {
+            "id": "rna-XM_069290329.1",
+            "ref_aa": "159",
+            "lifted_dna_len": "111",
+            "miniprot_pi": 0.887
+          },
+          {
+            "id": "rna-XM_069297926.1",
+            "ref_aa": "240",
+            "lifted_dna_len": "309",
+            "miniprot_pi": 0.49
+          },
+          {
+            "id": "rna-XM_004244185.5",
+            "ref_aa": "628",
+            "lifted_dna_len": "309",
+            "miniprot_pi": 0.593
+          },
+          {
+            "id": "rna-XM_069289206.1",
+            "ref_aa": "180",
+            "lifted_dna_len": "354",
+            "miniprot_pi": 0.432
+          },
+          {
+            "id": "rna-XM_069288836.1",
+            "ref_aa": "89",
+            "lifted_dna_len": "639",
+            "miniprot_pi": 0.789
+          }
+        ]
+      }
+    },
+    {
+      "cell": "arabidopsis_to_lyrata",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 12653,
+      "devel_recovered_coding": 11835,
+      "devel_compl": 0.93535,
+      "A_rescue": {
+        "n_gap": 505,
+        "have_coords": 505,
+        "no_overlap_genuine_new": 62,
+        "overlap_dup": 443,
+        "floor": {
+          "0.3": {
+            "genuine_new": 34,
+            "compl_gain": 0.00269
+          },
+          "0.5": {
+            "genuine_new": 14,
+            "compl_gain": 0.00111
+          },
+          "0.7": {
+            "genuine_new": 6,
+            "compl_gain": 0.00047
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001160861.1",
+            "miniprot_pi": 0.776,
+            "ref_aa": "57",
+            "seqid": "NW_003302555.1"
+          },
+          {
+            "id": "rna-NM_179395.2",
+            "miniprot_pi": 0.875,
+            "ref_aa": "183",
+            "seqid": "NW_003302555.1"
+          },
+          {
+            "id": "rna-NM_001332831.1",
+            "miniprot_pi": 0.829,
+            "ref_aa": "174",
+            "seqid": "NW_003302555.1"
+          },
+          {
+            "id": "rna-NM_102645.4",
+            "miniprot_pi": 0.884,
+            "ref_aa": "198",
+            "seqid": "NW_003302555.1"
+          },
+          {
+            "id": "rna-NM_001332832.1",
+            "miniprot_pi": 0.884,
+            "ref_aa": "189",
+            "seqid": "NW_003302555.1"
+          },
+          {
+            "id": "rna-NM_001198405.1",
+            "miniprot_pi": 0.718,
+            "ref_aa": "141",
+            "seqid": "NW_003302554.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_100052.2",
+            "miniprot_pi": 0.366,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.974
+          },
+          {
+            "id": "rna-NM_001331294.1",
+            "miniprot_pi": 0.298,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.974
+          },
+          {
+            "id": "rna-NM_001331295.1",
+            "miniprot_pi": 0.344,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.974
+          },
+          {
+            "id": "rna-NM_001331296.1",
+            "miniprot_pi": 0.129,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.974
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 591,
+          "0.1": 419,
+          "0.15": 334
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001332653.1",
+            "devel_pi": 0.076,
+            "miniprot_pi": 0.907
+          },
+          {
+            "id": "rna-NM_102225.1",
+            "devel_pi": 0.031,
+            "miniprot_pi": 0.818
+          },
+          {
+            "id": "rna-NM_104944.1",
+            "devel_pi": 0.036,
+            "miniprot_pi": 0.823
+          },
+          {
+            "id": "rna-NM_105950.4",
+            "devel_pi": 0.062,
+            "miniprot_pi": 0.783
+          },
+          {
+            "id": "rna-NM_148636.2",
+            "devel_pi": 0.063,
+            "miniprot_pi": 0.766
+          }
+        ],
+        "proj_meanpi_gain": 0.01215,
+        "n_devel_rec_coding": 11835,
+        "cur_meanpi": 0.87224,
+        "n_egregious_stub": 25
+      },
+      "C_map_failed": {
+        "n_map_failed": 55,
+        "miniprot_recoverable_pi>=0.5": 14,
+        "examples": [
+          {
+            "id": "rna-NM_001331348.1",
+            "ref_aa": "122",
+            "lifted_dna_len": "1137",
+            "miniprot_pi": 0.051
+          },
+          {
+            "id": "rna-NM_001331435.1",
+            "ref_aa": "107",
+            "lifted_dna_len": "195",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001331738.1",
+            "ref_aa": "54",
+            "lifted_dna_len": "99",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001331737.1",
+            "ref_aa": "54",
+            "lifted_dna_len": "237",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001331740.1",
+            "ref_aa": "73",
+            "lifted_dna_len": "234",
+            "miniprot_pi": null
+          }
+        ]
+      }
+    },
+    {
+      "cell": "candida_albicans_to_dubliniensis",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 1353,
+      "devel_recovered_coding": 1307,
+      "devel_compl": 0.966,
+      "A_rescue": {
+        "n_gap": 14,
+        "have_coords": 14,
+        "no_overlap_genuine_new": 4,
+        "overlap_dup": 10,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [
+          {
+            "id": "rna-XM_708488.2",
+            "miniprot_pi": 0.725,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.929
+          },
+          {
+            "id": "rna-XM_705011.2",
+            "miniprot_pi": 0.484,
+            "overlap_ratio": 0.99,
+            "devel_overlap_pi": 0.733
+          },
+          {
+            "id": "rna-XM_706647.1",
+            "miniprot_pi": 0.59,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.875
+          },
+          {
+            "id": "rna-XM_706122.2",
+            "miniprot_pi": 0.395,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.814
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 12,
+          "0.1": 9,
+          "0.15": 7
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_019475073.1",
+            "devel_pi": 0.078,
+            "miniprot_pi": 0.992
+          },
+          {
+            "id": "rna-XM_019475187.1",
+            "devel_pi": 0.039,
+            "miniprot_pi": 0.781
+          },
+          {
+            "id": "rna-XM_019475141.1",
+            "devel_pi": 0.021,
+            "miniprot_pi": 0.611
+          }
+        ],
+        "proj_meanpi_gain": 0.00322,
+        "n_devel_rec_coding": 1307,
+        "cur_meanpi": 0.89692,
+        "n_egregious_stub": 3
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "human_to_chimp",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 12842,
+      "devel_recovered_coding": 12702,
+      "devel_compl": 0.9891,
+      "A_rescue": {
+        "n_gap": 132,
+        "have_coords": 132,
+        "no_overlap_genuine_new": 3,
+        "overlap_dup": 129,
+        "floor": {
+          "0.3": {
+            "genuine_new": 3,
+            "compl_gain": 0.00023
+          },
+          "0.5": {
+            "genuine_new": 3,
+            "compl_gain": 0.00023
+          },
+          "0.7": {
+            "genuine_new": 3,
+            "compl_gain": 0.00023
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_017001198.3",
+            "miniprot_pi": 0.992,
+            "ref_aa": "236",
+            "seqid": "NC_072398.1"
+          },
+          {
+            "id": "rna-XM_011541381.3",
+            "miniprot_pi": 0.987,
+            "ref_aa": "231",
+            "seqid": "NC_072398.1"
+          },
+          {
+            "id": "rna-XM_011541382.3",
+            "miniprot_pi": 0.987,
+            "ref_aa": "230",
+            "seqid": "NC_072398.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001005484.2",
+            "miniprot_pi": 0.382,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.978
+          },
+          {
+            "id": "rna-NM_001005221.2",
+            "miniprot_pi": 0.422,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.975
+          },
+          {
+            "id": "rna-XM_024449992.2",
+            "miniprot_pi": 0.422,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.975
+          },
+          {
+            "id": "rna-XM_017002410.2",
+            "miniprot_pi": 0.422,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.975
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 129,
+          "0.1": 113,
+          "0.15": 55
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00252,
+        "n_devel_rec_coding": 12702,
+        "cur_meanpi": 0.98057,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 16,
+        "miniprot_recoverable_pi>=0.5": 12,
+        "examples": [
+          {
+            "id": "rna-XM_024449992.2",
+            "ref_aa": "312",
+            "lifted_dna_len": "6285",
+            "miniprot_pi": 0.422
+          },
+          {
+            "id": "rna-XM_017002410.2",
+            "ref_aa": "312",
+            "lifted_dna_len": "6285",
+            "miniprot_pi": 0.422
+          },
+          {
+            "id": "rna-XM_017002408.2",
+            "ref_aa": "312",
+            "lifted_dna_len": "6285",
+            "miniprot_pi": 0.422
+          },
+          {
+            "id": "rna-XM_047431162.1",
+            "ref_aa": "312",
+            "lifted_dna_len": "6285",
+            "miniprot_pi": 0.422
+          },
+          {
+            "id": "rna-XM_005277421.5",
+            "ref_aa": "306",
+            "lifted_dna_len": "1500",
+            "miniprot_pi": 0.997
+          }
+        ]
+      }
+    },
+    {
+      "cell": "mouse_to_rat",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 2343,
+      "devel_recovered_coding": 2121,
+      "devel_compl": 0.90525,
+      "A_rescue": {
+        "n_gap": 108,
+        "have_coords": 108,
+        "no_overlap_genuine_new": 73,
+        "overlap_dup": 35,
+        "floor": {
+          "0.3": {
+            "genuine_new": 9,
+            "compl_gain": 0.00384
+          },
+          "0.5": {
+            "genuine_new": 8,
+            "compl_gain": 0.00341
+          },
+          "0.7": {
+            "genuine_new": 2,
+            "compl_gain": 0.00085
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_030250315.2",
+            "miniprot_pi": 0.719,
+            "ref_aa": "95",
+            "seqid": "NC_051353.1"
+          },
+          {
+            "id": "rna-NM_001311066.1",
+            "miniprot_pi": 0.709,
+            "ref_aa": "102",
+            "seqid": "NC_051353.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_030250410.2",
+            "miniprot_pi": 0.055,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.759
+          },
+          {
+            "id": "rna-NM_011546.3",
+            "miniprot_pi": 0.053,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.759
+          },
+          {
+            "id": "rna-XM_030250409.2",
+            "miniprot_pi": 0.055,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.759
+          },
+          {
+            "id": "rna-XM_030250411.2",
+            "miniprot_pi": 0.056,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.759
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 75,
+          "0.1": 34,
+          "0.15": 28
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00751,
+        "n_devel_rec_coding": 2121,
+        "cur_meanpi": 0.9092,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 5,
+        "miniprot_recoverable_pi>=0.5": 2,
+        "examples": [
+          {
+            "id": "rna-XM_006525809.3",
+            "ref_aa": "342",
+            "lifted_dna_len": "258",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_153086.6",
+            "ref_aa": "364",
+            "lifted_dna_len": "258",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_181680.2",
+            "ref_aa": "911",
+            "lifted_dna_len": "723",
+            "miniprot_pi": 0.893
+          },
+          {
+            "id": "rna-XM_036161353.1",
+            "ref_aa": "83",
+            "lifted_dna_len": "2487",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-XM_036161153.1",
+            "ref_aa": "358",
+            "lifted_dna_len": "420",
+            "miniprot_pi": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t2_human_to_gorilla",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3086,
+      "devel_recovered_coding": 3084,
+      "devel_compl": 0.99935,
+      "A_rescue": {
+        "n_gap": 0,
+        "have_coords": 0,
+        "no_overlap_genuine_new": 0,
+        "overlap_dup": 0,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 6,
+          "0.1": 3,
+          "0.15": 3
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00037,
+        "n_devel_rec_coding": 3084,
+        "cur_meanpi": 0.97855,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "t2_mouse_to_caroli",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 8170,
+      "devel_recovered_coding": 7978,
+      "devel_compl": 0.9765,
+      "A_rescue": {
+        "n_gap": 177,
+        "have_coords": 177,
+        "no_overlap_genuine_new": 29,
+        "overlap_dup": 148,
+        "floor": {
+          "0.3": {
+            "genuine_new": 15,
+            "compl_gain": 0.00184
+          },
+          "0.5": {
+            "genuine_new": 13,
+            "compl_gain": 0.00159
+          },
+          "0.7": {
+            "genuine_new": 10,
+            "compl_gain": 0.00122
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001199308.1",
+            "miniprot_pi": 0.892,
+            "ref_aa": "64",
+            "seqid": "NC_034571.1"
+          },
+          {
+            "id": "rna-NM_001408195.1",
+            "miniprot_pi": 0.909,
+            "ref_aa": "98",
+            "seqid": "NC_034571.1"
+          },
+          {
+            "id": "rna-NM_001305137.1",
+            "miniprot_pi": 0.922,
+            "ref_aa": "102",
+            "seqid": "NC_034571.1"
+          },
+          {
+            "id": "rna-NM_001305136.1",
+            "miniprot_pi": 0.933,
+            "ref_aa": "134",
+            "seqid": "NC_034571.1"
+          },
+          {
+            "id": "rna-NM_001305132.1",
+            "miniprot_pi": 0.933,
+            "ref_aa": "134",
+            "seqid": "NC_034571.1"
+          },
+          {
+            "id": "rna-NM_001305133.1",
+            "miniprot_pi": 0.922,
+            "ref_aa": "102",
+            "seqid": "NC_034571.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_013771.5",
+            "miniprot_pi": 0.108,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 1.0
+          },
+          {
+            "id": "rna-NM_146947.2",
+            "miniprot_pi": 0.866,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.948
+          },
+          {
+            "id": "rna-NM_146938.1",
+            "miniprot_pi": 0.897,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.948
+          },
+          {
+            "id": "rna-NM_001081228.1",
+            "miniprot_pi": 0.689,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.719
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 87,
+          "0.1": 71,
+          "0.15": 50
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00294,
+        "n_devel_rec_coding": 7978,
+        "cur_meanpi": 0.96277,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 26,
+        "miniprot_recoverable_pi>=0.5": 3,
+        "examples": [
+          {
+            "id": "rna-NM_026220.4",
+            "ref_aa": "439",
+            "lifted_dna_len": "1338",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_008545.2",
+            "ref_aa": "330",
+            "lifted_dna_len": "741",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-XM_030251209.1",
+            "ref_aa": "475",
+            "lifted_dna_len": "519",
+            "miniprot_pi": 0.523
+          },
+          {
+            "id": "rna-XM_030251210.1",
+            "ref_aa": "471",
+            "lifted_dna_len": "519",
+            "miniprot_pi": 0.45
+          },
+          {
+            "id": "rna-NM_001142411.2",
+            "ref_aa": "503",
+            "lifted_dna_len": "519",
+            "miniprot_pi": 0.495
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t2_tomato_to_potato",
+      "divergence_class": "close_cross_species",
+      "mode": "full",
+      "trust": "ok",
+      "n_ref_coding": 44391,
+      "devel_recovered_coding": 40842,
+      "devel_compl": 0.92005,
+      "A_rescue": {
+        "n_gap": 3233,
+        "have_coords": 3233,
+        "no_overlap_genuine_new": 407,
+        "overlap_dup": 2826,
+        "floor": {
+          "0.3": {
+            "genuine_new": 247,
+            "compl_gain": 0.00556
+          },
+          "0.5": {
+            "genuine_new": 195,
+            "compl_gain": 0.00439
+          },
+          "0.7": {
+            "genuine_new": 107,
+            "compl_gain": 0.00241
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_004228346.5",
+            "miniprot_pi": 0.922,
+            "ref_aa": "243",
+            "seqid": "NW_006239388.1"
+          },
+          {
+            "id": "rna-XM_019214179.3",
+            "miniprot_pi": 0.925,
+            "ref_aa": "251",
+            "seqid": "NW_006239388.1"
+          },
+          {
+            "id": "rna-XM_026029879.2",
+            "miniprot_pi": 0.948,
+            "ref_aa": "598",
+            "seqid": "NW_006239267.1"
+          },
+          {
+            "id": "rna-XM_069297120.1",
+            "miniprot_pi": 0.809,
+            "ref_aa": "328",
+            "seqid": "NW_006239486.1"
+          },
+          {
+            "id": "rna-XM_069294485.1",
+            "miniprot_pi": 0.761,
+            "ref_aa": "133",
+            "seqid": "NW_006239069.1"
+          },
+          {
+            "id": "rna-XM_004231539.5",
+            "miniprot_pi": 0.882,
+            "ref_aa": "143",
+            "seqid": "NW_006239949.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_004228591.5",
+            "miniprot_pi": 0.444,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.296
+          },
+          {
+            "id": "rna-XM_019213711.3",
+            "miniprot_pi": 0.589,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.96
+          },
+          {
+            "id": "rna-XM_069295905.1",
+            "miniprot_pi": 0.943,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.885
+          },
+          {
+            "id": "rna-XM_026029322.2",
+            "miniprot_pi": 0.943,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.885
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 3039,
+          "0.1": 2747,
+          "0.15": 2496
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_069294097.1",
+            "devel_pi": 0.0,
+            "miniprot_pi": 0.937
+          },
+          {
+            "id": "rna-XM_004246968.5",
+            "devel_pi": 0.057,
+            "miniprot_pi": 0.986
+          },
+          {
+            "id": "rna-XM_010314755.4",
+            "devel_pi": 0.027,
+            "miniprot_pi": 0.95
+          },
+          {
+            "id": "rna-XM_004236445.5",
+            "devel_pi": 0.052,
+            "miniprot_pi": 0.962
+          },
+          {
+            "id": "rna-XM_069291454.1",
+            "devel_pi": 0.029,
+            "miniprot_pi": 0.94
+          }
+        ],
+        "proj_meanpi_gain": 0.02823,
+        "n_devel_rec_coding": 40842,
+        "cur_meanpi": 0.8585,
+        "n_egregious_stub": 373
+      },
+      "C_map_failed": {
+        "n_map_failed": 425,
+        "miniprot_recoverable_pi>=0.5": 270,
+        "examples": [
+          {
+            "id": "rna-XM_019213713.3",
+            "ref_aa": "257",
+            "lifted_dna_len": "255",
+            "miniprot_pi": 0.632
+          },
+          {
+            "id": "rna-XM_019213712.3",
+            "ref_aa": "273",
+            "lifted_dna_len": "255",
+            "miniprot_pi": 0.599
+          },
+          {
+            "id": "rna-XM_004228460.5",
+            "ref_aa": "215",
+            "lifted_dna_len": "141",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-XM_004228346.5",
+            "ref_aa": "243",
+            "lifted_dna_len": "702",
+            "miniprot_pi": 0.922
+          },
+          {
+            "id": "rna-XM_019214179.3",
+            "ref_aa": "251",
+            "lifted_dna_len": "702",
+            "miniprot_pi": 0.925
+          }
+        ]
+      }
+    },
+    {
+      "cell": "yeast_cerevisiae_to_paradoxus",
+      "divergence_class": "close_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 767,
+      "devel_recovered_coding": 737,
+      "devel_compl": 0.96089,
+      "A_rescue": {
+        "n_gap": 16,
+        "have_coords": 16,
+        "no_overlap_genuine_new": 1,
+        "overlap_dup": 15,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001180346.3",
+            "miniprot_pi": 0.963,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.973
+          },
+          {
+            "id": "rna-NM_001180348.1",
+            "miniprot_pi": 0.972,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.973
+          },
+          {
+            "id": "rna-NM_001184417.2",
+            "miniprot_pi": 0.217,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.501
+          },
+          {
+            "id": "rna-NM_001184416.1",
+            "miniprot_pi": 0.968,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.971
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 5,
+          "0.1": 4,
+          "0.15": 3
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00152,
+        "n_devel_rec_coding": 737,
+        "cur_meanpi": 0.90769,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "celegans_to_briggsae",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 7550,
+      "devel_recovered_coding": 2552,
+      "devel_compl": 0.33801,
+      "A_rescue": {
+        "n_gap": 3031,
+        "have_coords": 3031,
+        "no_overlap_genuine_new": 1719,
+        "overlap_dup": 1312,
+        "floor": {
+          "0.3": {
+            "genuine_new": 1454,
+            "compl_gain": 0.19258
+          },
+          "0.5": {
+            "genuine_new": 1139,
+            "compl_gain": 0.15086
+          },
+          "0.7": {
+            "genuine_new": 636,
+            "compl_gain": 0.08424
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001380574.2",
+            "miniprot_pi": 0.762,
+            "ref_aa": "361",
+            "seqid": "NC_013488.2"
+          },
+          {
+            "id": "rna-NM_001313107.4",
+            "miniprot_pi": 0.744,
+            "ref_aa": "265",
+            "seqid": "NC_013488.2"
+          },
+          {
+            "id": "rna-NM_070728.2",
+            "miniprot_pi": 0.763,
+            "ref_aa": "328",
+            "seqid": "NC_013488.2"
+          },
+          {
+            "id": "rna-NM_070736.8",
+            "miniprot_pi": 0.891,
+            "ref_aa": "613",
+            "seqid": "NC_013488.2"
+          },
+          {
+            "id": "rna-NM_001313303.3",
+            "miniprot_pi": 0.859,
+            "ref_aa": "198",
+            "seqid": "NC_013488.2"
+          },
+          {
+            "id": "rna-NM_001313304.3",
+            "miniprot_pi": 0.831,
+            "ref_aa": "159",
+            "seqid": "NC_013488.2"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_070722.7",
+            "miniprot_pi": 0.845,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.845
+          },
+          {
+            "id": "rna-NM_070723.8",
+            "miniprot_pi": 0.843,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.845
+          },
+          {
+            "id": "rna-NM_070729.7",
+            "miniprot_pi": 0.581,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.839
+          },
+          {
+            "id": "rna-NM_070742.2",
+            "miniprot_pi": 0.623,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.849
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 622,
+          "0.1": 380,
+          "0.15": 280
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001269527.3",
+            "devel_pi": 0.007,
+            "miniprot_pi": 0.933
+          },
+          {
+            "id": "rna-NM_001269526.3",
+            "devel_pi": 0.008,
+            "miniprot_pi": 0.929
+          },
+          {
+            "id": "rna-NM_073011.9",
+            "devel_pi": 0.05,
+            "miniprot_pi": 0.971
+          },
+          {
+            "id": "rna-NM_072120.4",
+            "devel_pi": 0.009,
+            "miniprot_pi": 0.928
+          },
+          {
+            "id": "rna-NM_001383368.2",
+            "devel_pi": 0.053,
+            "miniprot_pi": 0.971
+          }
+        ],
+        "proj_meanpi_gain": 0.0518,
+        "n_devel_rec_coding": 2552,
+        "cur_meanpi": 0.71936,
+        "n_egregious_stub": 15
+      },
+      "C_map_failed": {
+        "n_map_failed": 6,
+        "miniprot_recoverable_pi>=0.5": 4,
+        "examples": [
+          {
+            "id": "rna-NM_001380635.2",
+            "ref_aa": "111",
+            "lifted_dna_len": "1191",
+            "miniprot_pi": 0.848
+          },
+          {
+            "id": "rna-NM_072084.3",
+            "ref_aa": "146",
+            "lifted_dna_len": "252",
+            "miniprot_pi": 0.823
+          },
+          {
+            "id": "rna-NM_001307784.2",
+            "ref_aa": "148",
+            "lifted_dna_len": "174",
+            "miniprot_pi": 0.131
+          },
+          {
+            "id": "rna-NM_171482.7",
+            "ref_aa": "55",
+            "lifted_dna_len": "255",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001383451.1",
+            "ref_aa": "199",
+            "lifted_dna_len": "633",
+            "miniprot_pi": 0.735
+          }
+        ]
+      }
+    },
+    {
+      "cell": "chicken_to_quail",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 9068,
+      "devel_recovered_coding": 8764,
+      "devel_compl": 0.96648,
+      "A_rescue": {
+        "n_gap": 261,
+        "have_coords": 261,
+        "no_overlap_genuine_new": 14,
+        "overlap_dup": 247,
+        "floor": {
+          "0.3": {
+            "genuine_new": 5,
+            "compl_gain": 0.00055
+          },
+          "0.5": {
+            "genuine_new": 4,
+            "compl_gain": 0.00044
+          },
+          "0.7": {
+            "genuine_new": 2,
+            "compl_gain": 0.00022
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_004938448.5",
+            "miniprot_pi": 0.871,
+            "ref_aa": "401",
+            "seqid": "NC_029516.1"
+          },
+          {
+            "id": "rna-XM_046906393.1",
+            "miniprot_pi": 0.972,
+            "ref_aa": "252",
+            "seqid": "NC_029516.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_040702835.2",
+            "miniprot_pi": 0.387,
+            "overlap_ratio": 0.97,
+            "devel_overlap_pi": 0.302
+          },
+          {
+            "id": "rna-XM_040702843.2",
+            "miniprot_pi": 0.487,
+            "overlap_ratio": 0.97,
+            "devel_overlap_pi": 0.302
+          },
+          {
+            "id": "rna-XM_046944063.1",
+            "miniprot_pi": 0.396,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.191
+          },
+          {
+            "id": "rna-XM_046944057.1",
+            "miniprot_pi": 0.396,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.191
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 391,
+          "0.1": 257,
+          "0.15": 165
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_416560.7",
+            "devel_pi": 0.051,
+            "miniprot_pi": 0.963
+          },
+          {
+            "id": "rna-XM_040700887.2",
+            "devel_pi": 0.032,
+            "miniprot_pi": 0.89
+          },
+          {
+            "id": "rna-XM_025146757.2",
+            "devel_pi": 0.039,
+            "miniprot_pi": 0.828
+          },
+          {
+            "id": "rna-XM_040654431.2",
+            "devel_pi": 0.044,
+            "miniprot_pi": 0.824
+          },
+          {
+            "id": "rna-XM_040653269.1",
+            "devel_pi": 0.035,
+            "miniprot_pi": 0.733
+          }
+        ],
+        "proj_meanpi_gain": 0.00943,
+        "n_devel_rec_coding": 8764,
+        "cur_meanpi": 0.91129,
+        "n_egregious_stub": 9
+      },
+      "C_map_failed": {
+        "n_map_failed": 31,
+        "miniprot_recoverable_pi>=0.5": 9,
+        "examples": [
+          {
+            "id": "rna-XM_040663569.2",
+            "ref_aa": "479",
+            "lifted_dna_len": "267",
+            "miniprot_pi": 0.18
+          },
+          {
+            "id": "rna-XM_004937653.4",
+            "ref_aa": "299",
+            "lifted_dna_len": "687",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-XM_040702599.2",
+            "ref_aa": "335",
+            "lifted_dna_len": "753",
+            "miniprot_pi": 0.482
+          },
+          {
+            "id": "rna-XM_040700893.2",
+            "ref_aa": "300",
+            "lifted_dna_len": "60",
+            "miniprot_pi": 0.864
+          },
+          {
+            "id": "rna-XM_046942547.1",
+            "ref_aa": "284",
+            "lifted_dna_len": "60",
+            "miniprot_pi": 0.891
+          }
+        ]
+      }
+    },
+    {
+      "cell": "fly_mel_to_pseudoobscura",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 7251,
+      "devel_recovered_coding": 5767,
+      "devel_compl": 0.79534,
+      "A_rescue": {
+        "n_gap": 1008,
+        "have_coords": 1008,
+        "no_overlap_genuine_new": 434,
+        "overlap_dup": 574,
+        "floor": {
+          "0.3": {
+            "genuine_new": 398,
+            "compl_gain": 0.05489
+          },
+          "0.5": {
+            "genuine_new": 326,
+            "compl_gain": 0.04496
+          },
+          "0.7": {
+            "genuine_new": 187,
+            "compl_gain": 0.02579
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001110989.3",
+            "miniprot_pi": 0.939,
+            "ref_aa": "178",
+            "seqid": "NC_046679.1"
+          },
+          {
+            "id": "rna-NM_001015401.3",
+            "miniprot_pi": 0.897,
+            "ref_aa": "173",
+            "seqid": "NC_046679.1"
+          },
+          {
+            "id": "rna-NM_001300712.1",
+            "miniprot_pi": 0.897,
+            "ref_aa": "173",
+            "seqid": "NC_046679.1"
+          },
+          {
+            "id": "rna-NM_001110981.2",
+            "miniprot_pi": 0.725,
+            "ref_aa": "1122",
+            "seqid": "NC_046679.1"
+          },
+          {
+            "id": "rna-NM_001110980.2",
+            "miniprot_pi": 0.728,
+            "ref_aa": "1111",
+            "seqid": "NC_046679.1"
+          },
+          {
+            "id": "rna-NM_001015360.3",
+            "miniprot_pi": 0.728,
+            "ref_aa": "1111",
+            "seqid": "NC_046679.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001276243.1",
+            "miniprot_pi": 0.72,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.71
+          },
+          {
+            "id": "rna-NM_001144066.3",
+            "miniprot_pi": 0.72,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.71
+          },
+          {
+            "id": "rna-NM_001015164.4",
+            "miniprot_pi": 0.595,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.595
+          },
+          {
+            "id": "rna-NM_001043190.2",
+            "miniprot_pi": 0.656,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.656
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 870,
+          "0.1": 548,
+          "0.15": 359
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001300347.1",
+            "devel_pi": 0.017,
+            "miniprot_pi": 0.866
+          },
+          {
+            "id": "rna-NM_001300345.1",
+            "devel_pi": 0.017,
+            "miniprot_pi": 0.866
+          },
+          {
+            "id": "rna-NM_142563.2",
+            "devel_pi": 0.032,
+            "miniprot_pi": 0.865
+          },
+          {
+            "id": "rna-NM_001202319.2",
+            "devel_pi": 0.031,
+            "miniprot_pi": 0.863
+          },
+          {
+            "id": "rna-NM_001300346.1",
+            "devel_pi": 0.0,
+            "miniprot_pi": 0.777
+          }
+        ],
+        "proj_meanpi_gain": 0.0284,
+        "n_devel_rec_coding": 5767,
+        "cur_meanpi": 0.79571,
+        "n_egregious_stub": 15
+      },
+      "C_map_failed": {
+        "n_map_failed": 81,
+        "miniprot_recoverable_pi>=0.5": 34,
+        "examples": [
+          {
+            "id": "rna-NM_001347770.1",
+            "ref_aa": "66",
+            "lifted_dna_len": "93",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001347769.1",
+            "ref_aa": "66",
+            "lifted_dna_len": "93",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001275392.2",
+            "ref_aa": "219",
+            "lifted_dna_len": "921",
+            "miniprot_pi": 0.509
+          },
+          {
+            "id": "rna-NM_169152.2",
+            "ref_aa": "205",
+            "lifted_dna_len": "834",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_001316493.1",
+            "ref_aa": "194",
+            "lifted_dna_len": "189",
+            "miniprot_pi": null
+          }
+        ]
+      }
+    },
+    {
+      "cell": "human_to_mouse",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3086,
+      "devel_recovered_coding": 2613,
+      "devel_compl": 0.84673,
+      "A_rescue": {
+        "n_gap": 357,
+        "have_coords": 357,
+        "no_overlap_genuine_new": 222,
+        "overlap_dup": 135,
+        "floor": {
+          "0.3": {
+            "genuine_new": 215,
+            "compl_gain": 0.06967
+          },
+          "0.5": {
+            "genuine_new": 180,
+            "compl_gain": 0.05833
+          },
+          "0.7": {
+            "genuine_new": 91,
+            "compl_gain": 0.02949
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_021158.5",
+            "miniprot_pi": 0.738,
+            "ref_aa": "358",
+            "seqid": "NC_000068.8"
+          },
+          {
+            "id": "rna-NM_001301196.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "358",
+            "seqid": "NC_000068.8"
+          },
+          {
+            "id": "rna-NM_001301188.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "358",
+            "seqid": "NC_000068.8"
+          },
+          {
+            "id": "rna-NM_001301193.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "358",
+            "seqid": "NC_000068.8"
+          },
+          {
+            "id": "rna-NM_001301190.1",
+            "miniprot_pi": 0.738,
+            "ref_aa": "358",
+            "seqid": "NC_000068.8"
+          },
+          {
+            "id": "rna-XM_005260793.2",
+            "miniprot_pi": 0.732,
+            "ref_aa": "182",
+            "seqid": "NC_000068.8"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_047440635.1",
+            "miniprot_pi": 0.213,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.966
+          },
+          {
+            "id": "rna-NM_001323682.2",
+            "miniprot_pi": 0.576,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.576
+          },
+          {
+            "id": "rna-NM_001323683.2",
+            "miniprot_pi": 0.576,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.576
+          },
+          {
+            "id": "rna-NM_001323679.2",
+            "miniprot_pi": 0.602,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.576
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 665,
+          "0.1": 404,
+          "0.15": 229
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_047440254.1",
+            "devel_pi": 0.006,
+            "miniprot_pi": 0.934
+          },
+          {
+            "id": "rna-NM_001386393.1",
+            "devel_pi": 0.093,
+            "miniprot_pi": 0.907
+          },
+          {
+            "id": "rna-XM_017027600.3",
+            "devel_pi": 0.031,
+            "miniprot_pi": 0.838
+          },
+          {
+            "id": "rna-NM_005469.4",
+            "devel_pi": 0.05,
+            "miniprot_pi": 0.85
+          },
+          {
+            "id": "rna-NM_001281742.2",
+            "devel_pi": 0.062,
+            "miniprot_pi": 0.838
+          }
+        ],
+        "proj_meanpi_gain": 0.05077,
+        "n_devel_rec_coding": 2613,
+        "cur_meanpi": 0.78173,
+        "n_egregious_stub": 28
+      },
+      "C_map_failed": {
+        "n_map_failed": 14,
+        "miniprot_recoverable_pi>=0.5": 8,
+        "examples": [
+          {
+            "id": "rna-XM_017027660.2",
+            "ref_aa": "232",
+            "lifted_dna_len": "159",
+            "miniprot_pi": 0.167
+          },
+          {
+            "id": "rna-XM_017027658.2",
+            "ref_aa": "232",
+            "lifted_dna_len": "159",
+            "miniprot_pi": 0.167
+          },
+          {
+            "id": "rna-XM_017027659.2",
+            "ref_aa": "232",
+            "lifted_dna_len": "159",
+            "miniprot_pi": 0.167
+          },
+          {
+            "id": "rna-XM_017027662.2",
+            "ref_aa": "232",
+            "lifted_dna_len": "159",
+            "miniprot_pi": 0.167
+          },
+          {
+            "id": "rna-XM_017027661.2",
+            "ref_aa": "232",
+            "lifted_dna_len": "126",
+            "miniprot_pi": 0.167
+          }
+        ]
+      }
+    },
+    {
+      "cell": "rice_to_sorghum",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 5850,
+      "devel_recovered_coding": 4433,
+      "devel_compl": 0.75778,
+      "A_rescue": {
+        "n_gap": 1012,
+        "have_coords": 1012,
+        "no_overlap_genuine_new": 496,
+        "overlap_dup": 516,
+        "floor": {
+          "0.3": {
+            "genuine_new": 382,
+            "compl_gain": 0.0653
+          },
+          "0.5": {
+            "genuine_new": 235,
+            "compl_gain": 0.04017
+          },
+          "0.7": {
+            "genuine_new": 77,
+            "compl_gain": 0.01316
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_015771726.1",
+            "miniprot_pi": 0.799,
+            "ref_aa": "138",
+            "seqid": "NC_012872.2"
+          },
+          {
+            "id": "rna-XM_015769880.2",
+            "miniprot_pi": 0.84,
+            "ref_aa": "168",
+            "seqid": "NC_012872.2"
+          },
+          {
+            "id": "rna-XM_015769531.2",
+            "miniprot_pi": 0.788,
+            "ref_aa": "131",
+            "seqid": "NC_012872.2"
+          },
+          {
+            "id": "rna-XM_015767602.2",
+            "miniprot_pi": 0.734,
+            "ref_aa": "221",
+            "seqid": "NC_012872.2"
+          },
+          {
+            "id": "rna-XM_015767587.2",
+            "miniprot_pi": 0.734,
+            "ref_aa": "221",
+            "seqid": "NC_012872.2"
+          },
+          {
+            "id": "rna-XM_015773628.2",
+            "miniprot_pi": 0.862,
+            "ref_aa": "166",
+            "seqid": "NC_012872.2"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_015766704.2",
+            "miniprot_pi": 0.738,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.743
+          },
+          {
+            "id": "rna-XM_015766713.2",
+            "miniprot_pi": 0.742,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.743
+          },
+          {
+            "id": "rna-XM_015766720.2",
+            "miniprot_pi": 0.703,
+            "overlap_ratio": 0.77,
+            "devel_overlap_pi": 0.743
+          },
+          {
+            "id": "rna-XM_015775893.2",
+            "miniprot_pi": 0.508,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.5
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 1252,
+          "0.1": 856,
+          "0.15": 629
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_015772262.2",
+            "devel_pi": 0.021,
+            "miniprot_pi": 0.895
+          },
+          {
+            "id": "rna-XM_015762442.2",
+            "devel_pi": 0.031,
+            "miniprot_pi": 0.857
+          },
+          {
+            "id": "rna-XM_015765848.2",
+            "devel_pi": 0.008,
+            "miniprot_pi": 0.819
+          },
+          {
+            "id": "rna-XM_026024732.1",
+            "devel_pi": 0.008,
+            "miniprot_pi": 0.817
+          },
+          {
+            "id": "rna-XM_015765849.2",
+            "devel_pi": 0.024,
+            "miniprot_pi": 0.829
+          }
+        ],
+        "proj_meanpi_gain": 0.05928,
+        "n_devel_rec_coding": 4433,
+        "cur_meanpi": 0.67547,
+        "n_egregious_stub": 49
+      },
+      "C_map_failed": {
+        "n_map_failed": 23,
+        "miniprot_recoverable_pi>=0.5": 10,
+        "examples": [
+          {
+            "id": "rna-XM_026022080.1",
+            "ref_aa": "480",
+            "lifted_dna_len": "1521",
+            "miniprot_pi": 0.457
+          },
+          {
+            "id": "rna-XM_026022482.1",
+            "ref_aa": "315",
+            "lifted_dna_len": "1770",
+            "miniprot_pi": 0.848
+          },
+          {
+            "id": "rna-XM_026022479.1",
+            "ref_aa": "315",
+            "lifted_dna_len": "1833",
+            "miniprot_pi": 0.848
+          },
+          {
+            "id": "rna-XM_026022481.1",
+            "ref_aa": "315",
+            "lifted_dna_len": "1797",
+            "miniprot_pi": 0.848
+          },
+          {
+            "id": "rna-XM_026022485.1",
+            "ref_aa": "315",
+            "lifted_dna_len": "1953",
+            "miniprot_pi": 0.848
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t3_dog_to_cat",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3951,
+      "devel_recovered_coding": 3851,
+      "devel_compl": 0.97469,
+      "A_rescue": {
+        "n_gap": 48,
+        "have_coords": 48,
+        "no_overlap_genuine_new": 20,
+        "overlap_dup": 28,
+        "floor": {
+          "0.3": {
+            "genuine_new": 10,
+            "compl_gain": 0.00253
+          },
+          "0.5": {
+            "genuine_new": 7,
+            "compl_gain": 0.00177
+          },
+          "0.7": {
+            "genuine_new": 3,
+            "compl_gain": 0.00076
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001195771.1",
+            "miniprot_pi": 0.8,
+            "ref_aa": "54",
+            "seqid": "NC_058379.1"
+          },
+          {
+            "id": "rna-XM_038570711.1",
+            "miniprot_pi": 0.76,
+            "ref_aa": "99",
+            "seqid": "NC_058372.1"
+          },
+          {
+            "id": "rna-XM_038685524.1",
+            "miniprot_pi": 0.853,
+            "ref_aa": "74",
+            "seqid": "NC_058372.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_038590808.1",
+            "miniprot_pi": 0.033,
+            "overlap_ratio": 0.98,
+            "devel_overlap_pi": 0.124
+          },
+          {
+            "id": "rna-XM_038495713.1",
+            "miniprot_pi": 0.632,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.915
+          },
+          {
+            "id": "rna-XM_038495300.1",
+            "miniprot_pi": 0.632,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.915
+          },
+          {
+            "id": "rna-XM_038495298.1",
+            "miniprot_pi": 0.632,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.915
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 293,
+          "0.1": 156,
+          "0.15": 113
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_533610.6",
+            "devel_pi": 0.08,
+            "miniprot_pi": 0.818
+          },
+          {
+            "id": "rna-NM_001097552.1",
+            "devel_pi": 0.038,
+            "miniprot_pi": 0.707
+          },
+          {
+            "id": "rna-NM_001003284.1",
+            "devel_pi": 0.057,
+            "miniprot_pi": 0.655
+          }
+        ],
+        "proj_meanpi_gain": 0.01393,
+        "n_devel_rec_coding": 3851,
+        "cur_meanpi": 0.83709,
+        "n_egregious_stub": 3
+      },
+      "C_map_failed": {
+        "n_map_failed": 42,
+        "miniprot_recoverable_pi>=0.5": 14,
+        "examples": [
+          {
+            "id": "rna-XM_038495713.1",
+            "ref_aa": "328",
+            "lifted_dna_len": "753",
+            "miniprot_pi": 0.632
+          },
+          {
+            "id": "rna-XM_038495300.1",
+            "ref_aa": "328",
+            "lifted_dna_len": "828",
+            "miniprot_pi": 0.632
+          },
+          {
+            "id": "rna-XM_038495298.1",
+            "ref_aa": "328",
+            "lifted_dna_len": "753",
+            "miniprot_pi": 0.632
+          },
+          {
+            "id": "rna-XM_038495435.1",
+            "ref_aa": "328",
+            "lifted_dna_len": "480",
+            "miniprot_pi": 0.632
+          },
+          {
+            "id": "rna-XM_038495501.1",
+            "ref_aa": "328",
+            "lifted_dna_len": "753",
+            "miniprot_pi": 0.632
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t3_human_to_macaque",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3086,
+      "devel_recovered_coding": 3077,
+      "devel_compl": 0.99708,
+      "A_rescue": {
+        "n_gap": 8,
+        "have_coords": 8,
+        "no_overlap_genuine_new": 7,
+        "overlap_dup": 1,
+        "floor": {
+          "0.3": {
+            "genuine_new": 7,
+            "compl_gain": 0.00227
+          },
+          "0.5": {
+            "genuine_new": 7,
+            "compl_gain": 0.00227
+          },
+          "0.7": {
+            "genuine_new": 7,
+            "compl_gain": 0.00227
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-XM_011529277.3",
+            "miniprot_pi": 0.961,
+            "ref_aa": "439",
+            "seqid": "NC_041763.1"
+          },
+          {
+            "id": "rna-XM_005260702.4",
+            "miniprot_pi": 0.914,
+            "ref_aa": "719",
+            "seqid": "NC_041763.1"
+          },
+          {
+            "id": "rna-NM_015655.4",
+            "miniprot_pi": 0.874,
+            "ref_aa": "751",
+            "seqid": "NC_041763.1"
+          },
+          {
+            "id": "rna-XM_011529219.3",
+            "miniprot_pi": 0.874,
+            "ref_aa": "751",
+            "seqid": "NC_041763.1"
+          },
+          {
+            "id": "rna-XM_006723558.5",
+            "miniprot_pi": 0.874,
+            "ref_aa": "751",
+            "seqid": "NC_041763.1"
+          },
+          {
+            "id": "rna-XM_017027803.3",
+            "miniprot_pi": 0.914,
+            "ref_aa": "719",
+            "seqid": "NC_041763.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001898.3",
+            "miniprot_pi": 0.817,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.845
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 72,
+          "0.1": 43,
+          "0.15": 37
+        },
+        "egregious": [
+          {
+            "id": "rna-XM_047440250.1",
+            "devel_pi": 0.029,
+            "miniprot_pi": 0.953
+          },
+          {
+            "id": "rna-XM_047440249.1",
+            "devel_pi": 0.029,
+            "miniprot_pi": 0.952
+          },
+          {
+            "id": "rna-XM_011529268.3",
+            "devel_pi": 0.028,
+            "miniprot_pi": 0.95
+          }
+        ],
+        "proj_meanpi_gain": 0.00776,
+        "n_devel_rec_coding": 3077,
+        "cur_meanpi": 0.94315,
+        "n_egregious_stub": 3
+      },
+      "C_map_failed": {
+        "n_map_failed": 7,
+        "miniprot_recoverable_pi>=0.5": 6,
+        "examples": [
+          {
+            "id": "rna-XM_011529277.3",
+            "ref_aa": "439",
+            "lifted_dna_len": "4443",
+            "miniprot_pi": 0.961
+          },
+          {
+            "id": "rna-XM_005260702.4",
+            "ref_aa": "719",
+            "lifted_dna_len": "96",
+            "miniprot_pi": 0.914
+          },
+          {
+            "id": "rna-NM_015655.4",
+            "ref_aa": "751",
+            "lifted_dna_len": "96",
+            "miniprot_pi": 0.874
+          },
+          {
+            "id": "rna-XM_011529219.3",
+            "ref_aa": "751",
+            "lifted_dna_len": "387",
+            "miniprot_pi": 0.874
+          },
+          {
+            "id": "rna-XM_006723558.5",
+            "ref_aa": "751",
+            "lifted_dna_len": "5298",
+            "miniprot_pi": 0.874
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t3_human_to_marmoset",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3086,
+      "devel_recovered_coding": 3055,
+      "devel_compl": 0.98995,
+      "A_rescue": {
+        "n_gap": 16,
+        "have_coords": 16,
+        "no_overlap_genuine_new": 0,
+        "overlap_dup": 16,
+        "floor": {
+          "0.3": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.5": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          },
+          "0.7": {
+            "genuine_new": 0,
+            "compl_gain": 0.0
+          }
+        },
+        "examples_new": [],
+        "examples_dup": [
+          {
+            "id": "rna-XM_011529286.3",
+            "miniprot_pi": 0.775,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.648
+          },
+          {
+            "id": "rna-NM_080816.3",
+            "miniprot_pi": 0.766,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.648
+          },
+          {
+            "id": "rna-XM_005260749.5",
+            "miniprot_pi": 0.766,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.648
+          },
+          {
+            "id": "rna-NM_001039508.2",
+            "miniprot_pi": 0.791,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.648
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 98,
+          "0.1": 51,
+          "0.15": 26
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001329157.2",
+            "devel_pi": 0.048,
+            "miniprot_pi": 0.825
+          },
+          {
+            "id": "rna-NM_001135844.4",
+            "devel_pi": 0.06,
+            "miniprot_pi": 0.825
+          },
+          {
+            "id": "rna-XM_047440139.1",
+            "devel_pi": 0.082,
+            "miniprot_pi": 0.737
+          }
+        ],
+        "proj_meanpi_gain": 0.0054,
+        "n_devel_rec_coding": 3055,
+        "cur_meanpi": 0.90711,
+        "n_egregious_stub": 3
+      },
+      "C_map_failed": {
+        "n_map_failed": 7,
+        "miniprot_recoverable_pi>=0.5": 6,
+        "examples": [
+          {
+            "id": "rna-XM_047439907.1",
+            "ref_aa": "202",
+            "lifted_dna_len": "1341",
+            "miniprot_pi": 0.852
+          },
+          {
+            "id": "rna-XM_047439906.1",
+            "ref_aa": "202",
+            "lifted_dna_len": "1344",
+            "miniprot_pi": 0.852
+          },
+          {
+            "id": "rna-XM_047439904.1",
+            "ref_aa": "202",
+            "lifted_dna_len": "1440",
+            "miniprot_pi": 0.852
+          },
+          {
+            "id": "rna-XM_047439905.1",
+            "ref_aa": "202",
+            "lifted_dna_len": "1785",
+            "miniprot_pi": 0.852
+          },
+          {
+            "id": "rna-XM_047439908.1",
+            "ref_aa": "202",
+            "lifted_dna_len": "1461",
+            "miniprot_pi": 0.852
+          }
+        ]
+      }
+    },
+    {
+      "cell": "zebrafish_to_medaka",
+      "divergence_class": "distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 2972,
+      "devel_recovered_coding": 505,
+      "devel_compl": 0.16992,
+      "A_rescue": {
+        "n_gap": 2136,
+        "have_coords": 2136,
+        "no_overlap_genuine_new": 965,
+        "overlap_dup": 1171,
+        "floor": {
+          "0.3": {
+            "genuine_new": 769,
+            "compl_gain": 0.25875
+          },
+          "0.5": {
+            "genuine_new": 586,
+            "compl_gain": 0.19717
+          },
+          "0.7": {
+            "genuine_new": 265,
+            "compl_gain": 0.08917
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001044748.2",
+            "miniprot_pi": 0.841,
+            "ref_aa": "727",
+            "seqid": "NC_019881.2"
+          },
+          {
+            "id": "rna-NM_001044840.2",
+            "miniprot_pi": 0.77,
+            "ref_aa": "524",
+            "seqid": "NC_019882.2"
+          },
+          {
+            "id": "rna-XM_005168513.5",
+            "miniprot_pi": 0.759,
+            "ref_aa": "530",
+            "seqid": "NC_019882.2"
+          },
+          {
+            "id": "rna-XM_068219649.1",
+            "miniprot_pi": 0.762,
+            "ref_aa": "499",
+            "seqid": "NC_019882.2"
+          },
+          {
+            "id": "rna-XM_005168514.5",
+            "miniprot_pi": 0.78,
+            "ref_aa": "486",
+            "seqid": "NC_019882.2"
+          },
+          {
+            "id": "rna-NM_213103.1",
+            "miniprot_pi": 0.958,
+            "ref_aa": "505",
+            "seqid": "NC_019881.2"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-XM_021475187.2",
+            "miniprot_pi": 0.414,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.418
+          },
+          {
+            "id": "rna-XM_068219474.1",
+            "miniprot_pi": 0.122,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.265
+          },
+          {
+            "id": "rna-XM_068219475.1",
+            "miniprot_pi": 0.122,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.265
+          },
+          {
+            "id": "rna-XM_005168491.5",
+            "miniprot_pi": 0.122,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.265
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 224,
+          "0.1": 144,
+          "0.15": 122
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_201489.1",
+            "devel_pi": 0.082,
+            "miniprot_pi": 0.978
+          },
+          {
+            "id": "rna-XM_021474990.2",
+            "devel_pi": 0.018,
+            "miniprot_pi": 0.789
+          },
+          {
+            "id": "rna-XM_021474989.2",
+            "devel_pi": 0.018,
+            "miniprot_pi": 0.789
+          },
+          {
+            "id": "rna-XM_068220508.1",
+            "devel_pi": 0.009,
+            "miniprot_pi": 0.543
+          },
+          {
+            "id": "rna-XM_068220030.1",
+            "devel_pi": 0.008,
+            "miniprot_pi": 0.535
+          }
+        ],
+        "proj_meanpi_gain": 0.10014,
+        "n_devel_rec_coding": 505,
+        "cur_meanpi": 0.5568,
+        "n_egregious_stub": 13
+      },
+      "C_map_failed": {
+        "n_map_failed": 42,
+        "miniprot_recoverable_pi>=0.5": 11,
+        "examples": [
+          {
+            "id": "rna-XM_068219474.1",
+            "ref_aa": "451",
+            "lifted_dna_len": "291",
+            "miniprot_pi": 0.122
+          },
+          {
+            "id": "rna-XM_068219475.1",
+            "ref_aa": "451",
+            "lifted_dna_len": "291",
+            "miniprot_pi": 0.122
+          },
+          {
+            "id": "rna-XM_005168491.5",
+            "ref_aa": "451",
+            "lifted_dna_len": "291",
+            "miniprot_pi": 0.122
+          },
+          {
+            "id": "rna-XM_005168492.5",
+            "ref_aa": "451",
+            "lifted_dna_len": "291",
+            "miniprot_pi": 0.122
+          },
+          {
+            "id": "rna-XM_005168521.5",
+            "ref_aa": "199",
+            "lifted_dna_len": "1305",
+            "miniprot_pi": 0.5
+          }
+        ]
+      }
+    },
+    {
+      "cell": "arabidopsis_to_rice",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "full",
+      "trust": "ok",
+      "n_ref_coding": 48265,
+      "devel_recovered_coding": 7146,
+      "devel_compl": 0.14806,
+      "A_rescue": {
+        "n_gap": 29865,
+        "have_coords": 29865,
+        "no_overlap_genuine_new": 13172,
+        "overlap_dup": 16693,
+        "floor": {
+          "0.3": {
+            "genuine_new": 10795,
+            "compl_gain": 0.22366
+          },
+          "0.5": {
+            "genuine_new": 6472,
+            "compl_gain": 0.13409
+          },
+          "0.7": {
+            "genuine_new": 1552,
+            "compl_gain": 0.03216
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_099991.4",
+            "miniprot_pi": 0.755,
+            "ref_aa": "428",
+            "seqid": "NC_029259.1"
+          },
+          {
+            "id": "rna-NM_100074.4",
+            "miniprot_pi": 0.888,
+            "ref_aa": "160",
+            "seqid": "NC_029261.1"
+          },
+          {
+            "id": "rna-NM_100093.4",
+            "miniprot_pi": 0.897,
+            "ref_aa": "203",
+            "seqid": "NC_029257.1"
+          },
+          {
+            "id": "rna-NM_100094.3",
+            "miniprot_pi": 0.821,
+            "ref_aa": "150",
+            "seqid": "NC_029267.1"
+          },
+          {
+            "id": "rna-NM_001331348.1",
+            "miniprot_pi": 0.805,
+            "ref_aa": "122",
+            "seqid": "NC_029256.1"
+          },
+          {
+            "id": "rna-NM_100215.4",
+            "miniprot_pi": 0.904,
+            "ref_aa": "93",
+            "seqid": "NC_029263.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001331239.1",
+            "miniprot_pi": 0.185,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.236
+          },
+          {
+            "id": "rna-NM_001331244.1",
+            "miniprot_pi": 0.411,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.486
+          },
+          {
+            "id": "rna-NM_099985.3",
+            "miniprot_pi": 0.404,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.486
+          },
+          {
+            "id": "rna-NM_001197952.1",
+            "miniprot_pi": 0.718,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.719
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 172,
+          "0.1": 158,
+          "0.15": 144
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_128508.3",
+            "devel_pi": 0.0,
+            "miniprot_pi": 0.949
+          },
+          {
+            "id": "rna-NM_202978.2",
+            "devel_pi": 0.02,
+            "miniprot_pi": 0.961
+          },
+          {
+            "id": "rna-NM_001036730.2",
+            "devel_pi": 0.02,
+            "miniprot_pi": 0.961
+          },
+          {
+            "id": "rna-NM_001036731.2",
+            "devel_pi": 0.02,
+            "miniprot_pi": 0.961
+          },
+          {
+            "id": "rna-NM_120012.4",
+            "devel_pi": 0.02,
+            "miniprot_pi": 0.961
+          }
+        ],
+        "proj_meanpi_gain": 0.01152,
+        "n_devel_rec_coding": 7146,
+        "cur_meanpi": 0.55051,
+        "n_egregious_stub": 59
+      },
+      "C_map_failed": {
+        "n_map_failed": 9,
+        "miniprot_recoverable_pi>=0.5": 3,
+        "examples": [
+          {
+            "id": "rna-NM_100853.4",
+            "ref_aa": "372",
+            "lifted_dna_len": "198",
+            "miniprot_pi": 0.598
+          },
+          {
+            "id": "rna-NM_001331852.1",
+            "ref_aa": "372",
+            "lifted_dna_len": "198",
+            "miniprot_pi": 0.598
+          },
+          {
+            "id": "rna-NM_001332266.1",
+            "ref_aa": "48",
+            "lifted_dna_len": "204",
+            "miniprot_pi": null
+          },
+          {
+            "id": "rna-NM_103815.5",
+            "ref_aa": "74",
+            "lifted_dna_len": "159",
+            "miniprot_pi": 0.2
+          },
+          {
+            "id": "rna-NM_105549.4",
+            "ref_aa": "147",
+            "lifted_dna_len": "90",
+            "miniprot_pi": null
+          }
+        ]
+      }
+    },
+    {
+      "cell": "cerevisiae_to_pombe",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 767,
+      "devel_recovered_coding": 139,
+      "devel_compl": 0.18123,
+      "A_rescue": {
+        "n_gap": 148,
+        "have_coords": 148,
+        "no_overlap_genuine_new": 128,
+        "overlap_dup": 20,
+        "floor": {
+          "0.3": {
+            "genuine_new": 71,
+            "compl_gain": 0.09257
+          },
+          "0.5": {
+            "genuine_new": 14,
+            "compl_gain": 0.01825
+          },
+          "0.7": {
+            "genuine_new": 4,
+            "compl_gain": 0.00522
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001180142.1",
+            "miniprot_pi": 0.722,
+            "ref_aa": "143",
+            "seqid": "NC_003424.3"
+          },
+          {
+            "id": "rna-NM_001180333.3",
+            "miniprot_pi": 0.72,
+            "ref_aa": "156",
+            "seqid": "NC_003424.3"
+          },
+          {
+            "id": "rna-NM_001180367.1",
+            "miniprot_pi": 0.812,
+            "ref_aa": "148",
+            "seqid": "NC_003423.3"
+          },
+          {
+            "id": "rna-NM_001180372.3",
+            "miniprot_pi": 0.776,
+            "ref_aa": "151",
+            "seqid": "NC_003424.3"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001180274.1",
+            "miniprot_pi": 0.159,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.502
+          },
+          {
+            "id": "rna-NM_001180234.1",
+            "miniprot_pi": 0.231,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.516
+          },
+          {
+            "id": "rna-NM_001180209.1",
+            "miniprot_pi": 0.285,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.419
+          },
+          {
+            "id": "rna-NM_001180197.1",
+            "miniprot_pi": 0.786,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.786
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 0,
+          "0.1": 0,
+          "0.15": 0
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.0,
+        "n_devel_rec_coding": 139,
+        "cur_meanpi": 0.50495,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 0,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": []
+      }
+    },
+    {
+      "cell": "drosophila_to_anopheles",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 7251,
+      "devel_recovered_coding": 1228,
+      "devel_compl": 0.16936,
+      "A_rescue": {
+        "n_gap": 4255,
+        "have_coords": 4255,
+        "no_overlap_genuine_new": 2761,
+        "overlap_dup": 1494,
+        "floor": {
+          "0.3": {
+            "genuine_new": 2153,
+            "compl_gain": 0.29692
+          },
+          "0.5": {
+            "genuine_new": 1242,
+            "compl_gain": 0.17129
+          },
+          "0.7": {
+            "genuine_new": 349,
+            "compl_gain": 0.04813
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001015401.3",
+            "miniprot_pi": 0.822,
+            "ref_aa": "173",
+            "seqid": "NT_078266.2"
+          },
+          {
+            "id": "rna-NM_001300712.1",
+            "miniprot_pi": 0.822,
+            "ref_aa": "173",
+            "seqid": "NT_078266.2"
+          },
+          {
+            "id": "rna-NM_001043201.5",
+            "miniprot_pi": 0.709,
+            "ref_aa": "449",
+            "seqid": "NC_004818.2"
+          },
+          {
+            "id": "rna-NM_001300228.1",
+            "miniprot_pi": 0.709,
+            "ref_aa": "449",
+            "seqid": "NC_004818.2"
+          },
+          {
+            "id": "rna-NM_001300235.1",
+            "miniprot_pi": 0.816,
+            "ref_aa": "369",
+            "seqid": "NT_078266.2"
+          },
+          {
+            "id": "rna-NM_141241.4",
+            "miniprot_pi": 0.816,
+            "ref_aa": "369",
+            "seqid": "NT_078266.2"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001201440.1",
+            "miniprot_pi": 0.781,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.641
+          },
+          {
+            "id": "rna-NM_001110995.2",
+            "miniprot_pi": 0.792,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.641
+          },
+          {
+            "id": "rna-NM_001201439.2",
+            "miniprot_pi": 0.786,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.641
+          },
+          {
+            "id": "rna-NM_001015159.4",
+            "miniprot_pi": 0.775,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.641
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 132,
+          "0.1": 80,
+          "0.15": 70
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001170146.2",
+            "devel_pi": 0.044,
+            "miniprot_pi": 0.933
+          },
+          {
+            "id": "rna-NM_079630.4",
+            "devel_pi": 0.044,
+            "miniprot_pi": 0.93
+          },
+          {
+            "id": "rna-NM_001170282.2",
+            "devel_pi": 0.013,
+            "miniprot_pi": 0.869
+          },
+          {
+            "id": "rna-NM_143349.2",
+            "devel_pi": 0.013,
+            "miniprot_pi": 0.841
+          },
+          {
+            "id": "rna-NM_080059.3",
+            "devel_pi": 0.026,
+            "miniprot_pi": 0.762
+          }
+        ],
+        "proj_meanpi_gain": 0.02792,
+        "n_devel_rec_coding": 1228,
+        "cur_meanpi": 0.55073,
+        "n_egregious_stub": 8
+      },
+      "C_map_failed": {
+        "n_map_failed": 3,
+        "miniprot_recoverable_pi>=0.5": 2,
+        "examples": [
+          {
+            "id": "rna-NM_169380.2",
+            "ref_aa": "138",
+            "lifted_dna_len": "732",
+            "miniprot_pi": 0.777
+          },
+          {
+            "id": "rna-NM_057790.5",
+            "ref_aa": "578",
+            "lifted_dna_len": "1425",
+            "miniprot_pi": 0.763
+          },
+          {
+            "id": "rna-NM_001300529.1",
+            "ref_aa": "34",
+            "lifted_dna_len": "912",
+            "miniprot_pi": 0.229
+          }
+        ]
+      }
+    },
+    {
+      "cell": "human_to_zebrafish",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "full",
+      "trust": "eval_suspect",
+      "n_ref_coding": 144329,
+      "devel_recovered_coding": 6396,
+      "devel_compl": 0.04432,
+      "A_rescue": {
+        "n_gap": 112216,
+        "have_coords": 112216,
+        "no_overlap_genuine_new": 86896,
+        "overlap_dup": 25320,
+        "floor": {
+          "0.3": {
+            "genuine_new": 73924,
+            "compl_gain": 0.51219
+          },
+          "0.5": {
+            "genuine_new": 54400,
+            "compl_gain": 0.37692
+          },
+          "0.7": {
+            "genuine_new": 22413,
+            "compl_gain": 0.15529
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_198317.3",
+            "miniprot_pi": 0.834,
+            "ref_aa": "642",
+            "seqid": "NW_018395148.1"
+          },
+          {
+            "id": "rna-XM_006710600.4",
+            "miniprot_pi": 0.873,
+            "ref_aa": "613",
+            "seqid": "NW_018395148.1"
+          },
+          {
+            "id": "rna-XM_006710601.4",
+            "miniprot_pi": 0.704,
+            "ref_aa": "411",
+            "seqid": "NW_018395148.1"
+          },
+          {
+            "id": "rna-XM_047419226.1",
+            "miniprot_pi": 0.863,
+            "ref_aa": "473",
+            "seqid": "NC_007134.7"
+          },
+          {
+            "id": "rna-XM_047419224.1",
+            "miniprot_pi": 0.871,
+            "ref_aa": "606",
+            "seqid": "NW_018395148.1"
+          },
+          {
+            "id": "rna-XM_047419225.1",
+            "miniprot_pi": 0.899,
+            "ref_aa": "583",
+            "seqid": "NW_018395148.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001005484.2",
+            "miniprot_pi": 0.339,
+            "overlap_ratio": 0.99,
+            "devel_overlap_pi": 0.364
+          },
+          {
+            "id": "rna-XM_024449992.2",
+            "miniprot_pi": 0.364,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.364
+          },
+          {
+            "id": "rna-XM_017002410.2",
+            "miniprot_pi": 0.364,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.364
+          },
+          {
+            "id": "rna-XM_017002408.2",
+            "miniprot_pi": 0.364,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.364
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 1265,
+          "0.1": 1223,
+          "0.15": 1146
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001406467.1",
+            "devel_pi": 0.039,
+            "miniprot_pi": 0.991
+          },
+          {
+            "id": "rna-NM_001406468.1",
+            "devel_pi": 0.039,
+            "miniprot_pi": 0.991
+          },
+          {
+            "id": "rna-NM_001406469.1",
+            "devel_pi": 0.039,
+            "miniprot_pi": 0.991
+          },
+          {
+            "id": "rna-NM_001406471.1",
+            "devel_pi": 0.041,
+            "miniprot_pi": 0.99
+          },
+          {
+            "id": "rna-NM_032704.5",
+            "devel_pi": 0.042,
+            "miniprot_pi": 0.984
+          }
+        ],
+        "proj_meanpi_gain": 0.10219,
+        "n_devel_rec_coding": 6396,
+        "cur_meanpi": 0.56114,
+        "n_egregious_stub": 415
+      },
+      "C_map_failed": {
+        "n_map_failed": 115,
+        "miniprot_recoverable_pi>=0.5": 55,
+        "examples": [
+          {
+            "id": "rna-NM_014676.3",
+            "ref_aa": "1186",
+            "lifted_dna_len": "870",
+            "miniprot_pi": 0.809
+          },
+          {
+            "id": "rna-NM_001020658.2",
+            "ref_aa": "1188",
+            "lifted_dna_len": "870",
+            "miniprot_pi": 0.809
+          },
+          {
+            "id": "rna-XM_011509818.2",
+            "ref_aa": "535",
+            "lifted_dna_len": "81",
+            "miniprot_pi": 0.666
+          },
+          {
+            "id": "rna-XM_017001918.2",
+            "ref_aa": "535",
+            "lifted_dna_len": "75",
+            "miniprot_pi": 0.666
+          },
+          {
+            "id": "rna-NM_001677.4",
+            "ref_aa": "303",
+            "lifted_dna_len": "912",
+            "miniprot_pi": 0.582
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t4_drosophila_to_bee",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "full",
+      "trust": "ok",
+      "n_ref_coding": 30799,
+      "devel_recovered_coding": 2604,
+      "devel_compl": 0.08455,
+      "A_rescue": {
+        "n_gap": 17949,
+        "have_coords": 17949,
+        "no_overlap_genuine_new": 11629,
+        "overlap_dup": 6320,
+        "floor": {
+          "0.3": {
+            "genuine_new": 7964,
+            "compl_gain": 0.25858
+          },
+          "0.5": {
+            "genuine_new": 3896,
+            "compl_gain": 0.1265
+          },
+          "0.7": {
+            "genuine_new": 1286,
+            "compl_gain": 0.04175
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_001382036.1",
+            "miniprot_pi": 0.737,
+            "ref_aa": "715",
+            "seqid": "NC_037640.1"
+          },
+          {
+            "id": "rna-NM_001297801.1",
+            "miniprot_pi": 0.737,
+            "ref_aa": "715",
+            "seqid": "NC_037640.1"
+          },
+          {
+            "id": "rna-NM_001297799.1",
+            "miniprot_pi": 0.737,
+            "ref_aa": "715",
+            "seqid": "NC_037640.1"
+          },
+          {
+            "id": "rna-NM_001297798.1",
+            "miniprot_pi": 0.737,
+            "ref_aa": "715",
+            "seqid": "NC_037640.1"
+          },
+          {
+            "id": "rna-NM_001038726.2",
+            "miniprot_pi": 0.737,
+            "ref_aa": "715",
+            "seqid": "NC_037640.1"
+          },
+          {
+            "id": "rna-NM_001031861.2",
+            "miniprot_pi": 0.737,
+            "ref_aa": "715",
+            "seqid": "NC_037640.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001258513.2",
+            "miniprot_pi": 0.399,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.409
+          },
+          {
+            "id": "rna-NM_001258512.2",
+            "miniprot_pi": 0.424,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.409
+          },
+          {
+            "id": "rna-NM_166834.2",
+            "miniprot_pi": 0.298,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.264
+          },
+          {
+            "id": "rna-NM_130477.4",
+            "miniprot_pi": 0.275,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.264
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 24,
+          "0.1": 15,
+          "0.15": 14
+        },
+        "egregious": [],
+        "proj_meanpi_gain": 0.00254,
+        "n_devel_rec_coding": 2604,
+        "cur_meanpi": 0.49673,
+        "n_egregious_stub": 0
+      },
+      "C_map_failed": {
+        "n_map_failed": 2,
+        "miniprot_recoverable_pi>=0.5": 0,
+        "examples": [
+          {
+            "id": "rna-NM_001298491.1",
+            "ref_aa": "437",
+            "lifted_dna_len": "210",
+            "miniprot_pi": 0.39
+          },
+          {
+            "id": "rna-NM_133112.2",
+            "ref_aa": "437",
+            "lifted_dna_len": "210",
+            "miniprot_pi": 0.39
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t4_human_to_chicken",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3086,
+      "devel_recovered_coding": 748,
+      "devel_compl": 0.24238,
+      "A_rescue": {
+        "n_gap": 1987,
+        "have_coords": 1987,
+        "no_overlap_genuine_new": 1608,
+        "overlap_dup": 379,
+        "floor": {
+          "0.3": {
+            "genuine_new": 1496,
+            "compl_gain": 0.48477
+          },
+          "0.5": {
+            "genuine_new": 1162,
+            "compl_gain": 0.37654
+          },
+          "0.7": {
+            "genuine_new": 722,
+            "compl_gain": 0.23396
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_144628.4",
+            "miniprot_pi": 0.854,
+            "ref_aa": "403",
+            "seqid": "NC_052551.1"
+          },
+          {
+            "id": "rna-NM_015685.6",
+            "miniprot_pi": 0.76,
+            "ref_aa": "207",
+            "seqid": "NC_052551.1"
+          },
+          {
+            "id": "rna-NM_000801.5",
+            "miniprot_pi": 0.917,
+            "ref_aa": "108",
+            "seqid": "NC_052551.1"
+          },
+          {
+            "id": "rna-NM_054014.4",
+            "miniprot_pi": 0.917,
+            "ref_aa": "108",
+            "seqid": "NC_052551.1"
+          },
+          {
+            "id": "rna-NM_198216.2",
+            "miniprot_pi": 0.959,
+            "ref_aa": "240",
+            "seqid": "NC_052551.1"
+          },
+          {
+            "id": "rna-NM_003091.4",
+            "miniprot_pi": 0.944,
+            "ref_aa": "231",
+            "seqid": "NC_052551.1"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001301201.1",
+            "miniprot_pi": 0.402,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.432
+          },
+          {
+            "id": "rna-NM_001301196.1",
+            "miniprot_pi": 0.432,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.432
+          },
+          {
+            "id": "rna-NM_001301188.1",
+            "miniprot_pi": 0.432,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.432
+          },
+          {
+            "id": "rna-NM_001301193.1",
+            "miniprot_pi": 0.432,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.432
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 201,
+          "0.1": 135,
+          "0.15": 77
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_001324193.2",
+            "devel_pi": 0.052,
+            "miniprot_pi": 0.933
+          },
+          {
+            "id": "rna-XM_017027977.2",
+            "devel_pi": 0.001,
+            "miniprot_pi": 0.79
+          },
+          {
+            "id": "rna-NM_001052.4",
+            "devel_pi": 0.073,
+            "miniprot_pi": 0.699
+          },
+          {
+            "id": "rna-NM_022358.4",
+            "devel_pi": 0.097,
+            "miniprot_pi": 0.601
+          }
+        ],
+        "proj_meanpi_gain": 0.05204,
+        "n_devel_rec_coding": 748,
+        "cur_meanpi": 0.72051,
+        "n_egregious_stub": 4
+      },
+      "C_map_failed": {
+        "n_map_failed": 23,
+        "miniprot_recoverable_pi>=0.5": 11,
+        "examples": [
+          {
+            "id": "rna-XM_011529174.4",
+            "ref_aa": "334",
+            "lifted_dna_len": "240",
+            "miniprot_pi": 0.179
+          },
+          {
+            "id": "rna-NM_001351661.2",
+            "ref_aa": "448",
+            "lifted_dna_len": "546",
+            "miniprot_pi": 0.305
+          },
+          {
+            "id": "rna-NM_001351663.2",
+            "ref_aa": "447",
+            "lifted_dna_len": "546",
+            "miniprot_pi": 0.306
+          },
+          {
+            "id": "rna-NM_080676.6",
+            "ref_aa": "425",
+            "lifted_dna_len": "546",
+            "miniprot_pi": 0.322
+          },
+          {
+            "id": "rna-NM_001351664.2",
+            "ref_aa": "240",
+            "lifted_dna_len": "546",
+            "miniprot_pi": null
+          }
+        ]
+      }
+    },
+    {
+      "cell": "t4_human_to_xenopus",
+      "divergence_class": "very_distant_cross_species",
+      "mode": "subset",
+      "trust": "ok",
+      "n_ref_coding": 3086,
+      "devel_recovered_coding": 242,
+      "devel_compl": 0.07842,
+      "A_rescue": {
+        "n_gap": 2439,
+        "have_coords": 2439,
+        "no_overlap_genuine_new": 2042,
+        "overlap_dup": 397,
+        "floor": {
+          "0.3": {
+            "genuine_new": 1853,
+            "compl_gain": 0.60045
+          },
+          "0.5": {
+            "genuine_new": 1502,
+            "compl_gain": 0.48671
+          },
+          "0.7": {
+            "genuine_new": 819,
+            "compl_gain": 0.26539
+          }
+        },
+        "examples_new": [
+          {
+            "id": "rna-NM_144628.4",
+            "miniprot_pi": 0.752,
+            "ref_aa": "403",
+            "seqid": "NC_030686.2"
+          },
+          {
+            "id": "rna-NM_177560.3",
+            "miniprot_pi": 0.93,
+            "ref_aa": "255",
+            "seqid": "NC_030686.2"
+          },
+          {
+            "id": "rna-NM_001362771.2",
+            "miniprot_pi": 0.954,
+            "ref_aa": "391",
+            "seqid": "NC_030686.2"
+          },
+          {
+            "id": "rna-NM_001895.4",
+            "miniprot_pi": 0.954,
+            "ref_aa": "391",
+            "seqid": "NC_030686.2"
+          },
+          {
+            "id": "rna-NM_001362770.2",
+            "miniprot_pi": 0.954,
+            "ref_aa": "391",
+            "seqid": "NC_030686.2"
+          },
+          {
+            "id": "rna-NM_177559.3",
+            "miniprot_pi": 0.954,
+            "ref_aa": "391",
+            "seqid": "NC_030686.2"
+          }
+        ],
+        "examples_dup": [
+          {
+            "id": "rna-NM_001301201.1",
+            "miniprot_pi": 0.42,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.451
+          },
+          {
+            "id": "rna-NM_001301196.1",
+            "miniprot_pi": 0.451,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.451
+          },
+          {
+            "id": "rna-NM_001301188.1",
+            "miniprot_pi": 0.451,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.451
+          },
+          {
+            "id": "rna-NM_001301193.1",
+            "miniprot_pi": 0.451,
+            "overlap_ratio": 1.0,
+            "devel_overlap_pi": 0.451
+          }
+        ],
+        "mp_gff": "miniprot.gff3",
+        "coord_coverage": 1.0
+      },
+      "B_merge": {
+        "thr": {
+          "0.05": 96,
+          "0.1": 59,
+          "0.15": 46
+        },
+        "egregious": [
+          {
+            "id": "rna-NM_002196.3",
+            "devel_pi": 0.053,
+            "miniprot_pi": 0.566
+          },
+          {
+            "id": "rna-NM_018419.3",
+            "devel_pi": 0.088,
+            "miniprot_pi": 0.522
+          }
+        ],
+        "proj_meanpi_gain": 0.07927,
+        "n_devel_rec_coding": 242,
+        "cur_meanpi": 0.60641,
+        "n_egregious_stub": 2
+      },
+      "C_map_failed": {
+        "n_map_failed": 2,
+        "miniprot_recoverable_pi>=0.5": 2,
+        "examples": [
+          {
+            "id": "rna-NM_003404.5",
+            "ref_aa": "246",
+            "lifted_dna_len": "369",
+            "miniprot_pi": 0.883
+          },
+          {
+            "id": "rna-NM_139323.4",
+            "ref_aa": "246",
+            "lifted_dna_len": "369",
+            "miniprot_pi": 0.883
+          }
+        ]
+      }
+    }
+  ]
+}
