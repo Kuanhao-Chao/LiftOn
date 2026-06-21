@@ -288,23 +288,31 @@ def args_optional(parser):
              '--gene-only to opt OUT and restore the gene-only lift.'
     )
     parser.add_argument(
-        '--miniprot-rescue', dest='miniprot_rescue', action='store_true', default=False,
-        help='[EXPERIMENTAL] Regime-gated miniprot-only rescue (OFF by default). '
-             'For a reference coding gene the DNA lift MISSED ENTIRELY (its '
-             'miniprot mRNA overlaps no lifted gene locus), emit the miniprot '
-             'model even when its length ratio falls outside the default '
-             '-min_miniprot/-max_miniprot band -- gated instead by a '
-             'protein-identity floor (LIFTON_MINIPROT_RESCUE_MIN_ID, default '
-             '0.5) within a wider sanity band (LIFTON_MINIPROT_RESCUE_LEN=lo,hi, '
-             'default 0.5,2.0). Recovers genuinely-missing genes at large '
+        '--no-miniprot-rescue', dest='miniprot_rescue', action='store_false', default=True,
+        help='Opt OUT of the miniprot-only rescue pass. As of the Iteration-23 '
+             'promotion the rescue is the DEFAULT: for a reference coding gene '
+             'the DNA lift MISSED ENTIRELY (its miniprot mRNA overlaps no lifted '
+             'gene locus), LiftOn emits the miniprot model even when its length '
+             'ratio falls outside the default -min_miniprot/-max_miniprot band -- '
+             'gated instead by a protein-identity floor '
+             '(LIFTON_MINIPROT_RESCUE_MIN_ID, default 0.5) within a wider sanity '
+             'band (LIFTON_MINIPROT_RESCUE_LEN=lo,hi, default 0.5,2.0). The '
+             'rescue runs as a SEPARATE pass AFTER Step 8 closes, with a '
+             'ref-gene-id dedup set, so the default Step-7+8 output is '
+             'byte-identical between OFF and ON (off is a strict subset of on) '
+             'and 0-redundant; it recovers genuinely-missing genes at large '
              'evolutionary distance (net +recall on the distant/very-distant '
-             'tier; see benchmarks/compare/miniprot_rescue_ab.md). CAVEAT: ON is '
-             'NOT a strict superset of OFF -- an emitted rescue is added to the '
-             'Step-8 suppression tree, so two overlapping missing-gene '
-             'candidates can SWAP which is emitted and a multi-hit ref '
-             'transcript can get a redundant model. A clean separate-pass '
-             'version (lifton2-style dedup) is the planned default-ready form. '
-             'Env LIFTON_MINIPROT_RESCUE=1 also enables it.'
+             'tier -- see benchmarks/compare/miniprot_rescue_ab.md, 8/8 datasets '
+             '0 lost / 0 redundant). Pass --no-miniprot-rescue (or env '
+             'LIFTON_MINIPROT_RESCUE=0) to restore the pre-Iteration-23 lift '
+             'with no miniprot-only rescue.'
+    )
+    parser.add_argument(
+        '--miniprot-rescue', dest='miniprot_rescue_alias', action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). The miniprot-only '
+             'rescue is now the DEFAULT (Iteration-23 promotion), so '
+             '--miniprot-rescue has no effect; pass --no-miniprot-rescue to opt '
+             'OUT. Env LIFTON_MINIPROT_RESCUE=1 force-enables, =0 force-disables.'
     )
 
 
@@ -383,19 +391,27 @@ def parse_args(arglist):
     
 
 def resolve_miniprot_rescue_args(args):
-    """Iteration 22: resolve the regime-gated miniprot-only-rescue flag + its
-    tunables ONCE, honouring the env escape hatches, and stash them on `args` so
-    run_miniprot.process_miniprot (Step 8) can read them. Flag OFF => Step 8 is
-    byte-identical to the pre-Iteration-22 path. Pure/idempotent (no I/O beyond
-    env reads) so it is unit-testable.
+    """Resolve the miniprot-only-rescue flag + its tunables ONCE, honouring the
+    env escape hatches, and stash them on `args` so the post-Step-8 rescue pass
+    (lifton.miniprot_rescue) can read them. Pure/idempotent (no I/O beyond env
+    reads) so it is unit-testable.
 
-    - LIFTON_MINIPROT_RESCUE=1|true|yes   -> force the flag ON
+    As of the Iteration-23 promotion the rescue is DEFAULT-ON (a separate
+    post-Step-8 pass => default Step-7+8 output is byte-identical OFF-vs-ON).
+    Opt out with --no-miniprot-rescue (=> args.miniprot_rescue False) or
+    LIFTON_MINIPROT_RESCUE=0.
+
+    - LIFTON_MINIPROT_RESCUE=1|true|yes   -> force ON
+    - LIFTON_MINIPROT_RESCUE=0|false|no   -> force OFF
     - LIFTON_MINIPROT_RESCUE_MIN_ID=<f>   -> protein-identity floor (default 0.5)
     - LIFTON_MINIPROT_RESCUE_LEN=lo,hi    -> wider sanity band (default 0.5,2.0)
     """
-    rescue = getattr(args, "miniprot_rescue", False)
-    if os.environ.get("LIFTON_MINIPROT_RESCUE", "").lower() in ("1", "true", "yes"):
+    rescue = getattr(args, "miniprot_rescue", True)
+    _env = os.environ.get("LIFTON_MINIPROT_RESCUE", "").lower()
+    if _env in ("1", "true", "yes"):
         rescue = True
+    elif _env in ("0", "false", "no"):
+        rescue = False
     args.miniprot_rescue = rescue
     try:
         args.miniprot_rescue_min_id = float(os.environ.get("LIFTON_MINIPROT_RESCUE_MIN_ID", "0.5"))
@@ -773,6 +789,21 @@ def run_all_lifton_steps(args):
             f"{time.perf_counter() - _w7_start:.2f}s\n")
         sys.stderr.flush()
 
+    # Iteration 23: clean separate-pass miniprot-only rescue (flag-gated).
+    # Harvest the reference gene ids the DNA lift (Step 7) emitted, using the
+    # SAME resolver Step 7 used (run_liftoff.py:111), so the post-Step-8 rescue
+    # pass can skip already-lifted genes -- the dedup that makes it 0-redundant
+    # + off ⊆ on. When --miniprot-rescue is OFF this set stays empty and is
+    # never consulted, so the default path is byte-identical.
+    emitted_ref_gene_ids = set()
+    if getattr(args, "miniprot_rescue", False):
+        for _f in features:
+            for _locus in l_feature_db.features_of_type(_f):
+                _rgid, _ = lifton_utils.get_ref_ids_liftoff(
+                    ref_features_dict, _locus.id, None)
+                if _rgid is not None:
+                    emitted_ref_gene_ids.add(_rgid)
+
     t11 = time.process_time()
     ################################
     # Step 8: Process miniprot transcripts
@@ -784,13 +815,29 @@ def run_all_lifton_steps(args):
                 if lifton_gene is None or lifton_gene.ref_gene_id is None:
                     continue
                 lifton_gene.write_entry(fw, transcripts_stats_dict)
+                if getattr(args, "miniprot_rescue", False):
+                    # Iter 23: record default Step-8 ref genes for the rescue dedup.
+                    emitted_ref_gene_ids.add(lifton_gene.ref_gene_id)
             except Exception as e:
                 logger.log_error(f"Error during miniprot text output serialization ({mtrans.id}): {e}")
                 
             if processed_features % 20 == 0:
                 sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
             processed_features += 1
-    
+
+    # Iteration 23: clean separate-pass miniprot-only rescue. Runs AFTER the
+    # Step-8 loop has fully closed, so no rescue mutates tree_dict during a
+    # default decision -> the default Step-7+8 output is byte-identical OFF-vs-ON
+    # and ON = default ∪ rescues ⊇ default = OFF (off ⊆ on by construction).
+    # Flag-gated -> the default path never imports the module.
+    if getattr(args, "miniprot_rescue", False):
+        from lifton import miniprot_rescue as _miniprot_rescue
+        _miniprot_rescue.rescue_miniprot_only_pass(
+            m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins, ref_trans,
+            ref_features_dict, m_id_2_ref_id_trans_dict, ref_features_len_dict,
+            ref_trans_exon_num_dict, ref_features_reverse_dict,
+            emitted_ref_gene_ids, fw, fw_score, transcripts_stats_dict, args)
+
     t12 = time.process_time()
     ################################
     # Step 9: Printing stats

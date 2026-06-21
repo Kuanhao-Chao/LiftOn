@@ -375,3 +375,142 @@ class TestLiftGeneLike:
         alias_types, alias_bytes = _run_gene_like(gene_like_workspace, lift_gene_like=True)
         assert alias_bytes == default_bytes
         assert "pseudogene" in alias_types
+
+
+# ---------------------------------------------------------------------------
+# Iteration 23: clean separate-pass miniprot-only rescue (--miniprot-rescue)
+# ---------------------------------------------------------------------------
+
+def _build_rescue_workspace(work, *, lift_gene2):
+    """A reference with TWO coding genes. gene1 (101-399) is always lifted by the
+    pre-baked Liftoff GFF. gene2 (single-CDS ORF at 601-699) is lifted ONLY when
+    ``lift_gene2`` is True; otherwise the DNA lift "misses" it. The miniprot GFF
+    covers gene2 with a UTR-padded mRNA (601-770 -> span/CDS-span = 170/99 = 1.72,
+    OUTSIDE the default -min/-max_miniprot band [0.9,1.5] but INSIDE the rescue
+    band (0.5,2.0)) and a full-coverage CDS (601-699 -> protein identity 1.0).
+    So default Step 8 drops the gene2 candidate (out of band) and only the
+    separate rescue pass can recover it. MP1 over gene1 is overlap-suppressed."""
+    work.mkdir(parents=True, exist_ok=True)
+    chrom = ["A"] * 900
+    exon1 = "ATG" + "GCT" * 32          # 99 nt (gene1 exon1)
+    exon2 = ("GCT" * 32) + "TAA"        # 99 nt (gene1 exon2)
+    g2cds = "ATG" + "GCT" * 31 + "TAA"  # 99 nt (gene2 single-CDS ORF: M + 31A + stop)
+    for i, ch in enumerate(exon1):
+        chrom[100 + i] = ch
+    for i, ch in enumerate(exon2):
+        chrom[300 + i] = ch
+    for i, ch in enumerate(g2cds):
+        chrom[600 + i] = ch             # gene2 CDS at 601-699
+    seq = "".join(chrom)
+
+    ref_fa = work / "ref.fa"; ref_fa.write_text(">chr1\n" + _wrap(seq))
+    tgt_fa = work / "tgt.fa"; tgt_fa.write_text(">chr1\n" + _wrap(seq))
+
+    gene1_block = (
+        "chr1\t{src}\tgene\t101\t399\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\t{src}\tmRNA\t101\t399\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\t{src}\texon\t101\t199\t.\t+\t.\tID=exon1;Parent=tx1\n"
+        "chr1\t{src}\texon\t301\t399\t.\t+\t.\tID=exon2;Parent=tx1\n"
+        "chr1\t{src}\tCDS\t101\t199\t.\t+\t0\tID=cds1;Parent=tx1\n"
+        "chr1\t{src}\tCDS\t301\t399\t.\t+\t0\tID=cds2;Parent=tx1\n"
+    )
+    gene2_block = (
+        "chr1\t{src}\tgene\t601\t699\t.\t+\t.\tID=gene2;gene_biotype=protein_coding\n"
+        "chr1\t{src}\tmRNA\t601\t699\t.\t+\t.\tID=tx2;Parent=gene2\n"
+        "chr1\t{src}\texon\t601\t699\t.\t+\t.\tID=exon3;Parent=tx2\n"
+        "chr1\t{src}\tCDS\t601\t699\t.\t+\t0\tID=cds3;Parent=tx2\n"
+    )
+    ref_gff = work / "ref.gff3"
+    ref_gff.write_text("##gff-version 3\n"
+                       + gene1_block.format(src="test")
+                       + gene2_block.format(src="test"))
+
+    liftoff_body = gene1_block.format(src="Liftoff")
+    if lift_gene2:
+        liftoff_body += gene2_block.format(src="Liftoff")
+    (work / "liftoff.gff3").write_text("##gff-version 3\n" + liftoff_body)
+
+    (work / "miniprot.gff3").write_text(
+        "##gff-version 3\n"
+        "chr1\tminiprot\tmRNA\t101\t399\t.\t+\t.\tID=MP1;Target=tx1 1 66\n"
+        "chr1\tminiprot\tCDS\t101\t199\t.\t+\t0\tID=MP1.cds1;Parent=MP1\n"
+        "chr1\tminiprot\tCDS\t301\t399\t.\t+\t0\tID=MP1.cds2;Parent=MP1\n"
+        "chr1\tminiprot\tmRNA\t601\t770\t.\t+\t.\tID=MP2;Target=tx2 1 32\n"
+        "chr1\tminiprot\tCDS\t601\t699\t.\t+\t0\tID=MP2.cds1;Parent=MP2\n"
+    )
+    out_dir = work / "out"; out_dir.mkdir()
+    return {"ref_fa": ref_fa, "tgt_fa": tgt_fa, "ref_gff": ref_gff,
+            "liftoff": work / "liftoff.gff3", "miniprot": work / "miniprot.gff3",
+            "out": out_dir}
+
+
+def _run_rescue(ws, *, rescue=False):
+    from lifton import lifton as lifton_main
+    out_gff = ws["out"] / "lifton.gff3"
+    argv = [str(ws["tgt_fa"]), str(ws["ref_fa"]),
+            "-g", str(ws["ref_gff"]), "-L", str(ws["liftoff"]),
+            "-M", str(ws["miniprot"]), "-o", str(out_gff),
+            "-ad", "RefSeq", "--force"]
+    # Iteration-23 promotion: rescue is default-ON, so the OFF case must opt out
+    # explicitly with --no-miniprot-rescue.
+    argv.append("--miniprot-rescue" if rescue else "--no-miniprot-rescue")
+    lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv))
+    return out_gff.read_text()
+
+
+def _gene_ids(body):
+    ids = []
+    for ln in body.splitlines():
+        if not ln.strip() or ln.startswith("#"):
+            continue
+        cols = ln.split("\t")
+        if len(cols) >= 9 and cols[2] == "gene":
+            for kv in cols[8].split(";"):
+                if kv.startswith("ID="):
+                    ids.append(kv[3:])
+    return ids
+
+
+class TestMiniprotRescuePass:
+    def test_rescue_off_omits_missing_gene(self, tmp_path, hermetic_pipeline):
+        # Default (flag OFF): the DNA lift missed gene2 and default Step 8 drops
+        # the out-of-band miniprot candidate -> gene2 absent.
+        ws = _build_rescue_workspace(tmp_path / "w", lift_gene2=False)
+        body = _run_rescue(ws, rescue=False)
+        ids = _gene_ids(body)
+        assert "gene1" in ids
+        assert "gene2" not in ids
+        assert "lifton_rescue=miniprot_only" not in body
+
+    def test_rescue_on_emits_missing_gene(self, tmp_path, hermetic_pipeline):
+        # Flag ON: the separate post-pass recovers gene2 exactly once, tagged.
+        ws = _build_rescue_workspace(tmp_path / "w", lift_gene2=False)
+        body = _run_rescue(ws, rescue=True)
+        ids = _gene_ids(body)
+        assert "gene1" in ids
+        assert ids.count("gene2") == 1
+        assert "lifton_rescue=miniprot_only" in body
+        # the tag rides the rescued mRNA row, and every row is source=LiftOn
+        mrna_rows = [ln for ln in body.splitlines() if "\tmRNA\t" in ln]
+        assert any("lifton_rescue=miniprot_only" in ln for ln in mrna_rows)
+        sources = {ln.split("\t")[1] for ln in body.splitlines()
+                   if ln.strip() and not ln.startswith("#")}
+        assert sources == {"LiftOn"}
+
+    def test_rescue_dedup_skips_already_lifted_gene(self, tmp_path, hermetic_pipeline):
+        # gene2 IS lifted by the DNA lift -> the rescue must NOT add a duplicate
+        # (ref-id dedup), and the surviving gene2 is the DNA-lifted one (untagged).
+        ws = _build_rescue_workspace(tmp_path / "w", lift_gene2=True)
+        body = _run_rescue(ws, rescue=True)
+        ids = _gene_ids(body)
+        assert ids.count("gene2") == 1
+        assert "lifton_rescue=miniprot_only" not in body
+
+    def test_rescue_on_superset_of_off(self, tmp_path, hermetic_pipeline):
+        # off ⊆ on: every gene id present with the flag OFF is still present ON.
+        ws_off = _build_rescue_workspace(tmp_path / "off", lift_gene2=False)
+        off_ids = set(_gene_ids(_run_rescue(ws_off, rescue=False)))
+        ws_on = _build_rescue_workspace(tmp_path / "on", lift_gene2=False)
+        on_ids = set(_gene_ids(_run_rescue(ws_on, rescue=True)))
+        assert off_ids <= on_ids
+        assert "gene2" in (on_ids - off_ids)

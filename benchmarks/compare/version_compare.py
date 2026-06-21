@@ -192,6 +192,14 @@ def _build_argv(version, paths, anndb, threads, L, M, out_gff, devel_fast):
         # correct. (Restore the in-memory flags once bug #2 is fixed.)
         argv += ["--locus-pipeline"]
     argv += list(spec["extra_flags"])
+    if version.startswith("devel"):
+        # Iteration 23: the miniprot-only rescue is now default-ON. Pin the FROZEN
+        # fourway baselines explicitly OFF so the committed fourway_results.json
+        # stays apples-to-apples (the rescue-ON recall gain is reported as a
+        # separate arm via benchmarks/compare/miniprot_rescue_ab.py, NOT folded
+        # into / re-baselined against the 4-way devel column). stable (v1.0.8)
+        # has no such flag, so this is scoped to devel/devel_legacy.
+        argv += ["--no-miniprot-rescue"]
     argv += ["-o", str(out_gff), str(paths["tgt_fa"]), str(paths["ref_fa"])]
     return argv
 
