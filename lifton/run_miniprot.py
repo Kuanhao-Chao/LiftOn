@@ -355,6 +355,16 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     return lifton_gene, Lifton_trans, Lifton_trans.entry.id, lifton_status
 
 
+def _miniprot_rescue_band_ok(ratio, args):
+    """Iteration 22: is `ratio` inside the (wider) miniprot-only-rescue length
+    band? Consulted ONLY when --miniprot-rescue is ON, for candidates that fall
+    outside the default -min_miniprot/-max_miniprot band. The rescue quality
+    gate is the protein-identity floor, not this band (the band is just a sanity
+    bound against catastrophically mis-scaled miniprot hits)."""
+    lo, hi = getattr(args, "miniprot_rescue_len", (0.5, 2.0))
+    return lo < ratio < hi
+
+
 def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args):
     if m_feature_db is None:
         return None
@@ -379,6 +389,19 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
                 if miniprot_trans_ratio > args.min_miniprot and miniprot_trans_ratio < args.max_miniprot:
                     lifton_gene, lifton_trans, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
                     lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
+                elif getattr(args, "miniprot_rescue", False) and _miniprot_rescue_band_ok(miniprot_trans_ratio, args):
+                    # Iteration 22: regime-gated miniprot-only rescue. This candidate
+                    # is a genuinely-missing gene -- it already cleared the overlap
+                    # gate above (no lifted gene at this locus), so emitting it is
+                    # 0-redundant by construction -- but its length ratio falls
+                    # outside the default band. Build + score it, and emit ONLY if it
+                    # clears the protein-identity floor (the quality gate that
+                    # replaces the loose band, avoiding low-identity garbage).
+                    lifton_gene, lifton_trans, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
+                    if lifton_status.lifton_aa < getattr(args, "miniprot_rescue_min_id", 0.5):
+                        return None  # below the protein-identity floor -> drop
+                    lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
+                    lifton_gene.transcripts[transcript_id].entry.attributes["lifton_rescue"] = ["miniprot_only"]
                 else: # Invalid miniprot transcript
                     return None
             else: # Skip those cannot be found in reference.

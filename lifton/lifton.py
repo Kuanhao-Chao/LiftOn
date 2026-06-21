@@ -287,6 +287,25 @@ def args_optional(parser):
              '(Iteration 12 promotion), so --lift-gene-like has no effect; pass '
              '--gene-only to opt OUT and restore the gene-only lift.'
     )
+    parser.add_argument(
+        '--miniprot-rescue', dest='miniprot_rescue', action='store_true', default=False,
+        help='[EXPERIMENTAL] Regime-gated miniprot-only rescue (OFF by default). '
+             'For a reference coding gene the DNA lift MISSED ENTIRELY (its '
+             'miniprot mRNA overlaps no lifted gene locus), emit the miniprot '
+             'model even when its length ratio falls outside the default '
+             '-min_miniprot/-max_miniprot band -- gated instead by a '
+             'protein-identity floor (LIFTON_MINIPROT_RESCUE_MIN_ID, default '
+             '0.5) within a wider sanity band (LIFTON_MINIPROT_RESCUE_LEN=lo,hi, '
+             'default 0.5,2.0). Recovers genuinely-missing genes at large '
+             'evolutionary distance (net +recall on the distant/very-distant '
+             'tier; see benchmarks/compare/miniprot_rescue_ab.md). CAVEAT: ON is '
+             'NOT a strict superset of OFF -- an emitted rescue is added to the '
+             'Step-8 suppression tree, so two overlapping missing-gene '
+             'candidates can SWAP which is emitted and a multi-hit ref '
+             'transcript can get a redundant model. A clean separate-pass '
+             'version (lifton2-style dedup) is the planned default-ready form. '
+             'Env LIFTON_MINIPROT_RESCUE=1 also enables it.'
+    )
 
 
 def parse_args(arglist):
@@ -363,6 +382,33 @@ def parse_args(arglist):
     return args
     
 
+def resolve_miniprot_rescue_args(args):
+    """Iteration 22: resolve the regime-gated miniprot-only-rescue flag + its
+    tunables ONCE, honouring the env escape hatches, and stash them on `args` so
+    run_miniprot.process_miniprot (Step 8) can read them. Flag OFF => Step 8 is
+    byte-identical to the pre-Iteration-22 path. Pure/idempotent (no I/O beyond
+    env reads) so it is unit-testable.
+
+    - LIFTON_MINIPROT_RESCUE=1|true|yes   -> force the flag ON
+    - LIFTON_MINIPROT_RESCUE_MIN_ID=<f>   -> protein-identity floor (default 0.5)
+    - LIFTON_MINIPROT_RESCUE_LEN=lo,hi    -> wider sanity band (default 0.5,2.0)
+    """
+    rescue = getattr(args, "miniprot_rescue", False)
+    if os.environ.get("LIFTON_MINIPROT_RESCUE", "").lower() in ("1", "true", "yes"):
+        rescue = True
+    args.miniprot_rescue = rescue
+    try:
+        args.miniprot_rescue_min_id = float(os.environ.get("LIFTON_MINIPROT_RESCUE_MIN_ID", "0.5"))
+    except (ValueError, TypeError):
+        args.miniprot_rescue_min_id = 0.5
+    try:
+        lo, hi = (float(x) for x in os.environ.get("LIFTON_MINIPROT_RESCUE_LEN", "0.5,2.0").split(","))
+        args.miniprot_rescue_len = (lo, hi)
+    except (ValueError, TypeError):
+        args.miniprot_rescue_len = (0.5, 2.0)
+    return args
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
     # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
@@ -372,6 +418,7 @@ def run_all_lifton_steps(args):
     if getattr(args, "full_dp_align", False):
         from lifton import align as _align
         _align.configure_alignment(band=False)
+    resolve_miniprot_rescue_args(args)
     ################################
     # Step 0: Reading target & reference genomes
     ################################

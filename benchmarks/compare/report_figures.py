@@ -610,6 +610,55 @@ def fig_full_validity(fw):
     return _save(fig, "rfig_full_validity.png")
 
 
+def fig_full_apples_to_apples(fw):
+    """Audit finding #1, made visible. (A) the set-mean lead over best(LO,MP)
+    vs the apples-to-apples common-set lead over miniprot, per full genome —
+    where they diverge (very-distant) the set-mean 'lead' is a denominator
+    artifact. (B) coverage-weighted PI (recall x accuracy) — miniprot leads at
+    very-distant because it recovers far more transcripts."""
+    recs = [r for r in _full_recs(fw)
+            if (r.get("joint") or {}).get("devel_vs_miniprot_common")]
+    labels = [mr._short_key(r["key"]) for r in recs]
+    y = np.arange(len(recs))
+    h = 0.38
+    fig = plt.figure(figsize=(13.5, 5.8))
+    gs = fig.add_gridspec(1, 2, width_ratios=[1.05, 1.0], wspace=0.34)
+    axA = fig.add_subplot(gs[0, 0])
+    axB = fig.add_subplot(gs[0, 1])
+
+    setmean = [(r.get("devel_vs_best_baseline") or {}).get("meanpi") for r in recs]
+    common = [r["joint"]["devel_vs_miniprot_common"]["meanpi_delta"] for r in recs]
+    axA.barh(y - h / 2, [d or 0 for d in setmean], height=h, color="#bdbdbd",
+             label="set-mean lead vs best(LO,MP)")
+    axA.barh(y + h / 2, [d or 0 for d in common], height=h,
+             color=["#2ca02c" if (d or 0) >= 0 else "#d62728" for d in common],
+             label="apples-to-apples vs miniprot (common set)")
+    axA.axvline(0, color="k", lw=0.8)
+    axA.set_yticks(y)
+    axA.set_yticklabels(labels, fontsize=9)
+    axA.invert_yaxis()
+    axA.set_xlabel("Δ mean protein identity")
+    axA.grid(axis="x", alpha=0.3)
+    axA.legend(fontsize=8, loc="lower right", framealpha=0.9)
+    _panel_title(axA, "A", "Set-mean vs apples-to-apples lead")
+
+    cov_dev = [(r["joint"].get("covpi") or {}).get("lifton_devel", 0) for r in recs]
+    cov_mp = [(r["joint"].get("covpi") or {}).get("miniprot", 0) for r in recs]
+    axB.barh(y - h / 2, cov_dev, height=h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn 2.0")
+    axB.barh(y + h / 2, cov_mp, height=h, color=mr.TOOL_COLORS["miniprot"], label="miniprot")
+    axB.set_yticks(y)
+    axB.set_yticklabels(labels, fontsize=9)
+    axB.invert_yaxis()
+    axB.set_xlim(0, 1.02)
+    axB.set_xlabel("coverage-weighted protein identity (recall × accuracy)")
+    axB.grid(axis="x", alpha=0.3)
+    axB.legend(fontsize=8.5, loc="lower right", framealpha=0.9)
+    _panel_title(axB, "B", "Recall-weighted PI (miniprot leads very-distant)")
+    fig.suptitle("Joint recall-vs-identity view (audit finding #1)",
+                 fontsize=12.5, fontweight="bold", y=1.02)
+    return _save(fig, "rfig_full_apples_to_apples.png")
+
+
 def main():
     vc, fw, _ = mr._load()
     if not fw or not vc:
@@ -618,6 +667,7 @@ def main():
     # full-genome-focused figures (imported by the website report)
     fig_full_accuracy(fw)
     fig_full_completeness(fw)
+    fig_full_apples_to_apples(fw)
     fig_full_validity(fw)
     fig_robustness(fw)
     fig_perf_improvement(vc)
