@@ -893,7 +893,7 @@ Feature-type recovery where LiftOn devel ≠ v1.0.8 (gene-like lift):
 | rRNA | 134 | 66 | 83 | ⬅ gene-like |
 | tRNA | 317 | 281 | 282 | ⬅ gene-like |
 
-### human_to_zebrafish — Human GRCh38 chr20 -> Zebrafish (mammal->fish)  (very_distant_cross_species · _divergence_ladder_very_distant_vertebrate_; RefSeq; n_coding=144329)
+### human_to_zebrafish — Human GRCh38 -> Zebrafish (mammal->fish)  (very_distant_cross_species · _divergence_ladder_very_distant_vertebrate_; RefSeq; n_coding=144329)
 
 | tool | completeness_coding | feature_total | mean PI | median PI | %identical | n recovered | wall (s) | peak RSS (MB) | errors/warn |
 |---|---|---|---|---|---|---|---|---|---|

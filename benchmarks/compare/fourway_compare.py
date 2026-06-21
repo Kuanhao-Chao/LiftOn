@@ -263,6 +263,16 @@ def _score_and_record(bid, mode, bench, man, paths, gffs, profs, eval_dir,
             "completeness": _sub(comp.get(dev), _best_baseline(comp)),
         },
     }
+    # Audit finding #1: the joint recall-vs-identity block (apples-to-apples
+    # common-set PI + covPI + recall@PI), computed from the per-transcript TSVs
+    # the evaluator just wrote into eval_dir. The headline set-mean metrics above
+    # are over each tool's OWN recovered set; this is the fair head-to-head on
+    # the transcripts both tools recover. See joint_metrics.py.
+    try:
+        from . import joint_metrics as _jm
+        rec["joint"] = _jm.compute_joint_metrics(str(eval_dir), rec["n_reference_coding"])
+    except Exception as _e:  # never let metric enrichment break a cell
+        log(f"  [{bid}/{mode}] joint-metric computation skipped: {_e}")
     _save(rec)
     log(f"  [{bid}/{mode}] completeness_coding: " +
         " ".join(f"{t}={comp.get(t)}" for t in present))
