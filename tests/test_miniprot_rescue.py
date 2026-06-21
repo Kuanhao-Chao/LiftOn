@@ -1,9 +1,10 @@
-"""Iteration 22 — regime-gated miniprot-only rescue (OFF by default).
+"""Miniprot-only rescue seam (Iteration 22 build; Iteration-23 promotion ON by default).
 
-These tests pin the *seam* of the new feature without invoking the full
+These tests pin the *seam* of the feature without invoking the full
 14-parameter ``process_miniprot`` (which needs a real miniprot+ref FeatureDB):
 
-  * the ``--miniprot-rescue`` flag parses OFF by default / ON when given;
+  * the rescue parses ON by default / ``--no-miniprot-rescue`` opts OUT
+    (``--miniprot-rescue`` kept as a no-op alias);
   * ``resolve_miniprot_rescue_args`` honours the env escape hatches and falls
     back safely on garbage;
   * ``_miniprot_rescue_band_ok`` implements the wider sanity band correctly.
@@ -25,10 +26,16 @@ class TestMiniprotRescueFlag:
     def _parse(self, extra):
         return lifton.parse_args(["t.fa", "r.fa", "-g", "r.gff3", "-o", "o.gff3", *extra])
 
-    def test_default_off(self):
-        assert self._parse([]).miniprot_rescue is False
+    def test_default_on(self):
+        # Iteration-23 promotion: the miniprot-only rescue is now ON by default.
+        assert self._parse([]).miniprot_rescue is True
+
+    def test_no_flag_opts_out(self):
+        # --no-miniprot-rescue restores the pre-Iteration-23 lift (rescue OFF).
+        assert self._parse(["--no-miniprot-rescue"]).miniprot_rescue is False
 
     def test_flag_on(self):
+        # --miniprot-rescue is now a no-op alias; rescue stays ON (the default).
         assert self._parse(["--miniprot-rescue"]).miniprot_rescue is True
 
 
