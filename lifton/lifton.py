@@ -85,7 +85,7 @@ def args_aligngrp(parser):
     )
     aligngrp.add_argument(
         '-max_miniprot', default=1.5, metavar='MAX_MINIPROT', type=float,
-        help='The maximum length ratio of a protein-coding transcript to the longest protein-coding transcript within a gene locus, as identified exclusively by miniprot in the target genome, is set by default to MIN_MINIPROT=1.5.'
+        help='The maximum length ratio of a protein-coding transcript to the longest protein-coding transcript within a gene locus, as identified exclusively by miniprot in the target genome, is set by default to MAX_MINIPROT=1.5.'
     )
     aligngrp.add_argument(
         '-d', metavar='D', default=2.0, type=float,

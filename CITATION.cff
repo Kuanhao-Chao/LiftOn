@@ -1,0 +1,79 @@
+cff-version: 1.2.0
+message: "If you use LiftOn, please cite both the software and the Genome Research paper below."
+title: "LiftOn: combining DNA and protein alignments to improve genome annotation"
+abstract: >-
+  LiftOn is a homology-based genome-annotation lift-over tool. Given a reference
+  genome, its annotation, and a target genome, LiftOn produces an annotation for
+  the target by combining DNA-level alignment (Liftoff / minimap2) with
+  protein-level alignment (miniprot) and merging the two via a two-step
+  protein-maximization algorithm (chaining + ORF search) plus a miniprot-only
+  rescue pass for genes the DNA lift misses entirely.
+type: software
+version: 1.0.9
+date-released: "2026-06-21"
+license: GPL-3.0-or-later
+repository-code: "https://github.com/Kuanhao-Chao/LiftOn"
+url: "https://ccb.jhu.edu/lifton/"
+keywords:
+  - genome annotation
+  - lift-over
+  - liftover
+  - comparative genomics
+  - gene annotation
+  - protein alignment
+  - bioinformatics
+authors:
+  - family-names: Chao
+    given-names: Kuan-Hao
+    affiliation: "Johns Hopkins University"
+  - family-names: Heinz
+    given-names: Jakob M.
+    affiliation: "Johns Hopkins University"
+  - family-names: Hoh
+    given-names: Celine
+    affiliation: "Johns Hopkins University"
+  - family-names: Mao
+    given-names: Alan
+    affiliation: "Johns Hopkins University"
+  - family-names: Shumate
+    given-names: Alaina
+    affiliation: "Johns Hopkins University"
+  - family-names: Pertea
+    given-names: Mihaela
+    affiliation: "Johns Hopkins University"
+  - family-names: Salzberg
+    given-names: Steven L.
+    affiliation: "Johns Hopkins University"
+preferred-citation:
+  type: article
+  title: "Combining DNA and protein alignments to improve genome annotation with LiftOn"
+  authors:
+    - family-names: Chao
+      given-names: Kuan-Hao
+      affiliation: "Johns Hopkins University"
+    - family-names: Heinz
+      given-names: Jakob M.
+      affiliation: "Johns Hopkins University"
+    - family-names: Hoh
+      given-names: Celine
+      affiliation: "Johns Hopkins University"
+    - family-names: Mao
+      given-names: Alan
+      affiliation: "Johns Hopkins University"
+    - family-names: Shumate
+      given-names: Alaina
+      affiliation: "Johns Hopkins University"
+    - family-names: Pertea
+      given-names: Mihaela
+      affiliation: "Johns Hopkins University"
+    - family-names: Salzberg
+      given-names: Steven L.
+      affiliation: "Johns Hopkins University"
+  journal: "Genome Research"
+  year: 2025
+  volume: 35
+  issue: 2
+  start: 311
+  end: 325
+  doi: "10.1101/gr.279620.124"
+  url: "https://doi.org/10.1101/gr.279620.124"

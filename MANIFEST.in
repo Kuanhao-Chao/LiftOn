@@ -1,0 +1,47 @@
+# Source-distribution contents for `lifton`.
+# Goal: ship the package (incl. the vendored gffbase fallback parser + Rust
+# source) and the essential metadata, and EXCLUDE the heavy repository material
+# (manuscript, benchmarks, docs build, the 151 MB git-LFS chr22 .mmi, etc.) so
+# `pip install`-from-sdist stays small and reproducible.
+
+include LICENSE
+include README.md
+include lifton.yml
+include pyproject.toml
+
+# gffbase ships the pure-Python fallback parser (*.py via find_packages) plus its
+# own LICENSE/MIGRATION notes and the Rust extension SOURCE (no pre-built .so).
+recursive-include lifton *.py
+recursive-include lifton/gffbase LICENSE MIGRATION.md
+recursive-include lifton/gffbase/_rust Cargo.toml Cargo.lock
+recursive-include lifton/gffbase/_rust/src *.rs
+
+# --- Keep heavy, non-package repository material OUT of the sdist ---
+exclude build_spec_html.py
+exclude conftest.py
+exclude CLAUDE.md
+exclude lifton.def
+exclude lifton-local.def
+exclude lifton_technical_spec.md
+exclude *.docx
+exclude *.pdf
+exclude *.html
+prune benchmarks
+prune docs
+prune graphics
+prune notebook
+prune paper
+prune plans
+prune scripts
+prune spec_assets
+prune spec_sections
+prune test
+prune tests
+prune lifton.egg-info
+prune .hypothesis
+prune .pytest_cache
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude *.pyd
+global-exclude .DS_Store

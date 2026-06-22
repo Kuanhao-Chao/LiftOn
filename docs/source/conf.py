@@ -16,9 +16,25 @@
 
 
 # -- Project information -----------------------------------------------------
+import os
+import re
+
 master_doc = 'index'
 project = 'LiftOn'
-# release = '0.3.0'
+
+# Single-source the version from lifton/__init__.py (strip a leading "v"),
+# mirroring setup.py so the rendered docs version can never drift from the
+# package / CLI version.
+try:
+    _init_path = os.path.join(os.path.dirname(__file__), '..', '..', 'lifton', '__init__.py')
+    with open(_init_path) as _init_fh:
+        release = re.search(
+            r"__version__\s*=\s*['\"]v?(?P<v>[^'\"]+)['\"]", _init_fh.read()
+        ).group('v')
+except Exception:
+    release = '1.0.9'
+version = release
+
 copyright = '2024, Kuan-Hao Chao'
 author = 'Kuan-Hao Chao'
 

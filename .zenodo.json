@@ -1,0 +1,61 @@
+{
+  "title": "LiftOn v1.0.9",
+  "upload_type": "software",
+  "version": "1.0.9",
+  "license": "gpl-3.0-or-later",
+  "description": "<p>LiftOn is a homology-based genome-annotation lift-over tool. Given a reference genome, its annotation, and a target genome, LiftOn produces an annotation for the target by combining DNA-level alignment (Liftoff / minimap2) with protein-level alignment (miniprot) and merging the two via a two-step protein-maximization algorithm (a chaining algorithm plus an ORF-search rescue). Release v1.0.9 adds a default-on miniprot-only rescue pass that recovers reference coding genes the DNA lift misses entirely (improving recall on distant species lift-overs), automatic lifting of all gene-like top-level parent types, optional output validation, and multi-threaded per-locus processing.</p>",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Chao, Kuan-Hao",
+      "affiliation": "Johns Hopkins University"
+    },
+    {
+      "name": "Heinz, Jakob M.",
+      "affiliation": "Johns Hopkins University"
+    },
+    {
+      "name": "Hoh, Celine",
+      "affiliation": "Johns Hopkins University"
+    },
+    {
+      "name": "Mao, Alan",
+      "affiliation": "Johns Hopkins University"
+    },
+    {
+      "name": "Shumate, Alaina",
+      "affiliation": "Johns Hopkins University"
+    },
+    {
+      "name": "Pertea, Mihaela",
+      "affiliation": "Johns Hopkins University"
+    },
+    {
+      "name": "Salzberg, Steven L.",
+      "affiliation": "Johns Hopkins University"
+    }
+  ],
+  "keywords": [
+    "genome annotation",
+    "lift-over",
+    "liftover",
+    "comparative genomics",
+    "gene annotation",
+    "protein alignment",
+    "bioinformatics"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.1101/gr.279620.124",
+      "relation": "isSupplementTo",
+      "scheme": "doi",
+      "resource_type": "publication-article"
+    },
+    {
+      "identifier": "https://github.com/Kuanhao-Chao/LiftOn",
+      "relation": "isSupplementTo",
+      "scheme": "url",
+      "resource_type": "software"
+    }
+  ]
+}

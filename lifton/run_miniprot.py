@@ -189,12 +189,10 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
-    print("args.mp_options: ", args.mp_options)
     command = _build_miniprot_command(
         miniprot_path, tgt_genome, ref_proteins_file,
         args.mp_options, getattr(args, "threads", 1),
     )
-    print("miniprot: ", " ".join(command))
 
     stream_mode = bool(getattr(args, "stream", False))
     native_mode = bool(getattr(args, "native", False))

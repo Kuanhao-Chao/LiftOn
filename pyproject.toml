@@ -1,0 +1,11 @@
+# Minimal PEP 517/518 build configuration. Project metadata still lives in
+# setup.py (the single source of truth, which derives the version from
+# lifton/__init__.py). This block only makes `python -m build` deterministic
+# and pins the build backend.
+#
+# NOTE: setuptools is capped <81 on purpose — `cigar` 0.1.3's sdist imports
+# `pkg_resources`, which setuptools 81 removed. Raising this ceiling re-breaks
+# the cigar build (CI pre-builds cigar with setuptools<81 for the same reason).
+[build-system]
+requires = ["setuptools>=61,<81", "wheel"]
+build-backend = "setuptools.build_meta"

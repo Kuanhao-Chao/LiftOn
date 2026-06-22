@@ -17,9 +17,22 @@ concurrency:
 
 jobs:
   build:
+    # ubuntu-latest only. macOS-ARM is deliberately DEFERRED: parasail and mappy
+    # need conda on macOS/ARM (pip install parasail fails to build from source
+    # there — see CLAUDE.md "Environment & commands"), which the GitHub-hosted
+    # pip-based runner can't provide. Adding a conda-based mac job is future work.
     runs-on: ubuntu-latest
     # Cap the job so a hung wget/test fails fast instead of burning the 6h default.
     timeout-minutes: 30
+    # Multi-Python matrix: prove the suite (incl. the byte-identity contract) on
+    # every supported interpreter. fail-fast: false so one version's failure
+    # doesn't cancel the others' diagnostics. Floor 3.9 matches setup.py
+    # python_requires='>=3.9' (the code uses PEP-585 builtin generics, native in
+    # 3.9); 3.11 mirrors lifton.yml. cache: pip is keyed per python-version.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
     # checkout@v6 / setup-python@v6 are the Node24-native majors (v4/v5 declared
     # Node20 — deprecated 2025-09-19, force-migrated to Node24 on runners
@@ -27,10 +40,10 @@ jobs:
     # and is future-proof. cache: pip restores ~/.cache/pip (keyed on setup.py)
     # so the from-sdist mappy build isn't repeated on every run.
     - uses: actions/checkout@v6
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
-        python-version: "3.11"
+        python-version: ${{ matrix.python-version }}
         cache: pip
         cache-dependency-path: setup.py
     - name: Install dependencies
@@ -70,11 +83,30 @@ jobs:
         # so this installs the wheel-based deps + builds mappy with its own
         # isolated build deps (Cython). lifton itself builds fine here.
         python -m pip install -e .
+    - name: Supply-chain audit (pip-audit, non-blocking)
+      # Surface known CVEs in the installed dependency tree WITHOUT gating CI:
+      # continue-on-error so a freshly-disclosed advisory in a transitive dep
+      # (bioconda/conda-forge wheels we don't control) is visible in the run
+      # summary but never blocks a merge or a release. Promote to blocking later
+      # if the dependency surface stabilises.
+      continue-on-error: true
+      run: |
+        python -m pip install pip-audit
+        pip-audit || true
     - name: Run pytest (full suite incl. 24-cell byte-identity matrix)
-      # The load-bearing byte-identity contract (tests/test_native_matrix.py) +
-      # the parallelism/promotion gates + the unit/integration suite + the 3
-      # hypothesis-backed property/vulnerability files (hypothesis installed
-      # above) — the FULL suite, 662 tests, 0 --ignore. pytest ships in
+      # ====================================================================
+      # LOAD-BEARING BYTE-IDENTITY CONTRACT — tests/test_native_matrix.py
+      # ::TestFullNativeMatrix::test_all_24_combinations_byte_identical
+      # pins that every --stream x --inmemory-liftoff x --threads{1,2,4} x
+      # --native combination (24 cells) reproduces the default output GFF3
+      # byte-for-byte. This is the defining contract of the codebase; any
+      # change touching the alignment kernel, writer, ID-formation, or
+      # per-locus result shape MUST keep this green. Do not weaken this step.
+      # ====================================================================
+      # The 24-cell matrix + the parallelism/promotion gates + the
+      # unit/integration suite + the 3 hypothesis-backed property/vulnerability
+      # files (hypothesis installed above) — the FULL suite, 725 tests, 0
+      # --ignore. pytest ships in
       # install_requires; the hermetic fixtures monkeypatch minimap2/miniprot so
       # the suite needs neither. perf tests under tests/perf/ are marker-gated
       # (registered in conftest; they don't run here).
