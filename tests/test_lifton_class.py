@@ -280,6 +280,96 @@ class TestUpdateBoundaries:
 
 
 # ---------------------------------------------------------------------------
+# GFF3 parent-child containment normalization (Iteration 24, default ON)
+# ---------------------------------------------------------------------------
+
+class TestContainmentNormalization:
+    """normalize_containment() guarantees valid GFF3 containment: a CDS that
+    ORF-boundary patching extended past its exon makes the exon (and the
+    mRNA/gene span) widen to cover it; a non-monotonic exon list is sorted and
+    cannot invert the span. Default ON; LIFTON_NO_CONTAINMENT_NORMALIZE=1
+    reproduces the pre-Iter-24 (possibly-invalid) bytes.
+    """
+
+    def _gene_one_trans(self, gff_standard, fake_args, ref_features_dict_one_gene):
+        db = annotation.Annotation(
+            str(gff_standard), False, False, "create_unique", None, True, False,
+        ).db_connection
+        gene = _build_lifton_gene(db, fake_args, ref_features_dict_one_gene)
+        trans = gene.add_transcript(
+            "tx1", copy.deepcopy(db["tx1"]), _trans_attrs(),
+        )
+        return gene, trans
+
+    def _exon_with_cds(self, make_gffutils_feature, es, ee, cs, ce, eid):
+        exon = lifton_class.Lifton_EXON(make_gffutils_feature(
+            featuretype="exon", start=es, end=ee,
+            attributes={"ID": [eid], "Parent": ["tx1"]}))
+        exon.cds = lifton_class.Lifton_CDS(make_gffutils_feature(
+            featuretype="CDS", start=cs, end=ce, frame="0",
+            attributes={"ID": [eid + "-cds"], "Parent": ["tx1"]}))
+        return exon
+
+    def test_cds_beyond_exon_extends_exon(
+            self, monkeypatch, gff_standard, fake_args,
+            ref_features_dict_one_gene, make_gffutils_feature):
+        # The dominant dog->cat case: a CDS extended past its single exon to
+        # capture a stop codon. normalize must widen the exon + mRNA to cover it.
+        monkeypatch.delenv("LIFTON_NO_CONTAINMENT_NORMALIZE", raising=False)
+        gene, trans = self._gene_one_trans(
+            gff_standard, fake_args, ref_features_dict_one_gene)
+        trans.exons = [self._exon_with_cds(
+            make_gffutils_feature, 100, 200, 120, 228, "ex1")]  # CDS end 228 > exon 200
+        trans.normalize_containment()
+        assert trans.exons[0].entry.end == 228          # exon widened to CDS
+        assert trans.entry.end == 228                   # mRNA span follows
+        assert trans.exons[0].entry.start <= trans.exons[0].cds.entry.start
+        assert trans.exons[0].entry.end >= trans.exons[0].cds.entry.end
+
+    def test_non_monotonic_exons_sorted_and_span_valid(
+            self, monkeypatch, gff_standard, fake_args,
+            ref_features_dict_one_gene, make_gffutils_feature):
+        monkeypatch.delenv("LIFTON_NO_CONTAINMENT_NORMALIZE", raising=False)
+        gene, trans = self._gene_one_trans(
+            gff_standard, fake_args, ref_features_dict_one_gene)
+        hi = lifton_class.Lifton_EXON(make_gffutils_feature(
+            featuretype="exon", start=500, end=600,
+            attributes={"ID": ["exHi"], "Parent": ["tx1"]}))
+        lo = lifton_class.Lifton_EXON(make_gffutils_feature(
+            featuretype="exon", start=100, end=200,
+            attributes={"ID": ["exLo"], "Parent": ["tx1"]}))
+        trans.exons = [hi, lo]                           # non-monotonic
+        trans.normalize_containment()
+        assert [e.entry.start for e in trans.exons] == [100, 500]   # sorted
+        assert trans.entry.start == 100 and trans.entry.end == 600  # valid span
+        assert trans.entry.start <= trans.entry.end
+
+    def test_disabled_env_is_noop(
+            self, monkeypatch, gff_standard, fake_args,
+            ref_features_dict_one_gene, make_gffutils_feature):
+        monkeypatch.setenv("LIFTON_NO_CONTAINMENT_NORMALIZE", "1")
+        gene, trans = self._gene_one_trans(
+            gff_standard, fake_args, ref_features_dict_one_gene)
+        trans.exons = [self._exon_with_cds(
+            make_gffutils_feature, 100, 200, 120, 228, "ex1")]
+        trans.normalize_containment()
+        assert trans.exons[0].entry.end == 200          # exon NOT widened (no-op)
+
+    def test_gene_normalize_widens_gene_span(
+            self, monkeypatch, gff_standard, fake_args,
+            ref_features_dict_one_gene, make_gffutils_feature):
+        monkeypatch.delenv("LIFTON_NO_CONTAINMENT_NORMALIZE", raising=False)
+        gene, trans = self._gene_one_trans(
+            gff_standard, fake_args, ref_features_dict_one_gene)
+        trans.exons = [self._exon_with_cds(
+            make_gffutils_feature, 100, 200, 120, 228, "ex1")]
+        gene.normalize_containment()
+        # gene span must cover the widened transcript end (228)
+        assert gene.entry.end >= 228
+        assert gene.entry.start <= trans.entry.start
+
+
+# ---------------------------------------------------------------------------
 # Sequence assembly + translation
 # ---------------------------------------------------------------------------
 

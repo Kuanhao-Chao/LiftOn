@@ -51,6 +51,11 @@ TRANSCRIPT_TYPES = {
 EXON_TYPES    = {"exon"}
 CDS_TYPES     = {"CDS"}
 REGION_TYPES  = {"region"}
+# GFF3 allows a DISCONTINUOUS feature to be split across several lines that all
+# share ONE ID (the canonical case is a multi-exon CDS: one CDS feature, one
+# segment per coding exon, every segment carrying the same ID + Parent). Those
+# shared IDs are valid, NOT duplicates, so the duplicate-ID check exempts them.
+DISCONTINUOUS_FEATURE_TYPES = {"CDS"}
 # NCBI RefSeq permits exon/CDS DIRECTLY under a pseudogene (or transposable
 # element) with no intervening transcript level. Accept these as valid
 # exon/CDS parents so faithfully-lifted pseudogenes (Iteration-5
@@ -230,18 +235,33 @@ def validate_gff3_file(
     id_issues: List[GFF3Issue] = []
 
     seen_ids: Dict[str, int] = {}  # id → first lineno
+    seen_id_recs: Dict[str, GFF3Record] = {}  # id → first record (for type/parent)
     for rec in records:
         fid = rec.feat_id
         if fid:
             if fid in seen_ids:
-                issue_counts["duplicate_id"] += 1
-                if issue_counts["duplicate_id"] <= max_issues_per_check:
-                    id_issues.append(GFF3Issue(
-                        Severity.ERROR, rec.lineno, fid, "duplicate_id",
-                        f"Duplicate ID '{fid}' (first seen on line {seen_ids[fid]})"
-                    ))
+                # A discontinuous feature (canonically a multi-exon CDS) is split
+                # across several lines sharing ONE ID — valid GFF3, not a
+                # duplicate. Exempt repeats that are the same discontinuous type
+                # AND the same Parent as the first occurrence; everything else
+                # (e.g. two genes / a gene and an mRNA colliding on an ID) is a
+                # genuine duplicate-ID error.
+                first = seen_id_recs[fid]
+                is_discontinuous_segment = (
+                    rec.ftype in DISCONTINUOUS_FEATURE_TYPES
+                    and rec.ftype == first.ftype
+                    and rec.parent_id == first.parent_id
+                )
+                if not is_discontinuous_segment:
+                    issue_counts["duplicate_id"] += 1
+                    if issue_counts["duplicate_id"] <= max_issues_per_check:
+                        id_issues.append(GFF3Issue(
+                            Severity.ERROR, rec.lineno, fid, "duplicate_id",
+                            f"Duplicate ID '{fid}' (first seen on line {seen_ids[fid]})"
+                        ))
             else:
                 seen_ids[fid] = rec.lineno
+                seen_id_recs[fid] = rec
                 id_to_record[fid] = rec
 
         pid = rec.parent_id
