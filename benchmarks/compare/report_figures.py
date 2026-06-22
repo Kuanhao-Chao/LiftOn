@@ -404,7 +404,7 @@ def fig_perf_fourway(fw):
 
 
 # --------------------------------------------------------------------------- #
-# PERFORMANCE 2 — the v1.0.8 -> 2.0 improvement (controlled arm: cached aligner
+# PERFORMANCE 2 — the v1.0.8 -> v1.0.9 improvement (controlled arm: cached aligner
 # inputs at -t1, isolates LiftOn's own code). wall / RSS / CPU + gain factors.
 # --------------------------------------------------------------------------- #
 def fig_perf_improvement(vc):
@@ -462,7 +462,7 @@ def fig_perf_improvement(vc):
     axF.legend(fontsize=8, loc="upper right")
     axF.grid(axis="y", alpha=0.3)
     axF.margins(y=0.2)
-    axF.set_title("C.  Gain factors (v1.0.8 → 2.0)", fontsize=11,
+    axF.set_title("C.  Gain factors (v1.0.8 → v1.0.9)", fontsize=11,
                   fontweight="bold", loc="left")
 
     fig.suptitle("Identical cached aligner inputs at -t1 (isolates LiftOn's own "
