@@ -1,8 +1,27 @@
 from lifton import align, coreutils, get_id_fraction, variants, logger
 from lifton.io import feature_serializer
-import copy, os
+import copy, os, re
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
+
+
+def _containment_normalize_enabled():
+    """Iteration-24 GFF3 parent-child containment normalization (default ON).
+
+    LiftOn's chaining + ORF-boundary patching can leave a transcript whose
+    child features fall OUTSIDE their parent span (invalid GFF3 the reference
+    does not have): a CDS extended a few bp past its exon to capture a stop
+    codon on a frameshift-corrected RefSeq model (CDS > exon > mRNA), or a
+    rebuilt non-monotonic exon list that inverts the mRNA span (start > end,
+    the Iter-21 crash). ``normalize_containment`` (run at write time) extends
+    each exon to cover its CDS, sorts the exons, and sets the transcript/gene
+    span to the child envelope — guaranteeing valid containment.
+
+    Default ON. Set ``LIFTON_NO_CONTAINMENT_NORMALIZE=1`` to reproduce the
+    pre-Iteration-24 bytes (manuscript reproduction / A-B baseline).
+    """
+    return os.environ.get("LIFTON_NO_CONTAINMENT_NORMALIZE", "").lower() not in ("1", "true", "yes")
+
 
 class Lifton_ORF:
     def __init__(self, start, end):
@@ -197,13 +216,28 @@ class Lifton_GENE:
         self.transcripts[trans_id].add_lifton_trans_status_attrs(lifton_status)
 
     def write_entry(self, fw, transcripts_stats_dict):
+        # Iter-24: normalize parent-child containment (extend exons to cover
+        # their CDS; set each transcript + the gene span to the child envelope)
+        # right before serialisation, so the emitted GFF3 is always valid.
+        # No-op on well-formed genes -> byte-identical default.
+        self.normalize_containment()
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
         feature_serializer.write_gene(self, fw, transcripts_stats_dict)
 
-    def update_boundaries(self):        
+    def update_boundaries(self):
         for key, trans in self.transcripts.items():
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
+
+    def normalize_containment(self):
+        """Normalize every child transcript's containment, then widen the gene
+        span to cover all transcripts. No-op when disabled / well-formed."""
+        if not _containment_normalize_enabled() or not self.transcripts:
+            return
+        for trans in self.transcripts.values():
+            trans.normalize_containment()
+        self.entry.start = min(t.entry.start for t in self.transcripts.values())
+        self.entry.end = max(t.entry.end for t in self.transcripts.values())
 
     def print_gene(self):
         print(self.entry)
@@ -795,6 +829,54 @@ class Lifton_TRANS:
     def update_boundaries(self):
         self.entry.start = self.exons[0].entry.start
         self.entry.end = self.exons[-1].entry.end
+
+    def normalize_containment(self):
+        """Guarantee GFF3 parent-child containment for this transcript.
+
+        ORF-boundary patching / chaining can leave a CDS extending a few bp
+        past its exon (e.g. capturing a stop codon on a frameshift-corrected
+        RefSeq model) or rebuild the exons out of coordinate order, yielding
+        child features outside the mRNA span (invalid GFF3). A CDS must lie
+        within a transcribed exon, so extend the exon to cover its CDS; then
+        sort the exons and set the transcript span to the exon envelope. A
+        no-op on well-formed transcripts (exons already contain their CDS, are
+        already sorted, and the span already equals the envelope), so the
+        default output is byte-identical except on the previously-invalid
+        transcripts. Disable with LIFTON_NO_CONTAINMENT_NORMALIZE=1.
+        """
+        if not _containment_normalize_enabled() or not self.exons:
+            return
+        for exon in self.exons:
+            if exon.cds is not None:
+                if exon.cds.entry.start < exon.entry.start:
+                    exon.entry.start = exon.cds.entry.start
+                if exon.cds.entry.end > exon.entry.end:
+                    exon.entry.end = exon.cds.entry.end
+        self.exons.sort(key=lambda e: (e.entry.start, e.entry.end))
+        self.entry.start = min(e.entry.start for e in self.exons)
+        self.entry.end = max(e.entry.end for e in self.exons)
+        # Ensure exon IDs are unique within the transcript. The chaining can
+        # rebuild the exon structure while reusing stale reference "exon-<acc>-N"
+        # IDs, producing DUPLICATE exon IDs (invalid GFF3 — the dominant validator
+        # error). Re-number 5'->3' from the shared base, but ONLY when a real
+        # collision exists, so well-formed transcripts (already-unique, strand-
+        # ordered IDs) are left untouched / byte-identical.
+        exon_ids = [e.entry.id for e in self.exons]
+        if len(set(exon_ids)) != len(exon_ids):
+            base = None
+            for e in self.exons:
+                m = re.match(r"^(.*)-\d+$", e.entry.id or "")
+                if m:
+                    base = m.group(1)
+                    break
+            if base is None:
+                base = "exon-" + (self.entry.id or "")
+            ordered = sorted(self.exons, key=lambda e: e.entry.start,
+                             reverse=(self.entry.strand == "-"))
+            for i, exon in enumerate(ordered, 1):
+                new_id = f"{base}-{i}"
+                exon.entry.id = new_id
+                exon.entry.attributes["ID"] = [new_id]
 
     def print_transcript(self):
         print(f"\t{self.entry}")
