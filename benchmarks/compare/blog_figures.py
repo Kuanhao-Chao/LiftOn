@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""blog_figures.py — render the LiftOn 2.0 announcement's composite figures.
+"""blog_figures.py — render the LiftOn v1.0.9 announcement's composite figures.
 
 Six publication-style figures for the website blog post, built from the SAME
 source JSON as master_report.py (so the numbers stay in lockstep):
@@ -49,9 +49,9 @@ OUTDIR = Path(sys.argv[1]) if len(sys.argv) > 1 else (HERE / "figures" / "blog")
 # this coding-completeness floor (v1.0.8 crashed arabidopsis at 0.28, rice at 0.77)
 _COMPLETE = 0.90
 
-# blog-facing tool labels: the devel build is announced as "LiftOn 2.0"
+# blog-facing tool labels: the devel build is announced as "LiftOn v1.0.9"
 LABEL = dict(mr.TOOL_LABEL)
-LABEL["lifton_devel"] = "LiftOn 2.0"
+LABEL["lifton_devel"] = "LiftOn v1.0.9"
 
 # divergence-class palette (easy → hard), used to color the per-benchmark bars
 DIVC_COLOR = {
@@ -128,7 +128,7 @@ def fig_accuracy(fw, vc):
             vals = [r["mean_pi"].get(t) for r in recs
                     if isinstance(r["mean_pi"].get(t), float)]
             ys.append(sum(vals) / len(vals) if vals else np.nan)
-        # v1.0.8 ≈ 2.0 on this axis, so dash it (drawn on top) to stay visible
+        # v1.0.8 ≈ v1.0.9 on this axis, so dash it (drawn on top) to stay visible
         st = dict(lw=2.2, ms=7, ls="-", zorder=3)
         if t == "lifton_stable":
             st.update(ls=(0, (5, 2)), ms=5, zorder=5)
@@ -201,7 +201,7 @@ def fig_accuracy(fw, vc):
                framealpha=0.9, title="divergence class", title_fontsize=8.5)
     _nwin = sum(1 for _, d in pts if d >= 0)
     _panel_title(axB, "B",
-                 f"LiftOn 2.0 beats the best single method on {_nwin}/{len(pts)} datasets")
+                 f"LiftOn v1.0.9 beats the best single method on {_nwin}/{len(pts)} datasets")
 
     return _save(fig, "fig1_accuracy.png")
 
@@ -293,7 +293,7 @@ def fig_completeness(fw):
     b1 = axA.bar(x - w / 2, sta, w, color=mr.TOOL_COLORS["lifton_stable"],
                  label="LiftOn v1.0.8")
     b2 = axA.bar(x + w / 2, dev, w, color=mr.TOOL_COLORS["lifton_devel"],
-                 label="LiftOn 2.0")
+                 label="LiftOn v1.0.9")
     for rect, p in zip(b1, sta_pct):
         if isinstance(p, float):
             axA.annotate(f"{p*100:.0f}%", (rect.get_x() + rect.get_width() / 2,
@@ -308,7 +308,7 @@ def fig_completeness(fw):
     axA.legend(fontsize=8, loc="upper left")
     axA.grid(axis="y", alpha=0.3)
     axA.margins(y=0.16)
-    _panel_title(axA, "A", "v1.0.8 crashes partway; 2.0 finishes")
+    _panel_title(axA, "A", "v1.0.8 crashes partway; v1.0.9 finishes")
 
     # ---- (B) gene-like feature recovery (Arabidopsis full) ----
     arab = next((r for r in mr._fw_recs(fw, "full")
@@ -332,7 +332,7 @@ def fig_completeness(fw):
         axB.barh(y + h / 2, ns_v, h, color=mr.TOOL_COLORS["lifton_stable"],
                  label="LiftOn v1.0.8")
         axB.barh(y - h / 2, nd_v, h, color=mr.TOOL_COLORS["lifton_devel"],
-                 label="LiftOn 2.0")
+                 label="LiftOn v1.0.9")
         for yi, (ft, ns, nd) in zip(y, rows):
             axB.annotate(f"+{nd-ns:,}", (nd, yi - h / 2), ha="left", va="center",
                          fontsize=8, xytext=(3, 0), textcoords="offset points")
@@ -343,7 +343,7 @@ def fig_completeness(fw):
         axB.legend(fontsize=8, loc="lower right")
         axB.grid(axis="x", alpha=0.3)
         axB.margins(x=0.12)
-    _panel_title(axB, "B", "2.0 lifts gene-like types v1.0.8 drops")
+    _panel_title(axB, "B", "v1.0.9 lifts gene-like types v1.0.8 drops")
 
     return _save(fig, "fig2_completeness.png")
 
@@ -364,8 +364,8 @@ def fig_validity(fw):
     h = 0.38
     fig, ax = plt.subplots(figsize=(9, max(5, 0.46 * len(recs))))
     ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
-    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn 2.0")
-    # mark the one dataset where 2.0 has MORE errors than v1.0.8 (honest)
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
+    # mark the one dataset where v1.0.9 has MORE errors than v1.0.8 (honest)
     for yi, s, d, lab in zip(y, sta, dev, labels):
         if d > s:
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
@@ -378,7 +378,7 @@ def fig_validity(fw):
     ax.legend(fontsize=8, loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     ax.margins(x=0.12)
-    ax.set_title("Output validity — LiftOn 2.0 vs v1.0.8",
+    ax.set_title("Output validity — LiftOn v1.0.9 vs v1.0.8",
                  fontsize=12, fontweight="bold", loc="left")
     return _save(fig, "fig5_validity.png")
 
@@ -406,7 +406,7 @@ def fig_performance(vc):
         ax.bar(x - w / 2, sta, w, color=mr.TOOL_COLORS["lifton_stable"],
                label="LiftOn v1.0.8")
         b2 = ax.bar(x + w / 2, dev, w, color=mr.TOOL_COLORS["lifton_devel"],
-                    label="LiftOn 2.0")
+                    label="LiftOn v1.0.9")
         for rect, s, d in zip(b2, sta, dev):
             if d:
                 ax.annotate(ratio_fmt(s, d),
@@ -467,7 +467,7 @@ def fig_full_accuracy(fw):
     axA.set_xlabel("mean protein identity (tool-neutral re-score)")
     axA.grid(axis="x", alpha=0.3)
     axA.legend(fontsize=8.5, loc="lower right", ncol=2, framealpha=0.9)
-    _panel_title(axA, "A", "LiftOn 2.0 leads the single-method baselines on every whole genome")
+    _panel_title(axA, "A", "LiftOn v1.0.9 leads the single-method baselines on every whole genome")
 
     deltas = []
     for r in recs:
@@ -508,7 +508,7 @@ def fig_full_validity(fw):
     h = 0.38
     fig, ax = plt.subplots(figsize=(10, 5.8))
     ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
-    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn 2.0")
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
     for yi, s, d in zip(y, sta_raw, dev_raw):
         if isinstance(s, int) and isinstance(d, int):
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
@@ -522,7 +522,7 @@ def fig_full_validity(fw):
     ax.legend(fontsize=8.5, loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     ax.margins(x=0.16)
-    ax.set_title("Cleaner output on every whole genome — LiftOn 2.0 vs v1.0.8",
+    ax.set_title("Cleaner output on every whole genome — LiftOn v1.0.9 vs v1.0.8",
                  fontsize=12, fontweight="bold", loc="left")
     return _save(fig, "fig_full_validity.png")
 

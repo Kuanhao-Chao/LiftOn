@@ -11498,8 +11498,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 150,
+        "n_errors": 50,
+        "n_warnings": 151,
         "valid": false
       },
       "miniprot": {
@@ -11515,10 +11515,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 53,
-        "n_warnings": 99,
-        "valid": false
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 95,
+        "valid": true
       }
     },
     "feature_census": {
@@ -12157,8 +12157,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 137,
-        "n_warnings": 154,
+        "n_errors": 93,
+        "n_warnings": 173,
         "valid": false
       },
       "miniprot": {
@@ -12175,7 +12175,7 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 129,
+        "n_errors": 73,
         "n_warnings": 102,
         "valid": false
       }
@@ -12816,8 +12816,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 137,
-        "n_warnings": 150,
+        "n_errors": 89,
+        "n_warnings": 222,
         "valid": false
       },
       "miniprot": {
@@ -12834,8 +12834,8 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 107,
-        "n_warnings": 114,
+        "n_errors": 49,
+        "n_warnings": 151,
         "valid": false
       }
     },
@@ -13615,7 +13615,7 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 131,
+        "n_errors": 85,
         "n_warnings": 181,
         "valid": false
       },
@@ -13632,10 +13632,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 135,
-        "valid": false
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 134,
+        "valid": true
       }
     },
     "feature_census": {
@@ -19518,8 +19518,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 120,
-        "n_warnings": 161,
+        "n_errors": 73,
+        "n_warnings": 201,
         "valid": false
       },
       "miniprot": {
@@ -19530,13 +19530,13 @@
       },
       "lifton_stable": {
         "exit": 1,
-        "n_errors": 226,
+        "n_errors": 225,
         "n_warnings": 105,
         "valid": false
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 136,
+        "n_errors": 35,
         "n_warnings": 137,
         "valid": false
       }
@@ -20317,8 +20317,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 92,
-        "n_warnings": 200,
+        "n_errors": 42,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -20334,10 +20334,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 100,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 152,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
@@ -32471,8 +32471,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 154,
-        "n_warnings": 205,
+        "n_errors": 112,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -32483,7 +32483,7 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 175,
+        "n_errors": 75,
         "n_warnings": 154,
         "valid": false
       }
@@ -33061,8 +33061,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 152,
-        "n_warnings": 182,
+        "n_errors": 104,
+        "n_warnings": 200,
         "valid": false
       },
       "miniprot": {
@@ -33073,7 +33073,7 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 167,
+        "n_errors": 101,
         "n_warnings": 125,
         "valid": false
       }
@@ -33577,8 +33577,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 209,
+        "n_errors": 50,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -33594,10 +33594,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 96,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 150,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
@@ -35776,8 +35776,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 101,
-        "n_warnings": 209,
+        "n_errors": 51,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -35794,7 +35794,7 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 101,
+        "n_errors": 1,
         "n_warnings": 154,
         "valid": false
       }
@@ -37377,8 +37377,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 128,
-        "n_warnings": 204,
+        "n_errors": 80,
+        "n_warnings": 211,
         "valid": false
       },
       "miniprot": {
@@ -37389,7 +37389,7 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 158,
+        "n_errors": 58,
         "n_warnings": 159,
         "valid": false
       }
@@ -37893,8 +37893,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 200,
+        "n_errors": 57,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -37911,8 +37911,8 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 107,
-        "n_warnings": 180,
+        "n_errors": 15,
+        "n_warnings": 186,
         "valid": false
       }
     },
@@ -38720,8 +38720,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 211,
+        "n_errors": 50,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -38737,10 +38737,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 98,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 157,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
@@ -40919,8 +40919,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 211,
+        "n_errors": 50,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -40936,10 +40936,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 100,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 170,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
@@ -43118,7 +43118,7 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
+        "n_errors": 50,
         "n_warnings": 152,
         "valid": false
       },
@@ -43135,10 +43135,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 75,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 52,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
@@ -43861,8 +43861,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 200,
+        "n_errors": 50,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -43878,10 +43878,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 100,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 159,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
@@ -46060,8 +46060,8 @@
     "validity": {
       "liftoff": {
         "exit": 1,
-        "n_errors": 100,
-        "n_warnings": 200,
+        "n_errors": 50,
+        "n_warnings": 250,
         "valid": false
       },
       "miniprot": {
@@ -46077,10 +46077,10 @@
         "valid": false
       },
       "lifton_devel": {
-        "exit": 1,
-        "n_errors": 100,
+        "exit": 0,
+        "n_errors": 0,
         "n_warnings": 154,
-        "valid": false
+        "valid": true
       }
     },
     "feature_census": {
