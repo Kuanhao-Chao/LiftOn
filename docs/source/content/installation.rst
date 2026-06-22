@@ -14,7 +14,7 @@ System requirements
 
 .. admonition:: Software dependency
 
-   * python >= 3.9       (the floor was raised to 3.9 in v1.0.9; EOL Pythons 3.6-3.8 are no longer supported)
+   * python >= 3.10      (raised in v1.0.9; 3.9 is EOL and the networkx>=3.3 dependency requires >=3.10)
    * numpy >= 1.22.0
    * gffutils >= 0.10.1
    * biopython>=1.76
@@ -36,7 +36,7 @@ These dependencies are resolved automatically when you ``pip install lifton`` (a
 .. admonition:: Version warning
    :class: important
 
-   LiftOn requires **Python >= 3.9** (v1.0.9 raised the floor from 3.6 to 3.9).
+   LiftOn requires **Python >= 3.10** (v1.0.9 raised the floor from 3.6 to 3.10; 3.9 is EOL and the ``networkx>=3.3`` dependency requires >=3.10).
 
    If your numpy version is >= 1.25.0, then it requires Python version >= 3.9.
 

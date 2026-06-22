@@ -26,13 +26,13 @@ jobs:
     timeout-minutes: 30
     # Multi-Python matrix: prove the suite (incl. the byte-identity contract) on
     # every supported interpreter. fail-fast: false so one version's failure
-    # doesn't cancel the others' diagnostics. Floor 3.9 matches setup.py
-    # python_requires='>=3.9' (the code uses PEP-585 builtin generics, native in
-    # 3.9); 3.11 mirrors lifton.yml. cache: pip is keyed per python-version.
+    # doesn't cancel the others' diagnostics. Floor 3.10 matches setup.py
+    # python_requires='>=3.10' (the networkx>=3.3 dependency requires >=3.10, and
+    # 3.9 is EOL); 3.11 mirrors lifton.yml. cache: pip is keyed per python-version.
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
     # checkout@v6 / setup-python@v6 are the Node24-native majors (v4/v5 declared
     # Node20 — deprecated 2025-09-19, force-migrated to Node24 on runners
@@ -81,8 +81,10 @@ jobs:
       run: |
         # Normal build isolation: cigar is already installed (pre-built above),
         # so this installs the wheel-based deps + builds mappy with its own
-        # isolated build deps (Cython). lifton itself builds fine here.
-        python -m pip install -e .
+        # isolated build deps (Cython). The [test] extra adds pytest + coverage
+        # (pytest is test-only, NOT in install_requires) so the pytest step below
+        # finds it on PATH; hypothesis is also installed above.
+        python -m pip install -e ".[test]"
     - name: Supply-chain audit (pip-audit, non-blocking)
       # Surface known CVEs in the installed dependency tree WITHOUT gating CI:
       # continue-on-error so a freshly-disclosed advisory in a transitive dep
@@ -105,10 +107,10 @@ jobs:
       # ====================================================================
       # The 24-cell matrix + the parallelism/promotion gates + the
       # unit/integration suite + the 3 hypothesis-backed property/vulnerability
-      # files (hypothesis installed above) — the FULL suite, 725 tests, 0
-      # --ignore. pytest ships in
-      # install_requires; the hermetic fixtures monkeypatch minimap2/miniprot so
-      # the suite needs neither. perf tests under tests/perf/ are marker-gated
+      # files (hypothesis installed above) — the FULL suite, 729 tests, 0
+      # --ignore. pytest comes from the [test] extra (installed with lifton
+      # above); the hermetic fixtures monkeypatch minimap2/miniprot so the suite
+      # needs neither. perf tests under tests/perf/ are marker-gated
       # (registered in conftest; they don't run here).
       run: |
         pytest tests/ -q

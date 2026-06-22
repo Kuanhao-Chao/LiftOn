@@ -125,8 +125,8 @@ default output** (pinned by the 24-cell byte-identity matrix test):
 
 ### Packaging
 
-- **Python floor raised to `>=3.9`** (drops EOL Pythons 3.6–3.8; the code uses
-  PEP-585 builtin generics, native in 3.9).
+- **Python floor raised to `>=3.10`** (the `networkx>=3.3` dependency requires
+  Python ≥3.10, and 3.9 reached EOL in 2025-10).
 - **`mappy` is an optional dependency** that enables the in-process `--native`
   path; the runtime falls back gracefully when it is absent.
 - Added a `MANIFEST.in`, a `pyproject.toml` (PEP 517/518 build configuration),
