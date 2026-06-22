@@ -368,6 +368,29 @@ class TestContainmentNormalization:
         assert gene.entry.end >= 228
         assert gene.entry.start <= trans.entry.start
 
+    def test_gene_with_feature_child_does_not_crash(
+            self, monkeypatch, gff_standard, fake_args,
+            ref_features_dict_one_gene, make_gffutils_feature):
+        # Iter-24 regression (surfaced on full arabidopsis->rice): a gene's
+        # ``transcripts`` collection can hold a LiftOn_FEATURE (a gene-like child
+        # added by ``add_feature`` for pseudogenes / ncRNA genes / organellar
+        # features), which has no exon/CDS list. normalize_containment() at the
+        # write funnel must NOT abort on it (it raised
+        # "AttributeError: 'LiftOn_FEATURE' object has no attribute
+        # 'normalize_containment'" and crashed the whole-genome write phase).
+        monkeypatch.delenv("LIFTON_NO_CONTAINMENT_NORMALIZE", raising=False)
+        gene, _trans = self._gene_one_trans(
+            gff_standard, fake_args, ref_features_dict_one_gene)
+        feat = gene.add_feature(make_gffutils_feature(
+            featuretype="ncRNA", start=300, end=900,
+            attributes={"ID": ["ncrna1"], "Parent": ["gene1"]}))
+        feat.add_feature(make_gffutils_feature(  # nested child sticking out past the feature
+            featuretype="exon", start=280, end=950,
+            attributes={"ID": ["ncrna1-ex1"], "Parent": ["ncrna1"]}))
+        gene.normalize_containment()                       # must NOT raise
+        assert feat.entry.start <= 280 and feat.entry.end >= 950   # feature widened to cover child
+        assert gene.entry.start <= 280 and gene.entry.end >= 950   # gene span covers the feature
+
 
 # ---------------------------------------------------------------------------
 # Sequence assembly + translation

@@ -230,12 +230,19 @@ class Lifton_GENE:
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
 
     def normalize_containment(self):
-        """Normalize every child transcript's containment, then widen the gene
-        span to cover all transcripts. No-op when disabled / well-formed."""
+        """Normalize every child's containment, then widen the gene span to
+        cover all children. No-op when disabled / well-formed. ``self.transcripts``
+        can hold both coding ``Lifton_TRANS`` and gene-like ``LiftOn_FEATURE``
+        children (the latter added by ``add_feature`` for pseudogenes / ncRNA
+        genes / structured features); both now expose ``normalize_containment``,
+        and the ``getattr`` guard keeps a future child type without it from
+        aborting the whole-genome write phase."""
         if not _containment_normalize_enabled() or not self.transcripts:
             return
         for trans in self.transcripts.values():
-            trans.normalize_containment()
+            fn = getattr(trans, "normalize_containment", None)
+            if fn is not None:
+                fn()
         self.entry.start = min(t.entry.start for t in self.transcripts.values())
         self.entry.end = max(t.entry.end for t in self.transcripts.values())
 
@@ -275,6 +282,24 @@ class LiftOn_FEATURE:
         Lifton_feature = LiftOn_FEATURE(self.entry.id, gffutil_entry_trans, self.copy_num)
         self.features[Lifton_feature.entry.id] = Lifton_feature
         return Lifton_feature
+
+    def normalize_containment(self):
+        """Recursively normalize the generic-feature hierarchy (gene-like
+        features: pseudogenes, ncRNA genes, structured mobile elements) so a
+        feature always contains its children. Only ever EXTENDS this feature's
+        span (never shrinks it), so it cannot drop a child's coverage. No-op when
+        disabled or childless. This is the ``LiftOn_FEATURE`` counterpart of the
+        ``Lifton_TRANS``/``Lifton_GENE`` containment normalization, so the
+        write-funnel call in ``Lifton_GENE.normalize_containment`` does not abort
+        the whole-genome write phase on a gene-like-feature child (Iter 24)."""
+        if not _containment_normalize_enabled() or not self.features:
+            return
+        for child in self.features.values():
+            fn = getattr(child, "normalize_containment", None)
+            if fn is not None:
+                fn()
+        self.entry.start = min([self.entry.start] + [c.entry.start for c in self.features.values()])
+        self.entry.end = max([self.entry.end] + [c.entry.end for c in self.features.values()])
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).

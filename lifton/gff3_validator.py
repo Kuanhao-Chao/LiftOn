@@ -62,7 +62,10 @@ DISCONTINUOUS_FEATURE_TYPES = {"CDS"}
 # --lift-gene-like) don't trip the exon/CDS parent-type hierarchy checks.
 DIRECT_EXON_PARENT_TYPES = {"pseudogene", "transposable_element"}
 
-VALID_STRANDS = {"+", "-", "."}
+# The GFF3 spec permits four strand values: '+', '-', '.' (not stranded), and
+# '?' (stranded but the strand is unknown). '?' is valid and appears on real
+# RefSeq organellar features, so flagging it was a false positive.
+VALID_STRANDS = {"+", "-", ".", "?"}
 VALID_PHASES  = {0, 1, 2}
 
 # Official GFF3 attribute names (capital letters per spec)
