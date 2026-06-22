@@ -153,6 +153,24 @@ class Annotation:
 
         For an in-memory blob we always need gffbase — gffutils has no
         path that ingests from a string.
+
+        Phase 17a-1 attempted to flip the default to gffbase to unlock
+        Phase 9-15 parallelism (which is gated behind gffutils →
+        ``_backend_supports_threads`` False). The flip caused a
+        ~30-50× slowdown of ``extract_sequence.extract_features_to_fasta``
+        on real-data inputs (28K-transcript NCBI RefSeq bee), because
+        gffbase's per-feature ``children(...)`` query path is much
+        slower than gffutils' SQLite B-tree on this access pattern.
+        Verified by killing a bee benchmark stuck at Step 3 after
+        ~13 minutes (gffutils baseline: seconds for the same step).
+
+        The default therefore remains **gffutils**. Users who want
+        parallelism opt in via ``LIFTON_USE_GFFBASE=1`` (or
+        ``backend="gffbase"`` kwarg). The ``benchmarks/phase16_rerun_bee.sh``
+        wrapper sets the env var so the benchmark exercises the
+        parallel path. A future phase should investigate fixing the
+        gffbase ``children()`` regression and only then flip the
+        global default.
         """
         if explicit in ("gffutils", "gffbase"):
             return explicit

@@ -1,5 +1,6 @@
 from multiprocessing import Pool
 import math
+import os
 from functools import partial
 import numpy as np
 from pyfaidx import Fasta, Faidx
@@ -10,15 +11,25 @@ from os import path
 
 
 def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy, liftover_type, unmapped_features):
-    # Phase 11 native path: when `args.native` is True (and the caller
-    # is not the polish subcommand which still needs a real SAM file),
-    # dispatch through the in-process mappy binding instead of
-    # spawning per-chromosome minimap2 subprocesses. The legacy
-    # subprocess path is preserved as the default and as the fallback
-    # when mappy is unavailable.
+    # Phase 11 native path: route Liftoff's minimap2 alignment through the
+    # in-process mappy binding instead of per-chromosome subprocesses.
+    #
+    # Iteration 7 (2026-06-14): this is now OPT-IN via
+    # LIFTON_NATIVE_LIFTOFF_ALIGN=1, NOT implied by --native. The A/B
+    # (benchmarks/compare/native_liftoff_ab.py) showed the in-process mappy
+    # Liftoff alignment is STRICTLY INFERIOR to the subprocess path — slower
+    # (a per-query Python loop vs minimap2's batched C threading: up to ~2.2×
+    # on mouse_to_rat) and slightly less accurate cross-species (mappy's
+    # Aligner can't take --end-bonus/-p). So under plain --native, Liftoff
+    # alignment falls back to the proven subprocess path while --native still
+    # delivers its real value elsewhere (in-process miniprot facade +
+    # Step-7 threading unlock). The mappy Liftoff path stays reachable for
+    # environments without a minimap2 binary or future batching work. The
+    # polish subcommand always needs a real SAM file, so it never routes here.
     if (
         getattr(args, "native", False)
         and getattr(args, "subcommand", None) != "polish"
+        and os.environ.get("LIFTON_NATIVE_LIFTOFF_ALIGN")
     ):
         from lifton.liftoff import native_align as _na
         return _na.align_features_to_target_native(

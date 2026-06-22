@@ -9,24 +9,65 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref so rapid pushes don't pile up redundant
+# full builds (each rebuilds mappy from sdist + the 151MB chr22 minimap2 index).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    # ubuntu-latest only. macOS-ARM is deliberately DEFERRED: parasail and mappy
+    # need conda on macOS/ARM (pip install parasail fails to build from source
+    # there — see CLAUDE.md "Environment & commands"), which the GitHub-hosted
+    # pip-based runner can't provide. Adding a conda-based mac job is future work.
     runs-on: ubuntu-latest
+    # Cap the job so a hung wget/test fails fast instead of burning the 6h default.
+    timeout-minutes: 30
+    # Multi-Python matrix: prove the suite (incl. the byte-identity contract) on
+    # every supported interpreter. fail-fast: false so one version's failure
+    # doesn't cancel the others' diagnostics. Floor 3.10 matches setup.py
+    # python_requires='>=3.10' (the networkx>=3.3 dependency requires >=3.10, and
+    # 3.9 is EOL); 3.11 mirrors lifton.yml. cache: pip is keyed per python-version.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
+    # checkout@v6 / setup-python@v6 are the Node24-native majors (v4/v5 declared
+    # Node20 — deprecated 2025-09-19, force-migrated to Node24 on runners
+    # 2026-06-16, removed fall 2026); bumping now clears the deprecation warning
+    # and is future-proof. cache: pip restores ~/.cache/pip (keyed on setup.py)
+    # so the from-sdist mappy build isn't repeated on every run.
+    - uses: actions/checkout@v6
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
       with:
-        python-version: "3.12"
+        python-version: ${{ matrix.python-version }}
+        cache: pip
+        cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip flake8
-        sudo apt install wget
-        wget https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
+        # The legacy sdist-only dep `cigar` (0.1.3) imports `pkg_resources` in
+        # its setup.py, which setuptools 81+ removed — so pip's default isolated
+        # build env (latest setuptools) fails to build it. Pin setuptools<81 +
+        # wheel here, then pre-build cigar with --no-build-isolation against that
+        # toolchain so the later normal `pip install -e .` finds cigar satisfied
+        # and never rebuilds it (and the OTHER deps — mappy etc. — keep normal
+        # build isolation, which they need for their own build deps like Cython).
+        python -m pip install --upgrade pip "setuptools<81" wheel flake8
+        # hypothesis backs the 3 property/vulnerability test files (imported at
+        # module scope); installing it lets CI run the FULL suite with no
+        # --ignore. Not a runtime dep, so kept out of setup.py install_requires.
+        python -m pip install hypothesis
+        python -m pip install --no-build-isolation cigar
+        # zlib1g-dev: mappy has no wheel for this runner and builds from sdist.
+        sudo apt-get install -y wget zlib1g-dev
+        wget --tries=3 --timeout=30 https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
         tar xvf miniprot-0.13_x64-linux.tar.bz2
         cp miniprot-0.13_x64-linux/miniprot /usr/local/bin
         rm -rf miniprot-0.13_x64-linux*
-        wget https://github.com/lh3/minimap2/releases/download/v2.28/minimap2-2.28_x64-linux.tar.bz2
+        wget --tries=3 --timeout=30 https://github.com/lh3/minimap2/releases/download/v2.28/minimap2-2.28_x64-linux.tar.bz2
         tar xvf minimap2-2.28_x64-linux.tar.bz2
         mv minimap2-2.28_x64-linux/k8  minimap2-2.28_x64-linux/paftools.js  minimap2-2.28_x64-linux/minimap2 /usr/local/bin
         rm -rf minimap2-2.28_x64-linux*
@@ -38,8 +79,51 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Install lifton
       run: |
-        python -m pip install -e .
+        # Normal build isolation: cigar is already installed (pre-built above),
+        # so this installs the wheel-based deps + builds mappy with its own
+        # isolated build deps (Cython). The [test] extra adds pytest + coverage
+        # (pytest is test-only, NOT in install_requires) so the pytest step below
+        # finds it on PATH; hypothesis is also installed above.
+        python -m pip install -e ".[test]"
+    - name: Supply-chain audit (pip-audit, non-blocking)
+      # Surface known CVEs in the installed dependency tree WITHOUT gating CI:
+      # continue-on-error so a freshly-disclosed advisory in a transitive dep
+      # (bioconda/conda-forge wheels we don't control) is visible in the run
+      # summary but never blocks a merge or a release. Promote to blocking later
+      # if the dependency surface stabilises.
+      continue-on-error: true
+      run: |
+        python -m pip install pip-audit
+        pip-audit || true
+    - name: Run pytest (full suite incl. 24-cell byte-identity matrix)
+      # ====================================================================
+      # LOAD-BEARING BYTE-IDENTITY CONTRACT — tests/test_native_matrix.py
+      # ::TestFullNativeMatrix::test_all_24_combinations_byte_identical
+      # pins that every --stream x --inmemory-liftoff x --threads{1,2,4} x
+      # --native combination (24 cells) reproduces the default output GFF3
+      # byte-for-byte. This is the defining contract of the codebase; any
+      # change touching the alignment kernel, writer, ID-formation, or
+      # per-locus result shape MUST keep this green. Do not weaken this step.
+      # ====================================================================
+      # The 24-cell matrix + the parallelism/promotion gates + the
+      # unit/integration suite + the 3 hypothesis-backed property/vulnerability
+      # files (hypothesis installed above) — the FULL suite, 729 tests, 0
+      # --ignore. pytest comes from the [test] extra (installed with lifton
+      # above); the hermetic fixtures monkeypatch minimap2/miniprot so the suite
+      # needs neither. perf tests under tests/perf/ are marker-gated
+      # (registered in conftest; they don't run here).
+      run: |
+        pytest tests/ -q
     - name: Test using example from test dir
       run: |
-        cd test && bash -xeu lifton_chr22_example.sh
+        # actions/checkout (no lfs: true) does NOT pull git-LFS, so the LFS-tracked
+        # precomputed minimap2 index test/chm13_chr22.fa.mmi is checked out as a
+        # ~130-byte pointer file, not the real 151MB index. Liftoff/minimap2 then
+        # reads the pointer as its index, produces 0 alignments, and writes an
+        # empty liftoff.gff3 -> exit 1. Remove the stale pointer so Liftoff
+        # rebuilds the index from the regular (non-LFS) chm13_chr22.fa committed
+        # alongside it (verified: rebuilds to the identical 151MB index, 77856
+        # liftoff feature lines, exit 0). Cheaper + more robust than lfs:true
+        # (no LFS bandwidth/quota); local runs keep their cached .mmi untouched.
+        cd test && rm -f chm13_chr22.fa.mmi && bash -xeu lifton_chr22_example.sh
         

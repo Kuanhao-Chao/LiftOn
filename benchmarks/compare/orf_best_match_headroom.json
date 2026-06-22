@@ -1,0 +1,28 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_corpus_transcripts": 7946,
+    "n_rescued": 6979,
+    "n_multi_orf": 6958,
+    "n_strict_improved": 96,
+    "n_gate_crossed": 5,
+    "mean_delta_K_over_rescued": -0.00036,
+    "mean_delta_over_crossed": 0.16888,
+    "max_delta_K": 0.74889,
+    "projected_corpus_pi_delta": 0.00011,
+    "n_K3_insufficient": 28
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_corpus_transcripts": 3114,
+    "n_rescued": 2305,
+    "n_multi_orf": 2304,
+    "n_strict_improved": 54,
+    "n_gate_crossed": 12,
+    "mean_delta_K_over_rescued": -0.00107,
+    "mean_delta_over_crossed": 0.07894,
+    "max_delta_K": 0.74468,
+    "projected_corpus_pi_delta": 0.0003,
+    "n_K3_insufficient": 6
+  }
+]

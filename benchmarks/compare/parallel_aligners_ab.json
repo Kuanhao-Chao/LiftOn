@@ -1,0 +1,131 @@
+[
+  {
+    "benchmark": "bee",
+    "threads": "8",
+    "byte_identical": true,
+    "wall_s": {
+      "serial": 136.7,
+      "parallel": 131.9
+    },
+    "wall_saved_s": 4.8,
+    "wall_saved_pct": 3.5,
+    "speedup": 1.036,
+    "step4_wall_s": {
+      "serial": 26.7,
+      "parallel": 20.88
+    },
+    "step4_saved_s": 5.8,
+    "step4_saved_pct": 21.8,
+    "peak_rss_mb": {
+      "serial": 1505.0,
+      "parallel": 1505.0
+    },
+    "rss_overhead_pct": -0.0,
+    "completeness": {
+      "serial": {
+        "gene": 1544,
+        "transcript": 3680,
+        "CDS": 27495,
+        "total": 65899
+      },
+      "parallel": {
+        "gene": 1544,
+        "transcript": 3680,
+        "CDS": 27495,
+        "total": 65899
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "wall_win": true,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "drosophila",
+    "threads": "8",
+    "byte_identical": false,
+    "wall_s": {
+      "serial": 276.5,
+      "parallel": 269.6
+    },
+    "wall_saved_s": 6.9,
+    "wall_saved_pct": 2.5,
+    "speedup": 1.026,
+    "step4_wall_s": {
+      "serial": 73.71,
+      "parallel": 64.12
+    },
+    "step4_saved_s": 9.6,
+    "step4_saved_pct": 13.0,
+    "peak_rss_mb": {
+      "serial": 3139.0,
+      "parallel": 3139.0
+    },
+    "rss_overhead_pct": 0.0,
+    "completeness": {
+      "serial": {
+        "gene": 4048,
+        "transcript": 7946,
+        "CDS": 37305,
+        "total": 92487
+      },
+      "parallel": {
+        "gene": 4049,
+        "transcript": 7947,
+        "CDS": 37305,
+        "total": 92490
+      },
+      "unchanged": false
+    },
+    "gate": {
+      "byte_identical": false,
+      "wall_win": true,
+      "completeness_unchanged": false
+    }
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "threads": "8",
+    "byte_identical": true,
+    "wall_s": {
+      "serial": 256.2,
+      "parallel": 235.2
+    },
+    "wall_saved_s": 21.0,
+    "wall_saved_pct": 8.2,
+    "speedup": 1.089,
+    "step4_wall_s": {
+      "serial": 125.58,
+      "parallel": 106.17
+    },
+    "step4_saved_s": 19.4,
+    "step4_saved_pct": 15.5,
+    "peak_rss_mb": {
+      "serial": 3750.0,
+      "parallel": 3737.0
+    },
+    "rss_overhead_pct": -0.4,
+    "completeness": {
+      "serial": {
+        "gene": 945,
+        "transcript": 3114,
+        "CDS": 23633,
+        "total": 59857
+      },
+      "parallel": {
+        "gene": 945,
+        "transcript": 3114,
+        "CDS": 23633,
+        "total": 59857
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "wall_win": true,
+      "completeness_unchanged": true
+    }
+  }
+]

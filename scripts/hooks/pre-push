@@ -1,0 +1,26 @@
+#!/bin/sh
+# LiftOn pre-push hook: run the regression + benchmark gate before any push.
+#
+# NOT installed automatically. To enable (one-time), either point git at the
+# versioned hooks dir:
+#     git config core.hooksPath scripts/hooks
+# or symlink this file into .git/hooks/ (chaining the stock LFS hook):
+#     ln -sf ../../scripts/hooks/pre-push .git/hooks/pre-push
+#
+# Emergency bypass (use sparingly):
+#     SKIP_BENCHMARK_GATE=1 git push
+set -e
+
+# 1. Chain the stock Git-LFS pre-push hook if git-lfs is installed, so enabling
+#    this hook never breaks LFS uploads.
+if command -v git-lfs >/dev/null 2>&1; then
+    git lfs pre-push "$@" || exit $?
+fi
+
+if [ "${SKIP_BENCHMARK_GATE:-0}" = "1" ]; then
+    echo "pre-push: SKIP_BENCHMARK_GATE=1 set — skipping the benchmark gate." >&2
+    exit 0
+fi
+
+echo "pre-push: running 'make benchmark-gate' (set SKIP_BENCHMARK_GATE=1 to bypass)..." >&2
+exec make benchmark-gate

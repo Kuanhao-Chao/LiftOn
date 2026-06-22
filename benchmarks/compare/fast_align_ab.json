@@ -1,0 +1,165 @@
+[
+  {
+    "benchmark": "mouse_to_rat",
+    "wall_s": {
+      "default": 234.5,
+      "fast": 109.6
+    },
+    "wall_saved_pct": 53.3,
+    "speedup": 2.14,
+    "peak_rss_mb": {
+      "default": 2464.0,
+      "fast": 696.0
+    },
+    "identity": {
+      "n_scored_both": 3114,
+      "n_changed": 0,
+      "n_improved_gt_1e-3": 0,
+      "n_regressed_gt_1e-3": 0,
+      "mean_delta": 0.0,
+      "worst": [
+        "rna-NM_001001181.4",
+        0.0
+      ],
+      "best": [
+        "rna-NM_001001181.4",
+        0.0
+      ],
+      "regressed_ids_top": []
+    },
+    "completeness": {
+      "default": {
+        "gene": 945,
+        "transcript": 3114,
+        "CDS": 23751,
+        "total": 60193
+      },
+      "fast": {
+        "gene": 945,
+        "transcript": 3114,
+        "CDS": 23751,
+        "total": 60193
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "speed_ge_5pct": true,
+      "accuracy_safe": true,
+      "completeness_unchanged": true,
+      "promote": true
+    }
+  },
+  {
+    "benchmark": "drosophila",
+    "wall_s": {
+      "default": 273.8,
+      "fast": 191.8
+    },
+    "wall_saved_pct": 30.0,
+    "speedup": 1.428,
+    "peak_rss_mb": {
+      "default": 2474.0,
+      "fast": 550.0
+    },
+    "identity": {
+      "n_scored_both": 7946,
+      "n_changed": 16,
+      "n_improved_gt_1e-3": 3,
+      "n_regressed_gt_1e-3": 3,
+      "mean_delta": -3e-06,
+      "worst": [
+        "rna-NM_141762.6",
+        -0.012
+      ],
+      "best": [
+        "rna-NM_001170168.2",
+        0.002
+      ],
+      "regressed_ids_top": [
+        [
+          "rna-NM_141762.6",
+          -0.012
+        ],
+        [
+          "rna-NM_001260371.1",
+          -0.008
+        ],
+        [
+          "rna-NM_143061.3",
+          -0.008
+        ]
+      ]
+    },
+    "completeness": {
+      "default": {
+        "gene": 4048,
+        "transcript": 7946,
+        "CDS": 37391,
+        "total": 92675
+      },
+      "fast": {
+        "gene": 4048,
+        "transcript": 7946,
+        "CDS": 37391,
+        "total": 92675
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "speed_ge_5pct": true,
+      "accuracy_safe": false,
+      "completeness_unchanged": true,
+      "promote": false
+    }
+  },
+  {
+    "benchmark": "mouse",
+    "wall_s": {
+      "default": 855.4,
+      "fast": 330.1
+    },
+    "wall_saved_pct": 61.4,
+    "speedup": 2.591,
+    "peak_rss_mb": {
+      "default": 2662.0,
+      "fast": 726.0
+    },
+    "identity": {
+      "n_scored_both": 10666,
+      "n_changed": 0,
+      "n_improved_gt_1e-3": 0,
+      "n_regressed_gt_1e-3": 0,
+      "mean_delta": 0.0,
+      "worst": [
+        "rna-NM_001001178.2",
+        0.0
+      ],
+      "best": [
+        "rna-NM_001001178.2",
+        0.0
+      ],
+      "regressed_ids_top": []
+    },
+    "completeness": {
+      "default": {
+        "gene": 2966,
+        "transcript": 10666,
+        "CDS": 105428,
+        "total": 255008
+      },
+      "fast": {
+        "gene": 2966,
+        "transcript": 10666,
+        "CDS": 105428,
+        "total": 255008
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "speed_ge_5pct": true,
+      "accuracy_safe": true,
+      "completeness_unchanged": true,
+      "promote": true
+    }
+  }
+]

@@ -22,12 +22,14 @@ import pytest
 
 from tests.test_integration_pipeline import (  # noqa: F401
     integration_workspace,
+    merge_firing_workspace,
     hermetic_pipeline,
 )
 
 
 def _drive(workspace, *, stream: bool, inmem: bool, threads: int,
-           native: bool, suffix: str) -> bytes:
+           native: bool, suffix: str, optimize: bool = False,
+           legacy_merge: bool = False) -> bytes:
     from lifton import lifton as lifton_main
 
     out_gff = workspace["out"] / f"native_{suffix}.gff3"
@@ -49,6 +51,10 @@ def _drive(workspace, *, stream: bool, inmem: bool, threads: int,
         argv += ["-t", str(threads), "--locus-pipeline"]
     if native:
         argv.append("--native")
+    if optimize:
+        argv.append("--optimize")
+    if legacy_merge:
+        argv.append("--legacy-merge")
     args = lifton_main.parse_args(argv)
     lifton_main.run_all_lifton_steps(args)
     return out_gff.read_bytes()
@@ -117,3 +123,101 @@ class TestFullNativeMatrix:
             f"Lengths: {[(k, len(outputs[k])) for k in diverged]}"
         )
         assert all(len(v) > 0 for v in outputs.values())
+
+
+# ---------------------------------------------------------------------------
+# Merge-promotion guard — the best-of-outcome merge is now the DEFAULT path
+# ---------------------------------------------------------------------------
+
+class TestMergePromotion:
+    """Guards the promoted **best-of-outcome** Liftoff/miniprot merge, which is
+    now the unconditional default (the pre-promotion unconditional merge is
+    reachable only via ``--legacy-merge``; ``--optimize`` is a kept no-op alias).
+
+    This runs on ``merge_firing_workspace`` — a fixture where the lifted CDS
+    region carries a lesion so ``liftoff_aln.identity < 1`` AND a pre-baked
+    miniprot supplies a higher-identity chunk, so the chaining/merge branch in
+    ``run_liftoff.process_liftoff_with_protein`` is actually entered (the
+    default ``integration_workspace`` has a perfect ORF → merge never fires →
+    such a test would be vacuous). The merge protein identity here is < 1.0, so
+    the full per-candidate best-of-outcome compare branch runs (not the
+    perfect-protein fast-path skip).
+
+    Pinned invariants (all reliably reproducible synthetically):
+      1. the merge **fires** — emitted ``status == LiftOn_chaining_algorithm``
+         (the changed code path is exercised; the test is not vacuous);
+      2. ``--optimize`` is a true **no-op alias** — its output bytes are
+         identical to the default path;
+      3. ``--legacy-merge`` (the pre-promotion unconditional merge) runs and
+         the promoted default **never lowers** protein identity below it
+         (monotonic floor) nor changes the set of emitted transcripts.
+
+    The *strict* revert — default protein identity **>** legacy when the merge
+    corrupts a transcript, which is the headline win of best-of-outcome — is
+    proven on real divergent data by the benchmark gate
+    (``benchmarks/compare``: drosophila 119/4 and mouse_to_rat 294/2
+    improved/regressed). It is intentionally NOT asserted here: ORF-rescue
+    re-scans the whole spliced exon union, so a single-CDS synthetic merge is
+    always equalized back to the Liftoff candidate (a tie), and a multi-exon
+    frameshift construction that defeats rescue is too brittle to pin.
+    """
+
+    @staticmethod
+    def _attr_by_mrna(gff_bytes, attr):
+        """Map mRNA ID -> attribute value parsed from a GFF3 blob."""
+        out = {}
+        for line in gff_bytes.decode().splitlines():
+            if not line or line.startswith("#"):
+                continue
+            cols = line.split("\t")
+            if len(cols) < 9 or cols[2] != "mRNA":
+                continue
+            attrs = dict(kv.split("=", 1) for kv in cols[8].split(";") if "=" in kv)
+            if "ID" in attrs and attr in attrs:
+                out[attrs["ID"]] = attrs[attr]
+        return out
+
+    @classmethod
+    def _protein_identity_by_mrna(cls, gff_bytes):
+        return {k: float(v) for k, v in cls._attr_by_mrna(gff_bytes, "protein_identity").items()}
+
+    def test_merge_actually_fires(self, merge_firing_workspace, hermetic_pipeline):
+        default = _drive(merge_firing_workspace,
+                         stream=False, inmem=False, threads=1,
+                         native=False, suffix="merge_default")
+        status = self._attr_by_mrna(default, "status")
+        assert status, "no mRNA with a status attribute was emitted"
+        assert status.get("tx1") == "LiftOn_chaining_algorithm", (
+            f"merge branch not exercised; tx1 status = {status.get('tx1')!r}"
+        )
+
+    def test_optimize_is_noop_alias(self, merge_firing_workspace, hermetic_pipeline):
+        default = _drive(merge_firing_workspace,
+                         stream=False, inmem=False, threads=1,
+                         native=False, suffix="alias_default", optimize=False)
+        optimized = _drive(merge_firing_workspace,
+                           stream=False, inmem=False, threads=1,
+                           native=False, suffix="alias_on", optimize=True)
+        assert len(default) > 0 and len(optimized) > 0
+        assert optimized == default, "--optimize is no longer a byte-for-byte no-op alias"
+
+    def test_default_never_below_legacy_merge(
+            self, merge_firing_workspace, hermetic_pipeline):
+        default = _drive(merge_firing_workspace,
+                         stream=False, inmem=False, threads=1,
+                         native=False, suffix="floor_default", legacy_merge=False)
+        legacy = _drive(merge_firing_workspace,
+                        stream=False, inmem=False, threads=1,
+                        native=False, suffix="floor_legacy", legacy_merge=True)
+        assert len(default) > 0 and len(legacy) > 0
+        d = self._protein_identity_by_mrna(default)
+        lg = self._protein_identity_by_mrna(legacy)
+        # The merge only re-selects CDS; it never drops or adds transcripts.
+        assert set(d) == set(lg), "default vs --legacy-merge emit different transcripts"
+        assert d, "no protein_identity attributes emitted"
+        # Monotonic floor: the promoted default is never worse than legacy.
+        for mrna_id, lg_id in lg.items():
+            assert d[mrna_id] >= lg_id - 1e-6, (
+                f"promoted default regressed protein identity vs --legacy-merge "
+                f"for {mrna_id}: {d[mrna_id]:.6f} < {lg_id:.6f}"
+            )

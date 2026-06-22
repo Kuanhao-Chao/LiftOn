@@ -151,11 +151,22 @@ class TestAnnotationPolymorphic:
 
     def test_path_branch_default_backend_unchanged(self, tmp_path):
         """Phase 5 baseline: a file-path input with no backend
-        override stays on gffutils. No regression."""
+        override stays on gffutils. (Phase 17a-1 attempted to flip
+        this to gffbase but reverted — gffbase has a slow per-feature
+        children() path on real RefSeq inputs that made
+        extract_features_to_fasta 30-50× slower. The flip is gated
+        behind LIFTON_USE_GFFBASE=1 instead.)"""
         fp = tmp_path / "a.gff3"
         fp.write_bytes(_TINY_GFF)
         ann = Annotation(str(fp), False, False)
         assert ann.backend == "gffutils"
+
+    def test_explicit_kwarg_overrides_default(self, tmp_path):
+        """Explicit backend="gffbase" wins regardless of env vars."""
+        fp = tmp_path / "a.gff3"
+        fp.write_bytes(_TINY_GFF)
+        ann = Annotation(str(fp), False, False, backend="gffbase")
+        assert ann.backend == "gffbase"
 
     def test_path_with_explicit_gffbase_backend(self, tmp_path):
         fp = tmp_path / "b.gff3"

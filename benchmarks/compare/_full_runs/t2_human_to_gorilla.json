@@ -1,0 +1,2163 @@
+{
+  "full:t2_human_to_gorilla": {
+    "benchmark": "t2_human_to_gorilla",
+    "mode": "full",
+    "key": "full:t2_human_to_gorilla",
+    "species": "Homo sapiens (GRCh38) -> Gorilla gorilla",
+    "cross_species": true,
+    "dimension": "tier2_close_primate",
+    "divergence_class": "close_cross_species",
+    "annotation_database": "RefSeq",
+    "n_reference_coding": 144329,
+    "n_reference_total": 144415,
+    "tools": [
+      "liftoff",
+      "miniprot",
+      "lifton_stable",
+      "lifton_devel"
+    ],
+    "completeness_coding": {
+      "liftoff": 0.89649,
+      "miniprot": 0.99974,
+      "lifton_stable": 0.89658,
+      "lifton_devel": 0.89248
+    },
+    "completeness_feature_total": {
+      "liftoff": 0.37229,
+      "miniprot": null,
+      "lifton_stable": 0.37236,
+      "lifton_devel": 0.40116
+    },
+    "mean_pi": {
+      "liftoff": 0.95703,
+      "miniprot": 0.96009,
+      "lifton_stable": 0.97577,
+      "lifton_devel": 0.97696
+    },
+    "median_pi": {
+      "liftoff": 0.99338,
+      "miniprot": 0.99142,
+      "lifton_stable": 0.99346,
+      "lifton_devel": 0.99351
+    },
+    "pct_identical": {
+      "liftoff": 0.17309,
+      "miniprot": 0.13038,
+      "lifton_stable": 0.17387,
+      "lifton_devel": 0.17443
+    },
+    "n_recovered_coding": {
+      "liftoff": 129389,
+      "miniprot": 144292,
+      "lifton_stable": 129403,
+      "lifton_devel": 128811
+    },
+    "n_recovered_any": {
+      "liftoff": 129453,
+      "miniprot": 144292,
+      "lifton_stable": 129467,
+      "lifton_devel": 128876
+    },
+    "wall_s": {
+      "liftoff": null,
+      "miniprot": null,
+      "lifton_stable": 27747.0,
+      "lifton_devel": 12051.0
+    },
+    "peak_rss_mb": {
+      "liftoff": null,
+      "miniprot": null,
+      "lifton_stable": 50076.5625,
+      "lifton_devel": 44738.48046875
+    },
+    "validity": {
+      "liftoff": {
+        "exit": 1,
+        "n_errors": 100,
+        "n_warnings": 209,
+        "valid": false
+      },
+      "miniprot": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 200,
+        "valid": false
+      },
+      "lifton_stable": {
+        "exit": 1,
+        "n_errors": 128,
+        "n_warnings": 189,
+        "valid": false
+      },
+      "lifton_devel": {
+        "exit": 1,
+        "n_errors": 96,
+        "n_warnings": 150,
+        "valid": false
+      }
+    },
+    "feature_census": {
+      "liftoff": {
+        "region": {
+          "n_reference": 709,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "pseudogene": {
+          "n_reference": 19247,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcript": {
+          "n_reference": 14988,
+          "n_recovered": 11731,
+          "pct_recovered": 0.78269,
+          "n_extra_copies": 0,
+          "n_tool_features": 11731
+        },
+        "exon": {
+          "n_reference": 2300886,
+          "n_recovered": 2055145,
+          "pct_recovered": 0.8932,
+          "n_extra_copies": 117,
+          "n_tool_features": 2055262
+        },
+        "gene": {
+          "n_reference": 47782,
+          "n_recovered": 41768,
+          "pct_recovered": 0.87414,
+          "n_extra_copies": 116,
+          "n_tool_features": 41884
+        },
+        "primary_transcript": {
+          "n_reference": 2139,
+          "n_recovered": 1707,
+          "pct_recovered": 0.79804,
+          "n_extra_copies": 48,
+          "n_tool_features": 1755
+        },
+        "miRNA": {
+          "n_reference": 3218,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer": {
+          "n_reference": 81572,
+          "n_recovered": 1,
+          "pct_recovered": 1e-05,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "biological_region": {
+          "n_reference": 83821,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "lnc_RNA": {
+          "n_reference": 32088,
+          "n_recovered": 29488,
+          "pct_recovered": 0.91897,
+          "n_extra_copies": 1,
+          "n_tool_features": 29489
+        },
+        "mRNA": {
+          "n_reference": 144415,
+          "n_recovered": 129453,
+          "pct_recovered": 0.8964,
+          "n_extra_copies": 0,
+          "n_tool_features": 129453
+        },
+        "CDS": {
+          "n_reference": 1835542,
+          "n_recovered": 1655133,
+          "pct_recovered": 0.90171,
+          "n_extra_copies": 0,
+          "n_tool_features": 1655133
+        },
+        "snRNA": {
+          "n_reference": 172,
+          "n_recovered": 137,
+          "pct_recovered": 0.79651,
+          "n_extra_copies": 25,
+          "n_tool_features": 162
+        },
+        "silencer": {
+          "n_reference": 4917,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcriptional_cis_regulatory_region": {
+          "n_reference": 1935,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "meiotic_recombination_region": {
+          "n_reference": 368,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_instability_region": {
+          "n_reference": 62,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_motif": {
+          "n_reference": 623,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tandem_repeat": {
+          "n_reference": 64,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snoRNA": {
+          "n_reference": 1300,
+          "n_recovered": 1148,
+          "pct_recovered": 0.88308,
+          "n_extra_copies": 1,
+          "n_tool_features": 1149
+        },
+        "CAGE_cluster": {
+          "n_reference": 96,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "DNaseI_hypersensitive_site": {
+          "n_reference": 177,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "epigenetically_modified_region": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "ncRNA": {
+          "n_reference": 54,
+          "n_recovered": 49,
+          "pct_recovered": 0.90741,
+          "n_extra_copies": 0,
+          "n_tool_features": 49
+        },
+        "antisense_RNA": {
+          "n_reference": 24,
+          "n_recovered": 24,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 24
+        },
+        "non_allelic_homologous_recombination_region": {
+          "n_reference": 514,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tRNA": {
+          "n_reference": 688,
+          "n_recovered": 414,
+          "pct_recovered": 0.60174,
+          "n_extra_copies": 41,
+          "n_tool_features": 455
+        },
+        "promoter": {
+          "n_reference": 439,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "conserved_region": {
+          "n_reference": 138,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer_blocking_element": {
+          "n_reference": 59,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mobile_genetic_element": {
+          "n_reference": 204,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "minisatellite": {
+          "n_reference": 13,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "protein_binding_site": {
+          "n_reference": 1416,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "locus_control_region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "centromere": {
+          "n_reference": 24,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "V_gene_segment": {
+          "n_reference": 664,
+          "n_recovered": 256,
+          "pct_recovered": 0.38554,
+          "n_extra_copies": 0,
+          "n_tool_features": 256
+        },
+        "response_element": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "TATA_box": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_comparison": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_feature": {
+          "n_reference": 1964,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_alteration": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 107863,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "cDNA_match": {
+          "n_reference": 25870,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "insulator": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "matrix_attachment_site": {
+          "n_reference": 18,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_region": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "regulatory_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_secondary_structure": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "C_gene_segment": {
+          "n_reference": 44,
+          "n_recovered": 28,
+          "pct_recovered": 0.63636,
+          "n_extra_copies": 0,
+          "n_tool_features": 28
+        },
+        "J_gene_segment": {
+          "n_reference": 128,
+          "n_recovered": 49,
+          "pct_recovered": 0.38281,
+          "n_extra_copies": 0,
+          "n_tool_features": 49
+        },
+        "origin_of_replication": {
+          "n_reference": 87,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mitotic_recombination_region": {
+          "n_reference": 54,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "telomerase_RNA": {
+          "n_reference": 1,
+          "n_recovered": 1,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "CAAT_signal": {
+          "n_reference": 6,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "dispersed_repeat": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "recombination_feature": {
+          "n_reference": 632,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "vault_RNA": {
+          "n_reference": 4,
+          "n_recovered": 3,
+          "pct_recovered": 0.75,
+          "n_extra_copies": 0,
+          "n_tool_features": 3
+        },
+        "GC_rich_promoter_region": {
+          "n_reference": 15,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_gene_segment": {
+          "n_reference": 61,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "Y_RNA": {
+          "n_reference": 4,
+          "n_recovered": 4,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 4
+        },
+        "replication_regulatory_region": {
+          "n_reference": 11,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "RNase_MRP_RNA": {
+          "n_reference": 1,
+          "n_recovered": 1,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "sequence_alteration_artifact": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "microsatellite": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "imprinting_control_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "direct_repeat": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "chromosome_breakpoint": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "scRNA": {
+          "n_reference": 4,
+          "n_recovered": 4,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 4
+        },
+        "RNase_P_RNA": {
+          "n_reference": 2,
+          "n_recovered": 1,
+          "pct_recovered": 0.5,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "replication_start_site": {
+          "n_reference": 3,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_cleavage_site": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_loop": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "_overall_": {
+          "n_reference": 580908,
+          "n_recovered": 216267,
+          "pct_recovered": 0.37229,
+          "n_extra_copies": 0,
+          "n_tool_features": 216499
+        }
+      },
+      "miniprot": {
+        "region": {
+          "n_reference": 709,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "pseudogene": {
+          "n_reference": 19247,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcript": {
+          "n_reference": 14988,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "exon": {
+          "n_reference": 2300886,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "gene": {
+          "n_reference": 47782,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "primary_transcript": {
+          "n_reference": 2139,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "miRNA": {
+          "n_reference": 3218,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer": {
+          "n_reference": 81572,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "biological_region": {
+          "n_reference": 83821,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "lnc_RNA": {
+          "n_reference": 32088,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mRNA": {
+          "n_reference": 144415,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 153639
+        },
+        "CDS": {
+          "n_reference": 1835542,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1858510
+        },
+        "snRNA": {
+          "n_reference": 172,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "silencer": {
+          "n_reference": 4917,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcriptional_cis_regulatory_region": {
+          "n_reference": 1935,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "meiotic_recombination_region": {
+          "n_reference": 368,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_instability_region": {
+          "n_reference": 62,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_motif": {
+          "n_reference": 623,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tandem_repeat": {
+          "n_reference": 64,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snoRNA": {
+          "n_reference": 1300,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "CAGE_cluster": {
+          "n_reference": 96,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "DNaseI_hypersensitive_site": {
+          "n_reference": 177,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "epigenetically_modified_region": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "ncRNA": {
+          "n_reference": 54,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "antisense_RNA": {
+          "n_reference": 24,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "non_allelic_homologous_recombination_region": {
+          "n_reference": 514,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tRNA": {
+          "n_reference": 688,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "promoter": {
+          "n_reference": 439,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "conserved_region": {
+          "n_reference": 138,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer_blocking_element": {
+          "n_reference": 59,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mobile_genetic_element": {
+          "n_reference": 204,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "minisatellite": {
+          "n_reference": 13,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "protein_binding_site": {
+          "n_reference": 1416,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "locus_control_region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "centromere": {
+          "n_reference": 24,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "V_gene_segment": {
+          "n_reference": 664,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "response_element": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "TATA_box": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_comparison": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_feature": {
+          "n_reference": 1964,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_alteration": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 107863,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "cDNA_match": {
+          "n_reference": 25870,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "insulator": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "matrix_attachment_site": {
+          "n_reference": 18,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_region": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "regulatory_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_secondary_structure": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "C_gene_segment": {
+          "n_reference": 44,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "J_gene_segment": {
+          "n_reference": 128,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "origin_of_replication": {
+          "n_reference": 87,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mitotic_recombination_region": {
+          "n_reference": 54,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "telomerase_RNA": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "CAAT_signal": {
+          "n_reference": 6,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "dispersed_repeat": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "recombination_feature": {
+          "n_reference": 632,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "vault_RNA": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "GC_rich_promoter_region": {
+          "n_reference": 15,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_gene_segment": {
+          "n_reference": 61,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "Y_RNA": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "replication_regulatory_region": {
+          "n_reference": 11,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "RNase_MRP_RNA": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_alteration_artifact": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "microsatellite": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "imprinting_control_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "direct_repeat": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "chromosome_breakpoint": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "scRNA": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "RNase_P_RNA": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "replication_start_site": {
+          "n_reference": 3,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_cleavage_site": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_loop": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "_overall_": {
+          "n_reference": 580908,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 153639
+        }
+      },
+      "lifton_stable": {
+        "region": {
+          "n_reference": 709,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "pseudogene": {
+          "n_reference": 19247,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcript": {
+          "n_reference": 14988,
+          "n_recovered": 11731,
+          "pct_recovered": 0.78269,
+          "n_extra_copies": 0,
+          "n_tool_features": 11731
+        },
+        "exon": {
+          "n_reference": 2300886,
+          "n_recovered": 819561,
+          "pct_recovered": 0.35619,
+          "n_extra_copies": 1237892,
+          "n_tool_features": 2058404
+        },
+        "gene": {
+          "n_reference": 47782,
+          "n_recovered": 41788,
+          "pct_recovered": 0.87456,
+          "n_extra_copies": 405,
+          "n_tool_features": 42193
+        },
+        "primary_transcript": {
+          "n_reference": 2139,
+          "n_recovered": 1707,
+          "pct_recovered": 0.79804,
+          "n_extra_copies": 0,
+          "n_tool_features": 1707
+        },
+        "miRNA": {
+          "n_reference": 3218,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer": {
+          "n_reference": 81572,
+          "n_recovered": 1,
+          "pct_recovered": 1e-05,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "biological_region": {
+          "n_reference": 83821,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "lnc_RNA": {
+          "n_reference": 32088,
+          "n_recovered": 29488,
+          "pct_recovered": 0.91897,
+          "n_extra_copies": 0,
+          "n_tool_features": 29488
+        },
+        "mRNA": {
+          "n_reference": 144415,
+          "n_recovered": 129467,
+          "pct_recovered": 0.89649,
+          "n_extra_copies": 289,
+          "n_tool_features": 129762
+        },
+        "CDS": {
+          "n_reference": 1835542,
+          "n_recovered": 213209,
+          "pct_recovered": 0.11616,
+          "n_extra_copies": 0,
+          "n_tool_features": 1648149
+        },
+        "snRNA": {
+          "n_reference": 172,
+          "n_recovered": 137,
+          "pct_recovered": 0.79651,
+          "n_extra_copies": 0,
+          "n_tool_features": 137
+        },
+        "silencer": {
+          "n_reference": 4917,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcriptional_cis_regulatory_region": {
+          "n_reference": 1935,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "meiotic_recombination_region": {
+          "n_reference": 368,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_instability_region": {
+          "n_reference": 62,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_motif": {
+          "n_reference": 623,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tandem_repeat": {
+          "n_reference": 64,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snoRNA": {
+          "n_reference": 1300,
+          "n_recovered": 1148,
+          "pct_recovered": 0.88308,
+          "n_extra_copies": 0,
+          "n_tool_features": 1148
+        },
+        "CAGE_cluster": {
+          "n_reference": 96,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "DNaseI_hypersensitive_site": {
+          "n_reference": 177,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "epigenetically_modified_region": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "ncRNA": {
+          "n_reference": 54,
+          "n_recovered": 49,
+          "pct_recovered": 0.90741,
+          "n_extra_copies": 0,
+          "n_tool_features": 49
+        },
+        "antisense_RNA": {
+          "n_reference": 24,
+          "n_recovered": 24,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 24
+        },
+        "non_allelic_homologous_recombination_region": {
+          "n_reference": 514,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tRNA": {
+          "n_reference": 688,
+          "n_recovered": 414,
+          "pct_recovered": 0.60174,
+          "n_extra_copies": 0,
+          "n_tool_features": 414
+        },
+        "promoter": {
+          "n_reference": 439,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "conserved_region": {
+          "n_reference": 138,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer_blocking_element": {
+          "n_reference": 59,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mobile_genetic_element": {
+          "n_reference": 204,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "minisatellite": {
+          "n_reference": 13,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "protein_binding_site": {
+          "n_reference": 1416,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "locus_control_region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "centromere": {
+          "n_reference": 24,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "V_gene_segment": {
+          "n_reference": 664,
+          "n_recovered": 256,
+          "pct_recovered": 0.38554,
+          "n_extra_copies": 0,
+          "n_tool_features": 256
+        },
+        "response_element": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "TATA_box": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_comparison": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_feature": {
+          "n_reference": 1964,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_alteration": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 107863,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "cDNA_match": {
+          "n_reference": 25870,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "insulator": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "matrix_attachment_site": {
+          "n_reference": 18,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_region": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "regulatory_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_secondary_structure": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "C_gene_segment": {
+          "n_reference": 44,
+          "n_recovered": 28,
+          "pct_recovered": 0.63636,
+          "n_extra_copies": 0,
+          "n_tool_features": 28
+        },
+        "J_gene_segment": {
+          "n_reference": 128,
+          "n_recovered": 55,
+          "pct_recovered": 0.42969,
+          "n_extra_copies": 0,
+          "n_tool_features": 49
+        },
+        "origin_of_replication": {
+          "n_reference": 87,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mitotic_recombination_region": {
+          "n_reference": 54,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "telomerase_RNA": {
+          "n_reference": 1,
+          "n_recovered": 1,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "CAAT_signal": {
+          "n_reference": 6,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "dispersed_repeat": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "recombination_feature": {
+          "n_reference": 632,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "vault_RNA": {
+          "n_reference": 4,
+          "n_recovered": 3,
+          "pct_recovered": 0.75,
+          "n_extra_copies": 0,
+          "n_tool_features": 3
+        },
+        "GC_rich_promoter_region": {
+          "n_reference": 15,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_gene_segment": {
+          "n_reference": 61,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "Y_RNA": {
+          "n_reference": 4,
+          "n_recovered": 4,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 4
+        },
+        "replication_regulatory_region": {
+          "n_reference": 11,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "RNase_MRP_RNA": {
+          "n_reference": 1,
+          "n_recovered": 1,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "sequence_alteration_artifact": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "microsatellite": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "imprinting_control_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "direct_repeat": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "chromosome_breakpoint": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "scRNA": {
+          "n_reference": 4,
+          "n_recovered": 4,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 4
+        },
+        "RNase_P_RNA": {
+          "n_reference": 2,
+          "n_recovered": 1,
+          "pct_recovered": 0.5,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "replication_start_site": {
+          "n_reference": 3,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_cleavage_site": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_loop": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "_overall_": {
+          "n_reference": 580908,
+          "n_recovered": 216307,
+          "pct_recovered": 0.37236,
+          "n_extra_copies": 0,
+          "n_tool_features": 217001
+        }
+      },
+      "lifton_devel": {
+        "region": {
+          "n_reference": 709,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "pseudogene": {
+          "n_reference": 19247,
+          "n_recovered": 16088,
+          "pct_recovered": 0.83587,
+          "n_extra_copies": 166,
+          "n_tool_features": 16148
+        },
+        "transcript": {
+          "n_reference": 14988,
+          "n_recovered": 13168,
+          "pct_recovered": 0.87857,
+          "n_extra_copies": 0,
+          "n_tool_features": 13168
+        },
+        "exon": {
+          "n_reference": 2300886,
+          "n_recovered": 844367,
+          "pct_recovered": 0.36697,
+          "n_extra_copies": 1217643,
+          "n_tool_features": 2063505
+        },
+        "gene": {
+          "n_reference": 47782,
+          "n_recovered": 41551,
+          "pct_recovered": 0.8696,
+          "n_extra_copies": 432,
+          "n_tool_features": 42089
+        },
+        "primary_transcript": {
+          "n_reference": 2139,
+          "n_recovered": 1705,
+          "pct_recovered": 0.7971,
+          "n_extra_copies": 0,
+          "n_tool_features": 1705
+        },
+        "miRNA": {
+          "n_reference": 3218,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer": {
+          "n_reference": 81572,
+          "n_recovered": 1,
+          "pct_recovered": 1e-05,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "biological_region": {
+          "n_reference": 83821,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "lnc_RNA": {
+          "n_reference": 32088,
+          "n_recovered": 29341,
+          "pct_recovered": 0.91439,
+          "n_extra_copies": 0,
+          "n_tool_features": 29341
+        },
+        "mRNA": {
+          "n_reference": 144415,
+          "n_recovered": 128876,
+          "pct_recovered": 0.8924,
+          "n_extra_copies": 313,
+          "n_tool_features": 129308
+        },
+        "CDS": {
+          "n_reference": 1835542,
+          "n_recovered": 224945,
+          "pct_recovered": 0.12255,
+          "n_extra_copies": 0,
+          "n_tool_features": 1642241
+        },
+        "snRNA": {
+          "n_reference": 172,
+          "n_recovered": 123,
+          "pct_recovered": 0.71512,
+          "n_extra_copies": 0,
+          "n_tool_features": 123
+        },
+        "silencer": {
+          "n_reference": 4917,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "transcriptional_cis_regulatory_region": {
+          "n_reference": 1935,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "meiotic_recombination_region": {
+          "n_reference": 368,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_instability_region": {
+          "n_reference": 62,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_motif": {
+          "n_reference": 623,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tandem_repeat": {
+          "n_reference": 64,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "snoRNA": {
+          "n_reference": 1300,
+          "n_recovered": 1148,
+          "pct_recovered": 0.88308,
+          "n_extra_copies": 0,
+          "n_tool_features": 1148
+        },
+        "CAGE_cluster": {
+          "n_reference": 96,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "DNaseI_hypersensitive_site": {
+          "n_reference": 177,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "epigenetically_modified_region": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "ncRNA": {
+          "n_reference": 54,
+          "n_recovered": 49,
+          "pct_recovered": 0.90741,
+          "n_extra_copies": 0,
+          "n_tool_features": 49
+        },
+        "antisense_RNA": {
+          "n_reference": 24,
+          "n_recovered": 24,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 24
+        },
+        "non_allelic_homologous_recombination_region": {
+          "n_reference": 514,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "tRNA": {
+          "n_reference": 688,
+          "n_recovered": 412,
+          "pct_recovered": 0.59884,
+          "n_extra_copies": 0,
+          "n_tool_features": 412
+        },
+        "promoter": {
+          "n_reference": 439,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "conserved_region": {
+          "n_reference": 138,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "enhancer_blocking_element": {
+          "n_reference": 59,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mobile_genetic_element": {
+          "n_reference": 204,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "minisatellite": {
+          "n_reference": 13,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "protein_binding_site": {
+          "n_reference": 1416,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "locus_control_region": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "centromere": {
+          "n_reference": 24,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "V_gene_segment": {
+          "n_reference": 664,
+          "n_recovered": 445,
+          "pct_recovered": 0.67018,
+          "n_extra_copies": 56,
+          "n_tool_features": 393
+        },
+        "response_element": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "TATA_box": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_comparison": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_feature": {
+          "n_reference": 1964,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_alteration": {
+          "n_reference": 30,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "match": {
+          "n_reference": 107863,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "cDNA_match": {
+          "n_reference": 25870,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "insulator": {
+          "n_reference": 12,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "matrix_attachment_site": {
+          "n_reference": 18,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "repeat_region": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "regulatory_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "sequence_secondary_structure": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "C_gene_segment": {
+          "n_reference": 44,
+          "n_recovered": 31,
+          "pct_recovered": 0.70455,
+          "n_extra_copies": 0,
+          "n_tool_features": 29
+        },
+        "J_gene_segment": {
+          "n_reference": 128,
+          "n_recovered": 60,
+          "pct_recovered": 0.46875,
+          "n_extra_copies": 2,
+          "n_tool_features": 53
+        },
+        "origin_of_replication": {
+          "n_reference": 87,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "mitotic_recombination_region": {
+          "n_reference": 54,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "telomerase_RNA": {
+          "n_reference": 1,
+          "n_recovered": 1,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "CAAT_signal": {
+          "n_reference": 6,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "dispersed_repeat": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "recombination_feature": {
+          "n_reference": 632,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "vault_RNA": {
+          "n_reference": 4,
+          "n_recovered": 3,
+          "pct_recovered": 0.75,
+          "n_extra_copies": 0,
+          "n_tool_features": 3
+        },
+        "GC_rich_promoter_region": {
+          "n_reference": 15,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_gene_segment": {
+          "n_reference": 61,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "Y_RNA": {
+          "n_reference": 4,
+          "n_recovered": 4,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 4
+        },
+        "replication_regulatory_region": {
+          "n_reference": 11,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "RNase_MRP_RNA": {
+          "n_reference": 1,
+          "n_recovered": 1,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "sequence_alteration_artifact": {
+          "n_reference": 10,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "microsatellite": {
+          "n_reference": 5,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "imprinting_control_region": {
+          "n_reference": 2,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "direct_repeat": {
+          "n_reference": 20,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "chromosome_breakpoint": {
+          "n_reference": 14,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "scRNA": {
+          "n_reference": 4,
+          "n_recovered": 4,
+          "pct_recovered": 1.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 4
+        },
+        "RNase_P_RNA": {
+          "n_reference": 2,
+          "n_recovered": 1,
+          "pct_recovered": 0.5,
+          "n_extra_copies": 0,
+          "n_tool_features": 1
+        },
+        "replication_start_site": {
+          "n_reference": 3,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "nucleotide_cleavage_site": {
+          "n_reference": 4,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "D_loop": {
+          "n_reference": 1,
+          "n_recovered": 0,
+          "pct_recovered": 0.0,
+          "n_extra_copies": 0,
+          "n_tool_features": 0
+        },
+        "_overall_": {
+          "n_reference": 580908,
+          "n_recovered": 233036,
+          "pct_recovered": 0.40116,
+          "n_extra_copies": 0,
+          "n_tool_features": 234005
+        }
+      }
+    },
+    "devel_vs_stable": {
+      "meanpi": 0.00119,
+      "completeness": -0.0041,
+      "n_recovered": -592
+    },
+    "devel_vs_best_baseline": {
+      "meanpi": 0.01687,
+      "completeness": -0.10726
+    }
+  }
+}

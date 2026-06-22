@@ -1,0 +1,154 @@
+[
+  {
+    "benchmark": "drosophila",
+    "n_merge_fired": 6699,
+    "merge_kept_valve": 6594,
+    "liftoff_kept_valve": 1330,
+    "empty_drop": {
+      "n_transcripts_with_empty": 5,
+      "pct_of_fired": 0.1,
+      "total_empty_chunks": 5
+    },
+    "coarseness": {
+      "n_single_chunk": 2215,
+      "pct_single_chunk": 33.1,
+      "n_multi_chunk": 4484,
+      "mean_chunks_per_transcript": 3.98,
+      "top_max_span_aa": [
+        4750.0,
+        4739.0,
+        4730.0,
+        4730.0,
+        4730.0
+      ]
+    },
+    "top_coarse_transcripts": [
+      [
+        "rna-NM_001260086.3",
+        1,
+        4750.0
+      ],
+      [
+        "rna-NM_001260085.2",
+        1,
+        4739.0
+      ],
+      [
+        "rna-NM_176445.2",
+        1,
+        4730.0
+      ],
+      [
+        "rna-NM_176446.2",
+        1,
+        4730.0
+      ],
+      [
+        "rna-NM_176447.2",
+        1,
+        4730.0
+      ],
+      [
+        "rna-NM_176448.2",
+        1,
+        4730.0
+      ],
+      [
+        "rna-NM_176449.3",
+        1,
+        4707.0
+      ],
+      [
+        "rna-NM_001316573.1",
+        1,
+        4696.0
+      ],
+      [
+        "rna-NM_001104215.2",
+        10,
+        3723.7
+      ],
+      [
+        "rna-NM_001260087.3",
+        1,
+        3036.0
+      ]
+    ]
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "n_merge_fired": 1983,
+    "merge_kept_valve": 1894,
+    "liftoff_kept_valve": 1220,
+    "empty_drop": {
+      "n_transcripts_with_empty": 19,
+      "pct_of_fired": 1.0,
+      "total_empty_chunks": 30
+    },
+    "coarseness": {
+      "n_single_chunk": 338,
+      "pct_single_chunk": 17.0,
+      "n_multi_chunk": 1645,
+      "mean_chunks_per_transcript": 9.05,
+      "top_max_span_aa": [
+        2622.7,
+        2622.7,
+        2302.3,
+        2267.0,
+        2266.0
+      ]
+    },
+    "top_coarse_transcripts": [
+      [
+        "rna-NM_010680.2",
+        19,
+        2622.7
+      ],
+      [
+        "rna-XM_006525685.5",
+        19,
+        2622.7
+      ],
+      [
+        "rna-XM_036160997.1",
+        19,
+        2302.3
+      ],
+      [
+        "rna-XM_006525740.3",
+        1,
+        2267.0
+      ],
+      [
+        "rna-NM_001360979.1",
+        13,
+        2266.0
+      ],
+      [
+        "rna-NM_001360980.1",
+        15,
+        2266.0
+      ],
+      [
+        "rna-NM_001402727.1",
+        15,
+        2266.0
+      ],
+      [
+        "rna-NM_001402728.1",
+        13,
+        2266.0
+      ],
+      [
+        "rna-NM_001402729.1",
+        13,
+        2266.0
+      ],
+      [
+        "rna-NM_001402730.1",
+        13,
+        2266.0
+      ]
+    ]
+  }
+]

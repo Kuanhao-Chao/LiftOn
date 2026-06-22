@@ -195,6 +195,51 @@ class TestGetParentFeaturesToLift:
 
 
 # ---------------------------------------------------------------------------
+# get_gene_like_feature_types  (Iteration 5: --lift-gene-like auto-detect)
+# ---------------------------------------------------------------------------
+
+class TestGetGeneLikeFeatureTypes:
+    """Auto-detect the top-level parent types that have a transcript/exon
+    hierarchy, so the lift can go beyond the hardcoded `["gene"]`."""
+
+    @staticmethod
+    def _db(tmp_path, gff_text):
+        from lifton import annotation
+        fp = tmp_path / "ref.gff3"
+        fp.write_text(gff_text)
+        return annotation.Annotation(str(fp), None, None, "create_unique",
+                                     "ID", False, False, True)
+
+    def test_detects_gene_and_mixed_pseudogene_excludes_childless(self, tmp_path):
+        # gene (has mRNA->exon), pseudogene #1 childless, pseudogene #2 with an
+        # exon child, enhancer childless. Expect gene-like = gene + pseudogene;
+        # enhancer excluded; child types (mRNA/exon) excluded (they carry Parent).
+        gff = (
+            "##gff-version 3\n"
+            "chr1\ts\tgene\t100\t200\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+            "chr1\ts\tmRNA\t100\t200\t.\t+\t.\tID=rna1;Parent=gene1\n"
+            "chr1\ts\texon\t100\t200\t.\t+\t.\tID=ex1;Parent=rna1\n"
+            "chr1\ts\tpseudogene\t300\t400\t.\t+\t.\tID=pg_childless;gene_biotype=pseudogene\n"
+            "chr1\ts\tpseudogene\t500\t600\t.\t+\t.\tID=pg_child;gene_biotype=pseudogene\n"
+            "chr1\ts\texon\t500\t600\t.\t+\t.\tID=pgex;Parent=pg_child\n"
+            "chr1\ts\tenhancer\t700\t800\t.\t+\t.\tID=enh1\n"
+        )
+        got = lifton_utils.get_gene_like_feature_types(self._db(tmp_path, gff))
+        assert got == ["gene", "pseudogene"]
+        assert "enhancer" not in got
+        assert "exon" not in got and "mRNA" not in got
+
+    def test_falls_back_to_gene_when_nothing_gene_like(self, tmp_path):
+        # only childless meta/regulatory features -> fall back to ["gene"]
+        gff = (
+            "##gff-version 3\n"
+            "chr1\ts\tenhancer\t10\t20\t.\t+\t.\tID=e1\n"
+            "chr1\ts\tregion\t1\t1000\t.\t+\t.\tID=r1\n"
+        )
+        assert lifton_utils.get_gene_like_feature_types(self._db(tmp_path, gff)) == ["gene"]
+
+
+# ---------------------------------------------------------------------------
 # check_ovps_ratio
 # ---------------------------------------------------------------------------
 

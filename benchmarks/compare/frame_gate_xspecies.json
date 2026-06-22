@@ -1,0 +1,55 @@
+[
+  {
+    "benchmark": "mouse_to_rat",
+    "n_scored": {
+      "state1": 7333,
+      "state2": 7337,
+      "state3": 7337
+    },
+    "n_complete": {
+      "state1": 359,
+      "state2": 359,
+      "state3": 359
+    },
+    "mean_pi": {
+      "state1_default": 0.91109,
+      "state2_bestof": 0.91778,
+      "state3_bestof_framegate": 0.91719
+    },
+    "delta_vs_state1": {
+      "state2": {
+        "n_common": 7333,
+        "improved": 294,
+        "regressed": 2,
+        "net_per_transcript": 0.006788
+      },
+      "state3": {
+        "n_common": 7333,
+        "improved": 294,
+        "regressed": 25,
+        "net_per_transcript": 0.006197
+      }
+    },
+    "delta_state3_vs_state2": {
+      "n_common": 7337,
+      "improved": 0,
+      "regressed": 23,
+      "net_per_transcript": -0.00059
+    },
+    "merge_kept": {
+      "state1": 6848,
+      "state2": 6550,
+      "state3": 6545
+    },
+    "fallback_to_liftoff": {
+      "state1": 3202,
+      "state2": 3500,
+      "state3": 3505
+    },
+    "wall_s": {
+      "state1": 1306.74,
+      "state2": 1272.63,
+      "state3": 1289.97
+    }
+  }
+]

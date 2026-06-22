@@ -1,0 +1,33 @@
+# Dependabot configuration for the LiftOn repo.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates
+#
+# Two ecosystems are watched weekly:
+#   * pip            — the Python runtime/build deps declared in setup.py /
+#                      pyproject.toml (install_requires + the build-system pin).
+#   * github-actions — the action versions pinned in .github/workflows/*.yml
+#                      (checkout, setup-python, upload/download-artifact,
+#                      gh-action-pypi-publish, etc.).
+#
+# NOTE: pyproject.toml deliberately caps setuptools<81 (cigar 0.1.3's sdist
+# imports the removed pkg_resources). If Dependabot opens a PR raising that
+# ceiling, it WILL re-break the cigar build — review/close such PRs unless the
+# cigar pin has been resolved upstream.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"

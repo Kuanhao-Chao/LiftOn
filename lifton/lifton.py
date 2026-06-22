@@ -4,6 +4,25 @@ import argparse
 from pyfaidx import Fasta
 import os, sys
 import time
+import concurrent.futures
+
+
+def _describe_annotation_source(x):
+    """Render a Liftoff/miniprot annotation DB source for the
+    "Creating X annotation database" log lines.
+
+    Normally a path string. Under ``--inmemory-liftoff`` and
+    ``--stream``, however, the value is the full GFF3 as an in-memory
+    ``bytes`` blob. f-string interpolation of that blob produces a
+    single multi-megabyte stderr line (Phase 16 follow-up: the bee
+    benchmark previously emitted a 33 MB single-line stderr from
+    this site). Bytes values are rendered as a brief length summary
+    so log files stay grep-able and small; path values pass through
+    unchanged.
+    """
+    if isinstance(x, (bytes, bytearray)):
+        return f"<in-memory bytes, {len(x):,} bytes>"
+    return x
 
 def args_gffutils(parser):
     gffutils_grp = parser.add_argument_group('* gffutils parameters')
@@ -66,7 +85,7 @@ def args_aligngrp(parser):
     )
     aligngrp.add_argument(
         '-max_miniprot', default=1.5, metavar='MAX_MINIPROT', type=float,
-        help='The maximum length ratio of a protein-coding transcript to the longest protein-coding transcript within a gene locus, as identified exclusively by miniprot in the target genome, is set by default to MIN_MINIPROT=1.5.'
+        help='The maximum length ratio of a protein-coding transcript to the longest protein-coding transcript within a gene locus, as identified exclusively by miniprot in the target genome, is set by default to MAX_MINIPROT=1.5.'
     )
     aligngrp.add_argument(
         '-d', metavar='D', default=2.0, type=float,
@@ -169,22 +188,131 @@ def args_optional(parser):
     parser.add_argument(
         '--locus-pipeline', dest='locus_pipeline', action='store_true',
         default=False,
-        help='Phase 9 locus-major fan-out: dispatch Step 7 (per-Liftoff-'
-             'gene processing) through a ThreadPoolExecutor sized by '
-             '--threads. Output is emitted in submission order so '
-             '--threads N is byte-identical to --threads 1; this flag '
-             'changes scheduling, not algorithms.'
+        help='Locus-major fan-out: dispatch Step 7 (per-Liftoff-gene '
+             'processing) through a ThreadPoolExecutor sized by --threads. '
+             'Output is emitted in submission order so --threads N is '
+             'byte-identical to --threads 1; this flag changes scheduling, '
+             'not algorithms. As of Iteration 8 this works on the DEFAULT '
+             '(gffutils) backend WITHOUT --native — per-locus work runs '
+             'against materialised proxy DBs, so any backend is thread-safe '
+             '(set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
+             'serial-on-gffutils). Note: combined with the default '
+             'concurrent Step 4, peak busy cores can reach ~N+1.'
     )
     parser.add_argument(
         '--native', dest='native', action='store_true', default=False,
-        help='Phase 10 native bindings: drive minimap2 alignment '
-             'through `mappy` (real PyO3 binding) and miniprot through '
-             'the pyminiprot-shaped facade (subprocess today, swappable '
-             'for a real PyO3 binding when it ships). Eliminates '
-             'subprocess fork+exec overhead per query. Output GFF3 is '
-             'byte-identical to the subprocess path; this flag changes '
-             'how alignments are produced, not which alignments. '
+        help='Phase 10 native bindings: route miniprot through the '
+             'pyminiprot-shaped facade and unlock in-process Step-7 '
+             'threading (Phase 17b). As of Iteration 7, --native does NOT '
+             'route Liftoff\'s minimap2 alignment through `mappy` by '
+             'default — that in-process path is slower and slightly less '
+             'accurate than the subprocess minimap2 path (mappy can\'t take '
+             '--end-bonus/-p), so Liftoff alignment stays on the proven '
+             'subprocess path. Set LIFTON_NATIVE_LIFTOFF_ALIGN=1 to opt the '
+             'mappy Liftoff path back in (e.g. no minimap2 binary on PATH). '
              'Falls back gracefully when mappy is not installed.'
+    )
+    parser.add_argument(
+        '--serial-aligners', dest='serial_aligners', action='store_true',
+        default=False,
+        help='Restore the pre-Iteration-6 SEQUENTIAL Step 4: run Liftoff '
+             '(DNA) then miniprot (protein) one after the other instead of '
+             'the default (concurrent) overlap. The default now dispatches '
+             'miniprot (an independent subprocess) to a background thread '
+             'while Liftoff runs on the main thread (Liftoff reads the '
+             'main-thread-bound SQLite reference DB, so it cannot move off '
+             'it), collapsing Step-4 wall from t_liftoff + t_miniprot to '
+             'max(t_liftoff, t_miniprot). The concurrent default is '
+             'byte-identical to this serial path (only miniprot\'s timing '
+             'moves); use --serial-aligners on core-constrained machines '
+             '(concurrent peak is ~N+1 cores with --threads N) or to keep '
+             'the two tools\' console logs from interleaving.'
+    )
+    parser.add_argument(
+        '--parallel-aligners', dest='parallel_aligners', action='store_true',
+        default=False,
+        help='No-op alias (kept for backward compatibility). The Step-4 '
+             'Liftoff/miniprot overlap that this flag used to gate is now '
+             'the DEFAULT (Iteration 6 promotion), so --parallel-aligners '
+             'has no effect; pass --serial-aligners to opt out.'
+    )
+    parser.add_argument(
+        '--optimize', dest='optimize', action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). The best-of-'
+             'outcome verified Liftoff/miniprot merge that this flag used to '
+             'gate is now the DEFAULT, so --optimize has no effect. Reserved '
+             'for future opt-in v2 accuracy/speed work.'
+    )
+    parser.add_argument(
+        '--legacy-merge', dest='legacy_merge', action='store_true', default=False,
+        help='Restore the pre-promotion Liftoff/miniprot merge: apply the '
+             'protein-maximization chained CDS UNCONDITIONALLY (no best-of-'
+             'outcome verification). This is the published-manuscript merge '
+             'and can silently frameshift downstream CDS on divergent inputs; '
+             'use only for reproducing legacy output. The default path now '
+             'runs the verified best-of-outcome merge instead.'
+    )
+    parser.add_argument(
+        '--full-dp-align', dest='full_dp_align', action='store_true', default=False,
+        help='Restore the exact pre-Iteration-3 giant-only alignment: full '
+             'Needleman-Wunsch DP for every non-giant gene (gate 8000 aa / '
+             '25000 nt); giants still memory-bounded-windowed so it cannot OOM. '
+             'The default is now "band everything" (anchor-windowed above '
+             '~2500 aa / 8000 nt: 1.4-2.6x faster, identity-exact on '
+             'same-species lifts). Use this for manuscript reproduction or '
+             'maximal accuracy on divergent inputs. For PURE full DP including '
+             'giants, set LIFTON_ALIGN_WINDOW_AA/NT to a huge value.'
+    )
+    parser.add_argument(
+        '--fast-align', dest='fast_align', action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). Band-everything '
+             'alignment that this flag used to gate is now the DEFAULT, so '
+             '--fast-align has no effect; use --full-dp-align to opt OUT.'
+    )
+    parser.add_argument(
+        '--gene-only', dest='gene_only', action='store_true', default=False,
+        help='Restore the pre-Iteration-12 GENE-ONLY lift: process only the '
+             '`gene` hierarchy, dropping every other gene-like top-level '
+             'parent type (pseudogenes, ncRNA_genes, structured mobile '
+             'elements). The default now lifts ALL auto-detected gene-like '
+             'types. Use --gene-only for manuscript reproduction of the old '
+             'default, or when you want strictly the `gene` partition. Ignored '
+             'if -f/--features is given (your explicit file always wins).'
+    )
+    parser.add_argument(
+        '--lift-gene-like', dest='lift_gene_like', action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). Lifting all '
+             'auto-detected gene-like parent types (pseudogenes, ncRNA_genes, '
+             'structured mobile elements) beyond `gene` is now the DEFAULT '
+             '(Iteration 12 promotion), so --lift-gene-like has no effect; pass '
+             '--gene-only to opt OUT and restore the gene-only lift.'
+    )
+    parser.add_argument(
+        '--no-miniprot-rescue', dest='miniprot_rescue', action='store_false', default=True,
+        help='Opt OUT of the miniprot-only rescue pass. As of the Iteration-23 '
+             'promotion the rescue is the DEFAULT: for a reference coding gene '
+             'the DNA lift MISSED ENTIRELY (its miniprot mRNA overlaps no lifted '
+             'gene locus), LiftOn emits the miniprot model even when its length '
+             'ratio falls outside the default -min_miniprot/-max_miniprot band -- '
+             'gated instead by a protein-identity floor '
+             '(LIFTON_MINIPROT_RESCUE_MIN_ID, default 0.5) within a wider sanity '
+             'band (LIFTON_MINIPROT_RESCUE_LEN=lo,hi, default 0.5,2.0). The '
+             'rescue runs as a SEPARATE pass AFTER Step 8 closes, with a '
+             'ref-gene-id dedup set, so the default Step-7+8 output is '
+             'byte-identical between OFF and ON (off is a strict subset of on) '
+             'and 0-redundant; it recovers genuinely-missing genes at large '
+             'evolutionary distance (net +recall on the distant/very-distant '
+             'tier -- see benchmarks/compare/miniprot_rescue_ab.md, 8/8 datasets '
+             '0 lost / 0 redundant). Pass --no-miniprot-rescue (or env '
+             'LIFTON_MINIPROT_RESCUE=0) to restore the pre-Iteration-23 lift '
+             'with no miniprot-only rescue.'
+    )
+    parser.add_argument(
+        '--miniprot-rescue', dest='miniprot_rescue_alias', action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). The miniprot-only '
+             'rescue is now the DEFAULT (Iteration-23 promotion), so '
+             '--miniprot-rescue has no effect; pass --no-miniprot-rescue to opt '
+             'OUT. Env LIFTON_MINIPROT_RESCUE=1 force-enables, =0 force-disables.'
     )
 
 
@@ -262,8 +390,51 @@ def parse_args(arglist):
     return args
     
 
+def resolve_miniprot_rescue_args(args):
+    """Resolve the miniprot-only-rescue flag + its tunables ONCE, honouring the
+    env escape hatches, and stash them on `args` so the post-Step-8 rescue pass
+    (lifton.miniprot_rescue) can read them. Pure/idempotent (no I/O beyond env
+    reads) so it is unit-testable.
+
+    As of the Iteration-23 promotion the rescue is DEFAULT-ON (a separate
+    post-Step-8 pass => default Step-7+8 output is byte-identical OFF-vs-ON).
+    Opt out with --no-miniprot-rescue (=> args.miniprot_rescue False) or
+    LIFTON_MINIPROT_RESCUE=0.
+
+    - LIFTON_MINIPROT_RESCUE=1|true|yes   -> force ON
+    - LIFTON_MINIPROT_RESCUE=0|false|no   -> force OFF
+    - LIFTON_MINIPROT_RESCUE_MIN_ID=<f>   -> protein-identity floor (default 0.5)
+    - LIFTON_MINIPROT_RESCUE_LEN=lo,hi    -> wider sanity band (default 0.5,2.0)
+    """
+    rescue = getattr(args, "miniprot_rescue", True)
+    _env = os.environ.get("LIFTON_MINIPROT_RESCUE", "").lower()
+    if _env in ("1", "true", "yes"):
+        rescue = True
+    elif _env in ("0", "false", "no"):
+        rescue = False
+    args.miniprot_rescue = rescue
+    try:
+        args.miniprot_rescue_min_id = float(os.environ.get("LIFTON_MINIPROT_RESCUE_MIN_ID", "0.5"))
+    except (ValueError, TypeError):
+        args.miniprot_rescue_min_id = 0.5
+    try:
+        lo, hi = (float(x) for x in os.environ.get("LIFTON_MINIPROT_RESCUE_LEN", "0.5,2.0").split(","))
+        args.miniprot_rescue_len = (lo, hi)
+    except (ValueError, TypeError):
+        args.miniprot_rescue_len = (0.5, 2.0)
+    return args
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
+    # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
+    # import). --full-dp-align restores the exact pre-Iteration-3 giant-only path
+    # for manuscript reproduction / paranoid accuracy. Lazy import keeps `align`
+    # (which pulls in the lifton_class↔lifton_utils cycle) off the module top.
+    if getattr(args, "full_dp_align", False):
+        from lifton import align as _align
+        _align.configure_alignment(band=False)
+    resolve_miniprot_rescue_args(args)
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -312,10 +483,39 @@ def run_all_lifton_steps(args):
         target_seqids=target_seqids,
         strict=getattr(args, "strict_gff", False),
     ).validate(args.reference_annotation)
-    for f in findings:
-        logger.log(str(f), debug=True)
-    if getattr(args, "strict_gff", False) and any(
-            f.severity == "error" for f in findings):
+    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
+    # thousands of `unencoded_reserved_char` findings on Dbxref values
+    # (DBTAG:ID is technically reserved-char-bearing). The previous
+    # unconditional per-finding stderr dump produced 100+ MB stderr
+    # logs that buried real errors. Strict mode keeps per-row stderr
+    # output (users opted in); the default path now writes findings to
+    # a side-car file under stats/ and prints one summary line.
+    _strict_gff = getattr(args, "strict_gff", False)
+    if _strict_gff:
+        for f in findings:
+            logger.log(str(f), debug=True)
+    elif findings:
+        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
+        try:
+            with open(findings_path, "w") as fw:
+                for f in findings:
+                    fw.write(str(f) + "\n")
+            n_err = sum(1 for f in findings if f.severity == "error")
+            n_warn = len(findings) - n_err
+            logger.log_info(
+                f">> GFF3 input validator: {len(findings)} finding(s) "
+                f"({n_err} error, {n_warn} warning) written to "
+                f"{findings_path}; pass --strict-gff to also dump "
+                f"per-row to stderr."
+            )
+        except OSError as exc:
+            logger.log_warning(
+                f"GFF3 input validator: could not write findings to "
+                f"{findings_path}: {exc}; falling back to stderr dump."
+            )
+            for f in findings:
+                logger.log(str(f), debug=True)
+    if _strict_gff and any(f.severity == "error" for f in findings):
         sys.exit(2)
     ################################
     # Step 1: Building database from the reference annotation
@@ -328,6 +528,28 @@ def run_all_lifton_steps(args):
     ################################
     # Step 2: Get all reference features to liftover
     ################################
+    # Gene-like lift — DEFAULT since Iteration 12 (was opt-in --lift-gene-like in
+    # Iteration 5). When the user did NOT supply an explicit -f/--features list,
+    # auto-detect every gene-like top-level parent type (pseudogenes, ncRNA_gene,
+    # structured mobile elements, ...) from the reference and write it to a temp
+    # feature_types file. Setting args.features here makes BOTH this Step-2 call
+    # and the vendored Liftoff invocation (Step 4, which reads args.features) lift
+    # the same expanded set. --gene-only opts out (args.features stays None ->
+    # get_parent_features_to_lift returns ["gene"], the pre-Iteration-12 default).
+    # For a gene-only reference the auto-detect returns ["gene"], so the injected
+    # file is a no-op equivalent to None (byte-identical; 24-cell matrix green).
+    # --lift-gene-like is a kept no-op alias (the behaviour is now default).
+    _lift_gene_like_injected = False
+    if not getattr(args, "gene_only", False) and args.features is None:
+        gene_like = lifton_utils.get_gene_like_feature_types(ref_db)
+        auto_path = os.path.join(intermediate_dir, "auto_feature_types.txt")
+        with open(auto_path, "w") as fw:
+            fw.write("\n".join(gene_like) + "\n")
+        args.features = auto_path
+        _lift_gene_like_injected = True
+        logger.log_info(f">> gene-like lift (default): auto-detected gene-like "
+                        f"feature types {gene_like} (written to {auto_path}); "
+                        f"pass --gene-only to lift only `gene`")
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir, args)
 
@@ -394,15 +616,61 @@ def run_all_lifton_steps(args):
     # Step 4: Run liftoff & miniprot
     ################################
     t5 = time.process_time()
-    liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, ref_db, args)
-    t6 = time.process_time()
-    miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
-
-    t7 = time.process_time()
+    # Output-neutral perf probe: Step 4 is subprocess-dominated, so
+    # process_time (parent-CPU only) cannot measure it. Capture WALL time
+    # around the whole block and emit one stderr line when LIFTON_PERF_STEP4
+    # is set — lets the --parallel-aligners A/B isolate the overlap saving
+    # from Step-7 noise without touching the output GFF3 or time.txt.
+    _w4_start = time.perf_counter()
+    if not getattr(args, "serial_aligners", False):
+        # Iteration 6 (PROMOTED to default): overlap the two independent
+        # external aligners so wall-clock = max(t_liftoff, t_miniprot) instead
+        # of the sum. They read the same inputs and write disjoint output dirs
+        # (liftoff/ vs miniprot/), consumed separately at Step 5, so the output
+        # bytes are unchanged — only miniprot's *timing* moves. This is a
+        # byte-neutral default flip; --serial-aligners restores the old
+        # sequential path (and --parallel-aligners is a kept no-op alias).
+        #
+        # Liftoff MUST stay on THIS (main) thread: it reads the reference
+        # gffutils DB whose SQLite connection is bound to the thread that
+        # created it (Step 1), and sqlite3 forbids cross-thread use
+        # (`SQLite objects created in a thread can only be used in that same
+        # thread`). miniprot is an independent subprocess that never touches
+        # ref_db, so IT is the one dispatched to a background worker.
+        # .result() re-raises the worker's exception on the main thread,
+        # preserving the serial fail-fast (run_miniprot returns None on
+        # failure; run_liftoff sys.exit(1) still fires inline here).
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=1, thread_name_prefix="lifton-miniprot") as _ex:
+            _f_mini = _ex.submit(
+                lifton_utils.exec_miniprot, lifton_outdir, args,
+                tgt_genome, ref_proteins_file)
+            liftoff_annotation = lifton_utils.exec_liftoff(
+                lifton_outdir, ref_db, args)
+            miniprot_annotation = _f_mini.result()
+        # The two tools overlapped, so the per-tool t5->t6 / t6->t7 split is
+        # meaningless; collapse t6 onto t7 so the --measure_time report's
+        # "Run liftoff & miniprot" line (t6 - t5) covers the whole concurrent
+        # region and "Create liftoff database" (t8 - t6) stays DB-only. Under
+        # this flag that entry is overlapped CPU time (process_time was never
+        # a wall-clock proxy; the true wall delta lives in the A/B harness).
+        t6 = time.process_time()
+        t7 = t6
+    else:
+        liftoff_annotation = lifton_utils.exec_liftoff(lifton_outdir, ref_db, args)
+        t6 = time.process_time()
+        miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
+        t7 = time.process_time()
+    if os.environ.get("LIFTON_PERF_STEP4"):
+        _mode = "serial" if getattr(args, "serial_aligners", False) else "parallel"
+        sys.stderr.write(
+            f"[LiftOn][perf] Step4 wall ({_mode}): "
+            f"{time.perf_counter() - _w4_start:.2f}s\n")
+        sys.stderr.flush()
     ################################
     # Step 5: Create liftoff and miniprot database
     ################################
-    logger.log(f"\n>> Creating liftoff annotation database : {liftoff_annotation}", debug=True)
+    logger.log(f"\n>> Creating liftoff annotation database : {_describe_annotation_source(liftoff_annotation)}", debug=True)
     l_feature_db = annotation.Annotation(
         liftoff_annotation,
         infer_genes=False,
@@ -414,7 +682,7 @@ def run_all_lifton_steps(args):
         auto_convert_gtf=False
     ).db_connection
     t8 = time.process_time()
-    logger.log(f">> Creating miniprot annotation database : {miniprot_annotation}", debug=True)
+    logger.log(f">> Creating miniprot annotation database : {_describe_annotation_source(miniprot_annotation)}", debug=True)
     if miniprot_annotation is not None:
         m_feature_db = annotation.Annotation(
             miniprot_annotation,
@@ -446,6 +714,7 @@ def run_all_lifton_steps(args):
     fw_extra_copy = open(f"{stats_dir}/extra_copy_features.txt", "w")
     fw_mapped_feature = open(f'{stats_dir}/mapped_feature.txt', 'w')
     fw_mapped_trans = open(f'{stats_dir}/mapped_transcript.txt', 'w')
+    fw_feature_type = open(f'{stats_dir}/completeness_by_feature_type.txt', 'w')
     fw_chain = open(f"{lifton_outdir}/chain.txt", "w") if args.write_chains else None
 
     t9 = time.process_time()
@@ -456,7 +725,18 @@ def run_all_lifton_steps(args):
         ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
     else:
         ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = {}, {}
-    tree_dict = intervals.initialize_interval_tree(l_feature_db, features)
+    # The interval tree gates miniprot protein-rescue suppression (Step 8): a
+    # miniprot mRNA overlapping a tree locus is dropped as redundant. That set
+    # must stay the protein-coding "primary" lift (`gene`) — the default gene-like
+    # lift (Iter 12) adds pseudogenes/ncRNA_genes to `features` for PROCESSING,
+    # but they must NOT suppress a miniprot coding-gene rescue just by overlapping
+    # it (that lost CG3303/Plac8l1 etc. in the A/B). When the gene-like lift
+    # injected an expanded set, seed the tree with ["gene"]; under --gene-only or
+    # an explicit -f the injection didn't fire so tree == features. For a
+    # gene-only ref the injected set IS ["gene"], so both paths agree
+    # (byte-identical default — 24-cell matrix green).
+    tree_features = ["gene"] if _lift_gene_like_injected else features
+    tree_dict = intervals.initialize_interval_tree(l_feature_db, tree_features)
     transcripts_stats_dict = {'coding': {}, 'non-coding': {}, 'other': {}}
     processed_features = 0
     
@@ -491,10 +771,38 @@ def run_all_lifton_steps(args):
     )
     _threads = int(getattr(args, "threads", 1) or 1)
     _use_pool = bool(getattr(args, "locus_pipeline", False)) and _threads > 1
+    # Output-neutral perf probe: Step 7 is the per-locus wall-clock hot
+    # spot, but it runs inside the same process so process_time mixes it
+    # with worker CPU. Capture WALL time around the dispatch and emit one
+    # stderr line when LIFTON_PERF_STEP7 is set — lets the Iteration-8
+    # fresh-parallel A/B isolate the Step-7 speedup (no --native needed)
+    # without touching the output GFF3 or time.txt.
+    _w7_start = time.perf_counter()
     processed_features = _parallel.parallel_step7(
         features, l_feature_db, _ctx, fw, transcripts_stats_dict,
         threads=_threads if _use_pool else 1,
     )
+    if os.environ.get("LIFTON_PERF_STEP7"):
+        _mode = f"pool x{_threads}" if _use_pool else "serial"
+        sys.stderr.write(
+            f"[LiftOn][perf] Step7 wall ({_mode}): "
+            f"{time.perf_counter() - _w7_start:.2f}s\n")
+        sys.stderr.flush()
+
+    # Iteration 23: clean separate-pass miniprot-only rescue (flag-gated).
+    # Harvest the reference gene ids the DNA lift (Step 7) emitted, using the
+    # SAME resolver Step 7 used (run_liftoff.py:111), so the post-Step-8 rescue
+    # pass can skip already-lifted genes -- the dedup that makes it 0-redundant
+    # + off ⊆ on. When --miniprot-rescue is OFF this set stays empty and is
+    # never consulted, so the default path is byte-identical.
+    emitted_ref_gene_ids = set()
+    if getattr(args, "miniprot_rescue", False):
+        for _f in features:
+            for _locus in l_feature_db.features_of_type(_f):
+                _rgid, _ = lifton_utils.get_ref_ids_liftoff(
+                    ref_features_dict, _locus.id, None)
+                if _rgid is not None:
+                    emitted_ref_gene_ids.add(_rgid)
 
     t11 = time.process_time()
     ################################
@@ -507,19 +815,35 @@ def run_all_lifton_steps(args):
                 if lifton_gene is None or lifton_gene.ref_gene_id is None:
                     continue
                 lifton_gene.write_entry(fw, transcripts_stats_dict)
+                if getattr(args, "miniprot_rescue", False):
+                    # Iter 23: record default Step-8 ref genes for the rescue dedup.
+                    emitted_ref_gene_ids.add(lifton_gene.ref_gene_id)
             except Exception as e:
                 logger.log_error(f"Error during miniprot text output serialization ({mtrans.id}): {e}")
                 
             if processed_features % 20 == 0:
                 sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
             processed_features += 1
-    
+
+    # Iteration 23: clean separate-pass miniprot-only rescue. Runs AFTER the
+    # Step-8 loop has fully closed, so no rescue mutates tree_dict during a
+    # default decision -> the default Step-7+8 output is byte-identical OFF-vs-ON
+    # and ON = default ∪ rescues ⊇ default = OFF (off ⊆ on by construction).
+    # Flag-gated -> the default path never imports the module.
+    if getattr(args, "miniprot_rescue", False):
+        from lifton import miniprot_rescue as _miniprot_rescue
+        _miniprot_rescue.rescue_miniprot_only_pass(
+            m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins, ref_trans,
+            ref_features_dict, m_id_2_ref_id_trans_dict, ref_features_len_dict,
+            ref_trans_exon_num_dict, ref_features_reverse_dict,
+            emitted_ref_gene_ids, fw, fw_score, transcripts_stats_dict, args)
+
     t12 = time.process_time()
     ################################
     # Step 9: Printing stats
     ################################
     try:
-        stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug)
+        stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug, fw_feature_type=fw_feature_type)
     except Exception as e:
         logger.log_error(f"Failed to print report: {e}")
     finally:
@@ -530,6 +854,7 @@ def run_all_lifton_steps(args):
         fw_extra_copy.close()
         fw_mapped_feature.close()
         fw_mapped_trans.close()
+        fw_feature_type.close()
         if args.write_chains: fw_chain.close()
 
     ################################

@@ -35,6 +35,9 @@ dependencies:
       - interlap==0.2.7
       - intervaltree==3.1.0
       - lifton==1.0.6
+      # Phase 16 Tier 5: mappy unlocks the in-process minimap2 path
+      # under `--native` in lifton/liftoff/native_align.py.
+      - mappy
       - networkx==3.3
       - numpy==2.1.1
       - packaging==24.1

@@ -22,6 +22,19 @@ class TestAnnotationDB:
         assert os.path.exists(sidecar)
         assert ann.db_connection is not None
 
+    def test_build_creates_duckdb_sidecar_under_gffbase_opt_in(
+            self, gff_standard, monkeypatch):
+        """Phase 17a-1 (env-var-only variant): under
+        LIFTON_USE_GFFBASE=1 the gffbase sidecar is `.duckdb`."""
+        monkeypatch.setenv("LIFTON_USE_GFFBASE", "1")
+        ann = annotation.Annotation(
+            str(gff_standard), False, False, "create_unique", None, True, False,
+        )
+        import os
+        sidecar = str(gff_standard) + ".duckdb"
+        assert os.path.exists(sidecar)
+        assert ann.db_connection is not None
+
     def test_lookup_by_id(self, gff_standard):
         ann = annotation.Annotation(
             str(gff_standard), False, False, "create_unique", None, True, False,

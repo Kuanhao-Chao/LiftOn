@@ -1,0 +1,46 @@
+[
+  {
+    "benchmark": "human_mane",
+    "serial_threads": 1,
+    "threaded_threads": 8,
+    "serial_wall_s": 24.35,
+    "threaded_wall_s": 13.77,
+    "speedup": 1.77,
+    "serial_rss_mb": 1516.0,
+    "threaded_rss_mb": 2280.0,
+    "byte_identical": true
+  },
+  {
+    "benchmark": "drosophila",
+    "serial_threads": 1,
+    "threaded_threads": 8,
+    "serial_wall_s": 262.04,
+    "threaded_wall_s": 137.69,
+    "speedup": 1.9,
+    "serial_rss_mb": 2520.0,
+    "threaded_rss_mb": 4798.0,
+    "byte_identical": true
+  },
+  {
+    "benchmark": "arabidopsis",
+    "serial_threads": 1,
+    "threaded_threads": 8,
+    "serial_wall_s": 244.05,
+    "threaded_wall_s": 231.29,
+    "speedup": 1.06,
+    "serial_rss_mb": 1558.0,
+    "threaded_rss_mb": 5057.0,
+    "byte_identical": true
+  },
+  {
+    "benchmark": "rice",
+    "serial_threads": 1,
+    "threaded_threads": 8,
+    "serial_wall_s": 135.85,
+    "threaded_wall_s": 111.44,
+    "speedup": 1.22,
+    "serial_rss_mb": 1474.0,
+    "threaded_rss_mb": 3162.0,
+    "byte_identical": true
+  }
+]

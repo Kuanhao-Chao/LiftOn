@@ -70,12 +70,43 @@ def determine_file_format(file_path):
         return "GFF format"
 
 
+def parent_is_listed_type(ref_db, locus, feature_set):
+    """Iteration 20: True if `locus` has a Parent that is itself one of the
+    feature types being extracted (`feature_set`).
+
+    The gene-like-lift default (Iteration 12) auto-detects every top-level
+    parent type (gene, ncRNA, pseudogene, …) and lifts them all. But a type
+    like `ncRNA` can ALSO occur as a CHILD of a gene (e.g. the ncRNA transcript
+    `rna-NR_143387.1` under `gene-AT1G04425` on full Arabidopsis RefSeq). Such a
+    child is already emitted via its parent gene's recursive descent, so
+    enumerating it again as a top-level locus double-writes it — a duplicate
+    FASTA record that crashes `pyfaidx.Fasta` with `Duplicate key`, and a
+    duplicate lifted gene model. We skip a child ONLY when its parent's type is
+    in the lift set (so the parent's recursion reaches it); a transcript type
+    lifted on its own (e.g. `features=["mRNA"]`, parent `gene` not in the set)
+    is still extracted normally.
+    """
+    parents = locus.attributes.get("Parent")
+    if not parents:
+        return False
+    for pid in parents:
+        try:
+            if ref_db.db_connection[pid].featuretype in feature_set:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def extract_features(ref_db, features, ref_fai):
     ref_trans = {}
     ref_proteins = {}
     counter = 0
+    feature_set = set(features)
     for feature in features:
         for locus in ref_db.db_connection.features_of_type(feature):
+            if parent_is_listed_type(ref_db, locus, feature_set):
+                continue
             # print(f"Extracting features for {locus.id}")
             counter += 1
             __inner_extract_feature(ref_db, locus, ref_fai, ref_trans, ref_proteins)
@@ -110,9 +141,19 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
     trans_path = _os.path.join(out_dir, "transcripts.fa")
     prot_path = _os.path.join(out_dir, "proteins.fa")
     counter = 0
+    feature_set = set(features)
     with open(trans_path, "w") as ft, open(prot_path, "w") as fp:
         for feature in features:
             for locus in ref_db.db_connection.features_of_type(feature):
+                # Iteration 20: skip a child instance whose parent is itself one
+                # of the lifted types — it is already emitted via the parent's
+                # recursive descent, so emitting it again here crashes
+                # pyfaidx.Fasta with "Duplicate key" (full Arabidopsis RefSeq:
+                # ncRNA rna-NR_143387.1 under gene-AT1G04425). See
+                # parent_is_listed_type for the full rationale; no-op on every
+                # gene-only / top-level-only annotation -> byte-identical.
+                if parent_is_listed_type(ref_db, locus, feature_set):
+                    continue
                 counter += 1
                 _stream_inner(ref_db, locus, ref_fai, ft, fp)
     print(f"Extracted features (streaming) for {counter} features")
@@ -120,10 +161,18 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
 
 
 def _stream_inner(ref_db, feature, ref_fai, ft, fp):
-    children_exons = list(ref_db.db_connection.children(
-        feature, featuretype='exon', level=1))
-    children_CDSs = list(ref_db.db_connection.children(
-        feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))
+    # Phase 18: one ordered children() query + an in-Python featuretype
+    # partition replaces the prior three per-feature queries (2x fewer
+    # SQLite round-trips on the common exon/CDS-bearing path, 3x on a bare
+    # gene parent). Byte-neutral: merge_children_intervals re-sorts the
+    # exon/CDS lists by start before concatenation, so the SQL row order is
+    # discarded for those branches; the recursive-descent branch below
+    # keeps order_by='start' (the only order-sensitive path).
+    all_children = list(ref_db.db_connection.children(
+        feature, level=1, order_by='start'))
+    children_exons = [c for c in all_children if c.featuretype == 'exon']
+    children_CDSs = [c for c in all_children
+                     if c.featuretype in ('start_codon', 'CDS', 'stop_codon')]
     if len(children_exons) > 0 or len(children_CDSs) > 0:
         if len(children_exons) > 0:
             try:
@@ -147,15 +196,19 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp):
                     f"extract_features_to_fasta: protein {feature.id}: {e}"
                 )
     else:
-        for child in ref_db.db_connection.children(
-                feature, level=1, order_by='start'):
+        for child in all_children:
             _stream_inner(ref_db, child, ref_fai, ft, fp)
 
 
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
     # If exon is the first level children
-    children_exons = list(ref_db.db_connection.children(feature, featuretype='exon', level=1))
-    children_CDSs = list(ref_db.db_connection.children(feature, featuretype=('start_codon', 'CDS', 'stop_codon'), level=1))
+    # Phase 18: collapse the prior 3 children() queries into one ordered
+    # query + in-Python partition (see _stream_inner for the byte-neutral
+    # argument; merge_children_intervals re-sorts, the else-branch keeps
+    # order_by='start').
+    all_children = list(ref_db.db_connection.children(feature, level=1, order_by='start'))
+    children_exons = [c for c in all_children if c.featuretype == 'exon']
+    children_CDSs = [c for c in all_children if c.featuretype in ('start_codon', 'CDS', 'stop_codon')]
     # print(f"Parent: {feature.id};  exon: {len(children_exons)}; CDS: {len(children_CDSs)}")
     if len(children_exons) > 0 or len(children_CDSs) > 0:
         if len(children_exons) > 0:
@@ -185,7 +238,7 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
                     f"sequence for {feature.id}: {e}"
                 )
     else:
-        for child in ref_db.db_connection.children(feature, level=1, order_by='start'):
+        for child in all_children:
             __inner_extract_feature(ref_db, child, ref_fai, ref_trans, ref_proteins)
             
 

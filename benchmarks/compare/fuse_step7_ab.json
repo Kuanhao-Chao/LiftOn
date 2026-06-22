@@ -1,0 +1,134 @@
+[
+  {
+    "benchmark": "drosophila",
+    "threads": "8",
+    "byte_identical": true,
+    "step7_wall_s": {
+      "two_phase": 107.86,
+      "fused": 102.49
+    },
+    "step7_speedup": 1.05,
+    "step7_saved_pct": 5.0,
+    "total_wall_s": {
+      "two_phase": 144.0,
+      "fused": 138.4
+    },
+    "total_speedup": 1.04,
+    "total_saved_pct": 3.9,
+    "peak_rss_mb": {
+      "two_phase": 2690.0,
+      "fused": 1513.0
+    },
+    "rss_overhead_pct": -43.8,
+    "completeness": {
+      "counts": {
+        "two_phase": {
+          "gene": 4048,
+          "transcript": 7946,
+          "CDS": 37391,
+          "total": 92675
+        },
+        "fused": {
+          "gene": 4048,
+          "transcript": 7946,
+          "CDS": 37391,
+          "total": 92675
+        }
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "step7_win": true,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "mouse_to_rat",
+    "threads": "8",
+    "byte_identical": true,
+    "step7_wall_s": {
+      "two_phase": 79.23,
+      "fused": 67.09
+    },
+    "step7_speedup": 1.18,
+    "step7_saved_pct": 15.3,
+    "total_wall_s": {
+      "two_phase": 99.6,
+      "fused": 87.2
+    },
+    "total_speedup": 1.14,
+    "total_saved_pct": 12.5,
+    "peak_rss_mb": {
+      "two_phase": 1821.0,
+      "fused": 1357.0
+    },
+    "rss_overhead_pct": -25.5,
+    "completeness": {
+      "counts": {
+        "two_phase": {
+          "gene": 945,
+          "transcript": 3114,
+          "CDS": 23751,
+          "total": 60193
+        },
+        "fused": {
+          "gene": 945,
+          "transcript": 3114,
+          "CDS": 23751,
+          "total": 60193
+        }
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "step7_win": true,
+      "completeness_unchanged": true
+    }
+  },
+  {
+    "benchmark": "rice",
+    "threads": "8",
+    "byte_identical": true,
+    "step7_wall_s": {
+      "two_phase": 71.79,
+      "fused": 64.03
+    },
+    "step7_speedup": 1.12,
+    "step7_saved_pct": 10.8,
+    "total_wall_s": {
+      "two_phase": 105.6,
+      "fused": 98.3
+    },
+    "total_speedup": 1.07,
+    "total_saved_pct": 6.9,
+    "peak_rss_mb": {
+      "two_phase": 2244.0,
+      "fused": 1395.0
+    },
+    "rss_overhead_pct": -37.8,
+    "completeness": {
+      "counts": {
+        "two_phase": {
+          "gene": 4478,
+          "transcript": 7147,
+          "CDS": 34419,
+          "total": 91285
+        },
+        "fused": {
+          "gene": 4478,
+          "transcript": 7147,
+          "CDS": 34419,
+          "total": 91285
+        }
+      },
+      "unchanged": true
+    },
+    "gate": {
+      "byte_identical": true,
+      "step7_win": true,
+      "completeness_unchanged": true
+    }
+  }
+]

@@ -2,6 +2,14 @@ import re, sys, os, copy
 from Bio.Seq import Seq
 from lifton import align, lifton_class, run_liftoff, run_miniprot, logger
 from lifton.liftoff import liftoff_main
+# Iteration 16: the three pure helpers below moved to the dependency-free
+# leaf module lifton.coreutils to break the lifton_utils <-> lifton_class
+# import cycle. Re-exported here so lifton_utils.<helper> keeps resolving.
+from lifton.coreutils import (  # noqa: F401
+    custom_bisect_insert,
+    get_ID_base,
+    segments_overlap_length,
+)
 
 def check_miniprot_installed():
     """
@@ -137,79 +145,6 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     return miniprot_annotation
 
 
-def custom_bisect_insert(sorted_list, element_to_insert):
-    """
-        This function bisects the sorted list and inserts the element.
-
-        Parameters:
-        - sorted_list: sorted list
-        - element_to_insert: element to insert
-
-        Returns:
-        None
-    """
-    low = 0
-    high = len(sorted_list)
-
-    while low < high:
-        mid = (low + high) // 2
-        if sorted_list[mid].entry.end < element_to_insert.entry.end:
-            low = mid + 1
-        else:
-            high = mid
-    sorted_list.insert(low, element_to_insert)
-
-
-def get_ID_base(id, ref_features_dict=None):
-    """
-        This function gets the ID base by removing the last substring after "_" if it's a copy number.
-        Only removes the suffix if it's confirmed to be a copy number added by LiftOn.
-        
-        The key insight: We can only safely remove a suffix if the ID without the suffix exists
-        in the reference features dictionary. This confirms the suffix was added by LiftOn,
-        not part of the original ID.
-
-        Parameters:
-        - id: ID
-        - ref_features_dict: Optional reference features dictionary to verify if the base ID exists.
-                            If provided, only removes suffix if base ID exists in the dictionary.
-
-        Returns:    
-        ID base (original ID if suffix removal is not safe or cannot be verified)
-    """
-    splits = id.split("_")
-    # Only try to remove suffix if there are at least 2 parts after splitting.
-    # This also guards against the Phase 5 bug #5 case where a single-component
-    # numeric id (e.g. "0") would otherwise be reduced to the empty string.
-    if len(splits) < 2:
-        return id
-
-    # Check if the last part is a pure integer (potential copy number)
-    try:
-        last_part = splits[-1]
-        copy_num = int(last_part)
-        id_base = "_".join(splits[:-1])
-
-        # If ref_features_dict is provided, verify that removing the suffix gives a valid ID.
-        # This is the safest approach: only remove if we can confirm the base exists.
-        if ref_features_dict is not None:
-            # Only remove the suffix if the base ID exists in the reference dictionary
-            # This confirms the suffix was added by LiftOn, not part of the original ID
-            if id_base in ref_features_dict.keys():
-                return id_base
-            else:
-                # The suffix is likely part of the original ID (e.g., FMUND_1), don't remove it
-                return id
-        else:
-            # Without reference dict, we cannot safely determine if the suffix is a copy number.
-            # Be conservative: don't remove the suffix to avoid breaking IDs that naturally end
-            # with numbers (e.g. FMUND_1 in GCA_013396205.1-transcript_rna-gnl-WGS:JAAOAN-mrna.FMUND_1).
-            return id
-    except (ValueError, IndexError):
-        # Last part is not an integer, so it's not a copy number suffix
-        return id
-
-
 def get_ID(feature):
     """
         This function gets the ID.
@@ -244,6 +179,36 @@ def get_parent_features_to_lift(feature_types_file):
         for line in f.readlines():
             feature_types.append(line.rstrip())
     return feature_types
+
+
+def get_gene_like_feature_types(ref_db, sample_cap=5000):
+    """Auto-detect the "gene-like" top-level parent feature types in the
+    reference annotation: every feature type that has at least one TOP-LEVEL
+    instance (no Parent) bearing a child feature (a transcript/exon hierarchy).
+
+    This generalises the lift beyond the hardcoded `["gene"]` default to
+    pseudogenes, ncRNA_gene, structured mobile elements, etc., in an
+    annotation-source-agnostic way (Iteration 5 `--lift-gene-like`). Childless
+    meta/regulatory features (region, enhancer, promoter, match, …) and pure
+    child types (CDS, exon, mRNA, …, which carry a Parent) are excluded.
+
+    `sample_cap` bounds the per-type scan so a child-heavy type (e.g. CDS, whose
+    instances all carry Parent and are skipped) cannot trigger a full-DB walk;
+    realistic gene-like types surface a child-bearing top-level instance far
+    within the cap. Falls back to `["gene"]` if nothing qualifies.
+    """
+    conn = ref_db.db_connection
+    gene_like = set()
+    for ftype in conn.featuretypes():
+        for i, locus in enumerate(conn.features_of_type(ftype)):
+            if i >= sample_cap:
+                break
+            if "Parent" in locus.attributes:
+                continue                      # child-level instance; keep looking
+            if any(True for _ in conn.children(locus, level=1)):
+                gene_like.add(ftype)
+                break                         # one child-bearing top-level is enough
+    return sorted(gene_like) if gene_like else ["gene"]
 
 
 def LiftOn_eval_alignment(eval_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
@@ -331,6 +296,17 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
     return m_lifton_aln, has_valid_miniprot
 
 
+def _parent_type(ref_db, parent_id):
+    """Iteration 20: return the featuretype of the feature `parent_id`, or None
+    if it cannot be resolved. Used by get_ref_liffover_features to skip a child
+    instance whose parent is itself a lifted type (see extract_sequence's
+    parent_is_listed_type for the full rationale)."""
+    try:
+        return ref_db.db_connection[parent_id].featuretype
+    except Exception:
+        return None
+
+
 def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
     """
         This function gets the reference liftover features.
@@ -352,10 +328,23 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
     ref_trans_exon_num_dict = {}
     new_gene_feature = lifton_class.Lifton_feature("Lifton-gene")
     ref_features_dict["LiftOn-gene"] = new_gene_feature
+    feature_set = set(features)
     for f_itr in features:
         for locus in ref_db.db_connection.features_of_type(f_itr):
+            # Iteration 20: skip a child instance whose parent is itself one of
+            # the lifted types — it is lifted under its parent gene (the level-1
+            # transcripts loop below), so adding it here as its own locus would
+            # emit a duplicate gene model. Mirrors extract_sequence's
+            # parent_is_listed_type so extraction and lift stay consistent;
+            # inlined here to avoid a new import edge into lifton_utils. No-op on
+            # top-level-only annotations (parent type not in the lift set).
+            parents = locus.attributes.get("Parent")
+            if parents and any(
+                _parent_type(ref_db, pid) in feature_set for pid in parents):
+                continue
             CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
             feature = lifton_class.Lifton_feature(locus.id)
+            feature.feature_type = locus.featuretype
             # Write out reference gene features IDs
             # Decide if its type
             # Check for gene type/biotype attribute in order of preference
@@ -382,6 +371,7 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                     gene_type_key = "biotype"
 
             if gene_type_key is not None:
+                feature.biotype = locus.attributes[gene_type_key][0]
                 if locus.attributes[gene_type_key][0] == "protein_coding" and len(CDS_children) > 0:
                     feature.is_protein_coding = True
                     fw_gene.write(f"{locus.id}\tcoding\n")
@@ -534,37 +524,6 @@ def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status)
 def write_lifton_chains(fw_chain, transcript_id, chains):
     chain_ls = ";".join(chains)
     fw_chain.write(f"{transcript_id}\t{chain_ls}\n")
-
-
-def segments_overlap_length(segment1, segment2):
-    """
-        This function gets the length of the overlapping segments.
-
-        Parameters:
-        - segment1: segment 1 in tuple (start, end)
-        - segment2: segment 2 in tuple (start, end)
-
-        Returns:
-        The length of the overlapping segments.
-    """
-    if len(segment1) != 2 or len(segment2) != 2:
-        raise ValueError("Segments must have exactly 2 endpoints")
-    # Bug fix #4 (Phase 5): make the sort tie-break deterministic so the
-    # function is symmetric. Previously sorting by start alone left the
-    # tie-break to Python's stable-sort and the input order leaked into
-    # the result. Computing the overlap length directly from the sorted
-    # endpoints removes the ambiguity entirely.
-    s1, e1 = segment1
-    s2, e2 = segment2
-    ovp_len = min(e1, e2) - max(s1, s2) + 1
-    # V2.9 fix: disjoint segments produced negative overlap, which
-    # callers treating the value as "bp shared" would silently divide
-    # by. Clamp to 0 so the returned tuple always has ovp_len >= 0
-    # AND ovp_len > 0 ⟺ ovp.
-    if ovp_len < 0:
-        ovp_len = 0
-    ovp = ovp_len > 0
-    return ovp_len, ovp
 
 
 def check_ovps_ratio(mtrans, mtrans_interval, overlap_ratio, tree_dict):

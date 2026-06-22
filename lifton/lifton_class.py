@@ -1,7 +1,27 @@
-from lifton import align, lifton_utils, lifton_class, get_id_fraction, variants, logger
-import copy, os
+from lifton import align, coreutils, get_id_fraction, variants, logger
+from lifton.io import feature_serializer
+import copy, os, re
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
+
+
+def _containment_normalize_enabled():
+    """Iteration-24 GFF3 parent-child containment normalization (default ON).
+
+    LiftOn's chaining + ORF-boundary patching can leave a transcript whose
+    child features fall OUTSIDE their parent span (invalid GFF3 the reference
+    does not have): a CDS extended a few bp past its exon to capture a stop
+    codon on a frameshift-corrected RefSeq model (CDS > exon > mRNA), or a
+    rebuilt non-monotonic exon list that inverts the mRNA span (start > end,
+    the Iter-21 crash). ``normalize_containment`` (run at write time) extends
+    each exon to cover its CDS, sorts the exons, and sets the transcript/gene
+    span to the child envelope — guaranteeing valid containment.
+
+    Default ON. Set ``LIFTON_NO_CONTAINMENT_NORMALIZE=1`` to reproduce the
+    pre-Iteration-24 bytes (manuscript reproduction / A-B baseline).
+    """
+    return os.environ.get("LIFTON_NO_CONTAINMENT_NORMALIZE", "").lower() not in ("1", "true", "yes")
+
 
 class Lifton_ORF:
     def __init__(self, start, end):
@@ -51,6 +71,11 @@ class Lifton_feature:
         self.copy_num = 0
         self.is_protein_coding = False
         self.is_non_coding = False
+        # raw GFF feature type (e.g. gene, mRNA, tRNA, lnc_RNA, pseudogene) and
+        # biotype, captured for all-feature-type completeness reporting. Metadata
+        # only — never affects the GFF3 written to -o.
+        self.feature_type = None
+        self.biotype = None
         self.children = set()
 
 
@@ -79,13 +104,21 @@ class Lifton_GENE:
         self.__update_gene_copy(ref_features_dict)
         self.entry.id = gene_id
         # V2.8: route via _make_interval so single-base genes don't crash.
-        from lifton.intervals import _make_interval
-        gene_interval = _make_interval(
-            self.entry.start, self.entry.end, self.entry.id,
-        )
-        if self.entry.seqid not in tree_dict.keys():
-            tree_dict[self.entry.seqid] = IntervalTree()
-        tree_dict[self.entry.seqid].add(gene_interval)
+        # Only `gene`-type loci join the interval tree that gates miniprot
+        # protein-rescue suppression (Step 8). That was always the tree's
+        # contract (features was historically ["gene"]); since the default
+        # gene-like lift (Iter 12) now also processes pseudogenes/ncRNA_genes,
+        # adding them here would let them suppress a miniprot coding-gene rescue
+        # just by overlapping it — so they are deliberately kept OUT. On a
+        # gene-only ref this is a no-op (byte-identical, 24-cell green).
+        if self.entry.featuretype == "gene":
+            from lifton.intervals import _make_interval
+            gene_interval = _make_interval(
+                self.entry.start, self.entry.end, self.entry.id,
+            )
+            if self.entry.seqid not in tree_dict.keys():
+                tree_dict[self.entry.seqid] = IntervalTree()
+            tree_dict[self.entry.seqid].add(gene_interval)
         # Decide if its type
         # Check for gene type/biotype attribute in order of preference
         gene_type_key = None
@@ -172,8 +205,8 @@ class Lifton_GENE:
         lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only)
         return lifton_aln, good_trans
 
-    def update_cds_list(self, trans_id, cds_list):
-        self.transcripts[trans_id].update_cds_list(cds_list)
+    def update_cds_list(self, trans_id, cds_list, optimize=False):
+        self.transcripts[trans_id].update_cds_list(cds_list, optimize=optimize)
         self.update_boundaries()
 
     def add_lifton_gene_status_attrs(self, source):
@@ -183,33 +216,35 @@ class Lifton_GENE:
         self.transcripts[trans_id].add_lifton_trans_status_attrs(lifton_status)
 
     def write_entry(self, fw, transcripts_stats_dict):
-        if not self.tmp:
-            from lifton.io import gff3_writer
-            try:
-                fw.write(gff3_writer.format_feature(self.entry) + "\n")
-            except Exception as e:
-                logger.log_error(f"Failed to write GENE entry {self.entry.id}: {e}")
+        # Iter-24: normalize parent-child containment (extend exons to cover
+        # their CDS; set each transcript + the gene span to the child envelope)
+        # right before serialisation, so the emitted GFF3 is always valid.
+        # No-op on well-formed genes -> byte-identical default.
+        self.normalize_containment()
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_gene(self, fw, transcripts_stats_dict)
 
-        for key, trans in self.transcripts.items():
-            trans.write_entry(fw)
-            TYPE = ""
-            if self.is_protein_coding and trans.entry.featuretype == "mRNA":
-                TYPE = "coding"
-            elif self.is_non_coding and (trans.entry.featuretype == "ncRNA" or trans.entry.featuretype == "nc_RNA" or trans.entry.featuretype == "lncRNA" or trans.entry.featuretype == "lnc_RNA"):
-                TYPE = "non-coding"
-            else:
-                TYPE = "other"
-            if trans.ref_tran_id is None:
-                continue
-            if not trans.ref_tran_id in transcripts_stats_dict[TYPE].keys():
-                transcripts_stats_dict[TYPE][trans.ref_tran_id] = 1
-            else:
-                transcripts_stats_dict[TYPE][trans.ref_tran_id] += 1
-
-    def update_boundaries(self):        
+    def update_boundaries(self):
         for key, trans in self.transcripts.items():
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
+
+    def normalize_containment(self):
+        """Normalize every child's containment, then widen the gene span to
+        cover all children. No-op when disabled / well-formed. ``self.transcripts``
+        can hold both coding ``Lifton_TRANS`` and gene-like ``LiftOn_FEATURE``
+        children (the latter added by ``add_feature`` for pseudogenes / ncRNA
+        genes / structured features); both now expose ``normalize_containment``,
+        and the ``getattr`` guard keeps a future child type without it from
+        aborting the whole-genome write phase."""
+        if not _containment_normalize_enabled() or not self.transcripts:
+            return
+        for trans in self.transcripts.values():
+            fn = getattr(trans, "normalize_containment", None)
+            if fn is not None:
+                fn()
+        self.entry.start = min(t.entry.start for t in self.transcripts.values())
+        self.entry.end = max(t.entry.end for t in self.transcripts.values())
 
     def print_gene(self):
         print(self.entry)
@@ -238,7 +273,7 @@ class LiftOn_FEATURE:
                         feature_id_base = feature_id_base[:-len(suffix)]
             else:
                 # Fallback to get_ID_base if extra_copy_number is missing
-                feature_id_base = lifton_utils.get_ID_base(feature_id_base)
+                feature_id_base = coreutils.get_ID_base(feature_id_base)
 
             self.entry.id = f"{feature_id_base}_{copy_num}"
             self.entry.attributes["ID"] = [self.entry.id]
@@ -248,15 +283,27 @@ class LiftOn_FEATURE:
         self.features[Lifton_feature.entry.id] = Lifton_feature
         return Lifton_feature
 
-    def write_entry(self, fw):
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write FEATURE entry {self.entry.id}: {e}")
+    def normalize_containment(self):
+        """Recursively normalize the generic-feature hierarchy (gene-like
+        features: pseudogenes, ncRNA genes, structured mobile elements) so a
+        feature always contains its children. Only ever EXTENDS this feature's
+        span (never shrinks it), so it cannot drop a child's coverage. No-op when
+        disabled or childless. This is the ``LiftOn_FEATURE`` counterpart of the
+        ``Lifton_TRANS``/``Lifton_GENE`` containment normalization, so the
+        write-funnel call in ``Lifton_GENE.normalize_containment`` does not abort
+        the whole-genome write phase on a gene-like-feature child (Iter 24)."""
+        if not _containment_normalize_enabled() or not self.features:
+            return
+        for child in self.features.values():
+            fn = getattr(child, "normalize_containment", None)
+            if fn is not None:
+                fn()
+        self.entry.start = min([self.entry.start] + [c.entry.start for c in self.features.values()])
+        self.entry.end = max([self.entry.end] + [c.entry.end for c in self.features.values()])
 
-        for key, feature in self.features.items():
-            feature.write_entry(fw)
+    def write_entry(self, fw):
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_feature(self, fw)
 
     def print_feature(self):
         print(self.entry)
@@ -294,11 +341,11 @@ class Lifton_TRANS:
     def add_exon(self, gffutil_entry_exon):
         gffutil_entry_exon.attributes['Parent'] = [self.entry.id]
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
-        lifton_utils.custom_bisect_insert(self.exons, Lifton_exon)
+        coreutils.custom_bisect_insert(self.exons, Lifton_exon)
 
     def add_cds(self, gffutil_entry_cds):
         for exon in self.exons:
-            _, ovp = lifton_utils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
+            _, ovp = coreutils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
             if ovp:
                 gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
                 exon.add_cds(gffutil_entry_cds)
@@ -312,7 +359,7 @@ class Lifton_TRANS:
             exon_idx += 1
         return exon_idx
 
-    def update_cds_list(self, cds_list):
+    def update_cds_list(self, cds_list, optimize=False):
         idx_exon_itr = 0
         new_exons = []
         # Reverse CDS list if the strand is "-" => CDSs are in small to large order
@@ -337,7 +384,7 @@ class Lifton_TRANS:
             while idx_exon_itr < len(self.exons):
                 exon = self.exons[idx_exon_itr]
                 last_exon = exon
-                _, ovp = lifton_utils.segments_overlap_length(
+                _, ovp = coreutils.segments_overlap_length(
                     (exon.entry.start, exon.entry.end),
                     (only_cds.entry.start, only_cds.entry.end))
 
@@ -349,19 +396,28 @@ class Lifton_TRANS:
                     ovp_exons.append(cp_exon)
                 # |cccc|  |eeee|
                 elif exon.entry.start > only_cds.entry.end:
-                    processed_ovp_exons = True
-                    merged_exon = copy.deepcopy(exon)
-                    if len(ovp_exons) == 0:
-                        # CDS lies entirely before this exon and did not
-                        # overlap any earlier exon
-                        merged_exon.entry.start = only_cds.entry.start
-                        merged_exon.entry.end = only_cds.entry.end
+                    if optimize and processed_ovp_exons:
+                        # --optimize bug-fix: the CDS-bearing exon has ALREADY
+                        # been emitted; this is a further downstream exon (3' UTR).
+                        # The default path re-emits a duplicate CDS exon for EVERY
+                        # such exon (corrupting multi-exon transcripts whose CDS
+                        # spans only the leading exon(s)); under --optimize emit it
+                        # as a plain UTR exon instead.
+                        new_exons.append(exon)
                     else:
-                        merged_exon.entry.start = ovp_exons[0].entry.start
-                        merged_exon.entry.end = ovp_exons[-1].entry.end
-                    merged_exon.add_lifton_cds(only_cds)
-                    new_exons.append(merged_exon)
-                    new_exons.append(exon)
+                        processed_ovp_exons = True
+                        merged_exon = copy.deepcopy(exon)
+                        if len(ovp_exons) == 0:
+                            # CDS lies entirely before this exon and did not
+                            # overlap any earlier exon
+                            merged_exon.entry.start = only_cds.entry.start
+                            merged_exon.entry.end = only_cds.entry.end
+                        else:
+                            merged_exon.entry.start = ovp_exons[0].entry.start
+                            merged_exon.entry.end = ovp_exons[-1].entry.end
+                        merged_exon.add_lifton_cds(only_cds)
+                        new_exons.append(merged_exon)
+                        new_exons.append(exon)
                 idx_exon_itr += 1
             if not processed_ovp_exons:
                 # CDS extends to or past the end of all exons
@@ -428,7 +484,7 @@ class Lifton_TRANS:
                     exon_end   = self.exons[exon_idx].entry.end
                     cds_start  = cds_list[cds_idx].entry.start
                     cds_end    = cds_list[cds_idx].entry.end
-                    _, ovp = lifton_utils.segments_overlap_length(
+                    _, ovp = coreutils.segments_overlap_length(
                         (exon_start, exon_end), (cds_start, cds_end))
                     # Exon ends before CDS begins → emit exon as UTR
                     if exon_end < cds_start:
@@ -461,7 +517,7 @@ class Lifton_TRANS:
                     cds_start = cds_list[cds_idx].entry.start
                     cds_end   = cds_list[cds_idx].entry.end
                     exon_start = exon.entry.start
-                    _, ovp = lifton_utils.segments_overlap_length(
+                    _, ovp = coreutils.segments_overlap_length(
                         (exon.entry.start, exon.entry.end), (cds_start, cds_end))
                     if ovp:
                         # First overlap found — emit and move on
@@ -501,7 +557,7 @@ class Lifton_TRANS:
                 exon = self.exons[exon_idx]
                 exon_start = exon.entry.start
                 exon_end   = exon.entry.end
-                _, ovp = lifton_utils.segments_overlap_length(
+                _, ovp = coreutils.segments_overlap_length(
                     (exon_start, exon_end), (cds_start, cds_end))
                 if exon_end < cds_start:
                     exon_idx += 1
@@ -685,7 +741,7 @@ class Lifton_TRANS:
                         curr_orf_len = orf_idx_e - orf_idx_s
                         if curr_orf_len > max_orf_len[frame]:
                             max_orf_len[frame] = curr_orf_len
-                            best_orf_per_frame[frame] = lifton_class.Lifton_ORF(
+                            best_orf_per_frame[frame] = Lifton_ORF(
                                 orf_idx_s, orf_idx_e)
                         # Advance past this ORF to avoid nested duplicates
                         i = orf_idx_e
@@ -792,30 +848,60 @@ class Lifton_TRANS:
         return (3 - accum_cds_length%3)%3
 
     def write_entry(self, fw):
-        # V1.5 + V5.4-V5.6 + V5.9: route through canonical writer that
-        # percent-encodes reserved chars, sorts attributes (ID, Parent,
-        # alphabetical), and validates start <= end. Skip child writes
-        # if the parent fails so we don't ship orphan-Parent rows.
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except (OSError, ValueError, TypeError, AttributeError) as e:
-            logger.log_error(
-                f"Failed to write TRANSCRIPT entry {self.entry.id}: {e}"
-            )
-            return
-
-        # Write out the exons first
-        for exon in self.exons:
-            exon.write_entry(fw)
-        # Write out the CDSs second
-        for exon in self.exons:
-            if exon.cds is not None:
-                exon.cds.write_entry(fw)
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_trans(self, fw)
 
     def update_boundaries(self):
         self.entry.start = self.exons[0].entry.start
         self.entry.end = self.exons[-1].entry.end
+
+    def normalize_containment(self):
+        """Guarantee GFF3 parent-child containment for this transcript.
+
+        ORF-boundary patching / chaining can leave a CDS extending a few bp
+        past its exon (e.g. capturing a stop codon on a frameshift-corrected
+        RefSeq model) or rebuild the exons out of coordinate order, yielding
+        child features outside the mRNA span (invalid GFF3). A CDS must lie
+        within a transcribed exon, so extend the exon to cover its CDS; then
+        sort the exons and set the transcript span to the exon envelope. A
+        no-op on well-formed transcripts (exons already contain their CDS, are
+        already sorted, and the span already equals the envelope), so the
+        default output is byte-identical except on the previously-invalid
+        transcripts. Disable with LIFTON_NO_CONTAINMENT_NORMALIZE=1.
+        """
+        if not _containment_normalize_enabled() or not self.exons:
+            return
+        for exon in self.exons:
+            if exon.cds is not None:
+                if exon.cds.entry.start < exon.entry.start:
+                    exon.entry.start = exon.cds.entry.start
+                if exon.cds.entry.end > exon.entry.end:
+                    exon.entry.end = exon.cds.entry.end
+        self.exons.sort(key=lambda e: (e.entry.start, e.entry.end))
+        self.entry.start = min(e.entry.start for e in self.exons)
+        self.entry.end = max(e.entry.end for e in self.exons)
+        # Ensure exon IDs are unique within the transcript. The chaining can
+        # rebuild the exon structure while reusing stale reference "exon-<acc>-N"
+        # IDs, producing DUPLICATE exon IDs (invalid GFF3 — the dominant validator
+        # error). Re-number 5'->3' from the shared base, but ONLY when a real
+        # collision exists, so well-formed transcripts (already-unique, strand-
+        # ordered IDs) are left untouched / byte-identical.
+        exon_ids = [e.entry.id for e in self.exons]
+        if len(set(exon_ids)) != len(exon_ids):
+            base = None
+            for e in self.exons:
+                m = re.match(r"^(.*)-\d+$", e.entry.id or "")
+                if m:
+                    base = m.group(1)
+                    break
+            if base is None:
+                base = "exon-" + (self.entry.id or "")
+            ordered = sorted(self.exons, key=lambda e: e.entry.start,
+                             reverse=(self.entry.strand == "-"))
+            for i, exon in enumerate(ordered, 1):
+                new_id = f"{base}-{i}"
+                exon.entry.id = new_id
+                exon.entry.attributes["ID"] = [new_id]
 
     def print_transcript(self):
         print(f"\t{self.entry}")
@@ -860,12 +946,8 @@ class Lifton_EXON:
         self.cds = Lifton_cds
 
     def write_entry(self, fw):
-        # Route through canonical writer (V5.4-V5.6, V5.9).
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write EXON entry {self.entry.id}: {e}")
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_exon(self, fw)
 
     def print_exon(self):
         print(f"\t\t{self.entry}")
@@ -886,12 +968,8 @@ class Lifton_CDS:
         self.entry.end = end
 
     def write_entry(self, fw):
-        # Route through canonical writer (V5.4-V5.6, V5.9).
-        from lifton.io import gff3_writer
-        try:
-            fw.write(gff3_writer.format_feature(self.entry) + "\n")
-        except Exception as e:
-            logger.log_error(f"Failed to write CDS entry {self.entry.id}: {e}")
+        # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
+        feature_serializer.write_cds(self, fw)
 
     def print_cds(self):
         print(f"\t\t{self.entry}")

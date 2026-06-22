@@ -216,7 +216,9 @@ class TestNativeDispatcher:
 # ---------------------------------------------------------------------------
 
 class TestRoutingDispatch:
-    def test_native_flag_routes_to_native_path(self, monkeypatch):
+    def test_native_flag_routes_to_native_path_when_opted_in(self, monkeypatch):
+        """Iteration 7: the in-process mappy Liftoff path is now OPT-IN via
+        LIFTON_NATIVE_LIFTOFF_ALIGN=1 (not implied by --native)."""
         from lifton.liftoff import align_features
         called = {"native": 0, "legacy": 0}
 
@@ -224,19 +226,11 @@ class TestRoutingDispatch:
             called["native"] += 1
             return {}
 
-        def fake_legacy(*a, **k):
-            called["legacy"] += 1
-            return {}
-
         monkeypatch.setattr(
             "lifton.liftoff.native_align.align_features_to_target_native",
             fake_native,
         )
-        # Replace the body of the legacy fallback so we can detect routing
-        monkeypatch.setattr(align_features, "split_target_sequence",
-                            lambda *a, **k: {})
-        monkeypatch.setattr(align_features, "get_genome_size",
-                            lambda *a, **k: 1)
+        monkeypatch.setenv("LIFTON_NATIVE_LIFTOFF_ALIGN", "1")
 
         args = SimpleNamespace(
             native=True, subcommand=None, target="t.fa",
@@ -248,6 +242,50 @@ class TestRoutingDispatch:
             "chrm_by_chrm", [],
         )
         assert called["native"] == 1
+
+    def test_native_flag_alone_uses_subprocess_liftoff(self, monkeypatch):
+        """Plain --native (no opt-in env) must NOT route Liftoff alignment to
+        the inferior mappy path — it falls back to the subprocess path."""
+        from lifton.liftoff import align_features
+        called = {"native": 0}
+
+        def spy_native(*a, **k):
+            called["native"] += 1
+            return {}
+
+        monkeypatch.setattr(
+            "lifton.liftoff.native_align.align_features_to_target_native",
+            spy_native,
+        )
+        monkeypatch.delenv("LIFTON_NATIVE_LIFTOFF_ALIGN", raising=False)
+        # Stub the subprocess-path internals so the call returns without
+        # actually spawning minimap2.
+        monkeypatch.setattr(align_features, "split_target_sequence",
+                            lambda *a, **k: {})
+        monkeypatch.setattr(align_features, "get_genome_size",
+                            lambda *a, **k: 1)
+        monkeypatch.setattr(align_features, "parse_all_sam_files",
+                            lambda *a, **k: {})
+
+        class _NoPool:
+            def __init__(self, *a, **k): pass
+            def imap_unordered(self, *a, **k): return []
+            def close(self): pass
+            def join(self): pass
+        monkeypatch.setattr(align_features, "Pool", _NoPool)
+
+        args = SimpleNamespace(
+            native=True, subcommand=None, target="t.fa",
+            mm2_options="", threads=1, directory="/tmp",
+        )
+        align_features.align_features_to_target(
+            ["chr1"], ["chr1"], args,
+            _FakeFeatureHierarchy({}, {}),
+            "chrm_by_chrm", [],
+        )
+        assert called["native"] == 0, (
+            "plain --native must use subprocess Liftoff, not the mappy path"
+        )
 
     def test_polish_subcommand_uses_legacy_even_with_native(self, monkeypatch):
         """The polish path requires a real SAM file on disk; --native

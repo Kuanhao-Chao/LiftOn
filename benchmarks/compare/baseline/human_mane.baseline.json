@@ -1,0 +1,7 @@
+{
+  "benchmark": "human_mane",
+  "protein_identity_mean": 0.99425,
+  "completeness_coding": 0.99764,
+  "completeness_feature_total": 0.99764,
+  "wall_clock_seconds": 21.19
+}

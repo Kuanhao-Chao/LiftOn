@@ -51,6 +51,77 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
     return b"".join(stdout_chunks), b"".join(stderr_chunks), rc
 
 
+def _resolve_miniprot_threads(threads):
+    """Resolve the miniprot thread count, honouring the LIFTON_MINIPROT_THREADS
+    escape hatch (Iteration 17).
+
+    Returns the integer thread count to request via ``-t``, or ``None`` to
+    request none (leaving miniprot at its own hard-coded binary default of 4 —
+    the pre-Iteration-17 behaviour). Semantics:
+
+      * env unset                 -> use ``threads`` (LiftOn's -t/--threads
+                                     budget), but gated to ``> 1`` so the
+                                     default ``-t 1`` run emits NO ``-t`` and is
+                                     byte-identical to the pre-Iteration-17
+                                     command.
+      * LIFTON_MINIPROT_THREADS=0 -> None (never add ``-t``; reproduces the old
+                                     fixed default — the clean A/B baseline /
+                                     opt-out).
+      * LIFTON_MINIPROT_THREADS=k -> k for k>=1 (explicit override that bypasses
+                                     the ``> 1`` gate so an A/B or user can pin
+                                     any count, including 1).
+
+    A non-integer env value is ignored (falls back to ``threads``) so a typo
+    cannot crash a run.
+    """
+    raw = os.environ.get("LIFTON_MINIPROT_THREADS")
+    if raw is not None and raw != "":
+        try:
+            forced = int(raw)
+        except (TypeError, ValueError):
+            forced = None
+        if forced is not None:
+            if forced <= 0:
+                return None          # =0 -> reproduce the old fixed default
+            return forced            # =k -> explicit override (bypasses gate)
+    # env unset / unparseable: use the LiftOn budget, gated to >1 so the
+    # default -t1 invocation is byte-identical (no -t emitted -> miniprot's
+    # own default of 4 threads, exactly as before Iteration 17).
+    try:
+        n = int(threads)
+    except (TypeError, ValueError):
+        n = 1
+    return n if n > 1 else None
+
+
+def _build_miniprot_command(miniprot_path, tgt_genome, ref_proteins_file,
+                            mp_options, threads):
+    """Build the miniprot subprocess command list (Iteration 17).
+
+    Plumbs LiftOn's -t/--threads into miniprot's own ``-t`` so it scales past
+    its hard-coded binary default of 4 threads. Previously miniprot ran at 4
+    regardless of LiftOn's -t, becoming the serial tail of the concurrent
+    Step 4 on cross-species data (where miniprot does heavy protein alignment).
+
+    The thread flag is appended only when BOTH:
+      * a thread count is resolved (see :func:`_resolve_miniprot_threads`), AND
+      * the user has not already supplied an explicit ``-t`` in ``mp_options``
+        (matched by an EXACT-token / glued-token check ``opt.startswith("-t")``
+        — NOT a bare substring, so ``--trans`` does not false-positive and
+        silently suppress the flag, and ``-t8`` / ``-t 8`` are both respected).
+
+    The default -t1 run resolves to ``None`` -> no ``-t`` added -> byte-identical
+    to the pre-Iteration-17 command.
+    """
+    opts = [opt for opt in mp_options.split(" ") if opt]
+    command = [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file] + opts
+    n = _resolve_miniprot_threads(threads)
+    user_set_threads = any(opt.startswith("-t") for opt in opts)
+    if n is not None and not user_set_threads:
+        command += ["-t", str(n)]
+    return command
+
+
 def check_miniprot_installed():
     """
         This function checks if miniprot is installed.
@@ -118,12 +189,10 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
-    print("args.mp_options: ", args.mp_options)
-    command = (
-        [miniprot_path, "--gff-only", tgt_genome, ref_proteins_file]
-        + [opt for opt in args.mp_options.split(" ") if opt]
+    command = _build_miniprot_command(
+        miniprot_path, tgt_genome, ref_proteins_file,
+        args.mp_options, getattr(args, "threads", 1),
     )
-    print("miniprot: ", " ".join(command))
 
     stream_mode = bool(getattr(args, "stream", False))
     native_mode = bool(getattr(args, "native", False))
@@ -143,6 +212,7 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
                     mp_options=args.mp_options,
                     miniprot_path=miniprot_path,
                     ref_proteins_path=ref_proteins_file,
+                    threads=getattr(args, "threads", 1),
                 )
                 bundle = idx.align_all()
                 stdout_bytes = bundle.raw_bytes
@@ -283,6 +353,16 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     return lifton_gene, Lifton_trans, Lifton_trans.entry.id, lifton_status
 
 
+def _miniprot_rescue_band_ok(ratio, args):
+    """Iteration 22: is `ratio` inside the (wider) miniprot-only-rescue length
+    band? Consulted ONLY when --miniprot-rescue is ON, for candidates that fall
+    outside the default -min_miniprot/-max_miniprot band. The rescue quality
+    gate is the protein-identity floor, not this band (the band is just a sanity
+    bound against catastrophically mis-scaled miniprot hits)."""
+    lo, hi = getattr(args, "miniprot_rescue_len", (0.5, 2.0))
+    return lo < ratio < hi
+
+
 def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args):
     if m_feature_db is None:
         return None
@@ -308,6 +388,12 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
                     lifton_gene, lifton_trans, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
                     lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
                 else: # Invalid miniprot transcript
+                    # Iteration 23: miniprot-only rescue for genuinely-missing
+                    # genes (ratio outside the default band) is no longer done
+                    # in-loop -- it mutated the shared Step-8 suppression
+                    # tree_dict mid-loop (off ⊄ on). It now runs as a separate
+                    # post-Step-8 pass (lifton.miniprot_rescue) so this default
+                    # decision is independent of --miniprot-rescue (off ⊆ on).
                     return None
             else: # Skip those cannot be found in reference.
                 return None
