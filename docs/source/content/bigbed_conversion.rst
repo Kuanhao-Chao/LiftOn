@@ -1,7 +1,7 @@
 
 |
 
-.. _output_files:
+.. _bigbed_conversion:
 
 bigBed conversion
 =====================
