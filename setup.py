@@ -38,7 +38,6 @@ setuptools.setup(
 		"Operating System :: POSIX :: Linux",
 		"Operating System :: MacOS :: MacOS X",
 		"Programming Language :: Python :: 3",
-		"Programming Language :: Python :: 3.9",
 		"Programming Language :: Python :: 3.10",
 		"Programming Language :: Python :: 3.11",
 		"Programming Language :: Python :: 3.12",
@@ -68,11 +67,12 @@ setuptools.setup(
 		'lifton.gffbase._rust': ['Cargo.toml', 'Cargo.lock'],
 		'lifton.gffbase._rust.src': ['*.rs'],
 	},
-	# Realistic floor (was '>=3.6'): the code uses PEP-585 builtin generics
-	# (list[...]/dict[...]) which are native in 3.9, and PEP-604 X|None
-	# annotations guarded by `from __future__ import annotations`. The dev env
-	# and CI run 3.11 (lifton.yml). >=3.9 drops only EOL Pythons 3.6-3.8.
-	python_requires='>=3.9',
+	# Realistic floor (was '>=3.6'): a runtime dependency, networkx>=3.3,
+	# requires Python>=3.10, so 3.10 is the true minimum (and 3.9 reached EOL in
+	# 2025-10). The code itself uses PEP-585 builtin generics (list[...]/dict[...])
+	# and PEP-604 X|None annotations guarded by `from __future__ import
+	# annotations`. The dev env and CI run 3.11 (lifton.yml).
+	python_requires='>=3.10',
 	packages=setuptools.find_packages(),
 	entry_points={'console_scripts': [
             'lifton = lifton.lifton:main',

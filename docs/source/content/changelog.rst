@@ -100,7 +100,7 @@ list.
 
 **Packaging:**
 
-- Python floor raised to ``>=3.9`` (drops EOL Pythons 3.6–3.8).
+- Python floor raised to ``>=3.10`` (the ``networkx>=3.3`` dependency requires Python ≥3.10; 3.9 is EOL).
 - ``mappy`` is an optional dependency enabling the in-process ``--native`` path;
   the runtime falls back gracefully when it is absent.
 - Added ``MANIFEST.in``, ``pyproject.toml`` (PEP 517/518 build config), and PyPI
