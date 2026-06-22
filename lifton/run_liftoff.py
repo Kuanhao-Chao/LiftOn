@@ -4,7 +4,6 @@ import gffutils
 from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnInputError
 from lifton.liftoff import liftoff_main
-from lifton.liftoff.tests import test_basic, test_advanced
 from intervaltree import Interval, IntervalTree
 
 def run_liftoff(output_dir, ref_db, args):

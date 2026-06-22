@@ -18,6 +18,7 @@ benchmarks/compare/*.bak
 benchmarks/compare/run_optab.py
 benchmarks/compare/run_optab_eval.py
 benchmarks/compare/score_abc.py
+benchmarks/logs/
 
 # Large publication binaries (kept locally, out of git history)
 *.pdf

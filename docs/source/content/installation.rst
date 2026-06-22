@@ -14,31 +14,61 @@ System requirements
 
 .. admonition:: Software dependency
 
-   * python >= 3.8.0
+   * python >= 3.9       (the floor was raised to 3.9 in v1.0.9; EOL Pythons 3.6-3.8 are no longer supported)
    * numpy >= 1.22.0
    * gffutils >= 0.10.1
    * biopython>=1.76
    * cigar >= 0.1.3
    * parasail>=1.2.4
    * intervaltree>=3.1.0
-   * networkx>=2.4
+   * networkx>=3.3
    * interlap>=0.2.6
    * miniprot >= 0.10.0
    * pyfaidx>=0.5.8
    * pysam>=0.19.1
    * ujson>=3.2.0
+   * duckdb>=1.0
+   * pyarrow>=14
+   * mappy   (*optional* — only needed for the in-process ``--native`` path)
 
-These dependencies will be automatically installed when you install LiftOn through pip or conda. The only exception is **miniprot**. Since miniprot is not on PyPi, you will need to install it manually. Please check out the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ on `GitHub <https://github.com/lh3/miniprot>`_.
+These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe is planned). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. Two exceptions: **mappy** is optional (only the ``--native`` path needs it), and **miniprot**. Since miniprot is not on PyPi, you will need to install it manually. Please check out the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ on `GitHub <https://github.com/lh3/miniprot>`_.
 
 .. admonition:: Version warning
    :class: important
 
-   If your numpy version is >= 1.25.0, then it requires Python version >= 3.9. 
-   
+   LiftOn requires **Python >= 3.9** (v1.0.9 raised the floor from 3.6 to 3.9).
+
+   If your numpy version is >= 1.25.0, then it requires Python version >= 3.9.
+
    Check out the scientific python ecosystem coordination guideline `SPEC 0 <https://scientific-python.org/specs/spec-0000/>`_ — Minimum Supported Versions to configure the package version compatibility.
 
-   
-..       $ conda create -n myenv python=3.10
+
+.. admonition:: Native dependencies — use conda
+   :class: note
+
+   Several runtime dependencies ship as compiled extensions (``parasail``,
+   ``pysam``, ``pyfaidx``, ``gffutils``, ``duckdb``, ``pyarrow``). On
+   **macOS / Apple Silicon (ARM)**, ``pip install parasail`` fails to build
+   from source — install via **conda** (bioconda / conda-forge) instead, which
+   ships pre-built wheels:
+
+   .. code-block:: bash
+
+      $ conda create -n lifton -y python=3.11
+      $ conda activate lifton
+      $ conda install -y -c bioconda -c conda-forge \
+            parasail-python pysam pyfaidx gffutils intervaltree \
+            biopython networkx ujson cigar duckdb pyarrow
+      $ pip install mappy     # optional — only for the --native path
+      $ pip install lifton
+
+   ``mappy`` is **optional**: it enables the in-process ``--native`` minimap2 /
+   miniprot path. If it is not installed, ``--native`` falls back gracefully to
+   the subprocess path.
+
+   The vendored ``gffbase`` backend runs **pure-Python by default** (no
+   pre-built ``.so`` ships in the package), so no Rust toolchain is required to
+   install or run LiftOn.
 
 |
 
@@ -121,81 +151,46 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.0
+      v1.0.9
 
-      usage: lifton [-h] [-E] [-c] [-o FILE] [-u FILE] [-exclude_partial] [-mm2_options =STR] [-a A] [-s S] [-d D] [-flank F] [-V] [-D] [-t THREADS]
-                  [-m PATH] [-f TYPES] [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT] [-copies] [-sc SC] [-overlap O] [-mismatch M]
-                  [-gap_open GO] [-gap_extend GE] [-polish] [-cds] -g GFF [-P FASTA] [-T FASTA] [-L gff] [-M gff]
-                  target reference
+      usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE]
+                    [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A]
+                    [-s S] [-min_miniprot MIN_MINIPROT] [-max_miniprot MAX_MINIPROT]
+                    [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH] [-f TYPES]
+                    [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT]
+                    [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO]
+                    [-gap_extend GE] [-polish] [-cds] [-time] [--validate-output]
+                    [--validate-verbose] [--strict-gff] [--stream] [--inmemory-liftoff]
+                    [--locus-pipeline] [--native] [--serial-aligners] [--legacy-merge]
+                    [--full-dp-align] [--gene-only] [--no-miniprot-rescue]
+                    [--no-auto-convert-gtf] -g GFF [-P FASTA] [-T FASTA] [-L gff]
+                    [-M gff] target reference
 
-      Lift features from one genome assembly to another
+      Lift features from one genome assembly to another.
 
-      * Required input (sequences):
-      target                target fasta genome to lift genes to
-      reference             reference fasta genome to lift genes from
+      Run `lifton -h` for the complete option list. The full, current flag
+      reference -- every option's default, which flags CHANGE the output vs. the
+      byte-identical fast-paths, and the kept no-op aliases -- is documented in
+      the User Manual / Function manual page. The most-used v1.0.9 options:
 
-      * Required input (Reference annotation):
-      -g GFF, --reference-annotation GFF
-                              the reference annotation file to lift over in GFF or GTF format (or) name of feature database; if not specified, the -g
-                              argument must be provided and a database will be built automatically
+        Output-changing defaults (each ships with an opt-out flag):
+          (default) lift all gene-like types ......... --gene-only
+          (default) miniprot-only rescue ............. --no-miniprot-rescue
+          (default) best-of-outcome merge ............ --legacy-merge
+          (default) banded / windowed alignment ...... --full-dp-align
 
-      * Optional input (Reference sequences):
-      -P FASTA, --proteins FASTA
-                              the reference protein sequences.
-      -T FASTA, --transcripts FASTA
-                              the reference transcript sequences.
+        Byte-identical fast-paths (output unchanged; pinned by the 24-cell matrix):
+          --threads N --locus-pipeline, --stream, --inmemory-liftoff, --native,
+          --serial-aligners
 
-      * Optional input (Liftoff annotation):
-      -L gff, --liftoff gff
-                              the annotation generated by Liftoff (or) name of Liftoff gffutils database; if not specified, the -liftoff argument must be
-                              provided and a database will be built automatically
+        Validation:
+          --strict-gff (reference, input side),
+          --validate-output / --validate-verbose (emitted GFF3)
 
-      * Optional input (miniprot annotation):
-      -M gff, --miniprot gff
-                              the annotation generated by miniprot (or) name of miniprot gffutils database; if not specified, the -miniprot argument must
-                              be provided and a database will be built automatically
-
-      * Output settings:
-      -o FILE, --output FILE
-                              write output to FILE in same format as input; by default, output is written to "lifton.gff3"
-      -u FILE               write unmapped features to FILE; default is "unmapped_features.txt"
-      -exclude_partial      write partial mappings below -s and -a threshold to unmapped_features.txt; if true partial/low sequence identity mappings
-                              will be included in the gff file with partial_mapping=True, low_identity=True in comments
-
-      * Miscellaneous settings:
-      -h, --help            show this help message and exit
-      -E, --evaluation      Run LiftOn in evaluation mode
-      -c, --write_chains    Write chaining files
-      -V, --version         show program version
-      -D, --debug           Run debug mode
-      -t THREADS, --threads THREADS
-                              use t parallel processes to accelerate alignment; by default p=1
-      -m PATH               Minimap2 path
-      -f TYPES, --features TYPES
-                              list of feature types to lift over
-      -infer-genes          use if annotation file only includes transcripts, exon/CDS features
-      -infer_transcripts    use if annotation file only includes exon/CDS features and does not include transcripts/mRNA
-      -chroms TXT           comma seperated file with corresponding chromosomes in the reference,target sequences
-      -unplaced TXT         text file with name(s) of unplaced sequences to map genes from after genes from chromosomes in chroms.txt are mapped;
-                              default is "unplaced_seq_names.txt"
-      -copies               look for extra gene copies in the target genome
-      -sc SC                with -copies, minimum sequence identity in exons/CDS for which a gene is considered a copy; must be greater than -s; default
-                              is 1.0
-      -overlap O            maximum fraction [0.0-1.0] of overlap allowed by 2 features; by default O=0.1
-      -mismatch M           mismatch penalty in exons when finding best mapping; by default M=2
-      -gap_open GO          gap open penalty in exons when finding best mapping; by default GO=2
-      -gap_extend GE        gap extend penalty in exons when finding best mapping; by default GE=1
-      -polish
-      -cds                  annotate status of each CDS (partial, missing start, missing stop, inframe stop codon)
-
-      Alignments:
-      -mm2_options =STR     space delimited minimap2 parameters. By default ="-a --end-bonus 5 --eqx -N 50 -p 0.5"
-      -a A                  designate a feature mapped only if it aligns with coverage ≥A; by default A=0.5
-      -s S                  designate a feature mapped only if its child features (usually exons/CDS) align with sequence identity ≥S; by default S=0.5
-      -d D                  distance scaling factor; alignment nodes separated by more than a factor of D in the target genome will not be connected in
-                              the graph; by default D=2.0
-      -flank F              amount of flanking sequence to align as a fraction [0.0-1.0] of gene length. This can improve gene alignment where gene
-                              structure differs between target and reference; by default F=0.0
+        Core mapping thresholds (unchanged):
+          -a 0.5 (coverage), -s 0.5 (sequence identity), -overlap 0.1,
+          -d 2.0 (distance scaling), -flank 0.0,
+          -mm2_options "-a --end-bonus 5 --eqx -N 50 -p 0.5"
 |
 
 .. _installation-complete:
