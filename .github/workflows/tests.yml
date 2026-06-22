@@ -39,7 +39,7 @@ jobs:
     # 2026-06-16, removed fall 2026); bumping now clears the deprecation warning
     # and is future-proof. cache: pip restores ~/.cache/pip (keyed on setup.py)
     # so the from-sdist mappy build isn't repeated on every run.
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
