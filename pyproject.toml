@@ -7,5 +7,5 @@
 # `pkg_resources`, which setuptools 81 removed. Raising this ceiling re-breaks
 # the cigar build (CI pre-builds cigar with setuptools<81 for the same reason).
 [build-system]
-requires = ["setuptools>=61,<81", "wheel"]
+requires = ["setuptools>=82.0.1,<83", "wheel"]
 build-backend = "setuptools.build_meta"
