@@ -77,8 +77,8 @@ LiftOn's tutorial
 .. image:: https://img.shields.io/badge/License-GPLv3-yellow.svg
     :target: https://img.shields.io/badge/License-GPLv3-yellow.svg
 
-.. image:: https://img.shields.io/badge/version-v.0.0.1-blue
-    :target: https://img.shields.io/badge/version-v.0.0.1-blue
+.. image:: https://img.shields.io/badge/version-v1.0.9-blue
+    :target: https://img.shields.io/badge/version-v1.0.9-blue
 
 .. image:: https://static.pepy.tech/personalized-badge/lifton?period=total&units=abbreviation&left_color=grey&right_color=blue&left_text=PyPi%20downloads
     :target: https://pepy.tech/project/lifton
@@ -242,6 +242,7 @@ Table of contents
     content/bigbed_conversion
     content/feature_counting
     content/evaluation_metrics
+    content/benchmarks
     content/behind_scenes
     content/how_to_page
     content/function_manual

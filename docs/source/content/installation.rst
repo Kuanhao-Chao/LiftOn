@@ -31,7 +31,7 @@ System requirements
    * pyarrow>=14
    * mappy   (*optional* — only needed for the in-process ``--native`` path)
 
-These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe is planned). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. Two exceptions: **mappy** is optional (only the ``--native`` path needs it), and **miniprot**. Since miniprot is not on PyPi, you will need to install it manually. Please check out the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ on `GitHub <https://github.com/lh3/miniprot>`_.
+These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe has been submitted and is under review). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. Two exceptions: **mappy** is optional (only the ``--native`` path needs it), and **miniprot**. Since miniprot is not on PyPi, you will need to install it manually. Please check out the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ on `GitHub <https://github.com/lh3/miniprot>`_.
 
 .. admonition:: Version warning
    :class: important
@@ -93,11 +93,11 @@ LiftOn is on `PyPi <https://pypi.org/project/lifton/>`_ now. Check out all the r
 Install through conda
 -------------------------------
 
-Installing LiftOn through bioconda. It will also automatically install all the dependencies required by LiftOn.
+A bioconda recipe for LiftOn has been **submitted and is under review**. Once it
+is merged, the command below will install LiftOn together with all of its
+dependencies:
 
 .. code-block:: bash
-   
-   TBC
 
    $ conda install -c bioconda lifton
 
