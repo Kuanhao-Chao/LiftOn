@@ -27,8 +27,9 @@ Accuracy
 
 Across all 17 whole genomes, LiftOn v1.0.9 produces protein annotations whose
 identity to the reference is **at least as high as the best single-method
-baseline on every genome**, and the lead grows with evolutionary distance (where
-the DNA lift and the protein lift each capture complementary signal). On
+baseline on every genome**, and that lead over the single-method baselines grows
+with evolutionary distance (where the DNA lift and the protein lift each capture
+complementary signal). On
 *Drosophila*, for example, LiftOn v1.0.9 reaches a mean protein identity of
 **0.922**, ahead of miniprot (0.913) and Liftoff (0.887), and slightly ahead of
 v1.0.8 (0.921).
@@ -92,12 +93,15 @@ the in-tree ``gff3-validate``:
 - LiftOn v1.0.9 reports **0 validation errors on 9 of the 17 whole genomes**
   (bee, *Drosophila*, human→zebrafish, human→gorilla, human→macaque,
   human→marmoset, human→chicken, human→xenopus, *Drosophila*\ →bee).
-- On **all 17** genomes, v1.0.9's error count is **lower than or equal to every
-  other tool**, often dramatically (e.g. dog→cat **159 → 15**, *Drosophila*
-  **150 → 0**, the five human cross-species **~107–150 → 0**).
+- On **all 17** genomes, v1.0.9 emits **fewer errors than the DNA-only Liftoff**,
+  and it is **dramatically cleaner than v1.0.8 on every genome both versions
+  produced** (e.g. dog→cat **159 → 15**, *Drosophila* **150 → 0**, all six human
+  cross-species **107–150 → 0**). (miniprot's count is pinned at the validator's
+  50-issues-per-check reporting cap, so it is not directly comparable on the
+  high-error plant genomes.)
 - The residuals on organellar-gene-bearing plant genomes are
   **reference-inherited**, not LiftOn-introduced: the TAIR10 *Arabidopsis*
-  reference itself carries **164** such errors — more than LiftOn's lifted
+  reference itself carries **159** such errors — more than LiftOn's lifted
   output (**49**).
 
 .. figure:: ../_images/rfig_full_validity.png
