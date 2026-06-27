@@ -1,0 +1,77 @@
+{/*
+  DRAFT report section for the v1.0.9 technical report — "Broader comparison: coordinate
+  LiftOver and CAT". Ready to drop in as §3.8 (after §3.7 Output validity, before §4 Discussion).
+  NOT yet integrated/deployed — awaiting approval.
+
+  To integrate:
+    1. copy benchmarks/compare/figures/extcompare/rfig_extcompare.png
+       -> Kuanhao-Chao.github.io/src/assets/reports/lifton-v1.0.9-technical-report/
+    2. add to the import block (~line 83):
+         import extcompare from '../../assets/reports/lifton-v1.0.9-technical-report/rfig_extcompare.png';
+    3. paste the body below as §3.8; renumber §4/§5/§6 are unaffected (3.8 is the last 3.x).
+*/}
+
+### 3.8 Broader comparison: coordinate LiftOver and CAT
+
+The seventeen-genome study above compares the three **homology lift-over** tools that take only a
+reference genome, its annotation, and a target genome. Two widely-used tools sit *outside* that
+input class, and a representative sub-study places LiftOn against them on equal, tool-neutral
+footing: **coordinate LiftOver** (CrossMap projecting the reference annotation through a
+chain) and the **Comparative Annotation Toolkit (CAT)**. Both are alignment-based: they require a
+precomputed **whole-genome Cactus alignment** of the pair (LiftOver consumes a chain extracted
+from it; CAT consumes the HAL directly). We built that alignment ourselves per pair and re-scored
+every tool with the same parasail kernel used throughout. The sub-study was scoped to five
+representative pairs, one per divergence tier; **the result is as much about feasibility as about
+accuracy.**
+
+**Where the alignment-based tools can run, LiftOn leads and LiftOver is out-of-class.** The
+Cactus alignment converged only on the two least-divergent pairs — same-species maize B73→Mo17 and
+close human→gorilla. There, LiftOn v1.0.9 has the highest re-scored protein identity (Table 11), as
+in the main study, while coordinate LiftOver behaves exactly as its mechanism predicts: it lifts
+**most features** (99.4% of reference coding transcripts on human→gorilla, 85.5% on the
+structurally-variable maize pair) but its re-translated CDS scores **well below even the DNA-only
+Liftoff** (0.920 vs 0.963 on gorilla; 0.841 vs 0.917 on maize) because coordinate projection does
+**not correct frame**. Reported honestly as a *dual* metric — a high feature-lift rate and a low
+protein identity (Fig. 7C) — LiftOver is a complementary coordinate tool, not a rival annotation
+lift-over method: it answers "where does this interval land?", not "what is the correct gene model
+on the target?".
+
+**Where divergence is high — the regime that matters most — the alignment-based tools cannot run
+at all.** On the three divergent pairs (dog→cat, *Arabidopsis*→rice, human→chicken), building the
+required Cactus alignment was **intractable**. `cactus_consolidated` exhausts memory
+super-linearly with divergence: a clean dog→cat subset run was issued **279 GB** for the
+consolidation job and still aborted (`Cannot allocate memory`), and a final attempt at **700 GB
+of memory on a 1 TB machine OOMed again** — a ~700× blow-up for a 380 MB subset, driven by the
+divergent all-vs-all alignment graph (not by masking: the inputs are 46–49% soft-masked). dog→cat
+is the *smallest* of the three divergent subsets, so the larger, more divergent *Arabidopsis*→rice
+and human→chicken are at least as infeasible. CAT compounds this: even on the close human→gorilla
+HAL it completed only 18 of 21 of its luigi tasks before its internal toil sub-workflows
+(chaining, hint generation) failed, so CAT yields no scorable annotation here at all. The homology
+lift-over tools, by contrast, **already ran on all three divergent pairs** as whole genomes
+(Table 5: LiftOn v1.0.9 reaches 0.871 dog→cat, 0.551 *Arabidopsis*→rice, 0.774 human→chicken)
+because they need only `(reference, reference-annotation, target)` and no precomputed alignment.
+
+This is the sharpest statement of the input-class distinction that runs through the whole report.
+The alignment-based comparison class — CAT and chain-based LiftOver — is **gated by a
+whole-genome alignment that does not scale to divergence**, exactly the regime where annotation
+transfer is hardest and a dual-evidence method is most valuable. LiftOn occupies the other class:
+it builds its own DNA and protein evidence from the raw genomes, runs on every pair from
+same-species to mammal→bird, and leads on accuracy wherever a head-to-head is even possible.
+
+**Table 11.** Broader-comparison sub-study (chromosome-subset, tool-neutral re-score), on the two
+pairs where the required Cactus alignment was tractable. LiftOver is shown with its *dual* metric:
+re-scored protein identity (no frame correction) and feature-lift rate. *miniprot* is the protein
+evidence (context). The three divergent pairs admit no LiftOver/CAT column — the Cactus alignment
+both require could not be built.
+
+| Pair | Tier | Liftoff | v1.0.8 | **v1.0.9** | LiftOver (protein id) | LiftOver (feature-lift rate) | *miniprot* | Cactus |
+|---|---|---:|---:|---:|---:|---:|---:|:--|
+| maize B73→Mo17 | same-species | 0.917 | 0.946 | **0.950** | 0.841 | 0.855 | *0.938* | ✅ |
+| human→gorilla | close | 0.963 | 0.974 | **0.979** | 0.920 | 0.994 | *0.964* | ✅ |
+| dog→cat | distant | *(see Table 5)* | | | — | — | | ❌ cons > 700 GB |
+| *Arabidopsis*→rice | very-distant | *(see Table 5)* | | | — | — | | ❌ cons > 279 GB |
+| human→chicken | very-distant | *(see Table 5)* | | | — | — | | ❌ |
+
+<ZoomFigure src={extcompare} alt="Three panels on the two tractable subset pairs (maize same-species, human-gorilla close). (A) Mean protein identity: LiftOn v1.0.9 highest on both, LiftOver (grey, hatched) lowest. (B) Coding completeness: all high except LiftOver, miniprot evidence marked. (C) LiftOver dual metric: feature-lift rate (high) versus re-translated protein identity (low), showing it lifts most features but cannot preserve reading frame. The three divergent pairs are absent because their Cactus alignment was intractable (>700 GB)." variant="wide">
+  <strong>Figure 7.</strong> Broader comparison against out-of-class tools, on the two pairs where the Cactus alignment LiftOver and CAT require was tractable. <strong>(A)</strong> Mean protein identity — LiftOn v1.0.9 leads; coordinate LiftOver scores below even the DNA-only Liftoff. <strong>(B)</strong> Coding completeness, with the miniprot protein evidence as context. <strong>(C)</strong> LiftOver's honest dual metric — it lifts most reference features yet its re-translated CDS scores low, because coordinate projection does not correct frame. CAT yielded no scorable annotation even here (its toil sub-workflows fail), and on the three divergent pairs neither tool could run: <code>cactus_consolidated</code> needs &gt;700 GB for a 380 MB divergent subset. The homology lift-over tools ran on all of those pairs as whole genomes (Table 5).
+</ZoomFigure>
