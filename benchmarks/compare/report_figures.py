@@ -583,12 +583,14 @@ def fig_full_accuracy(fw):
     axA = fig.add_subplot(gs[0, 0])
     axB = fig.add_subplot(gs[0, 1])
 
-    # (A) four-way mean protein identity
+    # (A) headline accuracy — the three homology lift-over tools. miniprot is
+    # LiftOn's internal protein evidence (not a rival lift-over tool); its
+    # accuracy context lives in the dedicated protein-evidence figure, not here.
     _tier_bands(axA, recs)
-    for i, t in enumerate(mr.TOOLS):
+    for i, t in enumerate(mr.HEADLINE_TOOLS):
         vals = [r["mean_pi"].get(t) if isinstance(r["mean_pi"].get(t), float) else 0
                 for r in recs]
-        axA.barh(y + (1.5 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
+        axA.barh(y + (1 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
                  label=LABEL[t])
     axA.set_yticks(y)
     axA.set_yticklabels(labels, fontsize=9)
@@ -597,7 +599,7 @@ def fig_full_accuracy(fw):
     axA.set_xlabel("mean protein identity (tool-neutral parasail re-score)")
     axA.grid(axis="x", alpha=0.3)
     axA.legend(fontsize=8.5, loc="lower right", ncol=2, framealpha=0.9)
-    _panel_title(axA, "A", "Four tools, every whole genome (rows grouped by divergence tier)")
+    _panel_title(axA, "A", "Three lift-over tools (rows grouped by divergence tier)")
 
     # (B) devel − Liftoff: LiftOn's value-add over the pure-DNA model, which grows
     # from negligible (same-species, DNA already near-perfect) to enormous
@@ -623,7 +625,7 @@ def fig_full_accuracy(fw):
                          fontsize=7.5, fontweight="bold")
     _nwin = sum(1 for d in deltas if d is not None and d >= 0)
     _panel_title(axB, "B", f"Above the DNA baseline on every genome ({_nwin}/{len(recs)})")
-    fig.suptitle("Whole-genome accuracy: LiftOn v1.0.9 vs the DNA and protein baselines",
+    fig.suptitle("Whole-genome accuracy: LiftOn v1.0.9 vs the DNA baseline (Liftoff)",
                  fontsize=12.5, fontweight="bold", y=1.02)
     return _save(fig, "rfig_full_accuracy.png")
 
@@ -635,17 +637,26 @@ def fig_full_completeness(fw):
     h = 0.2
     fig, ax = plt.subplots(figsize=(11.6, 6.6))
     _tier_bands(ax, recs)
-    for i, t in enumerate(mr.TOOLS):
+    for i, t in enumerate(mr.HEADLINE_TOOLS):
         vals = [(r["completeness_coding"].get(t) or 0) * 100
                 if isinstance(r["completeness_coding"].get(t), float) else 0
                 for r in recs]
-        ax.barh(y + (1.5 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
+        ax.barh(y + (1 - i) * h, vals, height=h, color=mr.TOOL_COLORS[t],
                 label=LABEL[t])
+    # miniprot is LiftOn's protein EVIDENCE, not a rival lift-over tool — show its
+    # (often much higher) recall as a distinct evidence marker, so the very-distant
+    # recall context stays visible without framing it as a headline bar.
+    mp = [(r["completeness_coding"].get("miniprot") or 0) * 100
+          if isinstance(r["completeness_coding"].get("miniprot"), float) else 0
+          for r in recs]
+    ax.scatter(mp, y + 1.8 * h, marker="D", s=24, color=mr.TOOL_COLORS["miniprot"],
+               edgecolor="k", linewidth=0.4, zorder=6,
+               label="miniprot — protein evidence (recall)")
     # mark the genomes v1.0.8 crashed on. Where it left a scorable partial
     # annotation (arabidopsis 28%, rice 77%) show that %; where it aborted with
     # no scorable whole-genome output (maize, tomato pairs) show just "crash"
     # at the axis origin rather than a misleading "0%".
-    stable_y = y + (1.5 - 2) * h
+    stable_y = y   # lifton_stable is the middle headline bar (offset 0)
     for yi, r in zip(stable_y, recs):
         if _is_stable_crash(r):
             scc = r["completeness_coding"].get("lifton_stable")
@@ -664,8 +675,9 @@ def fig_full_completeness(fw):
     ax.set_xlabel("coding-transcript completeness (% of reference)")
     ax.legend(fontsize=8.5, loc="lower right", ncol=2, framealpha=0.9)
     ax.grid(axis="x", alpha=0.3)
-    ax.set_title("Whole-genome completeness — at extreme distance miniprot trades "
-                 "identity for recall", fontsize=11.5, fontweight="bold", loc="left")
+    ax.set_title("Whole-genome completeness — the protein evidence (miniprot) "
+                 "recovers more at extreme distance", fontsize=11.5,
+                 fontweight="bold", loc="left")
     return _save(fig, "rfig_full_completeness.png")
 
 
@@ -738,7 +750,7 @@ def fig_full_apples_to_apples(fw):
              label="set-mean lead vs best(Liftoff, miniprot)")
     axA.barh(y + h / 2, [d or 0 for d in common], height=h,
              color=["#2ca02c" if (d or 0) >= 0 else "#d62728" for d in common],
-             label="apples-to-apples vs miniprot (common recovered set)")
+             label="apples-to-apples vs the protein evidence (common recovered set)")
     for yi, c, n in zip(y, common, ncom):
         if isinstance(n, int):
             axA.annotate(f"n={n:,}", (c or 0, yi + h / 2),
@@ -760,7 +772,8 @@ def fig_full_apples_to_apples(fw):
     cov_dev = [(r["joint"].get("covpi") or {}).get("lifton_devel", 0) for r in recs]
     cov_mp = [(r["joint"].get("covpi") or {}).get("miniprot", 0) for r in recs]
     axB.barh(y - h / 2, cov_dev, height=h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
-    axB.barh(y + h / 2, cov_mp, height=h, color=mr.TOOL_COLORS["miniprot"], label="miniprot")
+    axB.barh(y + h / 2, cov_mp, height=h, color=mr.TOOL_COLORS["miniprot"],
+             label="miniprot (protein evidence)")
     axB.set_yticks(y)
     axB.set_yticklabels(labels, fontsize=9)
     axB.invert_yaxis()
@@ -769,8 +782,9 @@ def fig_full_apples_to_apples(fw):
     axB.grid(axis="x", alpha=0.3)
     axB.legend(fontsize=8.5, loc="lower right", framealpha=0.9)
     _panel_title(axB, "B", "Coverage-weighted PI (recall × accuracy)")
-    fig.suptitle("The joint recall-vs-identity view — locating the genuine per-transcript win",
-                 fontsize=12.5, fontweight="bold", y=1.02)
+    fig.suptitle("Protein-evidence view: LiftOn v1.0.9 vs the miniprot signal it fuses "
+                 "(miniprot is evidence, not a rival lift-over tool)",
+                 fontsize=11.8, fontweight="bold", y=1.02)
     return _save(fig, "rfig_full_apples_to_apples.png")
 
 

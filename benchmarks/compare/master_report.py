@@ -49,6 +49,25 @@ TOOL_SHORT = {"liftoff": "Liftoff", "miniprot": "miniprot",
 TOOL_COLORS = {"liftoff": "#4c78a8", "miniprot": "#f58518",
                "lifton_stable": "#9d755d", "lifton_devel": "#54a24b"}
 
+# miniprot is LiftOn's INTERNAL protein evidence (the -M input it fuses), NOT a
+# rival homology lift-over tool. The HEADLINE comparison is the three lift-over
+# tools (each takes only (ref, ref-annotation, target) and emits a re-scorable
+# annotation); miniprot is shown ONLY as protein-evidence context (the apples-to-
+# apples / coverage-weighted view), never as a headline bar. `TOOLS` stays the
+# full data-bearing set (scoring + joint metrics still compute the miniprot column).
+HEADLINE_TOOLS = ["liftoff", "lifton_stable", "lifton_devel"]
+EVIDENCE_TOOLS = ["miniprot"]
+
+# Stage-F broader comparison (5-pair sub-study): the headline lift-over tools +
+# CAT v1/v2 (alignment-based comparative annotators; need a precomputed Cactus
+# alignment) + coordinate LiftOver (chain-based; coordinate-only, out-of-class).
+EXT_TOOLS = ["liftoff", "lifton_stable", "lifton_devel", "cat_v1", "cat_v2", "liftover"]
+TOOL_LABEL.update({"cat_v1": "CAT v1", "cat_v2": "CAT v2",
+                   "liftover": "LiftOver (coord-only)"})
+TOOL_SHORT.update({"cat_v1": "CAT v1", "cat_v2": "CAT v2", "liftover": "LiftOver"})
+# CAT = teals (distinct from LiftOn green); LiftOver = grey (out-of-class).
+TOOL_COLORS.update({"cat_v1": "#17becf", "cat_v2": "#1f9aa0", "liftover": "#9e9e9e"})
+
 # gene-like feature types the devel default lifts that v1.0.8 / naive Liftoff drop
 GENE_LIKE = ("pseudogene", "ncRNA", "lnc_RNA", "lncRNA", "tRNA", "rRNA",
              "snoRNA", "snRNA", "miRNA", "ncRNA_gene", "transposable_element_gene",
