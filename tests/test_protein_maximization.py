@@ -101,16 +101,30 @@ class TestChainingEmptyAndSingleCDS:
         assert isinstance(result[0], lifton_class.Lifton_CDS)
         assert chains == []  # no comparison happened
 
-    def test_liftoff_empty_returns_empty(self):
+    def test_liftoff_empty_returns_miniprot_cds(self, monkeypatch):
+        """FIX 2: Liftoff produced no CDS but miniprot did → fall back to
+        miniprot's CDS (symmetric with the miniprot-empty branch). The old
+        code returned [] here, silently dropping a valid miniprot CDS that the
+        best-of-outcome merge then could not recover."""
+        monkeypatch.delenv("LIFTON_EMPTY_LIFTOFF", raising=False)  # default: fix ON
         cds = [_fake_cds_child(start=1, end=99)]
         l_aln = _fake_alignment([], [], "", "")
         m_aln = _fake_alignment(cds, [(0, 33)], "M" * 33, "M" * 33)
         result, chains = protein_maximization.chaining_algorithm(
             l_aln, m_aln, fai=None, DEBUG=False,
         )
-        # Manuscript §20: tie-break to Liftoff; no Liftoff = no
-        # output (miniprot-only goes through process_miniprot, not
-        # the chaining algorithm).
+        assert len(result) == 1
+        assert isinstance(result[0], lifton_class.Lifton_CDS)
+
+    def test_liftoff_empty_legacy_env_restores_drop(self, monkeypatch):
+        """LIFTON_EMPTY_LIFTOFF=0 reproduces the pre-fix drop (A/B baseline)."""
+        monkeypatch.setenv("LIFTON_EMPTY_LIFTOFF", "0")
+        cds = [_fake_cds_child(start=1, end=99)]
+        l_aln = _fake_alignment([], [], "", "")
+        m_aln = _fake_alignment(cds, [(0, 33)], "M" * 33, "M" * 33)
+        result, chains = protein_maximization.chaining_algorithm(
+            l_aln, m_aln, fai=None, DEBUG=False,
+        )
         assert result == []
 
     def test_single_cds_each_side_compares_one_chunk(self):

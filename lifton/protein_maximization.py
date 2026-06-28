@@ -16,6 +16,8 @@ Bug-fixes applied:
 
 from lifton import get_id_fraction, lifton_class, logger
 import math
+import os
+import sys
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -205,6 +207,21 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, DEBUG):
         # miniprot produced nothing usable; return liftoff CDS as-is
         return [lifton_class.Lifton_CDS(c) for c in l_children], chains
     if not l_children:
+        # FIX 2 (symmetric empty-input handling): Liftoff produced no CDS but
+        # miniprot did. The old code returned [] here, silently DROPPING
+        # miniprot's CDS (the best-of-outcome merge then kept the empty result
+        # and the Iter-23 rescue could not recover it — the gene overlaps the
+        # lifted locus). Mirror the `not m_children` branch above and fall back
+        # to miniprot's CDS; the best-of-outcome merge still keeps the better of
+        # {miniprot+ORF, empty-Liftoff+ORF} per transcript, so this is additive.
+        # LIFTON_EMPTY_LIFTOFF=0 restores the old drop-behavior (A/B baseline).
+        if os.environ.get("LIFTON_EMPTY_LIFTOFF_DIAG"):
+            _id = getattr(m_lifton_aln, "identity", "?")
+            sys.stderr.write(
+                f"[EMPTY_LIFTOFF_DIAG] n_miniprot_cds={len(m_children)} "
+                f"miniprot_identity={_id}\n")
+        if os.environ.get("LIFTON_EMPTY_LIFTOFF", "1") != "0":
+            return [lifton_class.Lifton_CDS(c) for c in m_children], chains
         return [], chains
 
     # ── Guard: single-CDS transcripts ───────────────────────────────────────
