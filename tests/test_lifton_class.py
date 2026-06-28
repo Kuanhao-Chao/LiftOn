@@ -355,6 +355,34 @@ class TestContainmentNormalization:
         trans.normalize_containment()
         assert trans.exons[0].entry.end == 200          # exon NOT widened (no-op)
 
+    def test_update_cds_list_root_sort_keeps_span_valid(
+            self, monkeypatch, gff_standard, fake_args,
+            ref_features_dict_one_gene, make_gffutils_feature):
+        """FIX 3 (root): update_cds_list sorts the rebuilt exon list before its
+        internal update_boundaries, so the transcript span is valid (start<=end)
+        AT THE SOURCE — not only after the write-funnel normalize_containment.
+        The Case-5 path (a CDS beyond all exons → synthetic exon from a deep-copied
+        template) would otherwise leave new_exons non-monotonic."""
+        monkeypatch.delenv("LIFTON_NO_CONTAINMENT_NORMALIZE", raising=False)
+        gene, trans = self._gene_one_trans(
+            gff_standard, fake_args, ref_features_dict_one_gene)
+        # exons [300-400],[100-200] given out of order; a CDS in the lower exon.
+        hi = lifton_class.Lifton_EXON(make_gffutils_feature(
+            featuretype="exon", start=300, end=400,
+            attributes={"ID": ["exHi"], "Parent": ["tx1"]}))
+        lo = lifton_class.Lifton_EXON(make_gffutils_feature(
+            featuretype="exon", start=100, end=200,
+            attributes={"ID": ["exLo"], "Parent": ["tx1"]}))
+        trans.exons = [hi, lo]
+        cds = lifton_class.Lifton_CDS(make_gffutils_feature(
+            featuretype="CDS", start=120, end=180, frame="0",
+            attributes={"ID": ["c1"], "Parent": ["tx1"]}))
+        trans.update_cds_list([cds])
+        starts = [e.entry.start for e in trans.exons]
+        assert starts == sorted(starts)                  # exons sorted at the source
+        assert trans.entry.start <= trans.entry.end      # span never inverted
+        assert trans.entry.start == min(starts)
+
     def test_gene_normalize_widens_gene_span(
             self, monkeypatch, gff_standard, fake_args,
             ref_features_dict_one_gene, make_gffutils_feature):
