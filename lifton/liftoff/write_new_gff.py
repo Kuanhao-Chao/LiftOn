@@ -18,7 +18,14 @@ def write_new_gff(lifted_features, args, feature_db):
     out_type = feature_db.dialect['fmt']
     write_header(f, out_type)
     parents = liftoff_utils.get_parent_list(lifted_features)
-    parents.sort(key=lambda x: x.id)
+    # Number gene copies in GENOMIC order, not alignment-encounter order.
+    # Extra copies of one gene share a base `.id`, so a sort by `.id` alone is
+    # stable and preserves the dict's insertion (alignment) order — which is
+    # non-deterministic across fresh runs, so the `_N` copy suffix on a given
+    # locus could differ run-to-run. Sorting by (seqid, start, end, id) before
+    # finalize_parent_features assigns copy_num makes `_0` the 5'-most copy on
+    # each sequence and the numbering deterministic + aligned to genomic order.
+    parents.sort(key=lambda x: (x.seqid, x.start, x.end, x.id))
     final_parent_list = finalize_parent_features(parents, args)
     final_parent_list.sort(key=lambda x: (x.seqid, x.start))
     for final_parent in final_parent_list:
