@@ -596,6 +596,19 @@ class Lifton_TRANS:
                 new_exons.append(new_exon)
         self.exons = new_exons
         if self.exons:  # guard against empty exon list
+            if _containment_normalize_enabled():
+                # FIX 3 (root): the rebuilt exon list can be non-monotonic — the
+                # chaining interleaves miniprot+Liftoff CDS and Case-5 appends a
+                # synthetic exon from a deep-copied template — so update_boundaries
+                # (exons[0].start..exons[-1].end) could invert the span (start>end)
+                # transiently, before the write-funnel normalize_containment fixes
+                # it (Iter-24). Sort here so the span is valid AT THE SOURCE for any
+                # consumer between here and the writer (the best-of-outcome merge
+                # snapshots the span; ORF rescue walks exons). Byte-neutral on the
+                # default path (normalize_containment re-sorts to the same order);
+                # gated on the same flag so LIFTON_NO_CONTAINMENT_NORMALIZE=1 still
+                # reproduces the exact pre-Iteration-24 escape-hatch bytes.
+                self.exons.sort(key=lambda e: (e.entry.start, e.entry.end))
             self.update_boundaries()
 
     def get_coding_seq(self, fai):
