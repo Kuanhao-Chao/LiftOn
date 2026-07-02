@@ -9,6 +9,7 @@ import pytest
 from pyfaidx import Fasta
 
 from lifton import annotation, extract_sequence
+from lifton.exceptions import LiftOnInputError
 
 
 # ---------------------------------------------------------------------------
@@ -238,3 +239,82 @@ class TestGeneLikeChildNotDoubleExtracted:
             ref_db, ["gene", "ncRNA"], fa)
         assert "rna1" in t_gene
         assert t_gene == t_super
+
+
+# ---------------------------------------------------------------------------
+# V1.0.10 — the silent empty-transcripts.fa blocker.
+# A reference-GFF seqid absent from the genome FASTA index (a stale .fai or a
+# seqid-namespace mismatch, e.g. chr1 vs NC_000001.11) used to yield a 0-byte
+# transcripts.fa with NO warning and a run that reported success. Now
+# get_dna_sequence warns (once per seqid) when the driver threads a dedup set,
+# and the streaming driver raises LiftOnInputError when a genuine seqid miss
+# makes EVERY extraction empty. Direct callers (warned=None) keep the original
+# silent contract, so the happy path stays byte-identical.
+# ---------------------------------------------------------------------------
+
+class TestSeqidMismatchLoud:
+    def _db(self, gff):
+        return annotation.Annotation(
+            str(gff), False, False, "create_unique", None, True, False,
+        )
+
+    def test_get_dna_sequence_warns_once_when_dedup_set_passed(
+            self, fasta_missing_chrom, capsys):
+        fa = Fasta(str(fasta_missing_chrom))
+        parent = SimpleNamespace(seqid="chr1", strand="+")
+        children = [_IntervalStub(1, 10)]
+        warned = set()
+        # Two calls, same missing seqid -> exactly one warning (deduped).
+        assert extract_sequence.get_dna_sequence(
+            parent, fa, children, warned=warned) == ""
+        assert extract_sequence.get_dna_sequence(
+            parent, fa, children, warned=warned) == ""
+        err = capsys.readouterr().err
+        assert err.count("[WARNING]") == 1, err
+        assert "chr1" in err
+        assert warned == {"chr1"}
+
+    def test_get_dna_sequence_silent_without_dedup_set(
+            self, fasta_missing_chrom, capsys):
+        # Direct callers (warned=None default) keep the original silent
+        # contract -> byte-neutral for every existing get_dna_sequence caller.
+        fa = Fasta(str(fasta_missing_chrom))
+        parent = SimpleNamespace(seqid="chr1", strand="+")
+        children = [_IntervalStub(1, 10)]
+        assert extract_sequence.get_dna_sequence(parent, fa, children) == ""
+        assert "[WARNING]" not in capsys.readouterr().err
+
+    def test_streaming_raises_on_total_seqid_miss(
+            self, gff_standard, fasta_missing_chrom, tmp_path, capsys):
+        # gff on chr1, genome has only chrZ -> every extraction empty -> raise.
+        ref_db = self._db(gff_standard)
+        fa = Fasta(str(fasta_missing_chrom))
+        with pytest.raises(LiftOnInputError) as ei:
+            extract_sequence.extract_features_to_fasta(
+                ref_db, ["gene"], fa, str(tmp_path / "out"))
+        assert "seqid" in str(ei.value).lower()
+        # the per-seqid warning also fired before the raise
+        assert "[WARNING]" in capsys.readouterr().err
+
+    def test_streaming_happy_path_no_raise_no_warning(
+            self, gff_standard, fasta_standard, tmp_path, capsys):
+        # Matching seqids -> no warning, no raise, transcripts written.
+        ref_db = self._db(gff_standard)
+        fa = Fasta(str(fasta_standard))
+        trans_path, _ = extract_sequence.extract_features_to_fasta(
+            ref_db, ["gene"], fa, str(tmp_path / "out"))
+        assert Path(trans_path).stat().st_size > 0
+        assert "[WARNING]" not in capsys.readouterr().err
+
+    def test_legacy_warns_but_does_not_raise_on_seqid_miss(
+            self, gff_standard, fasta_missing_chrom, capsys):
+        # The legacy dict path surfaces the warning but returns empty dicts
+        # instead of raising (it is not the default on-disk-FASTA path; keeps
+        # the V1_2 completion-with-warning contract).
+        ref_db = self._db(gff_standard)
+        fa = Fasta(str(fasta_missing_chrom))
+        ref_trans, ref_proteins = extract_sequence.extract_features(
+            ref_db, ["gene"], fa)
+        assert ref_trans == {}
+        assert ref_proteins == {}
+        assert "[WARNING]" in capsys.readouterr().err
