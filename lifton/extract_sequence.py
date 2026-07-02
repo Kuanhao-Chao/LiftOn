@@ -103,13 +103,15 @@ def extract_features(ref_db, features, ref_fai):
     ref_proteins = {}
     counter = 0
     feature_set = set(features)
+    warned = set()
     for feature in features:
         for locus in ref_db.db_connection.features_of_type(feature):
             if parent_is_listed_type(ref_db, locus, feature_set):
                 continue
             # print(f"Extracting features for {locus.id}")
             counter += 1
-            __inner_extract_feature(ref_db, locus, ref_fai, ref_trans, ref_proteins)
+            __inner_extract_feature(ref_db, locus, ref_fai, ref_trans,
+                                    ref_proteins, warned=warned)
     print(f"Extracted features for {counter} features")
     return ref_trans, ref_proteins
 
@@ -142,6 +144,7 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
     prot_path = _os.path.join(out_dir, "proteins.fa")
     counter = 0
     feature_set = set(features)
+    warned = set()
     with open(trans_path, "w") as ft, open(prot_path, "w") as fp:
         for feature in features:
             for locus in ref_db.db_connection.features_of_type(feature):
@@ -155,12 +158,32 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
                 if parent_is_listed_type(ref_db, locus, feature_set):
                     continue
                 counter += 1
-                _stream_inner(ref_db, locus, ref_fai, ft, fp)
+                _stream_inner(ref_db, locus, ref_fai, ft, fp, warned=warned)
     print(f"Extracted features (streaming) for {counter} features")
+    # V1.0.10: if features WERE iterated but a seqid-namespace mismatch made
+    # EVERY extraction empty (both FASTAs 0 bytes), fail LOUDLY here instead of
+    # handing an empty transcripts.fa downstream — Step 5+ would otherwise
+    # silently produce a near-empty annotation and report success (the
+    # documented "fresh Step-3 empties transcripts.fa" blocker). Guarded on
+    # `warned` (a genuine seqid miss WAS seen) AND both files empty, so a
+    # legitimately childless / non-standard annotation that simply extracted
+    # nothing — with all seqids present — is unaffected (byte-neutral on every
+    # valid input: `warned` stays empty).
+    if (warned and counter > 0
+            and _os.path.getsize(trans_path) == 0
+            and _os.path.getsize(prot_path) == 0):
+        raise LiftOnInputError(
+            f"extract_features_to_fasta: extracted 0 sequences from {counter} "
+            f"reference feature(s); {len(warned)} annotation seqid(s) are absent "
+            f"from the reference genome FASTA index (e.g. {sorted(warned)[:3]}). "
+            f"The genome and annotation likely use different seqid namespaces, "
+            f"or the .fai index is stale — rebuild the index (or align the "
+            f"seqids) and re-run."
+        )
     return trans_path, prot_path
 
 
-def _stream_inner(ref_db, feature, ref_fai, ft, fp):
+def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None):
     # Phase 18: one ordered children() query + an in-Python featuretype
     # partition replaces the prior three per-feature queries (2x fewer
     # SQLite round-trips on the common exon/CDS-bearing path, 3x on a bare
@@ -176,7 +199,8 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp):
     if len(children_exons) > 0 or len(children_CDSs) > 0:
         if len(children_exons) > 0:
             try:
-                trans_seq = get_dna_sequence(feature, ref_fai, children_exons)
+                trans_seq = get_dna_sequence(feature, ref_fai, children_exons,
+                                             warned=warned)
                 if trans_seq:
                     trans_seq = trans_seq.upper()
                     ft.write(f">{feature.id}\n{trans_seq}\n")
@@ -187,7 +211,7 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp):
         if len(children_CDSs) > 0:
             try:
                 protein_seq = get_protein_sequence(
-                    feature, ref_fai, children_CDSs)
+                    feature, ref_fai, children_CDSs, warned=warned)
                 if protein_seq:
                     protein_seq = protein_seq.upper()
                     fp.write(f">{feature.id}\n{protein_seq}\n")
@@ -197,10 +221,11 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp):
                 )
     else:
         for child in all_children:
-            _stream_inner(ref_db, child, ref_fai, ft, fp)
+            _stream_inner(ref_db, child, ref_fai, ft, fp, warned=warned)
 
 
-def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
+def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins,
+                            warned=None):
     # If exon is the first level children
     # Phase 18: collapse the prior 3 children() queries into one ordered
     # query + in-Python partition (see _stream_inner for the byte-neutral
@@ -216,7 +241,8 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
             # transcript silently disappears can't debug it; a [WARNING]
             # gives them the feature id and the underlying cause.
             try:
-                trans_seq = get_dna_sequence(feature, ref_fai, children_exons)
+                trans_seq = get_dna_sequence(feature, ref_fai, children_exons,
+                                             warned=warned)
                 if trans_seq:
                     trans_seq = trans_seq.upper()
                     ref_trans[feature.id] = trans_seq
@@ -228,7 +254,8 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
 
         if len(children_CDSs) > 0:
             try:
-                protein_seq = get_protein_sequence(feature, ref_fai, children_CDSs)
+                protein_seq = get_protein_sequence(feature, ref_fai,
+                                                   children_CDSs, warned=warned)
                 if protein_seq:
                     protein_seq = protein_seq.upper()
                     ref_proteins[feature.id] = protein_seq
@@ -239,7 +266,8 @@ def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins):
                 )
     else:
         for child in all_children:
-            __inner_extract_feature(ref_db, child, ref_fai, ref_trans, ref_proteins)
+            __inner_extract_feature(ref_db, child, ref_fai, ref_trans,
+                                    ref_proteins, warned=warned)
             
 
 def merge_children_intervals(children):
@@ -257,12 +285,27 @@ def merge_children_intervals(children):
     return merged
 
 
-def get_dna_sequence(parent_feature, fasta, features):
+def get_dna_sequence(parent_feature, fasta, features, warned=None):
     chrom = parent_feature.seqid
     strand = parent_feature.strand
     merged_features = merge_children_intervals(features)
     sequence =''
     if chrom not in fasta.keys():
+        # V1.0.10: a reference-GFF seqid absent from the genome's pyfaidx keys
+        # (a stale .fai or a seqid-namespace mismatch, e.g. chr1 vs NC_000001.11)
+        # silently yielded an empty sequence for EVERY feature on that seqid ->
+        # a 0-byte transcripts.fa and a run that reports success. Surface it
+        # (once per seqid) so the miss is debuggable. `warned` is the
+        # per-extraction dedup set threaded from the driver; direct callers pass
+        # None and keep the original silent behaviour (byte-neutral).
+        if warned is not None and chrom not in warned:
+            warned.add(chrom)
+            logger.log_warning(
+                f"get_dna_sequence: reference seqid '{chrom}' is not present in "
+                f"the reference genome FASTA index — every feature on it extracts "
+                f"as empty. Check that the genome and annotation use the same "
+                f"seqid namespace (a stale .fai index can cause this)."
+            )
         return sequence
     for start, end in merged_features:
         # V2.1 fix: GFF3 is 1-based inclusive; pyfaidx is 0-based half-open.
@@ -284,6 +327,6 @@ def get_padding_length(sequence_length):
     return (3-sequence_length%3)%3
 
 
-def get_protein_sequence(parent_feature, fasta, features):
-    dna = get_dna_sequence(parent_feature, fasta, features)
+def get_protein_sequence(parent_feature, fasta, features, warned=None):
+    dna = get_dna_sequence(parent_feature, fasta, features, warned=warned)
     return str(Seq(dna).translate())
