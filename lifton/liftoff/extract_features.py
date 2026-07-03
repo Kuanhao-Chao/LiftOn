@@ -257,12 +257,27 @@ def find_problem_line(gff_file):
                 sys.exit("ERROR:Incorrect GFF/GTF syntax on line " + str(i + 1))
 
 
+# Engineering iter (hierarchy_build speedup, backported from lifton2). This
+# function only ever consumes relations.parent/child + features.id, but the legacy
+# queries do `SELECT *` over the relations x features x features join (~60 unused
+# columns per relation) and over all features. The default fast path selects ONLY
+# those columns. Byte-IDENTICAL because every consumer goes through np.setdiff1d /
+# set (which sort + dedupe), so the row ORDER is irrelevant. Set
+# LIFTON_LEGACY_HIERARCHY=1 to restore the SELECT * path (A/B baseline / escape).
+_LEGACY_HIERARCHY = os.environ.get("LIFTON_LEGACY_HIERARCHY") == "1"
+
+
 def seperate_parents_and_children(feature_db, parent_types_to_lift):
     c = feature_db.conn.cursor()
-    relations = [list(feature) for feature in c.execute('''SELECT * FROM relations join features as a on 
-    a.id = relations.parent join features as b on b.id = relations.child''') if
-                 feature[0] != feature[1]]
-    all_ids = [list(feature)[0]for feature in c.execute('''SELECT * FROM features''')]
+    if _LEGACY_HIERARCHY:
+        relations = [list(feature) for feature in c.execute('''SELECT * FROM relations join features as a on
+        a.id = relations.parent join features as b on b.id = relations.child''') if
+                     feature[0] != feature[1]]
+        all_ids = [list(feature)[0] for feature in c.execute('''SELECT * FROM features''')]
+    else:
+        relations = [feature for feature in c.execute('''SELECT relations.parent, relations.child FROM relations join features as a on a.id = relations.parent join features as b on b.id = relations.child''') if
+                     feature[0] != feature[1]]
+        all_ids = [feature[0] for feature in c.execute('''SELECT id FROM features''')]
     all_children_ids = [relation[1] for relation in relations ]
     all_parent_ids = [relation[0] for relation in relations]
     lowest_children = np.setdiff1d(all_ids,  all_parent_ids )
