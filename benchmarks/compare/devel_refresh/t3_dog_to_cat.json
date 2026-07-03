@@ -1,0 +1,236 @@
+{
+  "bid": "t3_dog_to_cat",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_devel_refresh/devel_refresh.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_devel_refresh/eval",
+  "summary": {
+    "tool": "lifton_devel",
+    "benchmark": "t3_dog_to_cat",
+    "species": "Canis lupus familiaris (dog) -> Felis catus (cat)",
+    "cross_species": true,
+    "n_reference_total": 62347,
+    "n_reference_coding": 62347,
+    "n_tool_features": 61277,
+    "n_unmapped_id": 8,
+    "n_recovered_any": 61107,
+    "n_recovered_coding": 61107,
+    "completeness_all": 0.98011,
+    "completeness_coding": 0.98011,
+    "completeness_by_type": {
+      "region": {
+        "n_reference": 147,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "pseudogene": {
+        "n_reference": 4909,
+        "n_recovered": 2507,
+        "pct_recovered": 0.51069,
+        "n_extra_copies": 0,
+        "n_tool_features": 2507
+      },
+      "exon": {
+        "n_reference": 1009715,
+        "n_recovered": 934326,
+        "pct_recovered": 0.92534,
+        "n_extra_copies": 0,
+        "n_tool_features": 950427
+      },
+      "gene": {
+        "n_reference": 35509,
+        "n_recovered": 32120,
+        "pct_recovered": 0.90456,
+        "n_extra_copies": 251,
+        "n_tool_features": 32371
+      },
+      "lnc_RNA": {
+        "n_reference": 24231,
+        "n_recovered": 22734,
+        "pct_recovered": 0.93822,
+        "n_extra_copies": 0,
+        "n_tool_features": 22734
+      },
+      "mRNA": {
+        "n_reference": 62347,
+        "n_recovered": 61107,
+        "pct_recovered": 0.98011,
+        "n_extra_copies": 162,
+        "n_tool_features": 61277
+      },
+      "CDS": {
+        "n_reference": 772925,
+        "n_recovered": 42933,
+        "pct_recovered": 0.05555,
+        "n_extra_copies": 0,
+        "n_tool_features": 739929
+      },
+      "tRNA": {
+        "n_reference": 436,
+        "n_recovered": 309,
+        "pct_recovered": 0.70872,
+        "n_extra_copies": 0,
+        "n_tool_features": 309
+      },
+      "transcript": {
+        "n_reference": 5076,
+        "n_recovered": 4931,
+        "pct_recovered": 0.97143,
+        "n_extra_copies": 0,
+        "n_tool_features": 4931
+      },
+      "snoRNA": {
+        "n_reference": 491,
+        "n_recovered": 186,
+        "pct_recovered": 0.37882,
+        "n_extra_copies": 0,
+        "n_tool_features": 186
+      },
+      "snRNA": {
+        "n_reference": 1131,
+        "n_recovered": 295,
+        "pct_recovered": 0.26083,
+        "n_extra_copies": 0,
+        "n_tool_features": 295
+      },
+      "primary_transcript": {
+        "n_reference": 461,
+        "n_recovered": 275,
+        "pct_recovered": 0.59653,
+        "n_extra_copies": 0,
+        "n_tool_features": 275
+      },
+      "miRNA": {
+        "n_reference": 468,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "guide_RNA": {
+        "n_reference": 23,
+        "n_recovered": 10,
+        "pct_recovered": 0.43478,
+        "n_extra_copies": 0,
+        "n_tool_features": 10
+      },
+      "cDNA_match": {
+        "n_reference": 8277,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "match": {
+        "n_reference": 277,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "rRNA": {
+        "n_reference": 14,
+        "n_recovered": 14,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 14
+      },
+      "V_gene_segment": {
+        "n_reference": 75,
+        "n_recovered": 66,
+        "pct_recovered": 0.88,
+        "n_extra_copies": 7,
+        "n_tool_features": 66
+      },
+      "C_gene_segment": {
+        "n_reference": 16,
+        "n_recovered": 16,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 1,
+        "n_tool_features": 16
+      },
+      "SRP_RNA": {
+        "n_reference": 1,
+        "n_recovered": 1,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 1
+      },
+      "RNase_P_RNA": {
+        "n_reference": 1,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "origin_of_replication": {
+        "n_reference": 1,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "D_loop": {
+        "n_reference": 1,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "_overall_": {
+        "n_reference": 143892,
+        "n_recovered": 124571,
+        "pct_recovered": 0.86573,
+        "n_extra_copies": 0,
+        "n_tool_features": 124992
+      }
+    },
+    "completeness_feature_total": 0.86573,
+    "n_extra_copies": 162,
+    "dna_basis": "transcript",
+    "protein_identity": {
+      "mean": 0.87306,
+      "median": 0.93558,
+      "pct_identical": 0.03971,
+      "n": 60896
+    },
+    "dna_identity": {
+      "mean": 0.83038,
+      "median": 0.86625,
+      "pct_identical": 0.0,
+      "n": 61107
+    },
+    "protein_identity_hist": [
+      541,
+      748,
+      591,
+      613,
+      859,
+      1148,
+      1812,
+      4293,
+      11657,
+      38634
+    ],
+    "structural": {
+      "orf_valid_frac": 0.80251,
+      "orf_start_frac": 0.89877,
+      "orf_stop_frac": 0.88703,
+      "intron_chain_exact_frac": 0.52513,
+      "exon_sn_mean": 0.64813,
+      "exon_sp_mean": 0.66973,
+      "n_scored": 61107
+    },
+    "profile": {
+      "wall_clock_seconds": 2666.85,
+      "peak_rss_mb": 7755.80859375
+    },
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+  },
+  "validity": {
+    "exit": 1,
+    "n_errors": 11,
+    "n_warnings": 177,
+    "valid": false
+  }
+}

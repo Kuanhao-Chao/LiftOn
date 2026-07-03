@@ -11457,7 +11457,7 @@
       "liftoff": 0.98071,
       "miniprot": 0.98046,
       "lifton_stable": 0.99024,
-      "lifton_devel": 0.99033
+      "lifton_devel": 0.99051
     },
     "median_pi": {
       "liftoff": 1.0,
@@ -11469,7 +11469,7 @@
       "liftoff": 0.70189,
       "miniprot": 0.56584,
       "lifton_stable": 0.70283,
-      "lifton_devel": 0.70275
+      "lifton_devel": 0.70283
     },
     "n_recovered_coding": {
       "liftoff": 23364,
@@ -11487,13 +11487,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 690.79
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 3328.33203125
     },
     "validity": {
       "liftoff": {
@@ -11918,8 +11918,8 @@
           "n_reference": 12356,
           "n_recovered": 12295,
           "pct_recovered": 0.99506,
-          "n_extra_copies": 52,
-          "n_tool_features": 12347
+          "n_extra_copies": 90,
+          "n_tool_features": 12385
         },
         "transcript": {
           "n_reference": 949,
@@ -11930,24 +11930,24 @@
         },
         "exon": {
           "n_reference": 267977,
-          "n_recovered": 194744,
-          "pct_recovered": 0.72672,
-          "n_extra_copies": 70845,
-          "n_tool_features": 265640
+          "n_recovered": 265266,
+          "pct_recovered": 0.98988,
+          "n_extra_copies": 0,
+          "n_tool_features": 265803
         },
         "mRNA": {
           "n_reference": 23471,
           "n_recovered": 23364,
           "pct_recovered": 0.99544,
-          "n_extra_copies": 8,
-          "n_tool_features": 23372
+          "n_extra_copies": 46,
+          "n_tool_features": 23410
         },
         "CDS": {
           "n_reference": 226465,
-          "n_recovered": 138297,
-          "pct_recovered": 0.61068,
+          "n_recovered": 16467,
+          "pct_recovered": 0.07271,
           "n_extra_copies": 0,
-          "n_tool_features": 221387
+          "n_tool_features": 221578
         },
         "lnc_RNA": {
           "n_reference": 3146,
@@ -12031,17 +12031,17 @@
           "n_recovered": 40299,
           "pct_recovered": 0.94565,
           "n_extra_copies": 0,
-          "n_tool_features": 40359
+          "n_tool_features": 40435
         }
       }
     },
     "devel_vs_stable": {
-      "meanpi": 9e-05,
+      "meanpi": 0.00027,
       "completeness": 0.0,
       "n_recovered": 0
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.00962,
+      "meanpi": 0.0098,
       "completeness": -0.00307
     },
     "joint": {
@@ -12049,37 +12049,37 @@
         "liftoff": 0.97624,
         "miniprot": 0.979,
         "lifton_stable": 0.98573,
-        "lifton_devel": 0.98582
+        "lifton_devel": 0.98599
       },
       "recall_at_0.5": {
         "liftoff": 0.97661,
         "miniprot": 0.98159,
         "lifton_stable": 0.99097,
-        "lifton_devel": 0.99169
+        "lifton_devel": 0.99199
       },
       "recall_at_0.9": {
         "liftoff": 0.96732,
         "miniprot": 0.96928,
         "lifton_stable": 0.97418,
-        "lifton_devel": 0.97431
+        "lifton_devel": 0.97456
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.00965,
+        "meanpi_delta": 0.00983,
         "n_common": 23362,
-        "n_improved": 5016,
-        "n_regressed": 38
+        "n_improved": 5021,
+        "n_regressed": 35
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.00962,
+        "meanpi_delta": 0.0098,
         "n_common": 23364,
-        "n_improved": 624,
-        "n_regressed": 5
+        "n_improved": 633,
+        "n_regressed": 4
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 9e-05,
+        "meanpi_delta": 0.00027,
         "n_common": 23364,
-        "n_improved": 55,
-        "n_regressed": 8
+        "n_improved": 69,
+        "n_regressed": 2
       }
     }
   },
@@ -12116,7 +12116,7 @@
       "liftoff": 0.99643,
       "miniprot": 0.99352,
       "lifton_stable": 0.99848,
-      "lifton_devel": 0.99818
+      "lifton_devel": 0.99831
     },
     "median_pi": {
       "liftoff": 1.0,
@@ -12146,13 +12146,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": 10174.0
+      "lifton_devel": 526.21
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": 8171.609375
+      "lifton_devel": 4063.828125
     },
     "validity": {
       "liftoff": {
@@ -12577,29 +12577,29 @@
           "n_reference": 33624,
           "n_recovered": 33565,
           "pct_recovered": 0.99825,
-          "n_extra_copies": 563,
-          "n_tool_features": 34128
+          "n_extra_copies": 818,
+          "n_tool_features": 34383
         },
         "mRNA": {
           "n_reference": 42580,
           "n_recovered": 42527,
           "pct_recovered": 0.99876,
-          "n_extra_copies": 21,
-          "n_tool_features": 42548
+          "n_extra_copies": 276,
+          "n_tool_features": 42803
         },
         "exon": {
           "n_reference": 334017,
-          "n_recovered": 331837,
-          "pct_recovered": 0.99347,
+          "n_recovered": 333541,
+          "pct_recovered": 0.99857,
           "n_extra_copies": 46,
-          "n_tool_features": 333779
+          "n_tool_features": 334192
         },
         "CDS": {
           "n_reference": 238915,
-          "n_recovered": 42032,
-          "pct_recovered": 0.17593,
+          "n_recovered": 42025,
+          "pct_recovered": 0.1759,
           "n_extra_copies": 3,
-          "n_tool_features": 238671
+          "n_tool_features": 239067
         },
         "lnc_RNA": {
           "n_reference": 6277,
@@ -12690,48 +12690,48 @@
           "n_recovered": 89329,
           "pct_recovered": 0.97587,
           "n_extra_copies": 0,
-          "n_tool_features": 89952
+          "n_tool_features": 90462
         }
       }
     },
     "devel_vs_stable": {
-      "meanpi": -0.0003,
+      "meanpi": -0.00017,
       "completeness": 0.22532,
       "n_recovered": 9594
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.00175,
+      "meanpi": 0.00188,
       "completeness": -0.00082
     },
     "joint": {
       "covpi": {
         "liftoff": 0.9954,
         "miniprot": 0.9931,
-        "lifton_stable": 0.77224,
-        "lifton_devel": 0.99691
+        "lifton_devel": 0.99705,
+        "lifton_stable": 0.77224
       },
       "recall_at_0.5": {
         "liftoff": 0.99542,
         "miniprot": 0.99406,
-        "lifton_stable": 0.77271,
-        "lifton_devel": 0.9976
+        "lifton_devel": 0.99789,
+        "lifton_stable": 0.77271
       },
       "recall_at_0.9": {
         "liftoff": 0.99328,
         "miniprot": 0.98976,
-        "lifton_stable": 0.77067,
-        "lifton_devel": 0.99462
+        "lifton_devel": 0.99467,
+        "lifton_stable": 0.77067
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.00459,
+        "meanpi_delta": 0.00473,
         "n_common": 42525,
-        "n_improved": 5725,
-        "n_regressed": 23
+        "n_improved": 5730,
+        "n_regressed": 22
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.00175,
+        "meanpi_delta": 0.00188,
         "n_common": 42525,
-        "n_improved": 162,
+        "n_improved": 183,
         "n_regressed": 3
       },
       "devel_vs_lifton_stable_common": {
@@ -12775,7 +12775,7 @@
       "liftoff": 0.99836,
       "miniprot": 0.99619,
       "lifton_stable": 0.99884,
-      "lifton_devel": 0.99904
+      "lifton_devel": 0.99905
     },
     "median_pi": {
       "liftoff": 1.0,
@@ -12787,7 +12787,7 @@
       "liftoff": 0.99355,
       "miniprot": 0.86559,
       "lifton_stable": 0.9942,
-      "lifton_devel": 0.99369
+      "lifton_devel": 0.99371
     },
     "n_recovered_coding": {
       "liftoff": 48215,
@@ -12805,13 +12805,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 636.17
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 5736.8671875
     },
     "validity": {
       "liftoff": {
@@ -13341,29 +13341,29 @@
           "n_reference": 33468,
           "n_recovered": 33175,
           "pct_recovered": 0.99125,
-          "n_extra_copies": 165,
-          "n_tool_features": 33340
+          "n_extra_copies": 215,
+          "n_tool_features": 33390
         },
         "mRNA": {
           "n_reference": 52177,
           "n_recovered": 52086,
           "pct_recovered": 0.99826,
-          "n_extra_copies": 10,
-          "n_tool_features": 52096
+          "n_extra_copies": 60,
+          "n_tool_features": 52146
         },
         "exon": {
           "n_reference": 324848,
-          "n_recovered": 322744,
-          "pct_recovered": 0.99352,
-          "n_extra_copies": 1096,
-          "n_tool_features": 323853
+          "n_recovered": 323815,
+          "pct_recovered": 0.99682,
+          "n_extra_copies": 0,
+          "n_tool_features": 323955
         },
         "CDS": {
           "n_reference": 286264,
-          "n_recovered": 284355,
-          "pct_recovered": 0.99333,
+          "n_recovered": 47932,
+          "pct_recovered": 0.16744,
           "n_extra_copies": 0,
-          "n_tool_features": 285904
+          "n_tool_features": 286005
         },
         "lnc_RNA": {
           "n_reference": 3878,
@@ -13489,48 +13489,48 @@
           "n_recovered": 97546,
           "pct_recovered": 0.97951,
           "n_extra_copies": 0,
-          "n_tool_features": 97744
+          "n_tool_features": 97844
         }
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.0002,
+      "meanpi": 0.00021,
       "completeness": 0.71665,
       "n_recovered": 34589
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.00068,
+      "meanpi": 0.00069,
       "completeness": -0.00037
     },
     "joint": {
       "covpi": {
         "liftoff": 0.99732,
         "miniprot": 0.99536,
-        "lifton_stable": 0.28182,
-        "lifton_devel": 0.99784
+        "lifton_devel": 0.99785,
+        "lifton_stable": 0.28182
       },
       "recall_at_0.5": {
         "liftoff": 0.99722,
         "miniprot": 0.99619,
-        "lifton_stable": 0.28186,
-        "lifton_devel": 0.99803
+        "lifton_devel": 0.99807,
+        "lifton_stable": 0.28186
       },
       "recall_at_0.9": {
         "liftoff": 0.99631,
         "miniprot": 0.99401,
-        "lifton_stable": 0.28145,
-        "lifton_devel": 0.99668
+        "lifton_devel": 0.99668,
+        "lifton_stable": 0.28145
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.00289,
+        "meanpi_delta": 0.0029,
         "n_common": 48184,
-        "n_improved": 6289,
-        "n_regressed": 32
+        "n_improved": 6290,
+        "n_regressed": 31
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.00068,
+        "meanpi_delta": 0.00069,
         "n_common": 48204,
-        "n_improved": 98,
+        "n_improved": 100,
         "n_regressed": 7
       },
       "devel_vs_lifton_stable_common": {
@@ -13562,55 +13562,55 @@
       "liftoff": 0.97075,
       "miniprot": 0.99114,
       "lifton_stable": 0.97403,
-      "lifton_devel": 0.97084
+      "lifton_devel": 0.97321
     },
     "completeness_feature_total": {
       "liftoff": 0.81686,
       "miniprot": null,
       "lifton_stable": 0.82015,
-      "lifton_devel": 0.81939
+      "lifton_devel": 0.82182
     },
     "mean_pi": {
       "liftoff": 0.88695,
       "miniprot": 0.91315,
       "lifton_stable": 0.92106,
-      "lifton_devel": 0.9224
+      "lifton_devel": 0.92217
     },
     "median_pi": {
       "liftoff": 0.95397,
       "miniprot": 0.95441,
       "lifton_stable": 0.95588,
-      "lifton_devel": 0.95605
+      "lifton_devel": 0.95599
     },
     "pct_identical": {
       "liftoff": 0.04477,
       "miniprot": 0.03882,
       "lifton_stable": 0.04591,
-      "lifton_devel": 0.04587
+      "lifton_devel": 0.04578
     },
     "n_recovered_coding": {
       "liftoff": 29898,
       "miniprot": 30526,
       "lifton_stable": 29999,
-      "lifton_devel": 29901
+      "lifton_devel": 29974
     },
     "n_recovered_any": {
       "liftoff": 29898,
       "miniprot": 30526,
       "lifton_stable": 29999,
-      "lifton_devel": 29901
+      "lifton_devel": 29974
     },
     "wall_s": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 2755.14,
-      "lifton_devel": 5945.0
+      "lifton_devel": 663.28
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 19658.5078125,
-      "lifton_devel": 7104.69921875
+      "lifton_devel": 3291.953125
     },
     "validity": {
       "liftoff": {
@@ -13634,7 +13634,7 @@
       "lifton_devel": {
         "exit": 0,
         "n_errors": 0,
-        "n_warnings": 134,
+        "n_warnings": 133,
         "valid": true
       }
     },
@@ -14103,10 +14103,10 @@
         },
         "gene": {
           "n_reference": 17559,
-          "n_recovered": 16372,
-          "pct_recovered": 0.9324,
-          "n_extra_copies": 83,
-          "n_tool_features": 16455
+          "n_recovered": 16447,
+          "pct_recovered": 0.93667,
+          "n_extra_copies": 123,
+          "n_tool_features": 16570
         },
         "lnc_RNA": {
           "n_reference": 2362,
@@ -14117,24 +14117,24 @@
         },
         "exon": {
           "n_reference": 190719,
-          "n_recovered": 83552,
-          "pct_recovered": 0.43809,
-          "n_extra_copies": 100945,
-          "n_tool_features": 184660
+          "n_recovered": 183083,
+          "pct_recovered": 0.95996,
+          "n_extra_copies": 0,
+          "n_tool_features": 184790
         },
         "mRNA": {
           "n_reference": 30799,
-          "n_recovered": 29901,
-          "pct_recovered": 0.97084,
-          "n_extra_copies": 28,
-          "n_tool_features": 29929
+          "n_recovered": 29974,
+          "pct_recovered": 0.97321,
+          "n_extra_copies": 66,
+          "n_tool_features": 30040
         },
         "CDS": {
           "n_reference": 163306,
-          "n_recovered": 7221,
-          "pct_recovered": 0.04422,
+          "n_recovered": 7148,
+          "pct_recovered": 0.04377,
           "n_extra_copies": 0,
-          "n_tool_features": 159618
+          "n_tool_features": 159857
         },
         "primary_transcript": {
           "n_reference": 266,
@@ -14229,58 +14229,58 @@
         },
         "_overall_": {
           "n_reference": 60889,
-          "n_recovered": 49892,
-          "pct_recovered": 0.81939,
+          "n_recovered": 50040,
+          "pct_recovered": 0.82182,
           "n_extra_copies": 0,
-          "n_tool_features": 50003
+          "n_tool_features": 50229
         }
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00134,
-      "completeness": -0.00319,
-      "n_recovered": -98
+      "meanpi": 0.00111,
+      "completeness": -0.00082,
+      "n_recovered": -25
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.00925,
-      "completeness": -0.0203
+      "meanpi": 0.00902,
+      "completeness": -0.01793
     },
     "joint": {
       "covpi": {
         "liftoff": 0.86011,
         "miniprot": 0.90506,
         "lifton_stable": 0.89633,
-        "lifton_devel": 0.89458
+        "lifton_devel": 0.89663
       },
       "recall_at_0.5": {
         "liftoff": 0.91756,
         "miniprot": 0.97165,
         "lifton_stable": 0.96188,
-        "lifton_devel": 0.95974
+        "lifton_devel": 0.96234
       },
       "recall_at_0.9": {
         "liftoff": 0.7171,
         "miniprot": 0.74619,
         "lifton_stable": 0.74311,
-        "lifton_devel": 0.74269
+        "lifton_devel": 0.74363
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.0044,
-        "n_common": 29809,
-        "n_improved": 4608,
-        "n_regressed": 275
+        "meanpi_delta": 0.00468,
+        "n_common": 29885,
+        "n_improved": 4614,
+        "n_regressed": 263
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.03558,
-        "n_common": 29817,
-        "n_improved": 3252,
+        "meanpi_delta": 0.0359,
+        "n_common": 29827,
+        "n_improved": 3269,
         "n_regressed": 24
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00073,
-        "n_common": 29857,
-        "n_improved": 153,
-        "n_regressed": 17
+        "meanpi_delta": 0.00101,
+        "n_common": 29932,
+        "n_improved": 217,
+        "n_regressed": 14
       }
     }
   },
@@ -19477,13 +19477,13 @@
       "liftoff": 0.30904,
       "miniprot": 0.50982,
       "lifton_stable": 0.54997,
-      "lifton_devel": 0.55051
+      "lifton_devel": 0.55068
     },
     "median_pi": {
       "liftoff": 0.16122,
       "miniprot": 0.52071,
       "lifton_stable": 0.5504,
-      "lifton_devel": 0.55055
+      "lifton_devel": 0.55061
     },
     "pct_identical": {
       "liftoff": 0.0,
@@ -19507,13 +19507,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 153.45
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 1300.6796875
     },
     "validity": {
       "liftoff": {
@@ -20055,17 +20055,17 @@
         },
         "exon": {
           "n_reference": 324848,
-          "n_recovered": 1809,
-          "pct_recovered": 0.00557,
-          "n_extra_copies": 3094,
-          "n_tool_features": 47871
+          "n_recovered": 4801,
+          "pct_recovered": 0.01478,
+          "n_extra_copies": 0,
+          "n_tool_features": 47873
         },
         "CDS": {
           "n_reference": 286264,
-          "n_recovered": 351,
-          "pct_recovered": 0.00123,
+          "n_recovered": 342,
+          "pct_recovered": 0.00119,
           "n_extra_copies": 0,
-          "n_tool_features": 46444
+          "n_tool_features": 46449
         },
         "lnc_RNA": {
           "n_reference": 3878,
@@ -20196,12 +20196,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00054,
+      "meanpi": 0.00071,
       "completeness": 0.0,
       "n_recovered": 0
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.04069,
+      "meanpi": 0.04086,
       "completeness": -0.61842
     },
     "joint": {
@@ -20209,13 +20209,13 @@
         "liftoff": 0.00474,
         "miniprot": 0.39086,
         "lifton_stable": 0.08143,
-        "lifton_devel": 0.08151
+        "lifton_devel": 0.08153
       },
       "recall_at_0.5": {
         "liftoff": 0.00448,
         "miniprot": 0.41933,
         "lifton_stable": 0.09228,
-        "lifton_devel": 0.09239
+        "lifton_devel": 0.09243
       },
       "recall_at_0.9": {
         "liftoff": 0.00122,
@@ -20224,21 +20224,21 @@
         "lifton_devel": 0.00383
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": -0.00848,
+        "meanpi_delta": -0.00831,
         "n_common": 7138,
         "n_improved": 173,
-        "n_regressed": 511
+        "n_regressed": 507
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.35214,
+        "meanpi_delta": 0.35379,
         "n_common": 734,
-        "n_improved": 556,
+        "n_improved": 563,
         "n_regressed": 4
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00055,
+        "meanpi_delta": 0.00072,
         "n_common": 7146,
-        "n_improved": 5,
+        "n_improved": 12,
         "n_regressed": 2
       }
     }
@@ -20276,13 +20276,13 @@
       "liftoff": 0.16318,
       "miniprot": 0.54472,
       "lifton_stable": 0.56313,
-      "lifton_devel": 0.56114
+      "lifton_devel": 0.56446
     },
     "median_pi": {
       "liftoff": 0.09337,
       "miniprot": 0.56578,
       "lifton_stable": 0.61828,
-      "lifton_devel": 0.61538
+      "lifton_devel": 0.61873
     },
     "pct_identical": {
       "liftoff": 0.00025,
@@ -20306,13 +20306,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 542.72
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": null,
-      "lifton_devel": null
+      "lifton_devel": 3461.20703125
     },
     "validity": {
       "liftoff": {
@@ -21904,10 +21904,10 @@
         },
         "exon": {
           "n_reference": 2300886,
-          "n_recovered": 6179,
-          "pct_recovered": 0.00269,
-          "n_extra_copies": 29420,
-          "n_tool_features": 65295
+          "n_recovered": 34093,
+          "pct_recovered": 0.01482,
+          "n_extra_copies": 0,
+          "n_tool_features": 66150
         },
         "gene": {
           "n_reference": 47782,
@@ -21963,7 +21963,7 @@
           "n_recovered": 1487,
           "pct_recovered": 0.00081,
           "n_extra_copies": 0,
-          "n_tool_features": 61182
+          "n_tool_features": 62184
         },
         "snRNA": {
           "n_reference": 172,
@@ -22395,12 +22395,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": -0.00199,
+      "meanpi": 0.00133,
       "completeness": -0.00097,
       "n_recovered": -140
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.01642,
+      "meanpi": 0.01974,
       "completeness": -0.77667
     },
     "joint": {
@@ -22408,13 +22408,13 @@
         "liftoff": 0.00444,
         "miniprot": 0.44764,
         "lifton_stable": 0.02544,
-        "lifton_devel": 0.02487
+        "lifton_devel": 0.02501
       },
       "recall_at_0.5": {
         "liftoff": 0.00246,
         "miniprot": 0.50742,
         "lifton_stable": 0.02963,
-        "lifton_devel": 0.02904
+        "lifton_devel": 0.02938
       },
       "recall_at_0.9": {
         "liftoff": 0.00039,
@@ -22423,22 +22423,22 @@
         "lifton_devel": 0.00344
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": -0.09505,
+        "meanpi_delta": -0.09173,
         "n_common": 6391,
         "n_improved": 284,
         "n_regressed": 1573
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.39155,
+        "meanpi_delta": 0.39713,
         "n_common": 3803,
-        "n_improved": 2719,
+        "n_improved": 2766,
         "n_regressed": 44
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": -0.00118,
+        "meanpi_delta": 0.00214,
         "n_common": 6393,
-        "n_improved": 37,
-        "n_regressed": 47
+        "n_improved": 102,
+        "n_regressed": 46
       }
     }
   },
@@ -32436,7 +32436,7 @@
     "mean_pi": {
       "liftoff": 0.91517,
       "miniprot": 0.94732,
-      "lifton_devel": 0.95494
+      "lifton_devel": 0.95527
     },
     "median_pi": {
       "liftoff": 0.99599,
@@ -32461,12 +32461,12 @@
     "wall_s": {
       "liftoff": null,
       "miniprot": null,
-      "lifton_devel": 3408.65
+      "lifton_devel": 982.68
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
-      "lifton_devel": 27355.53125
+      "lifton_devel": 5265.6015625
     },
     "validity": {
       "liftoff": {
@@ -32483,8 +32483,8 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 75,
-        "n_warnings": 154,
+        "n_errors": 69,
+        "n_warnings": 153,
         "valid": false
       }
     },
@@ -32825,17 +32825,17 @@
         },
         "exon": {
           "n_reference": 509115,
-          "n_recovered": 329340,
-          "pct_recovered": 0.64689,
-          "n_extra_copies": 135949,
-          "n_tool_features": 469803
+          "n_recovered": 464168,
+          "pct_recovered": 0.91172,
+          "n_extra_copies": 31,
+          "n_tool_features": 469642
         },
         "CDS": {
           "n_reference": 346676,
-          "n_recovered": 23478,
-          "pct_recovered": 0.06772,
+          "n_recovered": 23475,
+          "pct_recovered": 0.06771,
           "n_extra_copies": 0,
-          "n_tool_features": 332672
+          "n_tool_features": 332734
         },
         "transcript": {
           "n_reference": 8186,
@@ -32964,36 +32964,36 @@
       "n_recovered": null
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.00762,
+      "meanpi": 0.00795,
       "completeness": -0.03355
     },
     "joint": {
       "covpi": {
         "liftoff": 0.87798,
         "miniprot": 0.94619,
-        "lifton_devel": 0.91322
+        "lifton_devel": 0.91354
       },
       "recall_at_0.5": {
         "liftoff": 0.88287,
         "miniprot": 0.95579,
-        "lifton_devel": 0.9265
+        "lifton_devel": 0.92702
       },
       "recall_at_0.9": {
         "liftoff": 0.84649,
         "miniprot": 0.91612,
-        "lifton_devel": 0.876
+        "lifton_devel": 0.87617
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.00259,
+        "meanpi_delta": 0.00292,
         "n_common": 54831,
-        "n_improved": 8941,
-        "n_regressed": 2650
+        "n_improved": 8978,
+        "n_regressed": 2646
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.03722,
+        "meanpi_delta": 0.03755,
         "n_common": 54704,
-        "n_improved": 5603,
-        "n_regressed": 138
+        "n_improved": 5650,
+        "n_regressed": 137
       }
     }
   },
@@ -33026,7 +33026,7 @@
     "mean_pi": {
       "liftoff": 0.9608,
       "miniprot": 0.96498,
-      "lifton_devel": 0.97742
+      "lifton_devel": 0.97753
     },
     "median_pi": {
       "liftoff": 1.0,
@@ -33051,12 +33051,12 @@
     "wall_s": {
       "liftoff": null,
       "miniprot": null,
-      "lifton_devel": 6550.0
+      "lifton_devel": 659.21
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
-      "lifton_devel": 7177.2578125
+      "lifton_devel": 4424.91015625
     },
     "validity": {
       "liftoff": {
@@ -33359,10 +33359,10 @@
         },
         "exon": {
           "n_reference": 374374,
-          "n_recovered": 322713,
-          "pct_recovered": 0.86201,
-          "n_extra_copies": 42947,
-          "n_tool_features": 366568
+          "n_recovered": 365173,
+          "pct_recovered": 0.97542,
+          "n_extra_copies": 62,
+          "n_tool_features": 366507
         },
         "mRNA": {
           "n_reference": 44391,
@@ -33373,10 +33373,10 @@
         },
         "CDS": {
           "n_reference": 275535,
-          "n_recovered": 34277,
-          "pct_recovered": 0.1244,
+          "n_recovered": 34275,
+          "pct_recovered": 0.12439,
           "n_extra_copies": 19,
-          "n_tool_features": 271473
+          "n_tool_features": 271504
         },
         "transcript": {
           "n_reference": 3583,
@@ -33470,35 +33470,35 @@
       "n_recovered": null
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.01244,
+      "meanpi": 0.01255,
       "completeness": -0.00491
     },
     "joint": {
       "covpi": {
         "liftoff": 0.95564,
         "miniprot": 0.96465,
-        "lifton_devel": 0.97179
+        "lifton_devel": 0.9719
       },
       "recall_at_0.5": {
         "liftoff": 0.95666,
         "miniprot": 0.96731,
-        "lifton_devel": 0.98171
+        "lifton_devel": 0.98198
       },
       "recall_at_0.9": {
         "liftoff": 0.93334,
         "miniprot": 0.94267,
-        "lifton_devel": 0.94042
+        "lifton_devel": 0.94051
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.01192,
+        "meanpi_delta": 0.01203,
         "n_common": 44133,
-        "n_improved": 7740,
-        "n_regressed": 403
+        "n_improved": 7744,
+        "n_regressed": 401
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.01651,
+        "meanpi_delta": 0.01662,
         "n_common": 44129,
-        "n_improved": 2450,
+        "n_improved": 2462,
         "n_regressed": 7
       }
     }
@@ -33536,7 +33536,7 @@
       "liftoff": 0.95703,
       "miniprot": 0.96009,
       "lifton_stable": 0.97577,
-      "lifton_devel": 0.97696
+      "lifton_devel": 0.97709
     },
     "median_pi": {
       "liftoff": 0.99338,
@@ -33566,13 +33566,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 27747.0,
-      "lifton_devel": 12051.0
+      "lifton_devel": 5998.0
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 50076.5625,
-      "lifton_devel": 44738.48046875
+      "lifton_devel": 14945.078125
     },
     "validity": {
       "liftoff": {
@@ -33596,7 +33596,7 @@
       "lifton_devel": {
         "exit": 0,
         "n_errors": 0,
-        "n_warnings": 150,
+        "n_warnings": 151,
         "valid": true
       }
     },
@@ -35164,10 +35164,10 @@
         },
         "exon": {
           "n_reference": 2300886,
-          "n_recovered": 844367,
-          "pct_recovered": 0.36697,
-          "n_extra_copies": 1217643,
-          "n_tool_features": 2063505
+          "n_recovered": 2059666,
+          "pct_recovered": 0.89516,
+          "n_extra_copies": 83,
+          "n_tool_features": 2063398
         },
         "gene": {
           "n_reference": 47782,
@@ -35220,10 +35220,10 @@
         },
         "CDS": {
           "n_reference": 1835542,
-          "n_recovered": 224945,
-          "pct_recovered": 0.12255,
+          "n_recovered": 224663,
+          "pct_recovered": 0.1224,
           "n_extra_copies": 0,
-          "n_tool_features": 1642241
+          "n_tool_features": 1641939
         },
         "snRNA": {
           "n_reference": 172,
@@ -35655,12 +35655,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00119,
+      "meanpi": 0.00132,
       "completeness": -0.0041,
       "n_recovered": -592
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.01687,
+      "meanpi": 0.017,
       "completeness": -0.10726
     },
     "joint": {
@@ -35668,37 +35668,37 @@
         "liftoff": 0.85757,
         "miniprot": 0.95984,
         "lifton_stable": 0.87448,
-        "lifton_devel": 0.87143
+        "lifton_devel": 0.87155
       },
       "recall_at_0.5": {
         "liftoff": 0.86534,
         "miniprot": 0.97401,
         "lifton_stable": 0.88655,
-        "lifton_devel": 0.88348
+        "lifton_devel": 0.88359
       },
       "recall_at_0.9": {
         "liftoff": 0.84683,
         "miniprot": 0.94204,
         "lifton_stable": 0.86069,
-        "lifton_devel": 0.85882
+        "lifton_devel": 0.85907
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.01322,
+        "meanpi_delta": 0.01335,
         "n_common": 128717,
-        "n_improved": 30787,
-        "n_regressed": 1628
+        "n_improved": 30813,
+        "n_regressed": 1622
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.01872,
+        "meanpi_delta": 0.01886,
         "n_common": 128542,
-        "n_improved": 5866,
-        "n_regressed": 205
+        "n_improved": 5931,
+        "n_regressed": 204
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00023,
+        "meanpi_delta": 0.00037,
         "n_common": 128559,
-        "n_improved": 356,
-        "n_regressed": 176
+        "n_improved": 493,
+        "n_regressed": 174
       }
     }
   },
@@ -35735,7 +35735,7 @@
       "liftoff": 0.90796,
       "miniprot": 0.92541,
       "lifton_stable": 0.94946,
-      "lifton_devel": 0.95177
+      "lifton_devel": 0.95252
     },
     "median_pi": {
       "liftoff": 0.98765,
@@ -35765,13 +35765,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 22671.0,
-      "lifton_devel": 8201.0
+      "lifton_devel": 4339.0
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 86406.46875,
-      "lifton_devel": 29166.37109375
+      "lifton_devel": 11028.44140625
     },
     "validity": {
       "liftoff": {
@@ -36922,10 +36922,10 @@
         },
         "exon": {
           "n_reference": 1570915,
-          "n_recovered": 627768,
-          "pct_recovered": 0.39962,
-          "n_extra_copies": 892750,
-          "n_tool_features": 1520914
+          "n_recovered": 1511314,
+          "pct_recovered": 0.96206,
+          "n_extra_copies": 0,
+          "n_tool_features": 1520616
         },
         "mRNA": {
           "n_reference": 96192,
@@ -36936,10 +36936,10 @@
         },
         "CDS": {
           "n_reference": 1194622,
-          "n_recovered": 115956,
-          "pct_recovered": 0.09707,
+          "n_recovered": 115003,
+          "pct_recovered": 0.09627,
           "n_extra_copies": 0,
-          "n_tool_features": 1151722
+          "n_tool_features": 1153660
         },
         "pseudogene": {
           "n_reference": 10365,
@@ -37266,12 +37266,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00231,
+      "meanpi": 0.00306,
       "completeness": -0.00374,
       "n_recovered": -360
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.02636,
+      "meanpi": 0.02711,
       "completeness": -0.02895
     },
     "joint": {
@@ -37279,37 +37279,37 @@
         "liftoff": 0.88028,
         "miniprot": 0.9235,
         "lifton_stable": 0.92064,
-        "lifton_devel": 0.91865
+        "lifton_devel": 0.91937
       },
       "recall_at_0.5": {
         "liftoff": 0.89384,
         "miniprot": 0.94563,
         "lifton_stable": 0.94347,
-        "lifton_devel": 0.94194
+        "lifton_devel": 0.94304
       },
       "recall_at_0.9": {
         "liftoff": 0.84637,
         "miniprot": 0.87362,
         "lifton_stable": 0.87989,
-        "lifton_devel": 0.87913
+        "lifton_devel": 0.87978
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.01735,
+        "meanpi_delta": 0.0181,
         "n_common": 92824,
-        "n_improved": 23102,
-        "n_regressed": 2113
+        "n_improved": 23126,
+        "n_regressed": 2096
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.04158,
+        "meanpi_delta": 0.04233,
         "n_common": 92811,
-        "n_improved": 10473,
+        "n_improved": 10525,
         "n_regressed": 161
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00034,
+        "meanpi_delta": 0.00109,
         "n_common": 92823,
-        "n_improved": 651,
-        "n_regressed": 191
+        "n_improved": 983,
+        "n_regressed": 188
       }
     }
   },
@@ -37342,12 +37342,12 @@
     "mean_pi": {
       "liftoff": 0.76163,
       "miniprot": 0.84034,
-      "lifton_devel": 0.8585
+      "lifton_devel": 0.85921
     },
     "median_pi": {
       "liftoff": 0.9432,
       "miniprot": 0.94527,
-      "lifton_devel": 0.94955
+      "lifton_devel": 0.94958
     },
     "pct_identical": {
       "liftoff": 0.01131,
@@ -37367,12 +37367,12 @@
     "wall_s": {
       "liftoff": null,
       "miniprot": null,
-      "lifton_devel": 3234.76
+      "lifton_devel": 792.23
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
-      "lifton_devel": 7183.0234375
+      "lifton_devel": 3988.57421875
     },
     "validity": {
       "liftoff": {
@@ -37390,7 +37390,7 @@
       "lifton_devel": {
         "exit": 1,
         "n_errors": 58,
-        "n_warnings": 159,
+        "n_warnings": 158,
         "valid": false
       }
     },
@@ -37675,10 +37675,10 @@
         },
         "exon": {
           "n_reference": 374374,
-          "n_recovered": 146690,
-          "pct_recovered": 0.39183,
-          "n_extra_copies": 171476,
-          "n_tool_features": 321489
+          "n_recovered": 315598,
+          "pct_recovered": 0.843,
+          "n_extra_copies": 0,
+          "n_tool_features": 321575
         },
         "mRNA": {
           "n_reference": 44391,
@@ -37689,10 +37689,10 @@
         },
         "CDS": {
           "n_reference": 275535,
-          "n_recovered": 16155,
-          "pct_recovered": 0.05863,
+          "n_recovered": 15891,
+          "pct_recovered": 0.05767,
           "n_extra_copies": 0,
-          "n_tool_features": 252201
+          "n_tool_features": 252526
         },
         "transcript": {
           "n_reference": 3583,
@@ -37786,35 +37786,35 @@
       "n_recovered": null
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.01816,
+      "meanpi": 0.01887,
       "completeness": -0.06258
     },
     "joint": {
       "covpi": {
         "liftoff": 0.6966,
         "miniprot": 0.83379,
-        "lifton_devel": 0.78987
+        "lifton_devel": 0.79052
       },
       "recall_at_0.5": {
         "liftoff": 0.72945,
         "miniprot": 0.8852,
-        "lifton_devel": 0.83057
+        "lifton_devel": 0.83134
       },
       "recall_at_0.9": {
         "liftoff": 0.59985,
         "miniprot": 0.68998,
-        "lifton_devel": 0.67694
+        "lifton_devel": 0.67746
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": -0.0029,
+        "meanpi_delta": -0.0022,
         "n_common": 40812,
-        "n_improved": 8237,
-        "n_regressed": 3821
+        "n_improved": 8243,
+        "n_regressed": 3812
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.09908,
+        "meanpi_delta": 0.09979,
         "n_common": 40520,
-        "n_improved": 10910,
+        "n_improved": 10963,
         "n_regressed": 114
       }
     }
@@ -37840,25 +37840,25 @@
       "liftoff": 0.9822,
       "miniprot": 0.98887,
       "lifton_stable": 0.98274,
-      "lifton_devel": 0.9801
+      "lifton_devel": 0.98011
     },
     "completeness_feature_total": {
       "liftoff": 0.85037,
       "miniprot": null,
       "lifton_stable": 0.85083,
-      "lifton_devel": 0.86572
+      "lifton_devel": 0.86573
     },
     "mean_pi": {
       "liftoff": 0.69504,
       "miniprot": 0.83942,
       "lifton_stable": 0.86795,
-      "lifton_devel": 0.87089
+      "lifton_devel": 0.87306
     },
     "median_pi": {
       "liftoff": 0.89916,
       "miniprot": 0.93258,
       "lifton_stable": 0.93504,
-      "lifton_devel": 0.93548
+      "lifton_devel": 0.93558
     },
     "pct_identical": {
       "liftoff": 0.03618,
@@ -37870,25 +37870,25 @@
       "liftoff": 61237,
       "miniprot": 61653,
       "lifton_stable": 61271,
-      "lifton_devel": 61106
+      "lifton_devel": 61107
     },
     "n_recovered_any": {
       "liftoff": 61237,
       "miniprot": 61653,
       "lifton_stable": 61271,
-      "lifton_devel": 61106
+      "lifton_devel": 61107
     },
     "wall_s": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 18263.0,
-      "lifton_devel": null
+      "lifton_devel": 2666.85
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 46214.015625,
-      "lifton_devel": null
+      "lifton_devel": 7755.80859375
     },
     "validity": {
       "liftoff": {
@@ -37911,8 +37911,8 @@
       },
       "lifton_devel": {
         "exit": 1,
-        "n_errors": 15,
-        "n_warnings": 186,
+        "n_errors": 11,
+        "n_warnings": 177,
         "valid": false
       }
     },
@@ -38444,10 +38444,10 @@
         },
         "exon": {
           "n_reference": 1009715,
-          "n_recovered": 350705,
-          "pct_recovered": 0.34733,
-          "n_extra_copies": 598859,
-          "n_tool_features": 950163
+          "n_recovered": 934326,
+          "pct_recovered": 0.92534,
+          "n_extra_copies": 0,
+          "n_tool_features": 950427
         },
         "gene": {
           "n_reference": 35509,
@@ -38465,17 +38465,17 @@
         },
         "mRNA": {
           "n_reference": 62347,
-          "n_recovered": 61106,
-          "pct_recovered": 0.9801,
+          "n_recovered": 61107,
+          "pct_recovered": 0.98011,
           "n_extra_copies": 162,
-          "n_tool_features": 61276
+          "n_tool_features": 61277
         },
         "CDS": {
           "n_reference": 772925,
-          "n_recovered": 44894,
-          "pct_recovered": 0.05808,
+          "n_recovered": 42933,
+          "pct_recovered": 0.05555,
           "n_extra_copies": 0,
-          "n_tool_features": 737346
+          "n_tool_features": 739929
         },
         "tRNA": {
           "n_reference": 436,
@@ -38591,58 +38591,58 @@
         },
         "_overall_": {
           "n_reference": 143892,
-          "n_recovered": 124570,
-          "pct_recovered": 0.86572,
+          "n_recovered": 124571,
+          "pct_recovered": 0.86573,
           "n_extra_copies": 0,
-          "n_tool_features": 124991
+          "n_tool_features": 124992
         }
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00294,
-      "completeness": -0.00264,
-      "n_recovered": -165
+      "meanpi": 0.00511,
+      "completeness": -0.00263,
+      "n_recovered": -164
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.03147,
-      "completeness": -0.00877
+      "meanpi": 0.03364,
+      "completeness": -0.00876
     },
     "joint": {
       "covpi": {
         "liftoff": 0.68025,
         "miniprot": 0.83008,
         "lifton_stable": 0.84996,
-        "lifton_devel": 0.85061
+        "lifton_devel": 0.85274
       },
       "recall_at_0.5": {
         "liftoff": 0.71439,
         "miniprot": 0.89241,
         "lifton_stable": 0.91834,
-        "lifton_devel": 0.91958
+        "lifton_devel": 0.92296
       },
       "recall_at_0.9": {
         "liftoff": 0.48827,
         "miniprot": 0.61369,
         "lifton_stable": 0.61738,
-        "lifton_devel": 0.61863
+        "lifton_devel": 0.61966
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.03231,
-        "n_common": 60534,
-        "n_improved": 16624,
-        "n_regressed": 2120
+        "meanpi_delta": 0.0345,
+        "n_common": 60535,
+        "n_improved": 16637,
+        "n_regressed": 2086
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.17491,
-        "n_common": 60857,
-        "n_improved": 24409,
+        "meanpi_delta": 0.17709,
+        "n_common": 60858,
+        "n_improved": 24569,
         "n_regressed": 112
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00181,
-        "n_common": 60892,
-        "n_improved": 1042,
-        "n_regressed": 179
+        "meanpi_delta": 0.00399,
+        "n_common": 60893,
+        "n_improved": 1921,
+        "n_regressed": 152
       }
     }
   },
@@ -38679,7 +38679,7 @@
       "liftoff": 0.89019,
       "miniprot": 0.90994,
       "lifton_stable": 0.93869,
-      "lifton_devel": 0.94047
+      "lifton_devel": 0.94092
     },
     "median_pi": {
       "liftoff": 0.97624,
@@ -38709,13 +38709,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 30051.0,
-      "lifton_devel": 11853.0
+      "lifton_devel": 6120.0
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 49343.07421875,
-      "lifton_devel": 44739.84765625
+      "lifton_devel": 14432.82421875
     },
     "validity": {
       "liftoff": {
@@ -40307,10 +40307,10 @@
         },
         "exon": {
           "n_reference": 2300886,
-          "n_recovered": 744857,
-          "pct_recovered": 0.32373,
-          "n_extra_copies": 1279944,
-          "n_tool_features": 2026175
+          "n_recovered": 2016030,
+          "pct_recovered": 0.8762,
+          "n_extra_copies": 15,
+          "n_tool_features": 2025414
         },
         "gene": {
           "n_reference": 47782,
@@ -40363,10 +40363,10 @@
         },
         "CDS": {
           "n_reference": 1835542,
-          "n_recovered": 121627,
-          "pct_recovered": 0.06626,
+          "n_recovered": 120439,
+          "pct_recovered": 0.06561,
           "n_extra_copies": 0,
-          "n_tool_features": 1612076
+          "n_tool_features": 1612735
         },
         "snRNA": {
           "n_reference": 172,
@@ -40798,12 +40798,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00178,
+      "meanpi": 0.00223,
       "completeness": -0.00724,
       "n_recovered": -1045
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.03053,
+      "meanpi": 0.03098,
       "completeness": -0.11371
     },
     "joint": {
@@ -40811,37 +40811,37 @@
         "liftoff": 0.79143,
         "miniprot": 0.90797,
         "lifton_stable": 0.83472,
-        "lifton_devel": 0.82935
+        "lifton_devel": 0.82975
       },
       "recall_at_0.5": {
         "liftoff": 0.81329,
         "miniprot": 0.9422,
         "lifton_stable": 0.86614,
-        "lifton_devel": 0.86069
+        "lifton_devel": 0.86108
       },
       "recall_at_0.9": {
         "liftoff": 0.75103,
         "miniprot": 0.84382,
         "lifton_stable": 0.78473,
-        "lifton_devel": 0.78105
+        "lifton_devel": 0.78159
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.02322,
+        "meanpi_delta": 0.02366,
         "n_common": 127192,
-        "n_improved": 35067,
-        "n_regressed": 2500
+        "n_improved": 35156,
+        "n_regressed": 2472
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.0488,
+        "meanpi_delta": 0.04925,
         "n_common": 127027,
-        "n_improved": 14946,
-        "n_regressed": 259
+        "n_improved": 15146,
+        "n_regressed": 258
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00052,
+        "meanpi_delta": 0.00097,
         "n_common": 127053,
-        "n_improved": 1029,
-        "n_regressed": 251
+        "n_improved": 1636,
+        "n_regressed": 241
       }
     }
   },
@@ -40878,13 +40878,13 @@
       "liftoff": 0.80941,
       "miniprot": 0.86379,
       "lifton_stable": 0.89979,
-      "lifton_devel": 0.90106
+      "lifton_devel": 0.90183
     },
     "median_pi": {
       "liftoff": 0.94803,
       "miniprot": 0.94931,
       "lifton_stable": 0.95522,
-      "lifton_devel": 0.95559
+      "lifton_devel": 0.95563
     },
     "pct_identical": {
       "liftoff": 0.0403,
@@ -40908,13 +40908,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 33993.0,
-      "lifton_devel": 12081.0
+      "lifton_devel": 6197.0
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 49646.5859375,
-      "lifton_devel": 44738.7734375
+      "lifton_devel": 14218.24609375
     },
     "validity": {
       "liftoff": {
@@ -40938,7 +40938,7 @@
       "lifton_devel": {
         "exit": 0,
         "n_errors": 0,
-        "n_warnings": 170,
+        "n_warnings": 169,
         "valid": true
       }
     },
@@ -42506,10 +42506,10 @@
         },
         "exon": {
           "n_reference": 2300886,
-          "n_recovered": 718210,
-          "pct_recovered": 0.31214,
-          "n_extra_copies": 1266112,
-          "n_tool_features": 1985740
+          "n_recovered": 1968694,
+          "pct_recovered": 0.85562,
+          "n_extra_copies": 1,
+          "n_tool_features": 1985401
         },
         "gene": {
           "n_reference": 47782,
@@ -42562,10 +42562,10 @@
         },
         "CDS": {
           "n_reference": 1835542,
-          "n_recovered": 107350,
-          "pct_recovered": 0.05848,
+          "n_recovered": 105626,
+          "pct_recovered": 0.05754,
           "n_extra_copies": 0,
-          "n_tool_features": 1579478
+          "n_tool_features": 1580373
         },
         "snRNA": {
           "n_reference": 172,
@@ -42997,12 +42997,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": 0.00127,
+      "meanpi": 0.00204,
       "completeness": -0.00743,
       "n_recovered": -1072
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.03727,
+      "meanpi": 0.03804,
       "completeness": -0.11363
     },
     "joint": {
@@ -43010,37 +43010,37 @@
         "liftoff": 0.71687,
         "miniprot": 0.8606,
         "lifton_stable": 0.79716,
-        "lifton_devel": 0.79096
+        "lifton_devel": 0.79163
       },
       "recall_at_0.5": {
         "liftoff": 0.752,
         "miniprot": 0.91203,
         "lifton_stable": 0.84625,
-        "lifton_devel": 0.8398
+        "lifton_devel": 0.84054
       },
       "recall_at_0.9": {
         "liftoff": 0.60048,
         "miniprot": 0.71259,
         "lifton_stable": 0.66714,
-        "lifton_devel": 0.66307
+        "lifton_devel": 0.66389
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": 0.02581,
+        "meanpi_delta": 0.02657,
         "n_common": 126502,
-        "n_improved": 37302,
-        "n_regressed": 4205
+        "n_improved": 37356,
+        "n_regressed": 4103
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.08892,
+        "meanpi_delta": 0.08969,
         "n_common": 126360,
-        "n_improved": 28333,
-        "n_regressed": 711
+        "n_improved": 28533,
+        "n_regressed": 708
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": -0.00109,
+        "meanpi_delta": -0.00032,
         "n_common": 126399,
-        "n_improved": 1470,
-        "n_regressed": 895
+        "n_improved": 2404,
+        "n_regressed": 856
       }
     }
   },
@@ -43107,13 +43107,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 1141.6,
-      "lifton_devel": 575.39
+      "lifton_devel": 76.95
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 29383.03125,
-      "lifton_devel": 47978.8828125
+      "lifton_devel": 917.40625
     },
     "validity": {
       "liftoff": {
@@ -43620,9 +43620,9 @@
         },
         "exon": {
           "n_reference": 190719,
-          "n_recovered": 382,
-          "pct_recovered": 0.002,
-          "n_extra_copies": 1133,
+          "n_recovered": 1195,
+          "pct_recovered": 0.00627,
+          "n_extra_copies": 0,
           "n_tool_features": 18826
         },
         "mRNA": {
@@ -43820,13 +43820,13 @@
       "liftoff": 0.15219,
       "miniprot": 0.64493,
       "lifton_stable": 0.77396,
-      "lifton_devel": 0.77374
+      "lifton_devel": 0.77917
     },
     "median_pi": {
       "liftoff": 0.05996,
       "miniprot": 0.69753,
       "lifton_stable": 0.83792,
-      "lifton_devel": 0.83708
+      "lifton_devel": 0.83817
     },
     "pct_identical": {
       "liftoff": 0.00027,
@@ -43850,13 +43850,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 10383.0,
-      "lifton_devel": 4643.0
+      "lifton_devel": 1691.23
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 49084.8359375,
-      "lifton_devel": 44739.41015625
+      "lifton_devel": 5865.43359375
     },
     "validity": {
       "liftoff": {
@@ -43880,7 +43880,7 @@
       "lifton_devel": {
         "exit": 0,
         "n_errors": 0,
-        "n_warnings": 159,
+        "n_warnings": 154,
         "valid": true
       }
     },
@@ -45448,10 +45448,10 @@
         },
         "exon": {
           "n_reference": 2300886,
-          "n_recovered": 68513,
-          "pct_recovered": 0.02978,
-          "n_extra_copies": 397977,
-          "n_tool_features": 476993
+          "n_recovered": 458888,
+          "pct_recovered": 0.19944,
+          "n_extra_copies": 0,
+          "n_tool_features": 484292
         },
         "gene": {
           "n_reference": 47782,
@@ -45504,10 +45504,10 @@
         },
         "CDS": {
           "n_reference": 1835542,
-          "n_recovered": 2632,
+          "n_recovered": 2620,
           "pct_recovered": 0.00143,
           "n_extra_copies": 0,
-          "n_tool_features": 451807
+          "n_tool_features": 459387
         },
         "snRNA": {
           "n_reference": 172,
@@ -45939,12 +45939,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": -0.00022,
+      "meanpi": 0.00521,
       "completeness": -0.00495,
       "n_recovered": -715
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.12881,
+      "meanpi": 0.13424,
       "completeness": -0.61236
     },
     "joint": {
@@ -45952,37 +45952,37 @@
         "liftoff": 0.03518,
         "miniprot": 0.55228,
         "lifton_stable": 0.18597,
-        "lifton_devel": 0.18203
+        "lifton_devel": 0.18331
       },
       "recall_at_0.5": {
         "liftoff": 0.02113,
         "miniprot": 0.64342,
         "lifton_stable": 0.2171,
-        "lifton_devel": 0.21255
+        "lifton_devel": 0.21452
       },
       "recall_at_0.9": {
         "liftoff": 0.00358,
         "miniprot": 0.12038,
         "lifton_stable": 0.07301,
-        "lifton_devel": 0.07133
+        "lifton_devel": 0.07176
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": -0.01086,
+        "meanpi_delta": -0.00541,
         "n_common": 33874,
-        "n_improved": 2243,
+        "n_improved": 2252,
         "n_regressed": 2117
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.62881,
+        "meanpi_delta": 0.63447,
         "n_common": 32606,
-        "n_improved": 30575,
-        "n_regressed": 14
+        "n_improved": 30815,
+        "n_regressed": 9
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": 0.00016,
+        "meanpi_delta": 0.00559,
         "n_common": 33919,
-        "n_improved": 49,
-        "n_regressed": 26
+        "n_improved": 636,
+        "n_regressed": 15
       }
     }
   },
@@ -46019,13 +46019,13 @@
       "liftoff": 0.1584,
       "miniprot": 0.60055,
       "lifton_stable": 0.71792,
-      "lifton_devel": 0.71765
+      "lifton_devel": 0.72013
     },
     "median_pi": {
       "liftoff": 0.05108,
       "miniprot": 0.63073,
       "lifton_stable": 0.76923,
-      "lifton_devel": 0.76635
+      "lifton_devel": 0.76757
     },
     "pct_identical": {
       "liftoff": 0.00082,
@@ -46049,13 +46049,13 @@
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 9018.0,
-      "lifton_devel": 3611.0
+      "lifton_devel": 796.81
     },
     "peak_rss_mb": {
       "liftoff": null,
       "miniprot": null,
       "lifton_stable": 44226.296875,
-      "lifton_devel": 44739.64453125
+      "lifton_devel": 3680.828125
     },
     "validity": {
       "liftoff": {
@@ -47647,10 +47647,10 @@
         },
         "exon": {
           "n_reference": 2300886,
-          "n_recovered": 18463,
-          "pct_recovered": 0.00802,
-          "n_extra_copies": 109324,
-          "n_tool_features": 151469
+          "n_recovered": 124716,
+          "pct_recovered": 0.0542,
+          "n_extra_copies": 0,
+          "n_tool_features": 155824
         },
         "gene": {
           "n_reference": 47782,
@@ -47706,7 +47706,7 @@
           "n_recovered": 719,
           "pct_recovered": 0.00039,
           "n_extra_copies": 0,
-          "n_tool_features": 142627
+          "n_tool_features": 145860
         },
         "snRNA": {
           "n_reference": 172,
@@ -48138,12 +48138,12 @@
       }
     },
     "devel_vs_stable": {
-      "meanpi": -0.00027,
+      "meanpi": 0.00221,
       "completeness": -0.0016,
       "n_recovered": -231
     },
     "devel_vs_best_baseline": {
-      "meanpi": 0.1171,
+      "meanpi": 0.11958,
       "completeness": -0.76949
     },
     "joint": {
@@ -48151,13 +48151,13 @@
         "liftoff": 0.01066,
         "miniprot": 0.51514,
         "lifton_stable": 0.06173,
-        "lifton_devel": 0.06068
+        "lifton_devel": 0.06089
       },
       "recall_at_0.5": {
         "liftoff": 0.0064,
         "miniprot": 0.60655,
         "lifton_stable": 0.07376,
-        "lifton_devel": 0.07258
+        "lifton_devel": 0.07321
       },
       "recall_at_0.9": {
         "liftoff": 0.00094,
@@ -48166,22 +48166,22 @@
         "lifton_devel": 0.01598
       },
       "devel_vs_miniprot_common": {
-        "meanpi_delta": -0.0141,
+        "meanpi_delta": -0.01161,
         "n_common": 12175,
-        "n_improved": 666,
+        "n_improved": 665,
         "n_regressed": 930
       },
       "devel_vs_liftoff_common": {
-        "meanpi_delta": 0.59483,
+        "meanpi_delta": 0.59801,
         "n_common": 9506,
-        "n_improved": 8835,
-        "n_regressed": 6
+        "n_improved": 8895,
+        "n_regressed": 7
       },
       "devel_vs_lifton_stable_common": {
-        "meanpi_delta": -0.00019,
+        "meanpi_delta": 0.0023,
         "n_common": 12201,
-        "n_improved": 9,
-        "n_regressed": 7
+        "n_improved": 157,
+        "n_regressed": 8
       }
     }
   }

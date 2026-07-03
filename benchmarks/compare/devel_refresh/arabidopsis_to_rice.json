@@ -1,0 +1,229 @@
+{
+  "bid": "arabidopsis_to_rice",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_devel_refresh/devel_refresh.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_devel_refresh/eval",
+  "summary": {
+    "tool": "lifton_devel",
+    "benchmark": "arabidopsis_to_rice",
+    "species": "A. thaliana TAIR10 -> Rice (eudicot->monocot)",
+    "cross_species": true,
+    "n_reference_total": 52177,
+    "n_reference_coding": 48265,
+    "n_tool_features": 7856,
+    "n_unmapped_id": 0,
+    "n_recovered_any": 7193,
+    "n_recovered_coding": 7155,
+    "completeness_all": 0.13786,
+    "completeness_coding": 0.14824,
+    "completeness_by_type": {
+      "region": {
+        "n_reference": 7,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "gene": {
+        "n_reference": 33468,
+        "n_recovered": 7266,
+        "pct_recovered": 0.2171,
+        "n_extra_copies": 754,
+        "n_tool_features": 8020
+      },
+      "mRNA": {
+        "n_reference": 52177,
+        "n_recovered": 7193,
+        "pct_recovered": 0.13786,
+        "n_extra_copies": 663,
+        "n_tool_features": 7856
+      },
+      "exon": {
+        "n_reference": 324848,
+        "n_recovered": 4801,
+        "pct_recovered": 0.01478,
+        "n_extra_copies": 0,
+        "n_tool_features": 47873
+      },
+      "CDS": {
+        "n_reference": 286264,
+        "n_recovered": 342,
+        "pct_recovered": 0.00119,
+        "n_extra_copies": 0,
+        "n_tool_features": 46449
+      },
+      "lnc_RNA": {
+        "n_reference": 3878,
+        "n_recovered": 13,
+        "pct_recovered": 0.00335,
+        "n_extra_copies": 0,
+        "n_tool_features": 13
+      },
+      "primary_transcript": {
+        "n_reference": 326,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "miRNA": {
+        "n_reference": 428,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "transcript": {
+        "n_reference": 1826,
+        "n_recovered": 43,
+        "pct_recovered": 0.02355,
+        "n_extra_copies": 0,
+        "n_tool_features": 43
+      },
+      "tRNA": {
+        "n_reference": 684,
+        "n_recovered": 391,
+        "pct_recovered": 0.57164,
+        "n_extra_copies": 0,
+        "n_tool_features": 391
+      },
+      "antisense_RNA": {
+        "n_reference": 92,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "pseudogene": {
+        "n_reference": 4851,
+        "n_recovered": 55,
+        "pct_recovered": 0.01134,
+        "n_extra_copies": 0,
+        "n_tool_features": 55
+      },
+      "snoRNA": {
+        "n_reference": 287,
+        "n_recovered": 4,
+        "pct_recovered": 0.01394,
+        "n_extra_copies": 0,
+        "n_tool_features": 4
+      },
+      "sequence_feature": {
+        "n_reference": 818,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "ncRNA": {
+        "n_reference": 540,
+        "n_recovered": 21,
+        "pct_recovered": 0.03889,
+        "n_extra_copies": 0,
+        "n_tool_features": 21
+      },
+      "snRNA": {
+        "n_reference": 82,
+        "n_recovered": 26,
+        "pct_recovered": 0.31707,
+        "n_extra_copies": 0,
+        "n_tool_features": 26
+      },
+      "rRNA": {
+        "n_reference": 14,
+        "n_recovered": 14,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 14
+      },
+      "direct_repeat": {
+        "n_reference": 46,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "repeat_region": {
+        "n_reference": 29,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "five_prime_UTR": {
+        "n_reference": 25,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "inverted_repeat": {
+        "n_reference": 34,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "three_prime_UTR": {
+        "n_reference": 23,
+        "n_recovered": 1,
+        "pct_recovered": 0.04348,
+        "n_extra_copies": 0,
+        "n_tool_features": 1
+      },
+      "_overall_": {
+        "n_reference": 99587,
+        "n_recovered": 15026,
+        "pct_recovered": 0.15088,
+        "n_extra_copies": 0,
+        "n_tool_features": 16443
+      }
+    },
+    "completeness_feature_total": 0.15088,
+    "n_extra_copies": 663,
+    "dna_basis": "transcript",
+    "protein_identity": {
+      "mean": 0.55068,
+      "median": 0.55061,
+      "pct_identical": 0.00098,
+      "n": 7146
+    },
+    "dna_identity": {
+      "mean": 0.4673,
+      "median": 0.47603,
+      "pct_identical": 0.0,
+      "n": 7193
+    },
+    "protein_identity_hist": [
+      138,
+      112,
+      224,
+      728,
+      1483,
+      1747,
+      1347,
+      816,
+      366,
+      185
+    ],
+    "structural": {
+      "orf_valid_frac": 0.14857,
+      "orf_start_frac": 0.31936,
+      "orf_stop_frac": 0.37778,
+      "intron_chain_exact_frac": 0.22278,
+      "exon_sn_mean": 0.30432,
+      "exon_sp_mean": 0.31059,
+      "n_scored": 7155
+    },
+    "profile": {
+      "wall_clock_seconds": 153.45,
+      "peak_rss_mb": 1300.6796875
+    },
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+  },
+  "validity": {
+    "exit": 1,
+    "n_errors": 35,
+    "n_warnings": 137,
+    "valid": false
+  }
+}
