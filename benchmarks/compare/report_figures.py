@@ -353,7 +353,7 @@ def fig_robustness(fw):
     for xi, r, s in zip(x, full, sta):
         dpc = r["completeness_coding"].get("lifton_devel")
         if isinstance(dpc, float):
-            axA.annotate(f"{dpc*100:.0f}%",
+            axA.annotate(f"{dpc*100:.1f}%",
                          (xi + w / 2, r["n_recovered_coding"]["lifton_devel"]),
                          ha="center", va="bottom", fontsize=8, fontweight="bold")
         if isinstance(s, int):                       # partial crash → show the % it reached
@@ -715,9 +715,10 @@ def fig_full_validity(fw):
     ax.legend(fontsize=8.5, loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     ax.margins(x=0.18)
-    ax.annotate("† residual errors reference-inherited (organellar CDS-under-gene + "
-                "duplicate organellar IDs)", xy=(0.0, -0.155),
-                xycoords="axes fraction", fontsize=7.5, color="#666666")
+    ax.annotate("† marked rows: residual errors are reference-inherited (organellar "
+                "CDS-under-gene + duplicate organellar IDs), not introduced by LiftOn",
+                xy=(0.0, -0.16),
+                xycoords="axes fraction", fontsize=9, fontweight="bold", color="#444444")
     ax.set_title(f"Cleaner output on every whole genome — 0 errors on {n_clean} of "
                  f"{len(recs)} (v1.0.9 vs v1.0.8)",
                  fontsize=12, fontweight="bold", loc="left")
@@ -747,7 +748,7 @@ def fig_full_apples_to_apples(fw):
     common = [r["joint"]["devel_vs_miniprot_common"]["meanpi_delta"] for r in recs]
     ncom = [r["joint"]["devel_vs_miniprot_common"].get("n_common") for r in recs]
     axA.barh(y - h / 2, [d or 0 for d in setmean], height=h, color="#9e9e9e",
-             label="set-mean lead vs best(Liftoff, miniprot)")
+             label="set-mean lead vs best(Liftoff, miniprot) — each tool's own recovered set")
     axA.barh(y + h / 2, [d or 0 for d in common], height=h,
              color=["#2ca02c" if (d or 0) >= 0 else "#d62728" for d in common],
              label="apples-to-apples vs the protein evidence (common recovered set)")
