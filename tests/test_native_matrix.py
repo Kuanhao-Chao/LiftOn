@@ -181,7 +181,16 @@ class TestMergePromotion:
     def _protein_identity_by_mrna(cls, gff_bytes):
         return {k: float(v) for k, v in cls._attr_by_mrna(gff_bytes, "protein_identity").items()}
 
-    def test_merge_actually_fires(self, merge_firing_workspace, hermetic_pipeline):
+    def test_merge_actually_fires(self, merge_firing_workspace, hermetic_pipeline,
+                                  monkeypatch):
+        # Isolate to the 2-way best-of-outcome merge this class pins. candidate-3
+        # (a separate, later, additive 3rd best-of-outcome candidate — a
+        # standalone miniprot-only model, default-on, covered by its own
+        # tests/test_miniprot_candidate.py) can ALSO win on this fixture once its
+        # clean-rebuild fix makes miniprot's model genuinely better here than the
+        # merge -- which is correct behaviour for that layer, but would make this
+        # test vacuous for what it's actually pinning (the merge branch itself).
+        monkeypatch.setenv("LIFTON_MINIPROT_CANDIDATE", "0")
         default = _drive(merge_firing_workspace,
                          stream=False, inmem=False, threads=1,
                          native=False, suffix="merge_default")
@@ -189,6 +198,24 @@ class TestMergePromotion:
         assert status, "no mRNA with a status attribute was emitted"
         assert status.get("tx1") == "LiftOn_chaining_algorithm", (
             f"merge branch not exercised; tx1 status = {status.get('tx1')!r}"
+        )
+
+    def test_candidate3_fires_on_merge_fixture(self, merge_firing_workspace,
+                                               hermetic_pipeline, monkeypatch):
+        # Companion to test_merge_actually_fires: with candidate-3 DEFAULT-ON
+        # (no env override), miniprot's standalone model is STRICTLY better than
+        # the 2-way merge on this fixture, so the emitted tx1 status flips from
+        # the merge branch ("LiftOn_chaining_algorithm", pinned above under
+        # LIFTON_MINIPROT_CANDIDATE=0) to "LiftOn_miniprot". Pins that the
+        # default pipeline actually wires the 3rd candidate end-to-end (the unit
+        # coverage is tests/test_miniprot_candidate.py).
+        monkeypatch.delenv("LIFTON_MINIPROT_CANDIDATE", raising=False)
+        default = _drive(merge_firing_workspace,
+                         stream=False, inmem=False, threads=1,
+                         native=False, suffix="cand3_default")
+        status = self._attr_by_mrna(default, "status")
+        assert status.get("tx1") == "LiftOn_miniprot", (
+            f"candidate-3 did not fire end-to-end; tx1 status = {status.get('tx1')!r}"
         )
 
     def test_optimize_is_noop_alias(self, merge_firing_workspace, hermetic_pipeline):

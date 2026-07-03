@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import statistics
+import subprocess
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -29,6 +31,29 @@ from lifton.exceptions import LiftOnAlignmentError
 from lifton.extract_sequence import get_dna_sequence, get_protein_sequence
 
 from . import id_mapping
+
+_ERR_SUMMARY_RE = re.compile(r"Errors\s*:\s*(\d+)")
+
+
+def count_gff3_validator_errors(gff_path, python_exe, env) -> int:
+    """Structured error count from ``python -m lifton.gff3_validator``.
+
+    Parses the single authoritative ``Errors   : N`` summary line the validator
+    prints (gff3_validator.py:336). This replaces the crude ``grep -c "error"``
+    line count the A/B harnesses used, which conflated the summary line, the
+    ``[ERROR] Check: …`` detail lines, and any incidental "error" substrings —
+    and consequently *undercounted* (candidate-3 drosophila read as 1->2 when the
+    true structured delta was 0->4 strand_consistency errors). Falls back to
+    counting ``[ERROR]`` detail lines if the summary line is ever absent.
+    """
+    r = subprocess.run(
+        [python_exe, "-m", "lifton.gff3_validator", str(gff_path)],
+        env=env, capture_output=True, text=True)
+    out = (r.stdout or "") + (r.stderr or "")
+    m = _ERR_SUMMARY_RE.findall(out)
+    if m:
+        return int(m[-1])
+    return sum(1 for ln in out.splitlines() if "[ERROR]" in ln)
 
 
 def _build_db(gff_path: str):
