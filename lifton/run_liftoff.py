@@ -208,6 +208,34 @@ def _optimize_fast_enabled():
     return env.strip().lower() not in ("", "0", "false", "no", "off")
 
 
+# Default for the miniprot-only 3rd candidate (below). lifton.py's
+# resolve_miniprot_candidate_args sets this from the CLI flag
+# (--no-miniprot-candidate -> False) once at startup; the LIFTON_MINIPROT_CANDIDATE
+# env var still WINS at read time (so the 24-cell matrix + the A/B harness, which
+# force via env, are unaffected by the CLI default).
+_MINIPROT_CANDIDATE_DEFAULT = True
+
+
+def _miniprot_candidate_enabled():
+    """Third best-of-outcome candidate: a standalone MINIPROT-ONLY model.
+
+    The 2-way merge keeps max(Liftoff+ORF, chained-merge+ORF) but never considers
+    miniprot's NATIVE model. At very-distant divergence the DNA lift can collapse
+    to a truncated stub (Figure 4: LiftOn ~0.04 vs miniprot ~0.99, miniprot model
+    7-17% the length yet near-perfect identity), and the chaining cannot capture
+    miniprot because its exact-coordinate sync points rarely fire — so the clean
+    full-length miniprot model is discarded. This candidate is emitted ONLY when
+    its ORF-rescued protein identity is STRICTLY better than the 2-way winner, so
+    per-transcript identity is non-decreasing (additive), close pairs barely
+    change, and the perfect-ORF 24-cell fixtures (merge branch never fires) stay
+    byte-identical. On by default; --no-miniprot-candidate (or
+    LIFTON_MINIPROT_CANDIDATE=0) restores the 2-way best-of-outcome merge."""
+    env = os.environ.get("LIFTON_MINIPROT_CANDIDATE")
+    if env is None:
+        return _MINIPROT_CANDIDATE_DEFAULT
+    return env.strip().lower() not in ("", "0", "false", "no", "off")
+
+
 def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                                  ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                  tgt_fai, ref_trans_id, ref_proteins, ref_trans,
@@ -318,6 +346,64 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                     else:
                         # Keep Liftoff (current state IS the Liftoff candidate).
                         lifton_status.annotation = "Liftoff"
+                # Candidate 3 (default-on): a standalone miniprot-only model.
+                # The 2-way winner above can be a collapsed-Liftoff stub at very-
+                # distant divergence; emit miniprot's native model iff its ORF-
+                # rescued identity is STRICTLY better, so this is additive
+                # (per-transcript identity non-decreasing) and a no-op wherever
+                # miniprot is not strictly better (close pairs + the perfect-ORF
+                # 24-cell fixtures stay byte-identical). LIFTON_MINIPROT_CANDIDATE=0
+                # restores the 2-way behaviour.
+                _best_outcome = lifton_status.lifton_aa
+                _mini_children = getattr(miniprot_aln, "cds_children", None)
+                # Strand guard: a miniprot hit on the OPPOSITE strand from the lifted
+                # transcript is an antisense/spurious match, never a valid replacement.
+                # Building its CDS/exon children under this transcript's mRNA (which
+                # keeps the Liftoff strand) emits strand-inconsistent GFF3 and fails the
+                # coordinate->protein round-trip — its "strictly better" ORF-rescue score
+                # is a wrong-frame fluke (drosophila rna-NM_176527.1: 0->4
+                # strand_consistency errors, neutral protein id 0.138->0.045). Require
+                # every miniprot CDS child to share the transcript strand before firing.
+                _mini_strand_ok = bool(_mini_children) and all(
+                    _c.strand == lifton_trans.entry.strand for _c in _mini_children)
+                if (_miniprot_candidate_enabled() and _best_outcome < 1.0
+                        and _mini_strand_ok):
+                    _snapWin = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
+                    _restore_merge_structure(lifton_gene, lifton_trans, _snap0)
+                    _restore_status_and_mutation(lifton_trans, lifton_status, _snap0)
+                    lifton_status.lifton_aa = 0
+                    # Build a CLEAN miniprot-only scaffold — mirrors the proven
+                    # Step-8/Iter-23 builder (run_miniprot.lifton_miniprot_with_
+                    # ref_protein): clear the exon list, then add one CDS-only
+                    # exon per miniprot CDS child. Do NOT reconcile through
+                    # update_cds_list: that 5-case merge assumes the incoming
+                    # CDS list was derived FROM the existing exon scaffold (true
+                    # for the chaining algorithm's candidate 2) and explicitly
+                    # preserves non-overlapping exons — miniprot's CDS
+                    # boundaries are independent of Liftoff's exon structure,
+                    # and when they don't nest cleanly the reconciliation left
+                    # stale Liftoff exons plus duplicated exon entries, silently
+                    # corrupting the emitted GFF3 (caught by the chicken A/B:
+                    # 72 catastrophic regressions up to 0.809 -> 0.004,
+                    # confirmed by direct forensic diff of the written exon
+                    # list against miniprot's clean model).
+                    lifton_trans.exons = []
+                    for _c in _mini_children:
+                        lifton_gene.add_exon(lifton_trans.entry.id, _c)
+                        _cds_copy = copy.deepcopy(_c)
+                        lifton_gene.add_cds(lifton_trans.entry.id, _cds_copy)
+                    lifton_trans.update_boundaries()
+                    lifton_gene.update_boundaries()
+                    lifton_gene.orf_search_protein(
+                        lifton_trans.entry.id, ref_trans_id, tgt_fai,
+                        ref_proteins, ref_trans, lifton_status)
+                    if lifton_status.lifton_aa > _best_outcome:
+                        # miniprot's native model is strictly better — keep it.
+                        lifton_status.annotation = "LiftOn_miniprot"
+                    else:
+                        # Not strictly better — revert to the 2-way winner exactly.
+                        _restore_merge_structure(lifton_gene, lifton_trans, _snapWin)
+                        _restore_status_and_mutation(lifton_trans, lifton_status, _snapWin)
                 # Candidate(s) already ran ORF-rescue; tell process_liftoff to skip
                 # the canonical orf_search_protein so it is not run twice.
                 orf_done = True

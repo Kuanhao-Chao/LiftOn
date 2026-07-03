@@ -1,0 +1,170 @@
+[
+  {
+    "benchmark": "celegans_to_briggsae",
+    "divergence": "distant_cross_species",
+    "n_off": 3107,
+    "n_on": 3107,
+    "n_common": 3107,
+    "common_improved": 25,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.72086,
+    "mean_pi_on": 0.7215,
+    "n_tagged_LiftOn_miniprot": 30,
+    "a2a_vs_miniprot_off": -0.02614,
+    "a2a_vs_miniprot_on": -0.02549,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "drosophila_to_anopheles",
+    "divergence": "very_distant_cross_species",
+    "n_off": 1429,
+    "n_on": 1429,
+    "n_common": 1429,
+    "common_improved": 2,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.56333,
+    "mean_pi_on": 0.56335,
+    "n_tagged_LiftOn_miniprot": 2,
+    "a2a_vs_miniprot_off": -0.01982,
+    "a2a_vs_miniprot_on": -0.01979,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "zebrafish_to_medaka",
+    "divergence": "distant_cross_species",
+    "n_off": 648,
+    "n_on": 648,
+    "n_common": 648,
+    "common_improved": 1,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.58714,
+    "mean_pi_on": 0.58716,
+    "n_tagged_LiftOn_miniprot": 1,
+    "a2a_vs_miniprot_off": -0.07522,
+    "a2a_vs_miniprot_on": -0.0752,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "rice_to_sorghum",
+    "divergence": "distant_cross_species",
+    "n_off": 4533,
+    "n_on": 4533,
+    "n_common": 4533,
+    "common_improved": 39,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.67517,
+    "mean_pi_on": 0.67745,
+    "n_tagged_LiftOn_miniprot": 42,
+    "a2a_vs_miniprot_off": -0.04364,
+    "a2a_vs_miniprot_on": -0.04135,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "t4_human_to_xenopus",
+    "divergence": "very_distant_cross_species",
+    "n_off": 329,
+    "n_on": 329,
+    "n_common": 329,
+    "common_improved": 0,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.63453,
+    "mean_pi_on": 0.63453,
+    "n_tagged_LiftOn_miniprot": 0,
+    "a2a_vs_miniprot_off": -0.05439,
+    "a2a_vs_miniprot_on": -0.05439,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "t4_human_to_chicken",
+    "divergence": "very_distant_cross_species",
+    "n_off": 799,
+    "n_on": 799,
+    "n_common": 799,
+    "common_improved": 20,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.72046,
+    "mean_pi_on": 0.72146,
+    "n_tagged_LiftOn_miniprot": 20,
+    "a2a_vs_miniprot_off": -0.02743,
+    "a2a_vs_miniprot_on": -0.02643,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "human_to_mouse",
+    "divergence": "distant_cross_species",
+    "n_off": 2643,
+    "n_on": 2643,
+    "n_common": 2643,
+    "common_improved": 36,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.78091,
+    "mean_pi_on": 0.78266,
+    "n_tagged_LiftOn_miniprot": 36,
+    "a2a_vs_miniprot_off": -0.03209,
+    "a2a_vs_miniprot_on": -0.03034,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "drosophila",
+    "divergence": "D. melanogaster -> D. erecta",
+    "n_off": 7126,
+    "n_on": 7126,
+    "n_common": 7126,
+    "common_improved": 2,
+    "common_regressed": 0,
+    "n_lost": 0,
+    "mean_pi_off": 0.92573,
+    "mean_pi_on": 0.92576,
+    "n_tagged_LiftOn_miniprot": 2,
+    "a2a_vs_miniprot_off": 0.00267,
+    "a2a_vs_miniprot_on": 0.00271,
+    "deficit_shrunk_or_flat": true,
+    "validity": {
+      "off": 0,
+      "on": 0
+    },
+    "gate_pass": true
+  }
+]

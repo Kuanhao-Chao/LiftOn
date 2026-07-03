@@ -314,6 +314,30 @@ def args_optional(parser):
              '--miniprot-rescue has no effect; pass --no-miniprot-rescue to opt '
              'OUT. Env LIFTON_MINIPROT_RESCUE=1 force-enables, =0 force-disables.'
     )
+    parser.add_argument(
+        '--no-miniprot-candidate', dest='miniprot_candidate',
+        action='store_false', default=True,
+        help='Opt OUT of the miniprot-only best-of-outcome candidate (the 3rd '
+             'candidate, DEFAULT-ON). For a transcript where the DNA lift is '
+             'imperfect and miniprot overlaps the SAME locus, LiftOn also scores '
+             "miniprot's NATIVE model (a clean CDS-only scaffold) and keeps it "
+             'ONLY when its ORF-rescued protein identity is STRICTLY better than '
+             'the 2-way winner max(Liftoff+ORF, chained-merge+ORF) -- so '
+             'per-transcript identity is non-decreasing (additive) and close '
+             'pairs barely change. It recovers the very-distant residual where '
+             'the DNA lift collapses to a truncated stub while miniprot aligns '
+             'the protein near-perfectly (see benchmarks/compare/'
+             'miniprot_candidate_ab.md). Pass --no-miniprot-candidate (or env '
+             'LIFTON_MINIPROT_CANDIDATE=0) to restore the 2-way merge.'
+    )
+    parser.add_argument(
+        '--miniprot-candidate', dest='miniprot_candidate_alias',
+        action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). The miniprot-only '
+             'candidate is now the DEFAULT, so --miniprot-candidate has no '
+             'effect; pass --no-miniprot-candidate to opt OUT. Env '
+             'LIFTON_MINIPROT_CANDIDATE=1 force-enables, =0 force-disables.'
+    )
 
 
 def parse_args(arglist):
@@ -425,6 +449,25 @@ def resolve_miniprot_rescue_args(args):
     return args
 
 
+def resolve_miniprot_candidate_args(args):
+    """Resolve the miniprot-only best-of-outcome candidate (candidate-3) flag
+    ONCE and publish it to run_liftoff so the per-transcript decision point
+    (process_liftoff_with_protein, which does not receive `args`) can read it via
+    the module default. Pure/idempotent; unit-testable.
+
+    Candidate-3 is DEFAULT-ON. --no-miniprot-candidate => args.miniprot_candidate
+    False. The LIFTON_MINIPROT_CANDIDATE env var is honoured at READ time inside
+    run_liftoff._miniprot_candidate_enabled (env WINS), so the 24-cell matrix and
+    the A/B harness (which force via env) are unaffected by the CLI default; this
+    resolver only sets the default used when the env var is unset.
+    """
+    from lifton import run_liftoff as _run_liftoff
+    enabled = getattr(args, "miniprot_candidate", True)
+    args.miniprot_candidate = enabled
+    _run_liftoff._MINIPROT_CANDIDATE_DEFAULT = enabled
+    return args
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
     # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
@@ -435,6 +478,7 @@ def run_all_lifton_steps(args):
         from lifton import align as _align
         _align.configure_alignment(band=False)
     resolve_miniprot_rescue_args(args)
+    resolve_miniprot_candidate_args(args)
     ################################
     # Step 0: Reading target & reference genomes
     ################################
