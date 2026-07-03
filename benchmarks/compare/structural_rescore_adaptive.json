@@ -1,0 +1,94 @@
+[
+  {
+    "benchmark": "drosophila_to_anopheles",
+    "which": "adaptive",
+    "n_common": 1431,
+    "n_added": 73,
+    "mean_pi": {
+      "base": 0.56335,
+      "changed": 0.55869
+    },
+    "common_structural_delta": {
+      "orf_valid": 0.0,
+      "intron_chain_exact": 0.0,
+      "exon_sn": 0.0,
+      "exon_sp": 0.0
+    },
+    "added_structural": {
+      "orf_valid": 0.09589,
+      "intron_chain_exact": 0.09589,
+      "exon_sn": 0.16712,
+      "exon_sp": 0.15183
+    },
+    "no_common_regression": true
+  },
+  {
+    "benchmark": "zebrafish_to_medaka",
+    "which": "adaptive",
+    "n_common": 690,
+    "n_added": 23,
+    "mean_pi": {
+      "base": 0.58716,
+      "changed": 0.58248
+    },
+    "common_structural_delta": {
+      "orf_valid": 0.0,
+      "intron_chain_exact": 0.0,
+      "exon_sn": 0.0,
+      "exon_sp": 0.0
+    },
+    "added_structural": {
+      "orf_valid": 0.04348,
+      "intron_chain_exact": 0.04348,
+      "exon_sn": 0.0942,
+      "exon_sp": 0.1087
+    },
+    "no_common_regression": true
+  },
+  {
+    "benchmark": "t4_human_to_xenopus",
+    "which": "adaptive",
+    "n_common": 331,
+    "n_added": 15,
+    "mean_pi": {
+      "base": 0.63453,
+      "changed": 0.62614
+    },
+    "common_structural_delta": {
+      "orf_valid": 0.0,
+      "intron_chain_exact": 0.0,
+      "exon_sn": 0.0,
+      "exon_sp": 0.0
+    },
+    "added_structural": {
+      "orf_valid": 0.2,
+      "intron_chain_exact": 0.13333,
+      "exon_sn": 0.18556,
+      "exon_sp": 0.18794
+    },
+    "no_common_regression": true
+  },
+  {
+    "benchmark": "celegans_to_briggsae",
+    "which": "adaptive",
+    "n_common": 3113,
+    "n_added": 18,
+    "mean_pi": {
+      "base": 0.7215,
+      "changed": 0.72018
+    },
+    "common_structural_delta": {
+      "orf_valid": 0.0,
+      "intron_chain_exact": 0.0,
+      "exon_sn": 0.0,
+      "exon_sp": 0.0
+    },
+    "added_structural": {
+      "orf_valid": 0.16667,
+      "intron_chain_exact": 0.05556,
+      "exon_sn": 0.21667,
+      "exon_sp": 0.28148
+    },
+    "no_common_regression": true
+  }
+]
