@@ -1,0 +1,52 @@
+[
+  {
+    "benchmark": "celegans_to_briggsae",
+    "n_common": 3105,
+    "n_tagged": 30,
+    "n_tagged_common": 30,
+    "strategy_b_incremental_pi": -0.26671,
+    "tagged_mean_abs_gap_vs_miniprot": 0.3347,
+    "oracle_bestof_headroom": 0.04258,
+    "go": false
+  },
+  {
+    "benchmark": "drosophila_to_anopheles",
+    "n_common": 1429,
+    "n_tagged": 2,
+    "n_tagged_common": 2,
+    "strategy_b_incremental_pi": -0.07356,
+    "tagged_mean_abs_gap_vs_miniprot": 0.07356,
+    "oracle_bestof_headroom": 0.024,
+    "go": false
+  },
+  {
+    "benchmark": "zebrafish_to_medaka",
+    "n_common": 646,
+    "n_tagged": 1,
+    "n_tagged_common": 1,
+    "strategy_b_incremental_pi": -0.14054,
+    "tagged_mean_abs_gap_vs_miniprot": 0.14054,
+    "oracle_bestof_headroom": 0.07831,
+    "go": false
+  },
+  {
+    "benchmark": "rice_to_sorghum",
+    "n_common": 4526,
+    "n_tagged": 41,
+    "n_tagged_common": 41,
+    "strategy_b_incremental_pi": -0.35539,
+    "tagged_mean_abs_gap_vs_miniprot": 0.40824,
+    "oracle_bestof_headroom": 0.05802,
+    "go": false
+  },
+  {
+    "benchmark": "t4_human_to_chicken",
+    "n_common": 799,
+    "n_tagged": 20,
+    "n_tagged_common": 20,
+    "strategy_b_incremental_pi": -0.51259,
+    "tagged_mean_abs_gap_vs_miniprot": 0.5578,
+    "oracle_bestof_headroom": 0.04868,
+    "go": false
+  }
+]
