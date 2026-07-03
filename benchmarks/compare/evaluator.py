@@ -210,6 +210,60 @@ def _safe_dna_identity(lifted_dna, ref_dna):
 # reference materialization
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Structural metrics (Phase 3). Coordinate-INDEPENDENT: the reference and the
+# lifted transcript live on different genomes, so every comparison uses
+# spliced-transcript boundary POSITIONS (cumulative segment lengths), never
+# absolute genomic coordinates. These catch structural regressions that
+# per-residue protein identity hides -- a rearranged intron chain or an ORF that
+# lost its start/stop but still scores high identity on the aligned core.
+# ---------------------------------------------------------------------------
+
+def _internal_boundaries(features, strand):
+    """Internal splice-junction positions in spliced 5'->3' coordinates: the
+    cumulative segment length at each internal boundary. Coordinate-independent,
+    so a reference transcript (one genome) and its lift (another) are directly
+    comparable. <2 segments -> [] (no internal junctions)."""
+    segs = sorted((min(f.start, f.end), max(f.start, f.end)) for f in features)
+    if len(segs) < 2:
+        return []
+    lengths = [e - s + 1 for (s, e) in segs]
+    if strand == "-":
+        lengths = lengths[::-1]
+    bounds, acc = [], 0
+    for L in lengths[:-1]:
+        acc += L
+        bounds.append(acc)
+    return bounds
+
+
+def _boundary_snsp(ref_bounds, lifted_bounds):
+    """(sn, sp, exact) for two internal-boundary lists. sn = fraction of the
+    reference junctions recovered; sp = fraction of the lifted junctions that are
+    correct; exact = the full intron chain matches (order + positions). Empty
+    reference boundary set -> sn = 1.0 (vacuously recovered)."""
+    rb, lb = set(ref_bounds), set(lifted_bounds)
+    inter = len(rb & lb)
+    sn = inter / len(rb) if rb else 1.0
+    sp = inter / len(lb) if lb else 1.0
+    return sn, sp, int(list(ref_bounds) == list(lifted_bounds))
+
+
+def _orf_validity(prot):
+    """(start_ok, stop_ok, no_internal_stop, valid) for a translated protein.
+    start_ok = begins with M; stop_ok = ends with a stop codon (trailing '*');
+    no_internal_stop = no '*' before the terminal; valid = all three. Empty
+    protein -> all 0."""
+    if not prot:
+        return (0, 0, 0, 0)
+    start_ok = int(prot.startswith("M"))
+    stop_ok = int(prot.endswith("*"))
+    body = prot[:-1] if prot.endswith("*") else prot
+    no_internal = int("*" not in body)
+    return (start_ok, stop_ok, no_internal,
+            int(bool(start_ok and stop_ok and no_internal)))
+
+
 def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
     """Return (ref, ref_index).
 
@@ -231,6 +285,10 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
             "dna_cds": dna_cds or "",
             "prot": (prot or "").rstrip("*") + ("*" if prot and prot.endswith("*") else ""),
             "is_coding": bool(cds_only) and bool(prot),
+            # Phase 3 structural refs (coordinate-independent boundary positions).
+            "exon_bounds": _internal_boundaries(exons, mrna.strand) if exons else [],
+            "cds_bounds": _internal_boundaries(cds_only, mrna.strand) if cds_only else [],
+            "n_exons": len(exons), "n_cds": len(cds_only),
         }
     n_coding = sum(1 for v in ref.values() if v["is_coding"])
     ref_ids_by_type, ref_all_ids, ref_census = feature_index(db)
@@ -272,6 +330,17 @@ def _eval_one_mrna(mrna, exons, cds, ref_id, ref, fa, is_miniprot):
         dna_basis = "transcript" if exons else "cds"
     prot_id = _safe_prot_identity(lifted_prot, r["prot"]) if r["is_coding"] else None
     dna_id = _safe_dna_identity(lifted_dna, ref_dna)
+    # Phase 3 structural metrics (coordinate-independent). For coding transcripts
+    # the intron chain is compared on CDS boundaries (the protein-relevant
+    # structure, present for all three tools incl. CDS-only miniprot); non-coding
+    # falls back to exon boundaries. ORF-validity is coding-only.
+    use_cds = bool(r["is_coding"])
+    lifted_bounds = (_internal_boundaries(cds, mrna.strand) if (use_cds and cds)
+                     else (_internal_boundaries(exons, mrna.strand) if exons else []))
+    ref_bounds = r["cds_bounds"] if use_cds else r["exon_bounds"]
+    sn, sp, exact = _boundary_snsp(ref_bounds, lifted_bounds)
+    start_ok, stop_ok, no_internal, orf_valid = (
+        _orf_validity(lifted_prot) if use_cds else (0, 0, 0, 0))
     return {
         "ref_mrna_id": ref_id,
         "tool_feature_id": mrna.id,
@@ -284,6 +353,11 @@ def _eval_one_mrna(mrna, exons, cds, ref_id, ref, fa, is_miniprot):
         "lifted_dna_len": len(lifted_dna or ""),
         "dna_basis": dna_basis,
         "seqid": mrna.seqid,
+        # structural (Phase 3)
+        "n_cds_lifted": len(cds), "n_cds_ref": r["n_cds"],
+        "intron_chain_exact": exact,
+        "exon_sn": round(sn, 5), "exon_sp": round(sp, 5),
+        "orf_start_ok": start_ok, "orf_stop_ok": stop_ok, "orf_valid": orf_valid,
     }
 
 
@@ -366,6 +440,9 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
                 "ref_prot_len": len((r["prot"] or "").rstrip("*")), "lifted_prot_len": 0,
                 "ref_dna_len": len(r["dna_exon"] or r["dna_cds"] or ""), "lifted_dna_len": 0,
                 "dna_basis": "", "status": "lost", "seqid": "",
+                "n_cds_lifted": 0, "n_cds_ref": r["n_cds"],
+                "intron_chain_exact": "", "exon_sn": "", "exon_sp": "",
+                "orf_start_ok": "", "orf_stop_ok": "", "orf_valid": "",
             })
         else:
             status = "recovered"
@@ -380,13 +457,20 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
                 "ref_prot_len": rec["ref_prot_len"], "lifted_prot_len": rec["lifted_prot_len"],
                 "ref_dna_len": rec["ref_dna_len"], "lifted_dna_len": rec["lifted_dna_len"],
                 "dna_basis": rec["dna_basis"], "status": status, "seqid": rec["seqid"],
+                "n_cds_lifted": rec["n_cds_lifted"], "n_cds_ref": rec["n_cds_ref"],
+                "intron_chain_exact": rec["intron_chain_exact"],
+                "exon_sn": rec["exon_sn"], "exon_sp": rec["exon_sp"],
+                "orf_start_ok": rec["orf_start_ok"], "orf_stop_ok": rec["orf_stop_ok"],
+                "orf_valid": rec["orf_valid"],
             })
 
     # write TSV
     out_dir.mkdir(parents=True, exist_ok=True)
     cols = ["ref_mrna_id", "tool_feature_id", "recovered", "is_coding", "copy_index",
             "protein_identity", "dna_identity", "ref_prot_len", "lifted_prot_len",
-            "ref_dna_len", "lifted_dna_len", "dna_basis", "status", "seqid"]
+            "ref_dna_len", "lifted_dna_len", "dna_basis", "status", "seqid",
+            "n_cds_lifted", "n_cds_ref", "intron_chain_exact", "exon_sn", "exon_sp",
+            "orf_start_ok", "orf_stop_ok", "orf_valid"]
     tsv = out_dir / f"{tool}.transcripts.tsv"
     with open(tsv, "w") as fh:
         fh.write("\t".join(cols) + "\n")
@@ -415,6 +499,27 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
     prot_ids = [float(r["protein_identity"]) for r in recovered_coding
                 if r["protein_identity"] != ""]
     dna_ids = [float(r["dna_identity"]) for r in recovered if r["dna_identity"] != ""]
+
+    # Phase 3 structural aggregates over recovered coding transcripts. These are
+    # eval-only additive summary keys (protein/dna identity + completeness are
+    # unchanged), so downstream JSON consumers that read by key are unaffected.
+    def _frac(key):
+        vals = [r[key] for r in recovered_coding if r.get(key) not in ("", None)]
+        return round(sum(int(v) for v in vals) / len(vals), 5) if vals else None
+
+    def _mean_key(key):
+        vals = [float(r[key]) for r in recovered_coding if r.get(key) not in ("", None)]
+        return round(sum(vals) / len(vals), 5) if vals else None
+
+    structural = {
+        "orf_valid_frac": _frac("orf_valid"),
+        "orf_start_frac": _frac("orf_start_ok"),
+        "orf_stop_frac": _frac("orf_stop_ok"),
+        "intron_chain_exact_frac": _frac("intron_chain_exact"),
+        "exon_sn_mean": _mean_key("exon_sn"),
+        "exon_sp_mean": _mean_key("exon_sp"),
+        "n_scored": len(recovered_coding),
+    }
 
     def _stats(vals):
         if not vals:
@@ -451,6 +556,7 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
         "protein_identity": _stats(prot_ids),
         "dna_identity": _stats(dna_ids),
         "protein_identity_hist": _hist(prot_ids),
+        "structural": structural,
         "profile": {
             "wall_clock_seconds": (profile or {}).get("wall_clock_seconds"),
             "peak_rss_mb": (profile or {}).get("peak_rss_mb"),
