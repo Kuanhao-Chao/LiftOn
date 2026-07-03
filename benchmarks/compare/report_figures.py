@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-"""report_figures.py — figures for the LiftOn v1.0.9 *technical report*.
+"""report_figures.py — figures for the LiftOn v1.0.10 *technical report*.
 
 Distinct from blog_figures.py: the report (a) EXCLUDES the two full genomes
 v1.0.8 crashed on (arabidopsis*full, rice*full) from every head-to-head
 *comparison* figure — their partial-run metrics are not comparable — while
 keeping a dedicated robustness/recovery figure that shows the crash itself; and
 (b) carries a DEEPER, four-way performance analysis (Liftoff, miniprot, LiftOn
-v1.0.8, LiftOn v1.0.9) plus the v1.0.8->v1.0.9 improvement with wall / RSS / CPU.
+v1.0.8, LiftOn v1.0.10) plus the v1.0.8->v1.0.10 improvement with wall / RSS / CPU.
 
 Reuses master_report's data loaders + palette/constants so numbers never drift
 from the report tables. Touches no lifton/ source.
@@ -38,7 +38,7 @@ _COMPLETE = 0.90
 
 # report-facing tool labels
 LABEL = dict(mr.TOOL_LABEL)
-LABEL["lifton_devel"] = "LiftOn v1.0.9"
+LABEL["lifton_devel"] = "LiftOn v1.0.10"
 LABEL["lifton_stable"] = "LiftOn v1.0.8"
 
 # Divergence ramp — a SEQUENTIAL single-hue (purple) ladder so "darker = more
@@ -207,7 +207,7 @@ def fig_divergence_ladder(fw):
             vals = [r["mean_pi"].get(t) for r in recs
                     if isinstance(r["mean_pi"].get(t), float)]
             ys.append(sum(vals) / len(vals) if vals else np.nan)
-        # v1.0.8 ≈ v1.0.9 on this axis, so dash it (drawn on top) to stay visible
+        # v1.0.8 ≈ v1.0.10 on this axis, so dash it (drawn on top) to stay visible
         st = dict(lw=2.3, ms=8, ls="-", zorder=3)
         if t == "lifton_stable":
             st.update(ls=(0, (5, 2)), ms=6, zorder=5)
@@ -265,7 +265,7 @@ def fig_devel_vs_field(fw, vc):
                framealpha=0.9, title="divergence class", title_fontsize=8)
     _nwin = sum(1 for _, d in pts if d >= 0)
     _panel_title(axB, "A",
-                 f"LiftOn v1.0.9 beats the best single method on {_nwin}/{len(pts)}")
+                 f"LiftOn v1.0.10 beats the best single method on {_nwin}/{len(pts)}")
 
     # (C) controlled per-transcript improved vs regressed vs v1.0.8
     ctrl = sorted([r for r in vc.values() if r.get("arm") == "controlled"
@@ -329,8 +329,8 @@ def fig_robustness(fw):
     """HEADLINE robustness figure. (A) the FIVE full RefSeq genomes v1.0.8 cannot
     finish — two it aborts partway (Arabidopsis 28%, rice 77%) and three it
     produces no scorable output on at all (maize, two tomato pairs) — every one
-    completed by v1.0.9. (B) the gene-like feature types v1.0.8 drops by design
-    that v1.0.9 lifts (full Arabidopsis)."""
+    completed by v1.0.10. (B) the gene-like feature types v1.0.8 drops by design
+    that v1.0.10 lifts (full Arabidopsis)."""
     fig = plt.figure(figsize=(12.6, 5.6))
     gs = fig.add_gridspec(1, 2, width_ratios=[1.05, 1.0], wspace=0.32)
     axA = fig.add_subplot(gs[0, 0])
@@ -349,7 +349,7 @@ def fig_robustness(fw):
     axA.bar(x - w / 2, [s if isinstance(s, int) else 0 for s in sta], w,
             color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
     axA.bar(x + w / 2, dev, w, color=mr.TOOL_COLORS["lifton_devel"],
-            label="LiftOn v1.0.9")
+            label="LiftOn v1.0.10")
     for xi, r, s in zip(x, full, sta):
         dpc = r["completeness_coding"].get("lifton_devel")
         if isinstance(dpc, float):
@@ -374,7 +374,7 @@ def fig_robustness(fw):
     axA.legend(fontsize=8, loc="upper right")
     axA.grid(axis="y", alpha=0.3)
     axA.margins(y=0.18)
-    _panel_title(axA, "A", "v1.0.9 finishes five full RefSeq genomes v1.0.8 cannot")
+    _panel_title(axA, "A", "v1.0.10 finishes five full RefSeq genomes v1.0.8 cannot")
 
     arab = next((r for r in mr._fw_recs(fw, "full")
                  if mr._short_key(r["key"]) == "arabidopsis"), None)
@@ -395,7 +395,7 @@ def fig_robustness(fw):
         axB.barh(y + h / 2, [r[1] for r in rows], h,
                  color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
         axB.barh(y - h / 2, [r[2] for r in rows], h,
-                 color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
+                 color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
         for yi, (ft, ns, nd) in zip(y, rows):
             axB.annotate(f"+{nd-ns:,}", (nd, yi - h / 2), ha="left", va="center",
                          fontsize=8, xytext=(3, 0), textcoords="offset points")
@@ -426,7 +426,7 @@ def fig_validity(fw):
     h = 0.38
     fig, ax = plt.subplots(figsize=(9, max(5, 0.5 * len(recs))))
     ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
-    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
     for yi, s, d in zip(y, sta, dev):
         if d > s:
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
@@ -439,7 +439,7 @@ def fig_validity(fw):
     ax.legend(fontsize=8, loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     ax.margins(x=0.12)
-    ax.set_title("Output validity — LiftOn v1.0.9 vs v1.0.8",
+    ax.set_title("Output validity — LiftOn v1.0.10 vs v1.0.8",
                  fontsize=12, fontweight="bold", loc="left")
     return _save(fig, "rfig_validity.png")
 
@@ -479,7 +479,7 @@ def fig_perf_fourway(fw):
           "A.  End-to-end wall-clock — four tools")
     axW.legend(fontsize=8, loc="lower right", ncol=2, framealpha=0.9)
     panel(axR, "peak_rss_mb", "peak resident memory (GB, log scale)",
-          "B.  Peak memory — LiftOn v1.0.9 is lowest of all four", gb=True)
+          "B.  Peak memory — LiftOn v1.0.10 is lowest of all four", gb=True)
     fig.suptitle("Fresh end-to-end runs (each tool does its own alignment) — "
                  f"{len(recs)} subset benchmarks",
                  fontsize=11.5, fontweight="bold", y=1.005)
@@ -487,7 +487,7 @@ def fig_perf_fourway(fw):
 
 
 # --------------------------------------------------------------------------- #
-# PERFORMANCE 2 — the v1.0.8 -> v1.0.9 improvement (controlled arm: cached aligner
+# PERFORMANCE 2 — the v1.0.8 -> v1.0.10 improvement (controlled arm: cached aligner
 # inputs at -t1, isolates LiftOn's own code). wall / RSS / CPU + gain factors.
 # --------------------------------------------------------------------------- #
 def fig_perf_improvement(vc):
@@ -509,7 +509,7 @@ def fig_perf_improvement(vc):
         sta = [r[key]["stable"] for r in recs]
         dev = [r[key]["devel"] for r in recs]
         ax.bar(x - w / 2, sta, w, color=cs, label="LiftOn v1.0.8")
-        ax.bar(x + w / 2, dev, w, color=cd, label="LiftOn v1.0.9")
+        ax.bar(x + w / 2, dev, w, color=cd, label="LiftOn v1.0.10")
         # ratio label centered over each pair, above the taller bar (no clipping)
         for xi, s, d in zip(x, sta, dev):
             if d:
@@ -545,10 +545,10 @@ def fig_perf_improvement(vc):
     axF.legend(fontsize=8, loc="upper right")
     axF.grid(axis="y", alpha=0.3)
     axF.margins(y=0.2)
-    axF.set_title("C.  Gain factors (v1.0.8 → v1.0.9)", fontsize=11,
+    axF.set_title("C.  Gain factors (v1.0.8 → v1.0.10)", fontsize=11,
                   fontweight="bold", loc="left")
 
-    fig.suptitle("Bounded-memory engine: up to 23.9× less RAM and ~2× faster on "
+    fig.suptitle("Bounded-memory engine: up to 24× less RAM and ~1.9× faster on "
                  "identical cached inputs (-t1, controlled arm)", fontsize=11.5,
                  fontweight="bold", y=1.02)
     return _save(fig, "rfig_perf_improvement.png")
@@ -625,7 +625,7 @@ def fig_full_accuracy(fw):
                          fontsize=7.5, fontweight="bold")
     _nwin = sum(1 for d in deltas if d is not None and d >= 0)
     _panel_title(axB, "B", f"Above the DNA baseline on every genome ({_nwin}/{len(recs)})")
-    fig.suptitle("Whole-genome accuracy: LiftOn v1.0.9 vs the DNA baseline (Liftoff)",
+    fig.suptitle("Whole-genome accuracy: LiftOn v1.0.10 vs the DNA baseline (Liftoff)",
                  fontsize=12.5, fontweight="bold", y=1.02)
     return _save(fig, "rfig_full_accuracy.png")
 
@@ -682,8 +682,8 @@ def fig_full_completeness(fw):
 
 
 def fig_full_validity(fw):
-    """gff3-validate error counts, v1.0.8 vs the released v1.0.9, on the 17 whole
-    genomes. v1.0.9's containment normalization drives the count to zero on 9 of
+    """gff3-validate error counts, v1.0.8 vs the released v1.0.10, on the 17 whole
+    genomes. v1.0.10's containment normalization drives the count to zero on 9 of
     17 and far below v1.0.8 on every genome both produced; the † plant rows carry
     only reference-inherited organellar errors the strict validator flags."""
     recs = _full_recs(fw)
@@ -701,7 +701,7 @@ def fig_full_validity(fw):
     fig, ax = plt.subplots(figsize=(10.2, 6.0))
     _tier_bands(ax, recs)
     ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
-    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
     for yi, s, d in zip(y, sta_raw, dev_raw):
         if isinstance(s, int) and isinstance(d, int):
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
@@ -720,13 +720,13 @@ def fig_full_validity(fw):
                 xy=(0.0, -0.16),
                 xycoords="axes fraction", fontsize=9, fontweight="bold", color="#444444")
     ax.set_title(f"Cleaner output on every whole genome — 0 errors on {n_clean} of "
-                 f"{len(recs)} (v1.0.9 vs v1.0.8)",
+                 f"{len(recs)} (v1.0.10 vs v1.0.8)",
                  fontsize=12, fontweight="bold", loc="left")
     return _save(fig, "rfig_full_validity.png")
 
 
 def fig_full_apples_to_apples(fw):
-    """The honest summary. (A) per genome, the grey bar is v1.0.9's set-mean lead
+    """The honest summary. (A) per genome, the grey bar is v1.0.10's set-mean lead
     over the better single baseline; the coloured bar is its apples-to-apples lead
     over miniprot on the transcripts BOTH recover (common-set size n labelled) —
     green through the distant tier, red on four of five very-distant genomes,
@@ -772,7 +772,7 @@ def fig_full_apples_to_apples(fw):
     _tier_bands(axB, recs)
     cov_dev = [(r["joint"].get("covpi") or {}).get("lifton_devel", 0) for r in recs]
     cov_mp = [(r["joint"].get("covpi") or {}).get("miniprot", 0) for r in recs]
-    axB.barh(y - h / 2, cov_dev, height=h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.9")
+    axB.barh(y - h / 2, cov_dev, height=h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
     axB.barh(y + h / 2, cov_mp, height=h, color=mr.TOOL_COLORS["miniprot"],
              label="miniprot (protein evidence)")
     axB.set_yticks(y)
@@ -783,7 +783,7 @@ def fig_full_apples_to_apples(fw):
     axB.grid(axis="x", alpha=0.3)
     axB.legend(fontsize=8.5, loc="lower right", framealpha=0.9)
     _panel_title(axB, "B", "Coverage-weighted PI (recall × accuracy)")
-    fig.suptitle("Protein-evidence view: LiftOn v1.0.9 vs the miniprot signal it fuses "
+    fig.suptitle("Protein-evidence view: LiftOn v1.0.10 vs the miniprot signal it fuses "
                  "(miniprot is evidence, not a rival lift-over tool)",
                  fontsize=11.8, fontweight="bold", y=1.02)
     return _save(fig, "rfig_full_apples_to_apples.png")

@@ -4,7 +4,7 @@
 Feeds on benchmarks/compare/extcompare_results.json (the NEW file written by
 extcompare.py; the committed fourway_results.json is never touched). The
 sub-study compares the three homology lift-over tools (Liftoff, LiftOn v1.0.8,
-LiftOn v1.0.9) against coordinate **LiftOver** (CrossMap over a per-pair Cactus
+LiftOn v1.0.10) against coordinate **LiftOver** (CrossMap over a per-pair Cactus
 chain) on a representative 5-pair chromosome-subset, with miniprot kept as
 protein evidence. CAT (v1/v2) was attempted but its toil sub-workflows proved
 intractable on the RefSeq subset — recorded, no column.
@@ -58,7 +58,7 @@ PAIR_LABEL = {
 }
 LABEL = dict(mr.TOOL_LABEL)
 LABEL["lifton_stable"] = "LiftOn v1.0.8"
-LABEL["lifton_devel"] = "LiftOn v1.0.9"
+LABEL["lifton_devel"] = "LiftOn v1.0.10"
 LABEL["liftover"] = "LiftOver (coord-only)"
 COLOR = dict(mr.TOOL_COLORS)
 
