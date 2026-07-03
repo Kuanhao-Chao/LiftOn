@@ -338,6 +338,27 @@ def args_optional(parser):
              'effect; pass --no-miniprot-candidate to opt OUT. Env '
              'LIFTON_MINIPROT_CANDIDATE=1 force-enables, =0 force-disables.'
     )
+    parser.add_argument(
+        '--no-adaptive-rescue-floor', dest='adaptive_rescue_floor',
+        action='store_false', default=True,
+        help='Opt OUT of the divergence-adaptive miniprot-only-rescue floor '
+             '(DEFAULT-ON). The rescue admits a miniprot-only gene when its '
+             'protein identity clears a floor; by default that floor is LOWERED '
+             'toward 0.30 as the DNA-lift gene recall drops (divergent pairs) to '
+             'recover more genuinely-missing genes, and stays at the base '
+             '(LIFTON_MINIPROT_RESCUE_MIN_ID, default 0.5) on same/close-species '
+             '(high recall). Pass --no-adaptive-rescue-floor (or env '
+             'LIFTON_RESCUE_ADAPTIVE_FLOOR=0) to restore the FIXED base floor. '
+             'Thresholds: LIFTON_RESCUE_FLOOR_MIN/R_LOW/R_HIGH.'
+    )
+    parser.add_argument(
+        '--adaptive-rescue-floor', dest='adaptive_rescue_floor_alias',
+        action='store_true', default=False,
+        help='No-op alias (kept for backward compatibility). The adaptive rescue '
+             'floor is now the DEFAULT, so --adaptive-rescue-floor has no effect; '
+             'pass --no-adaptive-rescue-floor to opt OUT. Env '
+             'LIFTON_RESCUE_ADAPTIVE_FLOOR=1 force-enables, =0 force-disables.'
+    )
 
 
 def parse_args(arglist):
@@ -446,6 +467,16 @@ def resolve_miniprot_rescue_args(args):
         args.miniprot_rescue_len = (lo, hi)
     except (ValueError, TypeError):
         args.miniprot_rescue_len = (0.5, 2.0)
+    # Divergence-adaptive rescue floor (PROMOTED default ON). Env
+    # LIFTON_RESCUE_ADAPTIVE_FLOOR wins, else args.adaptive_rescue_floor (default
+    # True); --no-adaptive-rescue-floor sets it False (restores the fixed 0.5
+    # floor). Read at apply time by miniprot_rescue._adaptive_floor_on (env wins
+    # there too), so this only sets the default used when the env var is unset.
+    _env_af = os.environ.get("LIFTON_RESCUE_ADAPTIVE_FLOOR")
+    if _env_af is not None:
+        args.adaptive_rescue_floor = _env_af.lower() not in ("0", "false", "no", "")
+    else:
+        args.adaptive_rescue_floor = bool(getattr(args, "adaptive_rescue_floor", True))
     return args
 
 

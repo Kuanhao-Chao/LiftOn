@@ -1,0 +1,170 @@
+[
+  {
+    "benchmark": "celegans_to_briggsae",
+    "divergence": "distant_cross_species",
+    "n_fixed": 3107,
+    "n_adaptive": 3125,
+    "n_new": 18,
+    "mean_pi_new": 0.49218,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.7215,
+    "mean_pi_adaptive": 0.72018,
+    "n_tagged_fixed": 555,
+    "n_tagged_adaptive": 573,
+    "n_redundant": 0,
+    "completeness_gain": 0.00238,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "drosophila_to_anopheles",
+    "divergence": "very_distant_cross_species",
+    "n_fixed": 1429,
+    "n_adaptive": 1501,
+    "n_new": 73,
+    "mean_pi_new": 0.46892,
+    "n_lost": 1,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.56335,
+    "mean_pi_adaptive": 0.55869,
+    "n_tagged_fixed": 201,
+    "n_tagged_adaptive": 273,
+    "n_redundant": 0,
+    "completeness_gain": 0.01007,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": false
+  },
+  {
+    "benchmark": "zebrafish_to_medaka",
+    "divergence": "distant_cross_species",
+    "n_fixed": 648,
+    "n_adaptive": 671,
+    "n_new": 23,
+    "mean_pi_new": 0.45066,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.58716,
+    "mean_pi_adaptive": 0.58248,
+    "n_tagged_fixed": 143,
+    "n_tagged_adaptive": 166,
+    "n_redundant": 0,
+    "completeness_gain": 0.00774,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "rice_to_sorghum",
+    "divergence": "distant_cross_species",
+    "n_fixed": 4533,
+    "n_adaptive": 4533,
+    "n_new": 0,
+    "mean_pi_new": null,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.67745,
+    "mean_pi_adaptive": 0.67745,
+    "n_tagged_fixed": 100,
+    "n_tagged_adaptive": 100,
+    "n_redundant": 0,
+    "completeness_gain": 0.0,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "t4_human_to_xenopus",
+    "divergence": "very_distant_cross_species",
+    "n_fixed": 329,
+    "n_adaptive": 344,
+    "n_new": 15,
+    "mean_pi_new": 0.44217,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.63453,
+    "mean_pi_adaptive": 0.62614,
+    "n_tagged_fixed": 87,
+    "n_tagged_adaptive": 102,
+    "n_redundant": 0,
+    "completeness_gain": 0.00486,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "t4_human_to_chicken",
+    "divergence": "very_distant_cross_species",
+    "n_fixed": 799,
+    "n_adaptive": 803,
+    "n_new": 4,
+    "mean_pi_new": 0.46551,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.72146,
+    "mean_pi_adaptive": 0.72019,
+    "n_tagged_fixed": 51,
+    "n_tagged_adaptive": 55,
+    "n_redundant": 0,
+    "completeness_gain": 0.0013,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "human_to_mouse",
+    "divergence": "distant_cross_species",
+    "n_fixed": 2643,
+    "n_adaptive": 2643,
+    "n_new": 0,
+    "mean_pi_new": null,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.78266,
+    "mean_pi_adaptive": 0.78266,
+    "n_tagged_fixed": 30,
+    "n_tagged_adaptive": 30,
+    "n_redundant": 0,
+    "completeness_gain": 0.0,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  },
+  {
+    "benchmark": "drosophila",
+    "divergence": "D. melanogaster -> D. erecta",
+    "n_fixed": 7126,
+    "n_adaptive": 7126,
+    "n_new": 0,
+    "mean_pi_new": null,
+    "n_lost": 0,
+    "common_regressed": 0,
+    "mean_pi_fixed": 0.92576,
+    "mean_pi_adaptive": 0.92576,
+    "n_tagged_fixed": 1,
+    "n_tagged_adaptive": 1,
+    "n_redundant": 0,
+    "completeness_gain": 0.0,
+    "validity": {
+      "fixed": 0,
+      "adaptive": 0
+    },
+    "gate_pass": true
+  }
+]

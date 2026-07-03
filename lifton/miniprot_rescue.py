@@ -22,11 +22,62 @@ the shipped lifton2 design (``lifton2/lifton2/miniprot_rescue.py``).
 The whole pass is gated behind ``args.miniprot_rescue``; the caller never imports
 this module when the flag is OFF, so the default path is provably inert.
 """
+import os
 import sys
 
 from intervaltree import Interval
 
 from lifton import run_miniprot, lifton_utils, logger
+
+
+# Divergence-adaptive protein-identity floor (PROMOTED to default ON). The
+# miniprot-only rescue (Iteration 23) used a FIXED floor (default 0.5). When the
+# DNA lift placed only a small fraction of the genes miniprot ALSO found, the pair
+# is divergent and the rescue is the dominant recall lever, so lower the floor
+# toward ADAPT_FLOOR_MIN to admit more genuinely-missing genes; above ADAPT_R_HIGH
+# recall (same/close-species) the floor stays at the user's base (rescue is
+# marginal there -> keep precision). Mirrors lifton2's shipped design
+# (lifton2/lifton2/miniprot_rescue.py). Thresholds env-overridable for the A/B.
+ADAPT_FLOOR_MIN = float(os.environ.get("LIFTON_RESCUE_FLOOR_MIN") or 0.30)
+ADAPT_R_LOW = float(os.environ.get("LIFTON_RESCUE_R_LOW") or 0.10)
+ADAPT_R_HIGH = float(os.environ.get("LIFTON_RESCUE_R_HIGH") or 0.50)
+
+
+def _adaptive_floor_on(args):
+    """Whether the divergence-adaptive floor is active. Env
+    ``LIFTON_RESCUE_ADAPTIVE_FLOOR`` wins (1/0), else ``args.adaptive_rescue_floor``
+    (default True -- PROMOTED to default ON). Opt out with
+    ``--no-adaptive-rescue-floor`` / ``LIFTON_RESCUE_ADAPTIVE_FLOOR=0`` (restores
+    the fixed ``-miniprot_rescue_min_id`` floor)."""
+    env = os.environ.get("LIFTON_RESCUE_ADAPTIVE_FLOOR")
+    if env is not None:
+        return env not in ("0", "", "false", "False")
+    return bool(getattr(args, "adaptive_rescue_floor", True))
+
+
+def _adaptive_floor(recall, base):
+    """Map DNA-lift gene recall -> PI floor in ``[min(ADAPT_FLOOR_MIN, base), base]``:
+    ``recall<=ADAPT_R_LOW`` -> the low floor (very-distant, recall is the priority);
+    ``recall>=ADAPT_R_HIGH`` -> ``base`` (well-synteny, keep precision); linear in
+    between. Never rises above ``base``."""
+    lo = min(ADAPT_FLOOR_MIN, base)
+    if recall <= ADAPT_R_LOW:
+        return lo
+    if recall >= ADAPT_R_HIGH:
+        return base
+    frac = (recall - ADAPT_R_LOW) / (ADAPT_R_HIGH - ADAPT_R_LOW)
+    return lo + frac * (base - lo)
+
+
+def _dna_lift_recall(universe, emitted):
+    """Fraction of the miniprot-found ref genes (``universe``) that the DNA lift +
+    default Step 8 already placed (``emitted``) -- a cheap, divergence-sensitive
+    proxy: ~1 on same-species, low on very-distant. Returns 1.0 (=> base floor) if
+    the universe is empty (no miniprot-found ref genes -> the rescue is marginal)."""
+    universe = set(universe)
+    if not universe:
+        return 1.0
+    return len(universe & set(emitted)) / len(universe)
 
 
 def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
@@ -61,6 +112,32 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
     except Exception as e:
         logger.log_error(f"miniprot-only rescue: failed to enumerate mRNAs: {e}")
         return 0
+
+    # Divergence-adaptive PI floor (default ON): the DNA-lift gene recall is the
+    # fraction of the miniprot-found ref genes already emitted by Step 7 + Step 8
+    # (~1 same-species, low very-distant); lower the floor toward ADAPT_FLOOR_MIN
+    # as recall drops. off subset of on is preserved: this only LOWERS the floor
+    # within the already-additive separate pass, so it can only ADD rescues, never
+    # remove or change a default-emitted feature.
+    if _adaptive_floor_on(args):
+        universe = set()
+        for _m in mtranscripts:
+            try:
+                _gid, _tid = lifton_utils.get_ref_ids_miniprot(
+                    ref_features_reverse_dict, _m.attributes["ID"][0],
+                    m_id_2_ref_id_trans_dict)
+            except Exception:
+                _gid = None
+            if _gid is not None:
+                universe.add(_gid)
+        recall = _dna_lift_recall(universe, emitted_ref_gene_ids)
+        adapted = _adaptive_floor(recall, floor)
+        if abs(adapted - floor) > 1e-9:
+            sys.stderr.write(
+                f"[LiftOn] miniprot-only rescue: adaptive PI floor {adapted:.2f} "
+                f"(DNA-lift gene recall {recall:.3f}, base {floor:.2f}).\n")
+            sys.stderr.flush()
+        floor = adapted
 
     for mtrans in mtranscripts:
         try:
