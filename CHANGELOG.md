@@ -4,6 +4,76 @@ All notable changes to **LiftOn** are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions and
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.10] - 2026-07-03
+
+This is an incremental release that builds on v1.0.9's whole-genome robustness
+with a third dual-evidence merge candidate, a divergence-adaptive rescue floor,
+coordinate-independent structural evaluation metrics, byte-neutral speed
+backports into the vendored Liftoff engine, and a set of write-guard /
+containment-normalization fixes that let previously-crashing full RefSeq and
+cross-species genomes complete and validate cleanly. As in v1.0.9, every
+output-affecting default ships with an opt-out flag; the byte-identity
+regression matrix stays green (the version bump does not touch the emitted
+annotation bytes).
+
+### Changed (output-affecting defaults — results differ vs v1.0.9)
+
+- **Third best-of-outcome merge candidate ("candidate-3"), default-ON.** In
+  addition to {chained merge + ORF-rescue, Liftoff + ORF-rescue}, LiftOn now
+  evaluates a third candidate that emits miniprot's *native* CDS-only model, and
+  adopts it only when its ORF-rescued protein identity is *strictly* higher than
+  the two-way winner. The candidate is built cleanly (fresh exon/CDS scaffold,
+  not routed through `update_cds_list`) and is gated by a strand-consistency
+  guard so an antisense miniprot hit can never replace a lifted transcript. This
+  is output-additive on the transcripts it improves and is a strict
+  per-transcript non-regression. Pass `--no-miniprot-candidate` (or set
+  `LIFTON_MINIPROT_CANDIDATE=0`) to restore the two-way merge.
+  (`--miniprot-candidate` is a kept no-op alias.)
+- **Divergence-adaptive miniprot-only rescue floor, default-ON.** The
+  miniprot-only rescue pass (v1.0.9) used a fixed protein-identity floor of 0.50.
+  v1.0.10 lowers that floor toward 0.30 as the DNA lift's gene recall drops
+  (inert on high-recall same/close-species lifts), recovering more genuinely
+  missing genes at large evolutionary distance while remaining redundancy-free
+  (`off ⊆ on`, 0 lost / 0 redundant by construction). Pass
+  `--no-adaptive-rescue-floor` (or `LIFTON_RESCUE_ADAPTIVE_FLOOR=0`) to restore
+  the fixed 0.50 floor. (`--adaptive-rescue-floor` is a kept no-op alias.)
+
+### Added
+
+- **Coordinate-independent structural evaluation metrics** in the benchmark
+  evaluator — per-transcript intron-chain exactness, exon sensitivity/precision
+  (Sn·Sp), and ORF validity (start `M` / stop `*` / no internal stop) — scored on
+  spliced 5′→3′ boundary positions, catching structural regressions that
+  protein-identity alone hides.
+
+### Performance (byte-neutral)
+
+- **Vendored-Liftoff speed backports.** `seperate_parents_and_children`
+  (hierarchy build) now selects only the parent/child/feature id columns rather
+  than `SELECT *`, and `convert_all_children_coords` (child-coordinate conversion)
+  computes relative coordinates once, hoists invariants, early-breaks, and avoids
+  a copy. Both are byte-neutral on a fresh Liftoff lift (`LIFTON_LEGACY_HIERARCHY=1`
+  / `LIFTON_LEGACY_CONVERT=1` restore the prior code paths).
+
+### Fixed (robustness / correctness)
+
+- **Gene-like-feature write-funnel crash** on genomes with organellar / gene-like
+  children (`LiftOn_FEATURE.normalize_containment` added), and **inverted-coordinate
+  write crash** — a malformed (`start > end`) transcript now drops with a logged
+  warning instead of aborting the whole-genome write phase.
+- **Write-time containment normalization** eliminates the duplicate-exon-ID and
+  CDS-past-exon errors LiftOn's chaining could introduce (the reference has none);
+  CDS coordinates are never touched, so protein identity is unchanged
+  (`LIFTON_NO_CONTAINMENT_NORMALIZE=1` restores the pre-normalization bytes).
+- **Gene-like child double-lift fix** (a `ncRNA`/`pseudogene` that is also a child
+  of a coding gene is no longer enumerated twice), **deterministic `-copies`
+  numbering**, **symmetric empty-Liftoff chaining**, **`update_cds_list` root exon
+  sort**, and a **loud failure** when Step-3 extraction produces an empty
+  `transcripts.fa` (reference-genome seqids not matching the annotation).
+- **`gff3-validate`** false positives corrected: a spec-valid discontinuous CDS
+  (multiple segments sharing one ID) is exempted, and `strand '?'` (stranded but
+  unknown) is accepted.
+
 ## [1.0.9] - 2026-06-21
 
 This is an incremental release that turns on several accuracy- and

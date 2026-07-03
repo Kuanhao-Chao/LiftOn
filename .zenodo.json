@@ -1,9 +1,9 @@
 {
-  "title": "LiftOn v1.0.9",
+  "title": "LiftOn v1.0.10",
   "upload_type": "software",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "license": "gpl-3.0-or-later",
-  "description": "<p>LiftOn is a homology-based genome-annotation lift-over tool. Given a reference genome, its annotation, and a target genome, LiftOn produces an annotation for the target by combining DNA-level alignment (Liftoff / minimap2) with protein-level alignment (miniprot) and merging the two via a two-step protein-maximization algorithm (a chaining algorithm plus an ORF-search rescue). Release v1.0.9 adds a default-on miniprot-only rescue pass that recovers reference coding genes the DNA lift misses entirely (improving recall on distant species lift-overs), automatic lifting of all gene-like top-level parent types, optional output validation, and multi-threaded per-locus processing.</p>",
+  "description": "<p>LiftOn is a homology-based genome-annotation lift-over tool. Given a reference genome, its annotation, and a target genome, LiftOn produces an annotation for the target by combining DNA-level alignment (Liftoff / minimap2) with protein-level alignment (miniprot) and merging the two via a two-step protein-maximization algorithm (a chaining algorithm plus an ORF-search rescue). Release v1.0.10 builds on v1.0.9's whole-genome robustness with a third best-of-outcome merge candidate (miniprot's native CDS-only model, adopted only when it strictly improves the emitted protein), a divergence-adaptive miniprot-only rescue floor that recovers more genes at large evolutionary distance while staying redundancy-free, coordinate-independent structural evaluation metrics, byte-neutral vendored-Liftoff speed backports, and containment-normalization and write-guard fixes that let previously-crashing full RefSeq/cross-species genomes complete and validate cleanly.</p>",
   "access_right": "open",
   "creators": [
     {
