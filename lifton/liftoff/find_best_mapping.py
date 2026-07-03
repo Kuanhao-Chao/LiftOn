@@ -1,3 +1,4 @@
+import os
 import networkx as nx
 from lifton.liftoff  import aligned_seg, liftoff_utils, new_feature
 import numpy as np
@@ -281,7 +282,23 @@ def trim_path_boundaries(shortest_path_nodes):
         to_node.reference_block_start += node_overlap
 
 
+# Engineering iter (lift_convert speedup, backported from lifton2). The default
+# fast path replaces the child-coordinate-conversion hot loop with a byte-IDENTICAL
+# but faster implementation. Set LIFTON_LEGACY_CONVERT=1 to restore the original
+# path (A/B baseline / escape hatch).
+_LEGACY_CONVERT = os.environ.get("LIFTON_LEGACY_CONVERT") == "1"
+
+
 def convert_all_children_coords(shortest_path_nodes, children, parent):
+    """Map every reference child's boundaries through the chosen chain. The fast
+    path (default) is byte-identical to the legacy path; LIFTON_LEGACY_CONVERT=1
+    restores the legacy path."""
+    if _LEGACY_CONVERT:
+        return _convert_all_children_coords_legacy(shortest_path_nodes, children, parent)
+    return _convert_all_children_coords_fast(shortest_path_nodes, children, parent)
+
+
+def _convert_all_children_coords_legacy(shortest_path_nodes, children, parent):
     shortest_path_nodes.sort(key=lambda x: x.query_block_start)
     mapped_children = {}
     total_bases, mismatches, insertions, deletions, matches = 0, 0, 0, 0, 0
@@ -309,6 +326,81 @@ def convert_all_children_coords(shortest_path_nodes, children, parent):
     alignment_length = total_bases + insertions
     return mapped_children, (total_bases - deletions) / total_bases, (alignment_length - insertions - mismatches -
                                                                       deletions) / alignment_length
+
+
+def _convert_all_children_coords_fast(shortest_path_nodes, children, parent):
+    """Byte-identical fast twin of the legacy path. Optimisations, each proven
+    output-preserving (lifton2's 5-dataset equivalence gate + the LiftOn fresh-lift
+    cmp): (1) relative child coords computed ONCE per child (legacy computed them in
+    find_nearest_aligned_start_and_end AND again in find_mismatched_bases);
+    (2) per-chain-constant strand + reference_name hoisted out of the loop;
+    (3) convert_coord_fast early-breaks (nodes sorted ascending by query_block_start;
+    the legacy loop keeps the LAST match, so once relative_coord < query_block_start
+    no later node can match); (4) mismatch counting drops the redundant
+    np.array(node.mismatches) copy and uses np.count_nonzero."""
+    shortest_path_nodes.sort(key=lambda x: x.query_block_start)
+    is_reverse = shortest_path_nodes[0].is_reverse
+    strand = get_strand(shortest_path_nodes[0], parent)
+    ref_name = shortest_path_nodes[0].reference_name
+    mapped_children = {}
+    total_bases, mismatches, insertions, deletions = 0, 0, 0, 0
+    for child in children:
+        total_bases += (child.end - child.start + 1)
+        rc1 = liftoff_utils.get_relative_child_coord(parent, child.start, is_reverse)
+        rc2 = liftoff_utils.get_relative_child_coord(parent, child.end, is_reverse)
+        relative_start, relative_end = (rc1, rc2) if rc1 <= rc2 else (rc2, rc1)
+        nearest_start_coord = find_nearest_aligned_start(relative_start, relative_end, shortest_path_nodes)
+        nearest_end_coord = find_nearest_aligned_end(shortest_path_nodes, relative_end, relative_start)
+        if nearest_start_coord != -1 and nearest_end_coord != -1:
+            lifted_start, start_node = convert_coord_fast(nearest_start_coord, shortest_path_nodes)
+            lifted_end, end_node = convert_coord_fast(nearest_end_coord, shortest_path_nodes)
+            deletions += find_deletions(start_node, end_node, shortest_path_nodes)
+            deletions += (nearest_start_coord - relative_start) + (relative_end - nearest_end_coord)
+            mismatches += _count_mismatches_fast(relative_start, relative_end, shortest_path_nodes)
+            insertions += find_insertions(start_node, end_node, shortest_path_nodes)
+            if "ID" not in child.attributes:
+                child.attributes["ID"] = [child.id]
+            new_child = new_feature.new_feature(child.id, child.featuretype, ref_name,
+                                                'Liftoff',
+                                                strand, min(lifted_start, lifted_end) + 1,
+                                                max(lifted_start, lifted_end) + 1, child.frame, dict(child.attributes))
+            mapped_children[new_child.id] = new_child
+        else:
+            deletions += (child.end - child.start + 1)
+    alignment_length = total_bases + insertions
+    return mapped_children, (total_bases - deletions) / total_bases, (alignment_length - insertions - mismatches -
+                                                                      deletions) / alignment_length
+
+
+def convert_coord_fast(relative_coord, shortest_path_nodes):
+    """convert_coord with an early break. Byte-identical: the legacy loop keeps the
+    LAST node whose [query_block_start, query_block_end] covers relative_coord; nodes
+    are sorted ascending by query_block_start, so once relative_coord <
+    query_block_start every later node also fails the >= query_block_start test and
+    cannot match -- breaking there preserves the last match while skipping the
+    guaranteed-non-matching tail."""
+    lifted_coord = 0
+    node_index = 0
+    for i in range(0, len(shortest_path_nodes)):
+        node = shortest_path_nodes[i]
+        if relative_coord < node.query_block_start:
+            break
+        if relative_coord <= node.query_block_end:
+            lifted_coord = node.reference_block_start + (relative_coord - node.query_block_start)
+            node_index = i
+    return lifted_coord, node_index
+
+
+def _count_mismatches_fast(relative_start, relative_end, shortest_path_nodes):
+    """find_mismatched_bases without recomputing the relative coords (passed in) and
+    without the redundant np.array(node.mismatches) copy -- node.mismatches is
+    already an int ndarray, so the mask + count are identical to the legacy
+    len(arr[np.where(mask)[0]])."""
+    total_mismatches = 0
+    for node in shortest_path_nodes:
+        nm = node.mismatches
+        total_mismatches += int(np.count_nonzero((nm >= relative_start) & (nm <= relative_end)))
+    return total_mismatches
 
 
 def find_nearest_aligned_start_and_end(child_start, child_end, shortest_path_nodes, parent):
