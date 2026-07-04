@@ -6,6 +6,24 @@ from lifton.exceptions import LiftOnInputError
 from lifton.liftoff import liftoff_main
 from intervaltree import Interval, IntervalTree
 
+
+def check_minimap2_installed():
+    """Return True iff the ``minimap2`` binary is on PATH (GitHub issue #43).
+
+    minimap2 is a hard runtime dependency of the (vendored Liftoff) DNA-lift on the
+    default path, but — unlike miniprot — it was neither listed in the requirements
+    nor preflight-checked, so a missing binary surfaced only as a deep
+    FileNotFoundError mid-run. Mirrors run_miniprot.check_miniprot_installed; output
+    is suppressed so the preflight does not print minimap2's version banner."""
+    try:
+        subprocess.run(["minimap2", "--version"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            subprocess.SubprocessError):
+        return False
+
+
 def run_liftoff(output_dir, ref_db, args):
     """Run Liftoff and return either a path to the resulting GFF3
     (legacy default) or an in-memory GFF3 bytes blob (Phase 8).

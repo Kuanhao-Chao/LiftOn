@@ -23,7 +23,8 @@ System requirements
    * intervaltree>=3.1.0
    * networkx>=3.3
    * interlap>=0.2.6
-   * miniprot >= 0.10.0
+   * miniprot >= 0.10.0   (external binary — see below)
+   * minimap2 >= 2.17     (external binary — see below)
    * pyfaidx>=0.5.8
    * pysam>=0.19.1
    * ujson>=3.2.0
@@ -31,7 +32,7 @@ System requirements
    * pyarrow>=14
    * mappy   (*optional* — only needed for the in-process ``--native`` path)
 
-These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe has been submitted and is under review). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. Two exceptions: **mappy** is optional (only the ``--native`` path needs it), and **miniprot**. Since miniprot is not on PyPi, you will need to install it manually. Please check out the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ on `GitHub <https://github.com/lh3/miniprot>`_.
+These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe has been submitted and is under review). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. Two exceptions: **mappy** is optional (only the ``--native`` path needs it), and the two external binaries **miniprot** and **minimap2**, which are not on PyPI and must be installed manually and be on your ``PATH`` (LiftOn preflight-checks both at startup and exits with a clear message if either is missing). Please see the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ and the `minimap2 installation guide <https://github.com/lh3/minimap2#install>`_ on GitHub. (miniprot drives the protein-to-genome alignment; minimap2 drives the Liftoff DNA lift-over.)
 
 .. admonition:: Version warning
    :class: important
