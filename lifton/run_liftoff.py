@@ -266,6 +266,19 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
     liftoff_aln = lifton_utils.LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
     # miniprot alignment
     miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_miniprot_alignment(locus.seqid, locus, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
+    # Strand guard (GitHub issue #33), hoisted so BOTH the chaining/best-of-outcome
+    # merge (below) and the candidate-3 miniprot-only rescue share it. A miniprot hit
+    # whose CDS children are on the OPPOSITE strand from the lifted transcript is an
+    # antisense/spurious match: chaining its CDS under this transcript's mRNA (which
+    # keeps the Liftoff strand) emits strand-inconsistent GFF3 (exon on one strand, CDS
+    # on the other) and its "strictly better" ORF-rescue score is a wrong-frame fluke.
+    # candidate-3 already guarded this; the chaining merge did not (issue #33).
+    _mini_children = getattr(miniprot_aln, "cds_children", None)
+    _mini_strand_ok = bool(_mini_children) and all(
+        _c.strand == lifton_trans.entry.strand for _c in _mini_children)
+    # Block the merge ONLY for a genuinely opposite-strand hit; an empty miniprot keeps
+    # the pre-existing empty-handling in chaining_algorithm (byte-identical otherwise).
+    _mini_wrong_strand = bool(_mini_children) and not _mini_strand_ok
     orf_done = False
     if liftoff_aln is None:
         lifton_status.annotation = "no_ref_protein"
@@ -274,7 +287,7 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
         lifton_status.lifton_aa = 1
     elif liftoff_aln.identity < 1:
         # Liftoff protein annotation is not perfect
-        if has_valid_miniprot:
+        if has_valid_miniprot and not _mini_wrong_strand:
             lifton_status.annotation = "LiftOn_chaining_algorithm"
             cds_list, chains = protein_maximization.chaining_algorithm(
                 liftoff_aln, miniprot_aln, tgt_fai, DEBUG)
@@ -355,17 +368,11 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                 # 24-cell fixtures stay byte-identical). LIFTON_MINIPROT_CANDIDATE=0
                 # restores the 2-way behaviour.
                 _best_outcome = lifton_status.lifton_aa
-                _mini_children = getattr(miniprot_aln, "cds_children", None)
-                # Strand guard: a miniprot hit on the OPPOSITE strand from the lifted
-                # transcript is an antisense/spurious match, never a valid replacement.
-                # Building its CDS/exon children under this transcript's mRNA (which
-                # keeps the Liftoff strand) emits strand-inconsistent GFF3 and fails the
-                # coordinate->protein round-trip — its "strictly better" ORF-rescue score
-                # is a wrong-frame fluke (drosophila rna-NM_176527.1: 0->4
-                # strand_consistency errors, neutral protein id 0.138->0.045). Require
-                # every miniprot CDS child to share the transcript strand before firing.
-                _mini_strand_ok = bool(_mini_children) and all(
-                    _c.strand == lifton_trans.entry.strand for _c in _mini_children)
+                # _mini_children / _mini_strand_ok were hoisted above the merge for the
+                # issue-#33 strand guard; candidate 3 reuses them — it likewise requires
+                # the miniprot children to share the transcript strand before building a
+                # standalone model (drosophila rna-NM_176527.1: 0->4 strand_consistency
+                # errors, neutral protein id 0.138->0.045 when it fired antisense).
                 if (_miniprot_candidate_enabled() and _best_outcome < 1.0
                         and _mini_strand_ok):
                     _snapWin = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
