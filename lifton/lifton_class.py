@@ -915,6 +915,17 @@ class Lifton_TRANS:
                 new_id = f"{base}-{i}"
                 exon.entry.id = new_id
                 exon.entry.attributes["ID"] = [new_id]
+        # GH #32/#8: give every CDS an ID. LiftOn resets each CDS's attributes to
+        # {Parent} only (add_lifton_cds / add_novel_lifton_cds), so emitted CDS lines
+        # carried no ID=. Per the GFF3 convention (and gff3_validator's
+        # DISCONTINUOUS_FEATURE_TYPES = {"CDS"}), the multiple CDS segments of ONE
+        # transcript SHARE a single ID; assign cds-<trans> (strip a leading "rna-" for
+        # a clean, RefSeq-like id). Unique per transcript -> file-unique; same ID +
+        # same Parent + same type is the valid discontinuous-CDS form.
+        cds_id = "cds-" + re.sub(r"^rna-", "", (self.entry.id or ""))
+        for exon in self.exons:
+            if exon.cds is not None:
+                exon.cds.entry.attributes["ID"] = [cds_id]
 
     def print_transcript(self):
         print(f"\t{self.entry}")
