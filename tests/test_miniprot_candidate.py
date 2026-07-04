@@ -184,19 +184,19 @@ def test_candidate3_skipped_when_no_miniprot_children(monkeypatch):
     assert gene.orf_calls == 2
 
 
-def test_candidate3_skipped_when_miniprot_opposite_strand(monkeypatch):
-    # miniprot's best hit is on the OPPOSITE strand from the lifted transcript
-    # (transcript "+", miniprot CDS "-"): an antisense/spurious match, never a
-    # valid replacement — building it under the "+" mRNA would emit strand-
-    # inconsistent GFF3 (the drosophila rna-NM_176527.1 failure: 0->4
-    # strand_consistency errors + neutral protein id 0.138->0.045). The strand
-    # guard must NOT fire candidate-3: only 2 ORF calls (merge, Liftoff), and the
-    # 2-way winner stands even though miniprot's queued identity (0.9) is higher.
+def test_merge_and_candidate3_skipped_when_miniprot_opposite_strand(monkeypatch):
+    # GitHub issue #33: a miniprot hit on the OPPOSITE strand from the lifted
+    # transcript (transcript "+", miniprot CDS "-") is an antisense/spurious match.
+    # Chaining its CDS into the merge under the "+" mRNA emits strand-inconsistent
+    # GFF3 (exon "+" / CDS "-"; the drosophila rna-NM_176527.1 failure: 0->4
+    # strand_consistency errors, neutral protein id 0.138->0.045). The strand guard
+    # now skips the ENTIRE miniprot merge — not just candidate-3 (which the pre-#33
+    # guard did): process_liftoff_with_protein makes NO ORF call and leaves orf_done
+    # False, so the caller falls back to pure Liftoff + ORF-rescue for this transcript.
     status, gene = _drive(monkeypatch, [0.5, 0.5], mini_strand="-")
-    assert status.annotation == "LiftOn_chaining_algorithm"
-    assert status.lifton_aa == pytest.approx(0.5)
-    assert gene.orf_calls == 2                       # candidate-3 never ran
-    assert gene.added_exons == []                    # no clean-rebuild attempted
+    assert status.annotation != "LiftOn_chaining_algorithm"   # antisense merge did NOT run
+    assert gene.orf_calls == 0                                 # merge block entirely skipped
+    assert gene.added_exons == []                             # no miniprot model built
 
 
 def test_candidate3_fires_when_miniprot_same_strand(monkeypatch):
