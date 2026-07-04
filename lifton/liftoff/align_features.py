@@ -1,6 +1,7 @@
 from multiprocessing import Pool
 import math
 import os
+import sys
 from functools import partial
 import numpy as np
 from pyfaidx import Fasta, Faidx
@@ -158,7 +159,8 @@ def parse_alignment(file, feature_hierarchy, unmapped_features, search_type):
             aln_id = add_alignment(ref_seq,  align_count_dict, search_type, name_dict,aln_id, feature_hierarchy,
                                    all_aligned_blocks)
         else:
-            unmapped_features.append(feature_hierarchy.parents[ref_seq.query_name])
+            if ref_seq.query_name in feature_hierarchy.parents:   # guard (GH #39)
+                unmapped_features.append(feature_hierarchy.parents[ref_seq.query_name])
     remove_alignments_without_children(all_aligned_blocks, unmapped_features, feature_hierarchy)
     return all_aligned_blocks
 
@@ -190,12 +192,36 @@ def edit_name(search_type, ref_seq, name_dict):
         return ref_seq.query_name + "_" + str(name_dict[ref_seq.query_name])
 
 
+_WARNED_MISSING_PARENT = set()
+
+
+def _known_parent_key(feature_hierarchy, query_name):
+    """Return ``convert_id_to_original(query_name)`` iff it names a known parent,
+    else ``None`` (GitHub issue #39). Some RefSeq gene-family copy/fragment query
+    names convert to an id that is not in ``feature_hierarchy.parents``; the old
+    code indexed it unconditionally and a single such alignment KeyError-crashed
+    the WHOLE chromosome. Returning None lets the caller skip just that alignment
+    so every other feature on the chromosome still lifts. Warns once per key."""
+    key = liftoff_utils.convert_id_to_original(query_name)
+    if key in feature_hierarchy.parents:
+        return key
+    if key not in _WARNED_MISSING_PARENT:
+        _WARNED_MISSING_PARENT.add(key)
+        print("[LiftOn/Liftoff]   WARNING: aligned query '{0}' -> '{1}' is not a "
+              "known parent feature; skipping it (GitHub issue #39).".format(
+                  query_name, key), file=sys.stderr)
+    return None
+
+
 def get_aligned_blocks(alignment, aln_id, feature_hierarchy, search_type):
     cigar_operations = get_cigar_operations()
     cigar = alignment.cigar
-    parent = feature_hierarchy.parents[liftoff_utils.convert_id_to_original(alignment.query_name)]
+    parent_key = _known_parent_key(feature_hierarchy, alignment.query_name)
+    if parent_key is None:
+        return []
+    parent = feature_hierarchy.parents[parent_key]
     query_start, query_end = get_query_start_and_end(alignment, cigar, cigar_operations)
-    children = feature_hierarchy.children[liftoff_utils.convert_id_to_original(alignment.query_name)]
+    children = feature_hierarchy.children[parent_key]
     end_to_end = is_end_to_end_alignment(parent, query_start, query_end)
     if search_type == "copies" and end_to_end is False:
         return []
@@ -307,7 +333,9 @@ def remove_alignments_without_children(all_aligned_blocks, unmapped_features, fe
     for seq in all_aligned_blocks:
         if all_aligned_blocks[seq] == []:
             features_to_remove.append(seq)
-            unmapped_features.append(feature_hierarchy.parents[liftoff_utils.convert_id_to_original(seq)])
+            key = _known_parent_key(feature_hierarchy, seq)   # guard (GH #39)
+            if key is not None:
+                unmapped_features.append(feature_hierarchy.parents[key])
     for feature in features_to_remove:
         del all_aligned_blocks[feature]
     return all_aligned_blocks
