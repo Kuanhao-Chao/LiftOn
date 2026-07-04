@@ -42,7 +42,27 @@ def is_frameshift(s):
     return False
 
 
-def find_variants(align_dna, align_protein, lifton_status, peps, is_non_coding):
+def _coding_subalignment(align_dna, cds_start, cds_end):
+    """Return (query_sub, ref_sub): the alignment columns whose QUERY (target)
+    position falls within [cds_start, cds_end) of the spliced transcript.
+
+    Used to scope frameshift detection to the CODING region (GitHub issue #46). The
+    DNA alignment spans the FULL transcript (5'UTR + CDS + 3'UTR); a 1-2 bp indel in
+    an UTR is not a coding frameshift, yet the unscoped check flagged it — extremely
+    common on close pairs (e.g. human<->chimp), producing false 'frameshift' labels
+    in score.txt and a needless ORF re-search that can perturb the emitted model."""
+    q_sub, r_sub = [], []
+    qpos = 0
+    for qc, rc in zip(align_dna.query_aln, align_dna.ref_aln):
+        if cds_start <= qpos < cds_end:
+            q_sub.append(qc)
+            r_sub.append(rc)
+        if qc != '-':
+            qpos += 1
+    return "".join(q_sub), "".join(r_sub)
+
+
+def find_variants(align_dna, align_protein, lifton_status, peps, is_non_coding, cds_span=None):
     """
         This function finds the variants between two sequences.
 
@@ -90,10 +110,19 @@ def find_variants(align_dna, align_protein, lifton_status, peps, is_non_coding):
         lifton_status.status = mutation_type
         return
     # 3. return cases
-    if is_frameshift(align_dna.query_aln):
+    # GH #46: scope the frameshift test to the CODING region. align_dna spans the
+    # full transcript (incl. UTRs); a 1-2 bp UTR indel is not a coding frameshift, so
+    # the unscoped check produced false 'frameshift' labels (+ a needless ORF re-search)
+    # on close pairs. When the caller supplies the CDS span (query/target coords), test
+    # only the coding sub-alignment; otherwise fall back to the full alignment (unchanged).
+    if cds_span is not None:
+        fs_query, fs_ref = _coding_subalignment(align_dna, cds_span[0], cds_span[1])
+    else:
+        fs_query, fs_ref = align_dna.query_aln, align_dna.ref_aln
+    if is_frameshift(fs_query):
         mutation_type.append('frameshift')
         frameshift = True
-    if is_frameshift(align_dna.ref_aln) and frameshift == False:
+    if is_frameshift(fs_ref) and frameshift == False:
         mutation_type.append('frameshift')
         frameshift = True
     if align_dna.query_aln[0:3] != align_dna.ref_aln[0:3] and \
