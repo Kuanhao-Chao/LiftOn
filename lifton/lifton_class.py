@@ -690,7 +690,15 @@ class Lifton_TRANS:
         # Aligning the LiftOn protein & DNA sequences
         lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
         lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
-        variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps, is_non_coding)
+        # GH #46: the CDS is a contiguous block in the spliced transcript
+        # (5'UTR + CDS + 3'UTR), so locate it to scope frameshift detection to the
+        # coding region (a UTR indel must not be labelled a coding frameshift).
+        cds_span = None
+        if coding_seq and trans_seq:
+            _cds_start = trans_seq.find(coding_seq)
+            if _cds_start >= 0:
+                cds_span = (_cds_start, _cds_start + len(coding_seq))
+        variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps, is_non_coding, cds_span=cds_span)
         ORF_search = False
         for mutation in lifton_status.status:
             # identical # synonymous 
