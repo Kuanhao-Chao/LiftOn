@@ -1015,6 +1015,12 @@ An accurate homology lift-over tool between assemblies
     '''
     print(banner, file=sys.stderr)
     args = parse_args(arglist)
-    if not run_miniprot.check_miniprot_installed(): 
+    if not run_miniprot.check_miniprot_installed():
         sys.exit("miniprot is not installed. Please install miniprot before running LiftOn.")
+    # GH #43: minimap2 is a hard runtime dependency of the default (Liftoff) DNA-lift,
+    # but was only ever discovered as a deep FileNotFoundError mid-run. Fail fast, the
+    # same way we already preflight miniprot.
+    if not run_liftoff.check_minimap2_installed():
+        sys.exit("minimap2 is not installed. Please install minimap2 before running "
+                 "LiftOn (see https://github.com/lh3/minimap2#install).")
     run_all_lifton_steps(args)
