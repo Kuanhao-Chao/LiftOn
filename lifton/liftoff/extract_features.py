@@ -295,9 +295,14 @@ def seperate_parents_and_children(feature_db, parent_types_to_lift):
 
 def add_parents(parent_dict, child_dict, highest_parents, parent_types_to_lift, feature_db):
     c = feature_db.conn.cursor()
-    cond = ', '.join('"{0}"'.format(w) for w in highest_parents)
-    query =  "SELECT * FROM features WHERE id IN ({})".format(cond)
-    for result in c.execute(query):
+    # Bind IDs as query parameters (?), NOT double-quoted literals: "x" is an SQL
+    # IDENTIFIER, which modern SQLite rejects as "no such column" (older SQLite's
+    # double-quoted-string-literal misfeature accepted it -> "works on one machine,
+    # not another"; GitHub issue #35). Parameters also handle special chars in IDs.
+    parent_ids = [str(w) for w in highest_parents]   # str(): highest_parents is a numpy array
+    placeholders = ', '.join('?' for _ in parent_ids)
+    query = "SELECT * FROM features WHERE id IN ({})".format(placeholders)
+    for result in c.execute(query, parent_ids):
         feature_tup = tuple(result)
         parent = new_feature.new_feature(feature_tup[0], feature_tup[3], feature_tup[1], feature_tup[2],feature_tup[7],
                                           feature_tup[4], feature_tup[5], feature_tup[8], json.loads(feature_tup[9]))
@@ -308,9 +313,11 @@ def add_parents(parent_dict, child_dict, highest_parents, parent_types_to_lift, 
 
 def add_children(parent_dict, child_dict, lowest_children, feature_db):
     c = feature_db.conn.cursor()
-    cond = ', '.join('"{0}"'.format(w) for w in lowest_children)
-    query = "select * from relations join features on features.id  = relations.child where relations.child IN ({})".format(cond)
-    c.execute(query)
+    # Parameter-bind IDs, not double-quoted identifiers (GitHub issue #35; see add_parents).
+    child_ids = [str(w) for w in lowest_children]    # str(): lowest_children is a numpy array
+    placeholders = ', '.join('?' for _ in child_ids)
+    query = "select * from relations join features on features.id  = relations.child where relations.child IN ({})".format(placeholders)
+    c.execute(query, child_ids)
     results = c.fetchall()
     added_children_ids = []
     for result in results:
@@ -348,9 +355,11 @@ def add_parent_tag(feature, feature_db):
 
 def add_intermediates(intermediate_ids, intermediate_dict, feature_db):
     c = feature_db.conn.cursor()
-    cond = ', '.join('"{0}"'.format(w) for w in intermediate_ids)
-    query =  "select * from features where id IN ({})".format(cond)
-    for result in c.execute(query):
+    # Parameter-bind IDs, not double-quoted identifiers (GitHub issue #35; see add_parents).
+    ids = [str(w) for w in intermediate_ids]
+    placeholders = ', '.join('?' for _ in ids)
+    query = "select * from features where id IN ({})".format(placeholders)
+    for result in c.execute(query, ids):
         feature_tup = tuple(result)
         intermediate_feature = new_feature.new_feature(feature_tup[0], feature_tup[3], feature_tup[1], feature_tup[2],
                                            feature_tup[7],
