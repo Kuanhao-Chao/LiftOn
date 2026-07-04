@@ -14,9 +14,18 @@ the emitted bytes are unchanged. The class ``write_entry`` methods remain as thi
 delegations to these functions, preserving the recursive dispatch
 (gene → trans → exon → CDS) exactly.
 """
+import os
+
 from lifton import logger
 from lifton.exceptions import LiftOnError
 from lifton.io import gff3_writer
+
+
+def _mrna_harmonize_enabled():
+    """GH #28: canonicalize CODING transcripts to featuretype 'mRNA' (default ON).
+    Set LIFTON_NO_MRNA_HARMONIZE=1 to preserve the reference featuretype instead."""
+    return os.environ.get("LIFTON_NO_MRNA_HARMONIZE", "0").strip().lower() in (
+        "", "0", "false", "no", "off")
 
 
 def write_gene(gene, fw, transcripts_stats_dict):
@@ -67,6 +76,17 @@ def write_trans(trans, fw):
     # (matching the bare-`Exception` breadth of the sibling write_* funcs)
     # instead of propagating out of the parent-thread consume() write phase
     # and aborting the entire genome lift.
+    #
+    # GH #28: harmonize the transcript featuretype. LiftOn preserves the reference
+    # type on the Liftoff/chaining path (often the generic "transcript") while the
+    # miniprot path emits "mRNA", so a single output labels the same kind of feature
+    # two ways. A transcript that HAS a CDS is, by SO definition, an mRNA -> canonicalize
+    # coding transcripts to "mRNA" so the output is consistent regardless of which path
+    # produced them (this also fixes the coding/other stats classification in write_gene,
+    # which keys on featuretype == "mRNA"). Non-coding transcripts keep their type.
+    if _mrna_harmonize_enabled() and any(
+            getattr(e, "cds", None) is not None for e in getattr(trans, "exons", [])):
+        trans.entry.featuretype = "mRNA"
     try:
         fw.write(gff3_writer.format_feature(trans.entry) + "\n")
     except (OSError, ValueError, TypeError, AttributeError, LiftOnError) as e:
