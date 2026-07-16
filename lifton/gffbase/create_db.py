@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import warnings
 from typing import Optional
 
 from . import ingest as _ingest
@@ -44,6 +45,7 @@ def create_db(
     pragmas: Optional[dict] = None,
     sort_attribute_values: bool = False,
     dialect: Optional[dict] = None,
+    build_rtree: bool = True,
     _keep_tempfiles: bool = False,
     **kwargs,
 ) -> FeatureDB:
@@ -51,8 +53,9 @@ def create_db(
 
     For Phase 5 the actively-honored kwargs are: ``data``, ``dbfn``, ``force``,
     ``checklines``, ``from_string``, ``disable_infer_genes``,
-    ``disable_infer_transcripts``, ``gtf_subfeature``. The rest are accepted
-    for signature compatibility and will be wired up in Phase 6.
+    ``disable_infer_transcripts``, ``gtf_subfeature``, ``build_rtree``. The
+    rest are accepted for signature compatibility and will be wired up in
+    Phase 6.
     """
     cleanup_path: Optional[str] = None
     if from_string:
@@ -67,15 +70,38 @@ def create_db(
     else:
         path = data
 
-    try:
-        con, stats = _ingest.from_file(
+    def _ingest_source(*, use_rtree: bool, retry: bool = False):
+        return _ingest.from_file(
             path,
             dbfn=dbfn,
-            force=force,
+            # A failed persistent attempt may have left its newly-created
+            # database file behind. It is owned by this call and safe for the
+            # geometry-free retry to replace after the connection is closed.
+            force=True if retry else force,
             disable_infer_genes=disable_infer_genes,
             disable_infer_transcripts=disable_infer_transcripts,
             gtf_subfeature=gtf_subfeature,
+            build_rtree=use_rtree,
         )
+
+    try:
+        try:
+            con, stats = _ingest_source(use_rtree=build_rtree)
+        except Exception as exc:
+            if (
+                not from_string
+                or not build_rtree
+                or not _ingest.is_geometry_append_error(exc)
+            ):
+                raise
+            warnings.warn(
+                "DuckDB failed while appending gffbase's optional GEOMETRY "
+                "index; retrying the streamed GFF3 on a fresh connection "
+                "without R-tree acceleration.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            con, stats = _ingest_source(use_rtree=False, retry=True)
     finally:
         if cleanup_path and not _keep_tempfiles:
             try:

@@ -53,6 +53,7 @@ def build_database(
     force: bool = True,
     verbose: bool = False,
     transform: Optional[Callable] = None,
+    build_rtree: bool = True,
 ) -> "_gffbase.FeatureDB":
     """Build a DuckDB-backed FeatureDB from a GFF3 file on disk.
 
@@ -70,6 +71,7 @@ def build_database(
         transform=transform,
         disable_infer_genes=not infer_genes,
         disable_infer_transcripts=not infer_transcripts,
+        build_rtree=build_rtree,
     )
 
 
@@ -84,6 +86,7 @@ def build_database_from_string(
     force: bool = True,
     verbose: bool = False,
     transform: Optional[Callable] = None,
+    build_rtree: bool = True,
 ) -> "_gffbase.FeatureDB":
     """Ingest a GFF3 blob held in RAM (no intermediate file).
 
@@ -108,6 +111,7 @@ def build_database_from_string(
         transform=transform,
         disable_infer_genes=not infer_genes,
         disable_infer_transcripts=not infer_transcripts,
+        build_rtree=build_rtree,
     )
 
 

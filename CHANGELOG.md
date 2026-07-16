@@ -4,6 +4,18 @@ All notable changes to **LiftOn** are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions and
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`--stream` miniprot ingest crash (GH #56).** DuckDB 1.5.3 and 1.5.4 can
+  fail while appending gffbase's internal spatial `GEOMETRY` column once a
+  large GFF3 crosses a row-group boundary. Those releases are excluded, and
+  existing environments automatically use the equivalent B-tree query path.
+  Streamed blobs also retry once on a fresh connection without geometry if
+  another DuckDB build raises the same internal error. Users can force this
+  safe path with `LIFTON_DISABLE_RTREE=1`.
+
 ## [1.0.10] - 2026-07-03
 
 This is an incremental release that builds on v1.0.9's whole-genome robustness

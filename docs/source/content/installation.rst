@@ -28,7 +28,7 @@ System requirements
    * pyfaidx>=0.5.8
    * pysam>=0.19.1
    * ujson>=3.2.0
-   * duckdb>=1.0
+   * duckdb>=1.0,!=1.5.3,!=1.5.4
    * pyarrow>=14
    * mappy   (*optional* — only needed for the in-process ``--native`` path)
 
@@ -38,6 +38,12 @@ These dependencies are resolved automatically when you ``pip install lifton`` (a
    :class: important
 
    LiftOn requires **Python >= 3.10** (v1.0.9 raised the floor from 3.6 to 3.10; 3.9 is EOL and the ``networkx>=3.3`` dependency requires >=3.10).
+
+   DuckDB 1.5.3 and 1.5.4 have an upstream ``GEOMETRY`` append bug that can
+   affect large ``--stream`` miniprot results. Pip will avoid those releases.
+   In an existing environment, use DuckDB 1.5.2 or set
+   ``LIFTON_DISABLE_RTREE=1``; LiftOn's results are unchanged because region
+   queries fall back to the standard B-tree index.
 
    If your numpy version is >= 1.25.0, then it requires Python version >= 3.9.
 
