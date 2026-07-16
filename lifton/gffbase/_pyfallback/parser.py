@@ -314,6 +314,7 @@ class _FallbackIterator:
 
     def __init__(self, stream, checklines: int, force_dialect_check: bool,
                  force_gff: bool, strict: bool = True):
+        self._stream = stream
         self._warnings: List[dict] = []
         self._directives: List[str] = []
         self._gen = _stream_features(
@@ -328,9 +329,31 @@ class _FallbackIterator:
         return self
 
     def __next__(self) -> ParsedFeature:
-        feat, directives, dialect = next(self._gen)
+        try:
+            feat, directives, dialect = next(self._gen)
+        except StopIteration:
+            self._exhausted = True
+            self._stream.close()
+            raise
+        except BaseException:
+            self.close()
+            raise
         self._dialect = dialect
         return feat
+
+    def close(self) -> None:
+        """Close the parser and its source, including on partial iteration."""
+        self._exhausted = True
+        try:
+            self._gen.close()
+        finally:
+            self._stream.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _drain_for_metadata(self) -> None:
         """Force the generator to its first yield (or to exhaustion) so
@@ -347,6 +370,10 @@ class _FallbackIterator:
             self._gen = self._chain([first], self._gen)
         except StopIteration:
             self._exhausted = True
+            self._stream.close()
+        except BaseException:
+            self.close()
+            raise
 
     @staticmethod
     def _chain(prefix, suffix):

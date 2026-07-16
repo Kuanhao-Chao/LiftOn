@@ -13,6 +13,8 @@ or pure SQL.
 from __future__ import annotations
 
 import os
+import re
+import warnings
 from dataclasses import dataclass
 from typing import Iterable, Iterator, List, Optional, Tuple
 
@@ -38,6 +40,15 @@ from .schema import (
 
 DEFAULT_BATCH_SIZE = 50_000
 DEFAULT_MAX_DEPTH = 8
+
+# DuckDB 1.5.3 and 1.5.4 can corrupt the unified vector representation while
+# appending a shredded GEOMETRY column across row groups (DuckDB #23737).
+# LiftOn's bounding boxes are an optional query accelerator, so affected
+# versions use the existing B-tree path until the upstream fix is available.
+_GEOMETRY_APPEND_BUG_VERSIONS = {(1, 5, 3), (1, 5, 4)}
+_GEOMETRY_APPEND_ERROR = (
+    "Expected unified vector format of type LIST, but found type VARCHAR"
+)
 
 
 @dataclass
@@ -192,31 +203,47 @@ class _ArrowBatchBuilder:
         # the spatial extension is loaded we ALSO compute `bbox` inline so
         # the R-tree build at the end of ingest is a single CREATE INDEX
         # (no UPDATE pass over the table).
-        con.register("__staging_features", feats)
-        con.register("__staging_attributes", attrs)
-        if self._has_spatial:
+        registered = []
+        try:
+            con.register("__staging_features", feats)
+            registered.append("__staging_features")
+            con.register("__staging_attributes", attrs)
+            registered.append("__staging_attributes")
+            if self._has_spatial:
+                con.execute(
+                    "INSERT INTO features ("
+                    "id, seqid, source, featuretype, start, \"end\", "
+                    "score, strand, frame, attributes_blob, extra_blob, "
+                    "file_order, is_synthetic, seqid_y, bbox"
+                    ") SELECT id, seqid, source, featuretype, start, \"end\", "
+                    "score, strand, frame, attributes_blob, extra_blob, "
+                    "file_order, is_synthetic, seqid_y, "
+                    "ST_MakeEnvelope(start, seqid_y, \"end\", seqid_y + 1) "
+                    "FROM __staging_features"
+                )
+            else:
+                con.execute(
+                    "INSERT INTO features ("
+                    "id, seqid, source, featuretype, start, \"end\", "
+                    "score, strand, frame, attributes_blob, extra_blob, "
+                    "file_order, is_synthetic, seqid_y"
+                    ") SELECT * FROM __staging_features"
+                )
             con.execute(
-                "INSERT INTO features ("
-                "id, seqid, source, featuretype, start, \"end\", "
-                "score, strand, frame, attributes_blob, extra_blob, "
-                "file_order, is_synthetic, seqid_y, bbox"
-                ") SELECT id, seqid, source, featuretype, start, \"end\", "
-                "score, strand, frame, attributes_blob, extra_blob, "
-                "file_order, is_synthetic, seqid_y, "
-                "ST_MakeEnvelope(start, seqid_y, \"end\", seqid_y + 1) "
-                "FROM __staging_features"
+                "INSERT INTO attributes SELECT * FROM __staging_attributes"
             )
-        else:
-            con.execute(
-                "INSERT INTO features ("
-                "id, seqid, source, featuretype, start, \"end\", "
-                "score, strand, frame, attributes_blob, extra_blob, "
-                "file_order, is_synthetic, seqid_y"
-                ") SELECT * FROM __staging_features"
-            )
-        con.execute("INSERT INTO attributes SELECT * FROM __staging_attributes")
-        con.unregister("__staging_features")
-        con.unregister("__staging_attributes")
+        except Exception:
+            # DuckDB InternalException invalidates the connection. Release
+            # the whole connection before create_db retries on a fresh,
+            # geometry-free database. Do not issue more SQL against an
+            # invalidated connection; close() releases Arrow registrations.
+            try:
+                con.close()
+            except Exception:
+                pass
+            raise
+        for name in registered:
+            con.unregister(name)
         self._reset()
 
 
@@ -278,9 +305,19 @@ def from_file(
     # and stamp the R-tree envelope inline during the Arrow batch INSERT,
     # eliminating two full-table UPDATE passes that used to dominate
     # ingest wall time.
+    spatial_requested = build_rtree and not _rtree_disabled_by_env()
+    affected_duckdb = _duckdb_needs_geometry_shredding_workaround()
+    if spatial_requested and affected_duckdb:
+        warnings.warn(
+            f"DuckDB {duckdb.__version__} has a known GEOMETRY append bug; "
+            "LiftOn is disabling its optional R-tree for this ingest. Use "
+            "DuckDB 1.5.2 or a fixed release to restore R-tree acceleration.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     has_spatial = (
-        build_rtree
-        and not _rtree_disabled_by_env()
+        spatial_requested
+        and not affected_duckdb
         and _try_load_spatial(con)
     )
     if has_spatial:
@@ -496,13 +533,45 @@ def _synthesize_genes(con, subfeature: str) -> int:
 SEQID_Y_BAND = 1_000_000  # gap between adjacent seqids' y-bands.
 
 
+def _duckdb_needs_geometry_shredding_workaround(
+    version: Optional[str] = None,
+) -> bool:
+    """Return whether ``version`` has DuckDB's row-group GEOMETRY bug.
+
+    Development and vendor suffixes are intentionally accepted, for example
+    ``1.5.4.dev12`` and ``v1.5.3-custom``.
+    """
+    raw_version = duckdb.__version__ if version is None else version
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", raw_version)
+    if match is None:
+        return False
+    parsed = tuple(int(part) for part in match.groups())
+    return parsed in _GEOMETRY_APPEND_BUG_VERSIONS
+
+
+def is_geometry_append_error(exc: BaseException) -> bool:
+    """Recognize the upstream InternalException safe to retry without bbox."""
+    return (
+        isinstance(exc, duckdb.Error)
+        and _GEOMETRY_APPEND_ERROR in str(exc)
+    )
+
+
 def _rtree_disabled_by_env() -> bool:
-    """``GFFBASE_TEST_DISABLE_RTREE=1`` forces the B-tree fallback path
-    library-wide so the CI matrix can exercise it without test-code
-    changes."""
-    return os.environ.get(
-        "GFFBASE_TEST_DISABLE_RTREE", ""
-    ).lower() in ("1", "true", "yes")
+    """Return whether the process explicitly requested the B-tree path.
+
+    ``LIFTON_DISABLE_RTREE`` is the supported user control. The older
+    ``GFFBASE_TEST_DISABLE_RTREE`` name remains available for CI and callers
+    that used it before the public alias was added.
+    """
+    truthy = ("1", "true", "yes", "on")
+    return any(
+        os.environ.get(name, "").strip().lower() in truthy
+        for name in (
+            "LIFTON_DISABLE_RTREE",
+            "GFFBASE_TEST_DISABLE_RTREE",
+        )
+    )
 
 
 def _try_load_spatial(con: duckdb.DuckDBPyConnection) -> bool:

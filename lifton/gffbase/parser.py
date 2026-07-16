@@ -52,6 +52,12 @@ class _Iterator:
             return ParsedFeature.from_tuple(item)
         return item
 
+    def close(self) -> None:
+        """Release parser resources when iteration stops early."""
+        close = getattr(self._inner, "close", None)
+        if close is not None:
+            close()
+
     def dialect(self) -> dict:
         return self._inner.dialect()
 
