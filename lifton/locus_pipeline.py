@@ -18,11 +18,35 @@ from __future__ import annotations
 
 import copy as _copy
 import io as _io
+import os as _os
 import threading as _threading
 import traceback as _traceback
+from collections import OrderedDict as _OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
+
+
+def safe_exception_text(error, traceback_text=None, *, prefer_traceback=False):
+    """Render an exception without trusting its ``__str__`` method.
+
+    Third-party exceptions occasionally implement a broken ``__str__`` that
+    raises while LiftOn is already handling the original failure.  A captured
+    traceback is a reliable fallback; ``repr`` and finally the type name keep
+    reporting non-fatal even for deliberately hostile exception objects.
+    """
+    if (prefer_traceback and isinstance(traceback_text, str)
+            and traceback_text):
+        return traceback_text
+    try:
+        return str(error)
+    except Exception:
+        if isinstance(traceback_text, str) and traceback_text:
+            return traceback_text
+        try:
+            return repr(error)
+        except Exception:
+            return f"<unprintable {type(error).__name__}>"
 
 
 @dataclass
@@ -655,6 +679,133 @@ class MaterialisedLocus:
     miniprot_cache: Dict[str, _MiniprotPreFetch] = field(default_factory=dict)
 
 
+class HierarchyBatchLoader:
+    """Backend-neutral full-feature hierarchy loader.
+
+    gffbase serves each anchor batch with one set-based query; gffutils and
+    lightweight embedders retain scalar generator semantics.  The result shape
+    is identical in both modes, which keeps materialisation independent of the
+    selected annotation backend.
+    """
+
+    def __init__(self, db, *, slots: int = 1, batch_size: Optional[int] = None):
+        self.db = db
+        raw = (_os.environ.get("LIFTON_HIERARCHY_BATCH_SIZE")
+               if batch_size is None else batch_size)
+        if raw is None:
+            resolved = min(128, max(1, int(slots or 1)))
+        else:
+            try:
+                resolved = max(1, int(raw))
+            except (TypeError, ValueError):
+                resolved = min(128, max(1, int(slots or 1)))
+        self.batch_size = resolved
+        self.batched = callable(getattr(db, "children_batched_features", None))
+
+    @staticmethod
+    def _ids(anchors):
+        return [getattr(anchor, "id", anchor) for anchor in anchors]
+
+    @staticmethod
+    def _is_missing_feature_error(exc):
+        """Recognize lookup misses from supported annotation backends."""
+        if isinstance(exc, KeyError):
+            return True
+        error_type = type(exc)
+        module = str(getattr(error_type, "__module__", ""))
+        return (
+            error_type.__name__ == "FeatureNotFoundError"
+            and module.startswith(("gffutils", "gffbase", "lifton.gffbase"))
+        )
+
+    def children_many(
+        self, anchors, *, featuretype=None, level=None, order_by=None,
+    ):
+        ids = self._ids(anchors)
+        result = _OrderedDict((anchor, ()) for anchor in ids)
+        if self.batched:
+            for offset in range(0, len(ids), self.batch_size):
+                chunk = ids[offset:offset + self.batch_size]
+                result.update(self.db.children_batched_features(
+                    chunk, featuretype=featuretype, level=level,
+                    order_by=order_by,
+                ))
+            return result
+        for anchor in ids:
+            result[anchor] = tuple(self.db.children(
+                anchor, featuretype=featuretype, level=level,
+                order_by=order_by,
+            ))
+        return result
+
+    def features_many(self, feature_ids):
+        ids = list(_OrderedDict.fromkeys(feature_ids))
+        batched = getattr(self.db, "features_batched", None)
+        if callable(batched):
+            result = _OrderedDict()
+            for offset in range(0, len(ids), self.batch_size):
+                result.update(batched(ids[offset:offset + self.batch_size]))
+            return result
+        result = _OrderedDict()
+        for feature_id in ids:
+            try:
+                result[feature_id] = self.db[feature_id]
+            except Exception as exc:
+                if not self._is_missing_feature_error(exc):
+                    raise
+        return result
+
+
+def _walk_and_cache_features_batched(
+    feature, ctx: StepContext, payload: MaterialisedLocus,
+    loader: HierarchyBatchLoader, *, max_depth: int = 8,
+) -> None:
+    """Breadth-first hierarchy snapshot using full-feature batch APIs."""
+    frontier = [feature]
+    depth = 0
+    while frontier and depth <= max_depth:
+        unique = []
+        for current in frontier:
+            feature_id = getattr(current, "id", None)
+            if feature_id is not None and feature_id not in payload.feature_cache:
+                unique.append(current)
+        if not unique:
+            return
+
+        exon_l1 = loader.children_many(
+            unique, featuretype="exon", level=1, order_by="start",
+        )
+        children_l1 = loader.children_many(unique, level=1)
+        cds_stop = loader.children_many(
+            unique, featuretype=("CDS", "stop_codon"), order_by="start",
+        )
+        need_full_exons = [
+            current for current in unique
+            if not exon_l1.get(getattr(current, "id", current), ())
+        ]
+        full_exons = loader.children_many(
+            need_full_exons, featuretype="exon", order_by="start",
+        ) if need_full_exons else {}
+
+        next_frontier = []
+        for current in unique:
+            feature_id = current.id
+            direct_exons = list(exon_l1.get(feature_id, ()))
+            direct_children = list(children_l1.get(feature_id, ()))
+            entry = _FeaturePreFetch(
+                feature=current,
+                children_l1=direct_children,
+                exon_children_l1=direct_exons,
+                exon_children_full=(list(direct_exons) if direct_exons else
+                                    list(full_exons.get(feature_id, ()))),
+                cds_stop_children=list(cds_stop.get(feature_id, ())),
+            )
+            payload.feature_cache[feature_id] = entry
+            next_frontier.extend(direct_children)
+        frontier = next_frontier
+        depth += 1
+
+
 def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLocus,
                              *, depth: int = 0, max_depth: int = 8) -> None:
     """Recursively pre-fetch every ``l_feature_db`` access the legacy
@@ -788,8 +939,10 @@ def _populate_ref_attrs_for_descent(payload: MaterialisedLocus,
         ref_gene_id, ref_trans_id_for_gene = None, None
     payload.ref_gene_id = ref_gene_id
     payload.ref_trans_id = ref_trans_id_for_gene
-    _maybe_cache_ref_attrs(payload, ctx.ref_db, ref_gene_id)
-    _maybe_cache_ref_attrs(payload, ctx.ref_db, ref_trans_id_for_gene)
+    ref_ids = [
+        ref_id for ref_id in (ref_gene_id, ref_trans_id_for_gene)
+        if ref_id is not None
+    ]
 
     # For each cached transcript-shaped feature (one with level-1 exon
     # children) under the locus, look up the (ref_gene_id, ref_trans_id)
@@ -806,8 +959,15 @@ def _populate_ref_attrs_for_descent(payload: MaterialisedLocus,
             )
         except Exception:
             continue
-        _maybe_cache_ref_attrs(payload, ctx.ref_db, r_gene_id)
-        _maybe_cache_ref_attrs(payload, ctx.ref_db, r_trans_id)
+        for ref_id in (r_gene_id, r_trans_id):
+            if ref_id is not None and ref_id not in ref_ids:
+                ref_ids.append(ref_id)
+
+    loader = HierarchyBatchLoader(
+        ctx.ref_db, slots=getattr(ctx.args, "threads", 1),
+    )
+    for ref_id, feature in loader.features_many(ref_ids).items():
+        payload.ref_attrs_cache[ref_id] = _copy.deepcopy(feature.attributes)
 
 
 def _populate_miniprot_cache(payload: MaterialisedLocus,
@@ -821,32 +981,36 @@ def _populate_miniprot_cache(payload: MaterialisedLocus,
     from lifton import logger
     # Collect every ref_trans_id we cached (the only ones the legacy
     # code looks up via ref_id_2_m_id_trans_dict).
-    candidate_ref_trans_ids = set(payload.ref_attrs_cache.keys())
-    for r_trans_id in candidate_ref_trans_ids:
-        m_ids = ctx.ref_id_2_m_id_trans_dict.get(r_trans_id) or []
-        for m_id in m_ids:
-            if m_id in payload.miniprot_cache:
-                continue
-            try:
-                m_entry = ctx.m_feature_db[m_id]
-            except Exception as exc:
-                logger.log_warning(
-                    f"_populate_miniprot_cache({m_id}): lookup failed: {exc}"
-                )
-                continue
-            try:
-                cds_stop = list(ctx.m_feature_db.children(
-                    m_entry, featuretype=("CDS", "stop_codon"),
-                    order_by="start",
-                ))
-            except Exception as exc:
-                logger.log_warning(
-                    f"_populate_miniprot_cache({m_id}): children failed: {exc}"
-                )
-                cds_stop = []
-            payload.miniprot_cache[m_id] = _MiniprotPreFetch(
-                feature=m_entry, cds_stop_children=cds_stop,
+    m_ids = []
+    for r_trans_id in payload.ref_attrs_cache:
+        for m_id in ctx.ref_id_2_m_id_trans_dict.get(r_trans_id) or []:
+            if m_id not in m_ids:
+                m_ids.append(m_id)
+    loader = HierarchyBatchLoader(
+        ctx.m_feature_db, slots=getattr(ctx.args, "threads", 1),
+    )
+    entries = loader.features_many(m_ids)
+    try:
+        descendants = loader.children_many(
+            list(entries.values()),
+            featuretype=("CDS", "stop_codon"), order_by="start",
+        )
+    except Exception as exc:
+        logger.log_warning(
+            f"_populate_miniprot_cache: batched children failed: {exc}"
+        )
+        descendants = {}
+    for m_id in m_ids:
+        m_entry = entries.get(m_id)
+        if m_entry is None:
+            logger.log_warning(
+                f"_populate_miniprot_cache({m_id}): lookup failed"
             )
+            continue
+        payload.miniprot_cache[m_id] = _MiniprotPreFetch(
+            feature=m_entry,
+            cds_stop_children=list(descendants.get(m_id, ())),
+        )
 
 
 def materialise_locus(submission_index: int, locus,
@@ -872,9 +1036,19 @@ def materialise_locus(submission_index: int, locus,
         locus_id=locus_id,
     )
 
+    hierarchy_loader = HierarchyBatchLoader(
+        ctx.l_feature_db,
+        slots=getattr(ctx.args, "threads", 1),
+    )
+
     # ── Phase 17b: walk + cache the entire l_feature_db tree under locus.
     try:
-        _walk_and_cache_features(locus, ctx, payload)
+        if hierarchy_loader.batched:
+            _walk_and_cache_features_batched(
+                locus, ctx, payload, hierarchy_loader,
+            )
+        else:
+            _walk_and_cache_features(locus, ctx, payload)
     except Exception as exc:
         logger.log_warning(
             f"materialise_locus({locus_id}): feature-tree walk failed: {exc}"
@@ -890,11 +1064,9 @@ def materialise_locus(submission_index: int, locus,
         # historical query the test suite asserts on; pre-fetch it
         # explicitly so legacy tests keep passing.
         try:
-            payload.cds_children = list(
-                ctx.l_feature_db.children(
-                    locus, featuretype="CDS", order_by="start",
-                )
-            )
+            payload.cds_children = list(hierarchy_loader.children_many(
+                [locus], featuretype="CDS", order_by="start",
+            ).get(locus_id, ()))
         except Exception as exc:
             logger.log_warning(
                 f"materialise_locus({locus_id}): cds_children "
@@ -949,8 +1121,10 @@ class _ThreadLocalCtxFactory:
     single-threaded mutations (file handles, but writes are short and
     GIL-protected).
     """
-    __slots__ = ("_parent_ctx", "_ref_dbfn", "_l_dbfn", "_m_dbfn",
-                 "_local")
+    __slots__ = (
+        "_parent_ctx", "_ref_dbfn", "_l_dbfn", "_m_dbfn", "_local",
+        "_contexts", "_contexts_lock", "_fallback_reason",
+    )
 
     def __init__(self, parent_ctx: StepContext):
         self._parent_ctx = parent_ctx
@@ -959,6 +1133,20 @@ class _ThreadLocalCtxFactory:
         self._m_dbfn = self._extract_dbfn(parent_ctx.m_feature_db)
         import threading as _t
         self._local = _t.local()
+        self._contexts = []
+        self._contexts_lock = _t.Lock()
+        missing = []
+        for label, db, dbfn in (
+            ("reference", parent_ctx.ref_db, self._ref_dbfn),
+            ("liftoff", parent_ctx.l_feature_db, self._l_dbfn),
+            ("miniprot", parent_ctx.m_feature_db, self._m_dbfn),
+        ):
+            if db is not None and not self._safe_to_share(db) and dbfn is None:
+                missing.append(label)
+        self._fallback_reason = (
+            "non-reopenable materialisation database(s): " + ", ".join(missing)
+            if missing else None
+        )
 
     @staticmethod
     def _extract_dbfn(db) -> Optional[str]:
@@ -976,13 +1164,32 @@ class _ThreadLocalCtxFactory:
             return None
         return dbfn
 
+    @staticmethod
+    def _safe_to_share(db) -> bool:
+        """Return whether ``db`` is an immutable in-process value, not a DB.
+
+        Mappings are used by focused embedders/tests for reference attributes
+        and are safe to share.  FeatureDB-shaped objects are never returned as
+        safe merely because reopening failed.
+        """
+        from collections.abc import Mapping as _Mapping
+        return (
+            isinstance(db, _Mapping)
+            or (not hasattr(db, "conn") and not hasattr(db, "dbfn"))
+        )
+
     @property
     def viable(self) -> bool:
-        """True iff at least the Liftoff FeatureDB has a reopen-able
-        path. ``ref_db`` and ``m_feature_db`` may be None / in-memory
-        and we still benefit from parallelising the l_feature_db
-        queries (the dominant cost)."""
-        return self._l_dbfn is not None
+        """True iff every database read during materialisation can reopen."""
+        liftoff_reopenable = (
+            self._l_dbfn is not None
+            or self._safe_to_share(self._parent_ctx.l_feature_db)
+        )
+        return liftoff_reopenable and self._fallback_reason is None
+
+    @property
+    def fallback_reason(self) -> Optional[str]:
+        return self._fallback_reason
 
     @staticmethod
     def _open_thread_db(parent_db, dbfn: Optional[str]):
@@ -994,19 +1201,63 @@ class _ThreadLocalCtxFactory:
         if parent_db is None:
             return None
         if dbfn is None:
-            # In-memory backends or non-FeatureDB inputs — fall back
-            # to the parent's instance. Safe under our usage (the only
-            # backends we share are dict-like or blob-built FeatureDBs
-            # that don't hold thread-bound cursors).
-            return parent_db
+            if _ThreadLocalCtxFactory._safe_to_share(parent_db):
+                return parent_db
+            raise RuntimeError(
+                "materialisation database is not reopenable; refusing to "
+                "share its parent connection with a worker"
+            )
         # Match the parent's class (gffutils vs gffbase).
         cls = type(parent_db)
         try:
             return cls(dbfn)
-        except Exception:
-            # Fall back to the parent's instance if we can't reopen
-            # — still correct (legacy single-thread materialise).
-            return parent_db
+        except Exception as exc:
+            raise RuntimeError(
+                f"could not reopen materialisation database {dbfn!r}"
+            ) from exc
+
+    def open_root_scan(self):
+        """Open the dedicated root iterator connection.
+
+        It never services hierarchy reads, so worker queries cannot invalidate
+        its cursor.  SQLite is additionally placed in query-only mode when the
+        backend exposes a compatible connection.
+        """
+        if not self.viable:
+            raise RuntimeError(self.fallback_reason or "root DB is not reopenable")
+        try:
+            db = self._open_thread_db(
+                self._parent_ctx.l_feature_db, self._l_dbfn,
+            )
+        except RuntimeError:
+            # Connection-less test doubles/embedders may advertise a dbfn to
+            # exercise fused scheduling without owning an actual DB handle.
+            # Real FeatureDB objects always expose ``conn`` and must reopen.
+            if hasattr(self._parent_ctx.l_feature_db, "conn"):
+                raise
+            return self._parent_ctx.l_feature_db
+        conn = getattr(db, "conn", None)
+        if conn is not None and type(db).__module__.startswith("gffutils"):
+            try:
+                conn.execute("PRAGMA query_only=ON")
+            except Exception:
+                pass
+        return db
+
+    @staticmethod
+    def close_root_scan(db) -> None:
+        _ThreadLocalCtxFactory._close_db(db)
+
+    @staticmethod
+    def _close_db(db) -> None:
+        if db is None or _ThreadLocalCtxFactory._safe_to_share(db):
+            return
+        conn = getattr(db, "conn", None)
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def get(self) -> StepContext:
         """Return the calling thread's :class:`StepContext`. First
@@ -1015,27 +1266,62 @@ class _ThreadLocalCtxFactory:
         ctx = getattr(self._local, "ctx", None)
         if ctx is not None:
             return ctx
-        thread_local_ctx = StepContext(
-            ref_db=self._open_thread_db(
-                self._parent_ctx.ref_db, self._ref_dbfn),
-            l_feature_db=self._open_thread_db(
-                self._parent_ctx.l_feature_db, self._l_dbfn),
-            m_feature_db=self._open_thread_db(
-                self._parent_ctx.m_feature_db, self._m_dbfn),
-            ref_id_2_m_id_trans_dict=self._parent_ctx.ref_id_2_m_id_trans_dict,
-            tree_dict=self._parent_ctx.tree_dict,
-            tgt_fai=self._parent_ctx.tgt_fai,
-            ref_proteins=self._parent_ctx.ref_proteins,
-            ref_trans=self._parent_ctx.ref_trans,
-            ref_features_dict=self._parent_ctx.ref_features_dict,
-            fw_score=self._parent_ctx.fw_score,
-            fw_chain=self._parent_ctx.fw_chain,
-            args=self._parent_ctx.args,
-            state_journal=None,
-            failure_records=self._parent_ctx.failure_records,
-        )
-        self._local.ctx = thread_local_ctx
-        return thread_local_ctx
+        opened = []
+        try:
+            ref_db = self._open_thread_db(
+                self._parent_ctx.ref_db, self._ref_dbfn,
+            )
+            opened.append(ref_db)
+            l_feature_db = self._open_thread_db(
+                self._parent_ctx.l_feature_db, self._l_dbfn,
+            )
+            opened.append(l_feature_db)
+            m_feature_db = self._open_thread_db(
+                self._parent_ctx.m_feature_db, self._m_dbfn,
+            )
+            opened.append(m_feature_db)
+            thread_local_ctx = StepContext(
+                ref_db=ref_db,
+                l_feature_db=l_feature_db,
+                m_feature_db=m_feature_db,
+                ref_id_2_m_id_trans_dict=(
+                    self._parent_ctx.ref_id_2_m_id_trans_dict
+                ),
+                tree_dict=self._parent_ctx.tree_dict,
+                tgt_fai=self._parent_ctx.tgt_fai,
+                ref_proteins=self._parent_ctx.ref_proteins,
+                ref_trans=self._parent_ctx.ref_trans,
+                ref_features_dict=self._parent_ctx.ref_features_dict,
+                fw_score=self._parent_ctx.fw_score,
+                fw_chain=self._parent_ctx.fw_chain,
+                args=self._parent_ctx.args,
+                state_journal=None,
+                failure_records=self._parent_ctx.failure_records,
+            )
+            with self._contexts_lock:
+                self._contexts.append(thread_local_ctx)
+            self._local.ctx = thread_local_ctx
+            return thread_local_ctx
+        except BaseException:
+            for db in reversed(opened):
+                self._close_db(db)
+            raise
+
+    def close(self) -> None:
+        """Close every worker-owned DB handle after its executor joins."""
+        with self._contexts_lock:
+            contexts, self._contexts = self._contexts, []
+        parent_dbs = {
+            id(self._parent_ctx.ref_db), id(self._parent_ctx.l_feature_db),
+            id(self._parent_ctx.m_feature_db),
+        }
+        seen = set()
+        for ctx in contexts:
+            for db in (ctx.ref_db, ctx.l_feature_db, ctx.m_feature_db):
+                if db is None or id(db) in parent_dbs or id(db) in seen:
+                    continue
+                seen.add(id(db))
+                self._close_db(db)
 
 
 def materialise_locus_with_factory(
@@ -1172,16 +1458,13 @@ def consume(result: LocusResult, fw, transcripts_stats_dict: dict, *,
         # `TypeError: __str__ returned non-string (type NoneType)`), and the
         # old `f"{result.error}"` then raised *inside the error handler*,
         # crashing the whole run instead of skipping one locus. Prefer the
-        # traceback captured at the raise site (always a plain str); fall back
-        # to repr() (BaseException.__repr__ is robust), and to the type name
-        # as a last resort.
+        # traceback captured at the raise site (always a plain str); the
+        # shared formatter safely falls back through str(), repr(), and the
+        # exception type name.
         from lifton import logger
-        detail = result.error_tb
-        if not detail:
-            try:
-                detail = repr(result.error)
-            except Exception:
-                detail = f"<unprintable {type(result.error).__name__}>"
+        detail = safe_exception_text(
+            result.error, result.error_tb, prefer_traceback=True,
+        )
         logger.log_error(
             f"Error during Liftoff gene processing ({result.locus_id}): "
             f"{detail}"

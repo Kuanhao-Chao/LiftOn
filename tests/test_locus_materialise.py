@@ -19,11 +19,13 @@ from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest import mock
 
+import gffutils
 import pytest
 
 from lifton import locus_pipeline, parallel
 from lifton.locus_pipeline import (
     LocusResult,
+    HierarchyBatchLoader,
     MaterialisedLocus,
     StepContext,
     consume,
@@ -189,6 +191,39 @@ class TestMaterialiseLocus:
         assert payload.exon_children
 
 
+class TestHierarchyBatchLoader:
+    def test_missing_reference_keeps_valid_sibling_transcripts(self):
+        valid = {
+            "tx1": SimpleNamespace(id="tx1"),
+            "tx2": SimpleNamespace(id="tx2"),
+        }
+
+        class ScalarDB:
+            def __getitem__(self, feature_id):
+                try:
+                    return valid[feature_id]
+                except KeyError:
+                    raise gffutils.exceptions.FeatureNotFoundError(
+                        feature_id
+                    )
+
+        loaded = HierarchyBatchLoader(ScalarDB()).features_many(
+            ["tx1", "missing", "tx2"]
+        )
+
+        assert list(loaded) == ["tx1", "tx2"]
+        assert loaded["tx1"] is valid["tx1"]
+        assert loaded["tx2"] is valid["tx2"]
+
+    def test_unexpected_lookup_error_is_not_suppressed(self):
+        class BrokenDB:
+            def __getitem__(self, _feature_id):
+                raise IndexError("corrupt backend row")
+
+        with pytest.raises(IndexError, match="corrupt backend row"):
+            HierarchyBatchLoader(BrokenDB()).features_many(["tx1"])
+
+
 # ---------------------------------------------------------------------------
 # 3. process_locus_native semantics
 # ---------------------------------------------------------------------------
@@ -243,9 +278,9 @@ class TestProcessLocusNative:
 # ---------------------------------------------------------------------------
 
 class TestParallelStep7NativeDispatch:
-    def test_parent_pre_materialises_payloads(self, monkeypatch):
-        """The native dispatch path must call materialise_locus for
-        every locus before submitting any worker."""
+    def test_reopenable_dispatch_materialises_lazily_on_workers(
+            self, monkeypatch):
+        """Safe connection-less fixtures take the fused lazy worker path."""
         from lifton import parallel as p_mod, run_liftoff
         seen_payloads = []
         seen_threads = []
@@ -292,9 +327,10 @@ class TestParallelStep7NativeDispatch:
         stats = {"coding": {}, "non-coding": {}, "other": {}}
         n = parallel.parallel_step7(["gene"], db, ctx, fw, stats, threads=4)
         assert n == 5
-        # All 5 payloads pre-materialised on the parent (this) thread.
+        # Every payload is materialised, but no whole-root parent snapshot is
+        # required before the executor starts.
         assert len(seen_payloads) == 5
-        assert all(tid == threading.current_thread().ident for tid in seen_threads)
+        assert all(tid != threading.current_thread().ident for tid in seen_threads)
         # Output preserved in submission order.
         assert fw.getvalue() == "0\n1\n2\n3\n4\n"
 

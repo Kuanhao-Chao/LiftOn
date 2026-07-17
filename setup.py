@@ -61,9 +61,9 @@ setuptools.setup(
 	package_data={
 		# gffbase ships the pure-Python fallback parser + the Rust extension
 		# SOURCE (no pre-built _native*.so in the tree -> the runtime falls back
-		# to _pyfallback). Only declare files that actually exist.
+		# to _pyfallback). Namespace discovery includes the source-only Rust
+		# directories so setuptools can package them without ambiguity warnings.
 		'lifton.gffbase': ['LICENSE'],
-		'lifton.gffbase._pyfallback': ['*.py'],
 		'lifton.gffbase._rust': ['Cargo.toml', 'Cargo.lock'],
 		'lifton.gffbase._rust.src': ['*.rs'],
 	},
@@ -73,7 +73,7 @@ setuptools.setup(
 	# and PEP-604 X|None annotations guarded by `from __future__ import
 	# annotations`. The dev env and CI run 3.11 (lifton.yml).
 	python_requires='>=3.10',
-	packages=setuptools.find_packages(),
+	packages=setuptools.find_namespace_packages(include=['lifton', 'lifton.*']),
 	entry_points={'console_scripts': [
             'lifton = lifton.lifton:main',
             'gff3-validate = lifton.gff3_validator:_main',

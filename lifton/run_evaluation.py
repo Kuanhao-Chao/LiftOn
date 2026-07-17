@@ -6,6 +6,11 @@ mutations used by the annotation-producing pipeline.
 """
 
 import copy
+import io
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Iterator
 
 import gffutils
 
@@ -13,6 +18,77 @@ from lifton import lifton_class, lifton_utils
 
 
 _MISSING_FEATURE_ERRORS = (KeyError, gffutils.exceptions.FeatureNotFoundError)
+
+
+@dataclass(frozen=True)
+class EvaluationPayload:
+    """Self-contained target/reference hierarchy for one evaluation root."""
+
+    index: int
+    locus: Any
+    target_features: dict[str, Any]
+    target_children: dict[str, tuple[Any, ...]]
+    reference_features: dict[str, Any]
+
+
+@dataclass
+class EvaluationResult:
+    """One ordered evaluation result with buffered score output."""
+
+    index: int
+    locus_id: str
+    score_text: str = ""
+    evaluated: bool = False
+    error: BaseException | None = None
+    error_tb: str | None = None
+
+
+class _FeatureLookupProxy:
+    """Minimal read-only ``FeatureDB[id]`` proxy backed by copied features."""
+
+    def __init__(self, features):
+        self._features = features
+
+    def __getitem__(self, feature_id):
+        try:
+            return self._features[str(feature_id)]
+        except KeyError as exc:
+            raise KeyError(feature_id) from exc
+
+
+class _TargetHierarchyProxy(_FeatureLookupProxy):
+    """Read-only target DB view supporting evaluation's children queries."""
+
+    def __init__(self, features, children):
+        super().__init__(features)
+        self._children = children
+
+    @staticmethod
+    def _feature_types(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return {value}
+        return set(value)
+
+    def children(self, parent, featuretype=None, level=None, order_by=None):
+        parent_id = getattr(parent, "id", parent)
+        wanted = self._feature_types(featuretype)
+        direct = list(self._children.get(str(parent_id), ()))
+        if level == 1:
+            candidates = direct
+        else:
+            candidates = []
+            pending = list(reversed(direct))
+            while pending:
+                child = pending.pop()
+                candidates.append(child)
+                pending.extend(reversed(self._children.get(str(child.id), ())))
+        if wanted is not None:
+            candidates = [item for item in candidates if item.featuretype in wanted]
+        if order_by == "start":
+            candidates.sort(key=_feature_sort_key)
+        return iter(candidates)
 
 
 def _chm13_mode(args):
@@ -89,6 +165,178 @@ def _children(tgt_db, locus, *, featuretype=None, level=None):
     if level is not None:
         kwargs["level"] = level
     return sorted(list(tgt_db.children(locus, **kwargs)), key=_feature_sort_key)
+
+
+def _copy_target_hierarchy(tgt_db, root):
+    """Copy one hierarchy while the owning database connection is local."""
+    features = {}
+    children = {}
+    pending = [root]
+    while pending:
+        feature = pending.pop()
+        feature_id = str(feature.id)
+        if feature_id in features:
+            continue
+        feature_copy = copy.deepcopy(feature)
+        features[feature_id] = feature_copy
+        direct = list(tgt_db.children(feature, level=1, order_by="start"))
+        direct.sort(key=_feature_sort_key)
+        copied_children = tuple(copy.deepcopy(child) for child in direct)
+        children[feature_id] = copied_children
+        pending.extend(reversed(direct))
+    return features, children
+
+
+def _reference_keys_for_payload(root, target_features, ref_features_dict, args):
+    """Return the small set of reference IDs evaluation may look up."""
+    keys = set()
+    ref_gene_id, _ = lifton_utils.get_ref_ids_liftoff(
+        ref_features_dict, root.id, None,
+    )
+    if ref_gene_id is not None:
+        prefix = "gene-" if _chm13_mode(args) else ""
+        logical = _logical_id(str(ref_gene_id), prefix)
+        keys.add(f"{prefix}{logical}")
+        base = _copy_base(logical)
+        if base:
+            keys.add(f"{prefix}{base}")
+
+    transcript_prefix = "rna-" if _chm13_mode(args) else ""
+    for feature in target_features.values():
+        if feature.featuretype in {"gene", "exon", "CDS", "stop_codon"}:
+            continue
+        logical = _logical_id(str(feature.id), transcript_prefix)
+        keys.add(f"{transcript_prefix}{logical}")
+        base = _copy_base(logical)
+        if base:
+            keys.add(f"{transcript_prefix}{base}")
+    return keys
+
+
+def materialize_evaluation_payload(index, locus, ref_db, tgt_db,
+                                   ref_features_dict, args):
+    """Create a worker-safe evaluation payload on the DB-owning thread."""
+    target_features, target_children = _copy_target_hierarchy(tgt_db, locus)
+    reference_features = {}
+    for key in sorted(_reference_keys_for_payload(
+            locus, target_features, ref_features_dict, args)):
+        try:
+            reference_features[key] = copy.deepcopy(ref_db[key])
+        except _MISSING_FEATURE_ERRORS:
+            continue
+    root_copy = target_features[str(locus.id)]
+    return EvaluationPayload(
+        index=index,
+        locus=root_copy,
+        target_features=target_features,
+        target_children=target_children,
+        reference_features=reference_features,
+    )
+
+
+def evaluate_payload(payload, *, tree_dict, tgt_fai, ref_proteins,
+                     ref_trans, ref_features_dict, args):
+    """Evaluate one materialized hierarchy without touching shared DB/output."""
+    score = io.StringIO()
+    try:
+        gene = evaluation(
+            None,
+            payload.locus,
+            _FeatureLookupProxy(payload.reference_features),
+            _TargetHierarchyProxy(
+                payload.target_features, payload.target_children,
+            ),
+            tree_dict,
+            tgt_fai,
+            ref_proteins,
+            ref_trans,
+            ref_features_dict,
+            score,
+            args,
+            ENTRY_FEATURE=True,
+        )
+        return EvaluationResult(
+            index=payload.index,
+            locus_id=str(payload.locus.id),
+            score_text=score.getvalue(),
+            evaluated=gene is not None,
+        )
+    except Exception as exc:
+        return EvaluationResult(
+            index=payload.index,
+            locus_id=str(getattr(payload.locus, "id", "<unknown>")),
+            error=exc,
+            error_tb=traceback.format_exc(),
+        )
+
+
+def parallel_evaluate_loci(loci: Iterable[Any], ref_db, tgt_db, tree_dict,
+                           tgt_fai, ref_proteins, ref_trans,
+                           ref_features_dict, fw_score, args, *, threads=1,
+                           max_inflight=None) -> tuple[int, list[EvaluationResult]]:
+    """Evaluate root loci with bounded workers and ordered score publication."""
+    threads = max(1, int(threads or 1))
+    max_inflight = max(1, int(max_inflight or (2 * threads)))
+
+    def payloads() -> Iterator[EvaluationPayload]:
+        for index, locus in enumerate(loci):
+            yield materialize_evaluation_payload(
+                index, locus, ref_db, tgt_db, ref_features_dict, args,
+            )
+
+    worker_kwargs = {
+        "tree_dict": tree_dict,
+        "tgt_fai": tgt_fai,
+        "ref_proteins": ref_proteins,
+        "ref_trans": ref_trans,
+        "ref_features_dict": ref_features_dict,
+        "args": args,
+    }
+
+    def worker(payload):
+        return evaluate_payload(payload, **worker_kwargs)
+
+    failures = []
+    processed = 0
+    observed_high_water = 0
+
+    def record_high_water(value):
+        nonlocal observed_high_water
+        observed_high_water = max(observed_high_water, value)
+
+    if threads <= 1:
+        results = map(worker, payloads())
+        executor = None
+        observed_high_water = 1
+    else:
+        from lifton.parallel import _ordered_bounded_map
+
+        executor = ThreadPoolExecutor(
+            max_workers=threads, thread_name_prefix="lifton-evaluation",
+        )
+        results = _ordered_bounded_map(
+            executor,
+            payloads(),
+            lambda pool, payload: pool.submit(worker, payload),
+            max_inflight,
+            high_water_callback=record_high_water,
+        )
+    try:
+        for result in results:
+            processed += 1
+            if result.error is not None:
+                failures.append(result)
+                continue
+            fw_score.write(result.score_text)
+    finally:
+        if executor is not None:
+            executor.shutdown(wait=True, cancel_futures=True)
+    try:
+        setattr(args, "_evaluation_max_inflight_observed",
+                observed_high_water if processed else 0)
+    except Exception:
+        pass
+    return processed, failures
 
 
 def initialize_lifton_gene_eval(locus, ref_db, tree_dict, ref_features_dict,

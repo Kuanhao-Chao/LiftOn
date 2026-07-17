@@ -9,8 +9,9 @@
 #
 # Why ship the facade NOW
 # ───────────────────────
-# 1. LiftOn call sites can be wired against the binding-shaped API
-#    today; swapping a real PyO3 binding in later is one-line.
+# 1. Integrations can use the binding-shaped API today. The main CLI keeps
+#    its guarded direct-stream subprocess until a real PyO3 binding is
+#    available; swapping that backend later does not change this API.
 # 2. The subprocess invocation is amortised across all reference
 #    proteins (one fork per Index, not one fork per protein), which
 #    is already much closer to the per-process cost of a real
@@ -174,10 +175,8 @@ class MiniprotIndex:
             return self._cached_bundle
 
         # ── Subprocess fallback ─────────────────────────────────────
-        # Iteration 17: build the command via the shared helper so this
-        # native+streaming path scales miniprot's -t with LiftOn's -t exactly
-        # like the plain subprocess path (otherwise `--native --stream` would
-        # silently stay at miniprot's default 4 while plain `--stream` got -tN).
+        # Build the command via the shared helper so facade clients scale
+        # miniprot's -t exactly like the CLI's guarded subprocess path.
         # Lazy import to avoid any import-order coupling with run_miniprot.
         from lifton.run_miniprot import _build_miniprot_command
         cmd = _build_miniprot_command(
@@ -242,6 +241,101 @@ class MiniprotIndex:
         # where the miniprot.gff3 file held all hits regardless of
         # which protein triggered which one.
         return iter(self._cached_bundle.hits)
+
+    def align_all_into(
+        self, sink, ref_proteins_path: Optional[str] = None,
+        *, chunk_size: int = 1 << 20,
+    ) -> int:
+        """Stream an all-protein alignment into ``sink`` without caching it.
+
+        ``sink`` may be a callable accepting bytes or an object with a
+        ``write(bytes)`` method.  The return value is the exact stdout byte
+        count.  Existing :meth:`align_all` remains the compatibility API for
+        callers that explicitly need a parsed or raw in-memory bundle.
+        """
+        import threading
+        from lifton.run_miniprot import (
+            _BoundedStderr, _build_miniprot_command, _stop_process,
+            _with_stderr_tail,
+        )
+
+        write = sink if callable(sink) else getattr(sink, "write", None)
+        if not callable(write):
+            raise TypeError("sink must be callable or expose write(bytes)")
+        proteins = ref_proteins_path or self._ref_proteins_path
+        if proteins is None:
+            raise ValueError(
+                "MiniprotIndex.align_all_into requires a ref_proteins_path"
+            )
+        if self._cached_raw_bytes is not None:
+            write(self._cached_raw_bytes)
+            return len(self._cached_raw_bytes)
+
+        if self._native is not None:                            # pragma: no cover
+            byte_count = 0
+            for native_hit in self._native.align_file(proteins):
+                chunk = (native_hit.to_gff_line() + "\n").encode("utf-8")
+                write(chunk)
+                byte_count += len(chunk)
+            return byte_count
+
+        cmd = _build_miniprot_command(
+            self.miniprot_path, self.target_fa, proteins,
+            self.mp_options, self.threads,
+        )
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            bufsize=1 << 20,
+        )
+        stderr_state = _BoundedStderr()
+
+        def _drain_stderr():
+            if proc.stderr is None:
+                return
+            while True:
+                chunk = proc.stderr.read(1 << 16)
+                if not chunk:
+                    return
+                stderr_state.feed(chunk)
+
+        stderr_thread = threading.Thread(
+            target=_drain_stderr, name="lifton-miniprot-facade-stderr",
+            daemon=True,
+        )
+        stderr_thread.start()
+        byte_count = 0
+        try:
+            if proc.stdout is not None:
+                while True:
+                    chunk = proc.stdout.read(max(1, int(chunk_size)))
+                    if not chunk:
+                        break
+                    write(chunk)
+                    byte_count += len(chunk)
+            returncode = proc.wait()
+            stderr_thread.join()
+            if returncode != 0:
+                raise RuntimeError(_with_stderr_tail(
+                    f"miniprot exited with code {returncode}", stderr_state,
+                ))
+            if stderr_state.error_seen:
+                raise RuntimeError(_with_stderr_tail(
+                    "miniprot reported an ERROR during mapping; refusing "
+                    "to publish its stream",
+                    stderr_state,
+                ))
+            return byte_count
+        except BaseException:
+            _stop_process(proc)
+            stderr_thread.join(timeout=5)
+            raise
+        finally:
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except Exception:
+                        pass
 
     @property
     def is_native(self) -> bool:

@@ -121,7 +121,7 @@ def test_manifest_records_timing_counts_validation_choices_and_json(
     manifest.write(output)
     stored = json.loads(output.read_text(encoding="utf-8"))
 
-    assert stored["schema_version"] == 1
+    assert stored["schema_version"] == 2
     assert stored["run"]["status"] == "success"
     assert stored["run"]["argv"][2] == "<redacted>"
     assert stored["run"]["options"]["password"] == "<redacted>"
