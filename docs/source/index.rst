@@ -246,6 +246,7 @@ Table of contents
     content/behind_scenes
     content/how_to_page
     content/function_manual
+    content/development
     content/changelog
     content/license
     content/contact
@@ -259,7 +260,9 @@ LiftOn's *chaining algorithm* currently only utilizes miniprot alignment results
 
 DNA- and protein-based methods still have some limitations. We are developing a module to merge the LiftOn annotation with the released curated annotations to generate better annotations.
 
-The LiftOn *chaining algorithm* now does not support multi-threading. This functionality stands as our next targeted feature on the development horizon!
+For memory-bounded parallel locus processing, use
+``--threads N --locus-pipeline``. LiftOn analyzes Steps 7 and 8 and evaluation
+loci in bounded workers, then publishes results in deterministic input order.
 
 |
 |
