@@ -7,6 +7,23 @@ from lifton.liftoff import liftoff_main
 from intervaltree import Interval, IntervalTree
 
 
+def _copy_liftoff_args(args):
+    """Deep-copy CLI options while omitting private runtime state.
+
+    LiftOn attaches live objects such as the asynchronous run manifest to its
+    argparse namespace. Those private fields are orchestration state, not
+    Liftoff configuration, and may contain locks or queues that cannot be
+    copied or sent to Liftoff's multiprocessing workers. Public CLI values
+    retain the historical deep-copy isolation.
+    """
+
+    liftoff_args = copy.copy(args)
+    for name in list(vars(liftoff_args)):
+        if name.startswith("_"):
+            delattr(liftoff_args, name)
+    return copy.deepcopy(liftoff_args)
+
+
 def check_minimap2_installed(minimap2_path="minimap2"):
     """Return True iff the ``minimap2`` binary is on PATH (GitHub issue #43).
 
@@ -57,7 +74,7 @@ def run_liftoff(output_dir, ref_db, args):
         Path to the Liftoff GFF3 output, OR an in-memory bytes blob
         when ``args.inmemory_liftoff`` is True.
     """
-    liftoff_args = copy.deepcopy(args)
+    liftoff_args = _copy_liftoff_args(args)
     liftoff_outdir = output_dir + "liftoff/"
     os.makedirs(liftoff_outdir, exist_ok=True)
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"

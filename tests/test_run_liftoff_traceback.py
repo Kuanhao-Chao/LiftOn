@@ -13,6 +13,7 @@ frame is visible.
 """
 from __future__ import annotations
 
+import pickle
 import sys
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -125,6 +126,38 @@ def test_recursion_limit_is_raised_during_vendored_call(tmp_path):
     assert post == pre, (
         f"recursion limit not restored: pre={pre}, post={post}"
     )
+
+
+def test_private_runtime_state_is_omitted_without_losing_cli_isolation(
+    tmp_path,
+):
+    class NonCopyableRuntime:
+        def __deepcopy__(self, _memo):
+            raise TypeError("runtime state must not be deep-copied")
+
+    runtime = NonCopyableRuntime()
+    args = SimpleNamespace(
+        polish=False,
+        inmemory_liftoff=False,
+        output=str(tmp_path / "out.gff3"),
+        public_options=["original"],
+        _run_manifest=runtime,
+    )
+    captured = {}
+
+    def _capture_args(liftoff_args, _ref_db):
+        captured["has_runtime"] = hasattr(liftoff_args, "_run_manifest")
+        pickle.dumps(liftoff_args)
+        liftoff_args.public_options.append("liftoff-only")
+
+    with patch(
+        "lifton.run_liftoff.liftoff_main.run_all_liftoff_steps",
+        side_effect=_capture_args,
+    ):
+        run_liftoff_module.run_liftoff(str(tmp_path) + "/", None, args)
+
+    assert captured["has_runtime"] is False
+    assert args.public_options == ["original"]
 
 
 # ---------------------------------------------------------------------------
