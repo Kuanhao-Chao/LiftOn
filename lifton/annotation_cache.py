@@ -11,12 +11,14 @@ import hashlib
 import json
 import os
 import uuid
+import fcntl
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 
-MANIFEST_FORMAT_VERSION = 1
-PARSER_CONTRACT_VERSION = 1
+MANIFEST_FORMAT_VERSION = 2
+PARSER_CONTRACT_VERSION = 2
 
 
 def manifest_path_for(db_path: str) -> str:
@@ -82,11 +84,12 @@ def build_manifest(
     schema_version: str,
     tool_version: str,
     settings: Mapping[str, Any],
+    source: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the complete expected manifest for a derived database."""
     return {
         "manifest_format_version": MANIFEST_FORMAT_VERSION,
-        "source": source_fingerprint(source_path),
+        "source": dict(source) if source is not None else source_fingerprint(source_path),
         "backend": {
             "name": backend,
             "version": str(backend_version),
@@ -143,3 +146,23 @@ def temporary_db_path(db_path: str) -> str:
     parent = os.path.dirname(target)
     name = os.path.basename(target)
     return os.path.join(parent, f".{name}.tmp.{os.getpid()}.{uuid.uuid4().hex}")
+
+
+@contextmanager
+def cache_lock(db_path: str) -> Iterator[None]:
+    """Serialize cache rebuilds with an advisory ``<db>.lock`` file.
+
+    The caller must recheck the cache after entering the context: another
+    process may have published the desired database while this process waited.
+    Lock files are intentionally persistent and contain no state.
+    """
+
+    lock_path = os.fspath(db_path) + ".lock"
+    parent = os.path.dirname(os.path.abspath(lock_path))
+    Path(parent).mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+b") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

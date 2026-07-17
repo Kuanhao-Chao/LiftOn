@@ -7,7 +7,7 @@ conventions:
   • Coordinate correctness (start ≤ end, 1-based, non-negative)
   • Strand and phase validity
   • Attribute syntax (key=value, semicolon-separated, required attributes)
-  • Feature hierarchy (gene → mRNA/ncRNA/transcript → exon → CDS)
+  • Feature hierarchy (child-bearing root → transcript → exon → CDS)
   • CDS phase consistency (phase tracks correctly given CDS lengths)
   • Exon / CDS containment within parent transcript
   • Transcript containment within parent gene
@@ -20,6 +20,8 @@ Can be used as:
   • A standalone script:  python -m lifton.gff3_validator output.gff3
   • An importable module: from lifton.gff3_validator import validate_gff3_file
 """
+
+from __future__ import annotations
 
 import sys
 import re
@@ -35,7 +37,7 @@ from typing import List, Dict, Optional, Tuple, Set
 
 # Valid feature types for the GFF3 hierarchy produced by LiftOn
 GENE_TYPES = {
-    "gene", "pseudogene", "transposable_element",
+    "gene", "pseudogene", "ncRNA_gene", "transposable_element",
     "LiftOn-gene",   # LiftOn synthetic gene feature type
 }
 TRANSCRIPT_TYPES = {
@@ -61,6 +63,19 @@ DISCONTINUOUS_FEATURE_TYPES = {"CDS"}
 # exon/CDS parents so faithfully-lifted pseudogenes (Iteration-5
 # --lift-gene-like) don't trip the exon/CDS parent-type hierarchy checks.
 DIRECT_EXON_PARENT_TYPES = {"pseudogene", "transposable_element"}
+
+
+def _can_be_child_bearing_root(ftype: str) -> bool:
+    """Return whether LiftOn may emit *ftype* as a hierarchy root.
+
+    LiftOn auto-detects parentless, child-bearing locus types instead of
+    limiting roots to ``gene`` (for example ``ncRNA_gene`` and structured
+    mobile elements). Transcript-shaped loci with direct exons are also
+    emitted without a synthetic gene row. Exon and CDS are leaf levels and
+    can therefore never gain root status merely by being parentless.
+    """
+
+    return ftype not in EXON_TYPES | CDS_TYPES
 
 # The GFF3 spec permits four strand values: '+', '-', '.' (not stranded), and
 # '?' (stranded but the strand is unknown). '?' is valid and appears on real
@@ -140,6 +155,16 @@ class GFF3Record:
     def parent_id(self) -> str:
         return self.attrs.get("Parent", [""])[0]
 
+    @property
+    def parent_ids(self) -> Tuple[str, ...]:
+        """Return a normalized Parent tuple for duplicate-ID comparisons."""
+
+        return tuple(sorted({
+            parent.strip()
+            for parent in self.attrs.get("Parent", [])
+            if parent.strip()
+        }))
+
 
 @dataclass
 class ValidationResult:
@@ -166,6 +191,264 @@ class ValidationResult:
 # ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _discontinuous_cds_signature(record: GFF3Record) -> tuple | None:
+    """Return the identity shared by valid segments of one CDS feature."""
+
+    if record.ftype != "CDS" or not record.parent_ids:
+        return None
+    return (
+        record.ftype,
+        record.seqid,
+        record.source,
+        record.strand,
+        record.parent_ids,
+    )
+
+
+def validate_gff3_structure(
+    path: str,
+    *,
+    max_issues_per_check: int = 50,
+) -> ValidationResult:
+    """Stream publication-critical GFF3 checks without loading hierarchies.
+
+    Memory use is bounded by the ID/signature maps needed for ordered Parent
+    resolution and duplicate detection. :func:`validate_gff3_file` remains the
+    optional full semantic validator.
+    """
+
+    result = ValidationResult(file_path=os.fspath(path))
+    issue_counts: Dict[str, int] = defaultdict(int)
+    # ID -> (line, discontinuous-CDS signature, type, has Parent)
+    seen_ids: Dict[str, Tuple[int, tuple | None, str, bool]] = {}
+    referenced_parent_ids: Set[str] = set()
+    first_content_seen = False
+
+    def add_issue(
+        check: str,
+        lineno: int,
+        message: str,
+        *,
+        feature_id: str = "",
+    ) -> None:
+        issue_counts[check] += 1
+        if issue_counts[check] <= max_issues_per_check:
+            result.issues.append(GFF3Issue(
+                Severity.ERROR, lineno, feature_id, check, message,
+            ))
+
+    try:
+        handle = open(path, "r", encoding="utf-8", errors="replace", newline="")
+    except OSError as exc:
+        add_issue("file_readable", 0, f"Cannot read {path}: {exc}")
+        return result
+
+    feature_counts: Dict[str, int] = defaultdict(int)
+    with handle:
+        for lineno, raw in enumerate(handle, start=1):
+            result.total_lines += 1
+            line = raw.rstrip("\r\n")
+            if not line.strip():
+                result.comment_lines += 1
+                continue
+
+            if not first_content_seen:
+                first_content_seen = True
+                if line != "##gff-version 3":
+                    add_issue(
+                        "gff3_header", lineno,
+                        "First non-blank line must be exactly '##gff-version 3'.",
+                    )
+
+            if line.startswith("#"):
+                result.comment_lines += 1
+                continue
+
+            columns = line.split("\t")
+            if len(columns) != 9:
+                add_issue(
+                    "column_count", lineno,
+                    f"Expected 9 tab-separated columns, got {len(columns)}.",
+                )
+                continue
+
+            result.data_lines += 1
+            seqid, source, ftype, start_text, end_text, _score, strand, phase, attrs_text = columns
+            feature_counts[ftype] += 1
+
+            if not seqid or seqid == ".":
+                add_issue("seqid_empty", lineno, "seqid must not be empty or '.'.")
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError:
+                add_issue(
+                    "coord_not_int", lineno,
+                    f"start/end must be integers, got {start_text!r} and {end_text!r}.",
+                )
+            else:
+                if start < 1 or end < 1:
+                    add_issue(
+                        "coord_1based", lineno,
+                        f"coordinates must be >= 1, got start={start}, end={end}.",
+                    )
+                if start > end:
+                    add_issue(
+                        "coord_order", lineno,
+                        f"start ({start}) must be <= end ({end}).",
+                    )
+
+            if strand not in VALID_STRANDS:
+                add_issue(
+                    "strand_valid", lineno,
+                    f"strand must be one of {sorted(VALID_STRANDS)}, got {strand!r}.",
+                )
+            if ftype == "CDS" and phase not in {"0", "1", "2"}:
+                add_issue(
+                    "cds_phase_value", lineno,
+                    f"CDS phase must be 0, 1, or 2, got {phase!r}.",
+                )
+
+            attrs: Dict[str, List[str]] = {}
+            if attrs_text and attrs_text != ".":
+                for part in attrs_text.split(";"):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    if "=" not in part:
+                        add_issue(
+                            "attr_format", lineno,
+                            f"Attribute {part!r} has no '=' separator.",
+                        )
+                        continue
+                    key, value = part.split("=", 1)
+                    key = key.strip()
+                    if not key:
+                        add_issue(
+                            "attr_format", lineno,
+                            f"Attribute {part!r} has an empty key.",
+                        )
+                        continue
+                    values = [item.strip() for item in value.split(",")]
+                    if key == "Parent" and any(not item for item in values):
+                        add_issue(
+                            "parent_empty", lineno,
+                            "Parent must contain one or more non-empty IDs.",
+                        )
+                    attrs[key] = [item for item in values if item]
+
+            feature_id = attrs.get("ID", [""])[0]
+            if ftype in GENE_TYPES | TRANSCRIPT_TYPES and not feature_id:
+                add_issue(
+                    "missing_id", lineno,
+                    f"{ftype!r} feature must have an ID attribute.",
+                )
+
+            parent_ids = attrs.get("Parent", [])
+            if ftype in GENE_TYPES and parent_ids:
+                add_issue(
+                    "gene_has_parent", lineno,
+                    f"Top-level {ftype!r} feature must not have Parent.",
+                    feature_id=feature_id,
+                )
+            # A transcript-shaped locus may itself be a supported top-level
+            # output, but only when a later row actually names it as Parent.
+            # Defer that decision until the stream has been consumed. Exon and
+            # CDS remain mandatory children and are rejected immediately.
+            if (ftype in EXON_TYPES | CDS_TYPES
+                    or (ftype in TRANSCRIPT_TYPES and not feature_id)) \
+                    and not parent_ids:
+                add_issue(
+                    "missing_parent", lineno,
+                    f"{ftype!r} feature must have a Parent attribute.",
+                    feature_id=feature_id,
+                )
+
+            for parent_id in parent_ids:
+                referenced_parent_ids.add(parent_id)
+                parent_info = seen_ids.get(parent_id)
+                if parent_info is None:
+                    add_issue(
+                        "parent_not_declared", lineno,
+                        f"Parent={parent_id!r} has not been declared earlier in the file.",
+                        feature_id=feature_id,
+                    )
+                    continue
+                parent_type = parent_info[2]
+                parent_is_root = (
+                    not parent_info[3]
+                    and _can_be_child_bearing_root(parent_type)
+                )
+                if (ftype in TRANSCRIPT_TYPES
+                        and parent_type not in GENE_TYPES
+                        and not parent_is_root):
+                    add_issue(
+                        "transcript_parent_type", lineno,
+                        f"{ftype!r} Parent={parent_id!r} is "
+                        f"{parent_type!r}, expected a gene-like feature.",
+                        feature_id=feature_id,
+                    )
+                elif (ftype in EXON_TYPES | CDS_TYPES
+                      and parent_type not in TRANSCRIPT_TYPES
+                      and parent_type not in DIRECT_EXON_PARENT_TYPES
+                      and not parent_is_root):
+                    check = (
+                        "exon_parent_type" if ftype in EXON_TYPES
+                        else "cds_parent_type"
+                    )
+                    add_issue(
+                        check, lineno,
+                        f"{ftype!r} Parent={parent_id!r} is "
+                        f"{parent_type!r}, expected a transcript or direct "
+                        "gene-like parent.",
+                        feature_id=feature_id,
+                    )
+
+            if feature_id:
+                record = GFF3Record(
+                    lineno=lineno,
+                    seqid=seqid,
+                    source=source,
+                    ftype=ftype,
+                    start=0,
+                    end=0,
+                    score=".",
+                    strand=strand,
+                    phase=phase,
+                    attrs=attrs,
+                    raw=line,
+                )
+                signature = _discontinuous_cds_signature(record)
+                previous = seen_ids.get(feature_id)
+                if previous is None:
+                    seen_ids[feature_id] = (
+                        lineno, signature, ftype, bool(parent_ids),
+                    )
+                elif signature is None or signature != previous[1]:
+                    add_issue(
+                        "duplicate_id", lineno,
+                        f"Duplicate ID {feature_id!r} (first seen on line {previous[0]}).",
+                        feature_id=feature_id,
+                    )
+
+    for feature_id, (lineno, _signature, ftype, has_parent) in seen_ids.items():
+        if (ftype in TRANSCRIPT_TYPES and not has_parent
+                and feature_id not in referenced_parent_ids):
+            add_issue(
+                "missing_parent", lineno,
+                f"{ftype!r} feature must have a Parent attribute unless it "
+                "is a child-bearing top-level locus.",
+                feature_id=feature_id,
+            )
+
+    if not first_content_seen:
+        add_issue("gff3_header", 0, "File is empty; expected '##gff-version 3'.")
+    if result.data_lines == 0:
+        add_issue("features_present", 0, "The file contains no GFF3 feature records.")
+    result.stats = dict(feature_counts)
+    return result
+
 
 def validate_gff3_file(
     gff3_path: str,
@@ -261,10 +544,10 @@ def validate_gff3_file(
                 # (e.g. two genes / a gene and an mRNA colliding on an ID) is a
                 # genuine duplicate-ID error.
                 first = seen_id_recs[fid]
+                first_signature = _discontinuous_cds_signature(first)
                 is_discontinuous_segment = (
-                    rec.ftype in DISCONTINUOUS_FEATURE_TYPES
-                    and rec.ftype == first.ftype
-                    and rec.parent_id == first.parent_id
+                    first_signature is not None
+                    and _discontinuous_cds_signature(rec) == first_signature
                 )
                 if not is_discontinuous_segment:
                     issue_counts["duplicate_id"] += 1
@@ -624,14 +907,15 @@ def _check_hierarchy(
     max_issues: int,
 ) -> List[GFF3Issue]:
     """
-    Validate the gene→transcript→exon→CDS parent-child relationship.
+    Validate LiftOn's root→transcript→exon→CDS relationships.
 
     Rules (per NCBI GFF3 spec and LiftOn conventions):
     1. Every Parent reference must point to a known ID.
-    2. Genes must not have a Parent (they are top-level).
-    3. Transcripts must have a gene as Parent.
-    4. Exons must have a transcript as Parent.
-    5. CDS features must have a transcript as Parent.
+    2. Known gene-like features must not have a Parent (they are top-level).
+    3. Transcripts must have a child-bearing root as Parent, unless the
+       transcript is itself a child-bearing root.
+    4. Exons must have a transcript or child-bearing root as Parent.
+    5. CDS features must have a transcript or child-bearing root as Parent.
     6. A transcript must have at least one exon child.
     7. Coding transcripts (mRNA) must have at least one CDS child.
     8. CDS must be a subset of at least one exon of the same transcript.
@@ -639,6 +923,14 @@ def _check_hierarchy(
     issues: List[GFF3Issue] = []
     issue_counts: Dict[str, int] = defaultdict(int)
     all_ids = set(id_to_record.keys())
+
+    def is_child_bearing_root(rec: GFF3Record) -> bool:
+        return (
+            bool(rec.feat_id)
+            and not rec.parent_ids
+            and bool(parent_to_children.get(rec.feat_id))
+            and _can_be_child_bearing_root(rec.ftype)
+        )
 
     for rec in records:
         fid = rec.feat_id
@@ -663,23 +955,26 @@ def _check_hierarchy(
                     f"but has Parent='{pid}'"
                 ))
 
-        # ── Rule 3: Transcripts must have a gene parent ──────────────────────
+        # ── Rule 3: Transcripts need a root parent or must be the root ───────
         if rec.ftype in TRANSCRIPT_TYPES:
             if not pid:
-                issue_counts["trans_no_parent"] += 1
-                if issue_counts["trans_no_parent"] <= max_issues:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, rec.lineno, fid, "transcript_no_parent",
-                        f"Transcript-type '{rec.ftype}' has no Parent attribute"
-                    ))
+                if not is_child_bearing_root(rec):
+                    issue_counts["trans_no_parent"] += 1
+                    if issue_counts["trans_no_parent"] <= max_issues:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, rec.lineno, fid, "transcript_no_parent",
+                            f"Transcript-type '{rec.ftype}' has no Parent "
+                            "attribute and no children"
+                        ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if parent_rec.ftype not in GENE_TYPES:
+                if (parent_rec.ftype not in GENE_TYPES
+                        and not is_child_bearing_root(parent_rec)):
                     issue_counts["trans_wrong_parent"] += 1
                     if issue_counts["trans_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
                             Severity.ERROR, rec.lineno, fid, "transcript_parent_type",
-                            f"Transcript parent must be a gene; "
+                            f"Transcript parent must be a top-level root; "
                             f"'{pid}' has type '{parent_rec.ftype}'"
                         ))
 
@@ -695,13 +990,14 @@ def _check_hierarchy(
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
                 if (parent_rec.ftype not in TRANSCRIPT_TYPES
-                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES):
+                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES
+                        and not is_child_bearing_root(parent_rec)):
                     issue_counts["exon_wrong_parent"] += 1
                     if issue_counts["exon_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
                             Severity.ERROR, rec.lineno, fid, "exon_parent_type",
                             f"Exon parent '{pid}' has type '{parent_rec.ftype}' "
-                            f"(expected transcript type)"
+                            f"(expected transcript or top-level root)"
                         ))
 
         # ── Rule 5: CDS must have a transcript parent ────────────────────────
@@ -716,13 +1012,14 @@ def _check_hierarchy(
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
                 if (parent_rec.ftype not in TRANSCRIPT_TYPES
-                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES):
+                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES
+                        and not is_child_bearing_root(parent_rec)):
                     issue_counts["cds_wrong_parent"] += 1
                     if issue_counts["cds_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
                             Severity.ERROR, rec.lineno, fid, "cds_parent_type",
                             f"CDS parent '{pid}' has type '{parent_rec.ftype}' "
-                            f"(expected transcript type)"
+                            f"(expected transcript or top-level root)"
                         ))
 
     # ── Rules 6 & 7: Transcripts must have exons (and mRNA must have CDS) ───

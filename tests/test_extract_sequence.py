@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import warnings
 
 import pytest
 from pyfaidx import Fasta
@@ -133,6 +134,21 @@ class TestGetProteinSequence:
         assert protein.startswith("M")
         assert protein.endswith("*")
         assert protein.count("*") == 1
+
+    def test_incomplete_terminal_codon_is_explicitly_truncated(
+            self, monkeypatch):
+        monkeypatch.setattr(
+            extract_sequence,
+            "get_dna_sequence",
+            lambda *args, **kwargs: "ATGA",
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            protein = extract_sequence.get_protein_sequence(
+                object(), object(), [],
+            )
+        assert protein == "M"
+        assert not caught
 
 
 # ---------------------------------------------------------------------------

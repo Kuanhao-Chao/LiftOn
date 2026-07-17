@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import sys
 import tempfile
+import threading
 from enum import Enum
 from pathlib import Path
 from typing import IO, TextIO
@@ -33,6 +35,7 @@ class OutputTransactionState(str, Enum):
     CLOSED = "closed"
     COMMITTED = "committed"
     ABORTED = "aborted"
+    FAILED = "failed"
 
 
 def _partial_name(destination: Path) -> str:
@@ -42,7 +45,20 @@ def _partial_name(destination: Path) -> str:
     for suffix in (".gff3", ".gff"):
         if lower_name.endswith(suffix):
             return destination.name[: -len(suffix)] + ".partial.gff3"
-    return destination.name + ".partial.gff3"
+    if destination.suffix:
+        return destination.stem + ".partial" + destination.suffix
+    return destination.name + ".partial"
+
+
+def _fsync_directory(path: Path) -> None:
+    """Persist a same-directory rename where the platform supports it."""
+
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = os.open(path, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 class OutputTransaction:
@@ -110,6 +126,7 @@ class OutputTransaction:
         self._stream: IO[str] = stream
         self._working_path = Path(stream.name)
         self._state = OutputTransactionState.OPEN
+        self._signal_handlers: dict[int, object] = {}
 
     @property
     def state(self) -> OutputTransactionState:
@@ -157,11 +174,23 @@ class OutputTransaction:
             OutputTransactionState.ABORTED,
         }:
             return
+        if self._state is OutputTransactionState.FAILED:
+            raise OutputTransactionStateError(
+                "cannot close a failed output transaction"
+            )
 
         if not self._stream.closed:
-            self._stream.flush()
-            os.fsync(self._stream.fileno())
-            self._stream.close()
+            try:
+                self._stream.flush()
+                os.fsync(self._stream.fileno())
+                self._stream.close()
+            except BaseException:
+                self._state = OutputTransactionState.FAILED
+                try:
+                    self._stream.close()
+                except BaseException:
+                    pass
+                raise
         self._state = OutputTransactionState.CLOSED
 
     def commit(self) -> Path | None:
@@ -173,6 +202,10 @@ class OutputTransaction:
             raise OutputTransactionStateError(
                 "cannot commit an aborted output transaction"
             )
+        if self._state is OutputTransactionState.FAILED:
+            raise OutputTransactionStateError(
+                "cannot commit a failed output transaction"
+            )
 
         self.close()
         if self._stdout_mode:
@@ -182,9 +215,19 @@ class OutputTransaction:
                 shutil.copyfileobj(staged, self._stdout)
             self._stdout.flush()
             self._working_path.unlink()
+            self._state = OutputTransactionState.COMMITTED
+            try:
+                _fsync_directory(self._working_path.parent)
+            finally:
+                self.restore_signal_handlers()
         else:
             assert self._destination is not None
             os.replace(self._working_path, self._destination)
+            self._state = OutputTransactionState.COMMITTED
+            try:
+                _fsync_directory(self._destination.parent)
+            finally:
+                self.restore_signal_handlers()
 
         self._state = OutputTransactionState.COMMITTED
         return self._destination
@@ -199,10 +242,72 @@ class OutputTransaction:
                 "cannot abort a committed output transaction"
             )
 
-        self.close()
-        os.replace(self._working_path, self._partial_path)
-        self._state = OutputTransactionState.ABORTED
+        if self._state is OutputTransactionState.OPEN:
+            try:
+                self.close()
+            except BaseException:
+                # Preserve whatever reached the staging file; callers still
+                # receive an error if publication was attempted.
+                pass
+        elif self._state is OutputTransactionState.FAILED and not self._stream.closed:
+            try:
+                self._stream.close()
+            except BaseException:
+                pass
+        try:
+            os.replace(self._working_path, self._partial_path)
+            self._state = OutputTransactionState.ABORTED
+            _fsync_directory(self._partial_path.parent)
+        finally:
+            # Cleanup must not mask the publication/durability error that
+            # brought us here. On success, restoration failures still surface.
+            if sys.exc_info()[0] is None:
+                self.restore_signal_handlers()
+            else:
+                try:
+                    self.restore_signal_handlers()
+                except BaseException:
+                    pass
         return self._partial_path
+
+    def install_signal_handlers(self) -> bool:
+        """Preserve staged output on SIGTERM/SIGHUP in the main thread."""
+
+        if threading.current_thread() is not threading.main_thread():
+            return False
+        if self._signal_handlers:
+            return True
+        for signum in (signal.SIGTERM, getattr(signal, "SIGHUP", None)):
+            if signum is None:
+                continue
+            self._signal_handlers[int(signum)] = signal.getsignal(signum)
+            signal.signal(signum, self._handle_signal)
+        return True
+
+    def restore_signal_handlers(self) -> None:
+        if not self._signal_handlers:
+            return
+        if threading.current_thread() is not threading.main_thread():
+            return
+        handlers = self._signal_handlers
+        self._signal_handlers = {}
+        for signum, previous in handlers.items():
+            signal.signal(signum, previous)
+
+    def _handle_signal(self, signum, frame) -> None:
+        previous = self._signal_handlers.get(int(signum), signal.SIG_DFL)
+        try:
+            if self._state not in {
+                OutputTransactionState.COMMITTED,
+                OutputTransactionState.ABORTED,
+            }:
+                self.abort()
+        finally:
+            self.restore_signal_handlers()
+        if callable(previous):
+            previous(signum, frame)
+        elif previous != signal.SIG_IGN:
+            raise SystemExit(128 + int(signum))
 
     def __enter__(self) -> IO[str]:
         return self.open()
