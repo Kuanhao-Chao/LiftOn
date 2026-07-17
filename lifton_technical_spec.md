@@ -5201,7 +5201,9 @@ Exact format string: `f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status
 
 The `Lifton_Status` source fields (`lifton_class.py:12-21`): `liftoff`, `miniprot`, `lifton_dna`, `lifton_aa` are floats initialised to `0`; `annotation` is a string (initially `None`); `status` is a `list[str]` of mutation tags. **Gotcha:** identity fields are written with default float `str()` formatting (full precision, e.g. `0.9876543209876543`), *not* the 3-decimal rounding used for the GFF3 attributes (7.3.4).
 
-Evaluation mode writes to `eval.txt` instead (`lifton.py:428`) via `write_lifton_eval_status` (a 6-column variant: id, eval_dna, eval_aa, annotation, status, locus — `lifton_utils.py:514-516`). **Gotcha:** there are *two* functions named `write_lifton_eval_status` in `lifton_utils.py` (lines 514 and 529); the second definition (`lifton_utils.py:529-531`, columns id/lifton_dna/lifton_aa/status/locus) shadows the first at import time, so the actually-callable `write_lifton_eval_status` is the 5-column form.
+Evaluation mode writes to `eval.txt` instead via the single canonical
+`write_lifton_eval_status` helper. Its five columns are transcript ID, DNA
+identity, protein identity, `;`-joined status, and target locus.
 
 #### 7.2.2 `chain.txt` line format
 
@@ -6536,5 +6538,4 @@ Top-level package (`lifton/`), with one-line roles. Subtrees marked **[vendored]
 | `lifton/native_bindings/types.py` | Shared dataclasses/types for the native bindings. |
 | `lifton/liftoff/` | **[vendored]** Complete in-tree fork of upstream Liftoff (~3 KLOC, 18 files). Invoked as a library; shells out to minimap2 unless `--native` routes through `native_align.py`. |
 | `lifton/gffbase/` | **[vendored]** First-party DuckDB-backed gffutils successor (~3.6 KLOC + Rust `_native*.so`; pure-Python fallback under `_pyfallback/`). Drop-in FeatureDB/Feature/DataIterator/GFFWriter. |
-
 
