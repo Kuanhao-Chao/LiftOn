@@ -109,6 +109,24 @@ def _write_pair(
         "completeness_coding": 1.0,
         "completeness_feature_total": 1.0,
         "protein_identity": {"n": 2, "mean": 1.0, "median": 1.0},
+        "stable_id_preservation": {
+            "method": release_report.STABLE_ID_METHOD,
+            "by_type": {
+                feature_type: {
+                    "applicable": True,
+                    "reason": None,
+                    "n_reference_records": 2,
+                    "n_reference_records_with_id": 2,
+                    "n_reference_ids": 2,
+                    "n_preserved_ids": 2,
+                    "n_output_records": 2,
+                    "n_output_records_with_id": 2,
+                    "n_output_ids": 2,
+                    "preservation_rate": 1.0,
+                }
+                for feature_type in release_report.STABLE_ID_FEATURE_TYPES
+            },
+        },
         "completeness_by_type": {
             "gene": {
                 "n_reference": 2,
@@ -1369,6 +1387,178 @@ def test_feature_completeness_must_match_required_summary(tmp_path):
         release_report.aggregate_pairs(
             release_report.load_pairs([runs]), replicates=10,
         )
+
+
+def test_stable_id_preservation_is_reported_and_gates_regression(tmp_path):
+    runs = tmp_path / "runs"
+    path = _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+    )
+    raw = json.loads(path.read_text())
+    candidate_cds = raw["versions"]["candidate"]["summary"][
+        "stable_id_preservation"
+    ]["by_type"]["CDS"]
+    candidate_cds["n_preserved_ids"] = 1
+    candidate_cds["preservation_rate"] = 0.5
+    path.write_text(json.dumps(raw))
+
+    metrics = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), replicates=10,
+    )
+
+    cell = metrics["cells"][0]["stable_id_preservation"]["CDS"]
+    assert cell["candidate_n_preserved_ids"] == 1
+    assert cell["candidate_n_output_records"] == 2
+    assert cell["candidate_n_output_records_with_id"] == 2
+    assert cell["reference_n_preserved_ids"] == 2
+    checks = {
+        check["name"]: check
+        for check in metrics["verdict"]["checks"]
+    }
+    check = checks[
+        "subset.demo.stable_id_preservation.CDS.no_regression"
+    ]
+    assert check["passed"] is False
+    panel = metrics["panels"]["subset"]["stable_id_preservation"]["CDS"]
+    assert panel["candidate_preservation_rate"] == 0.5
+    assert panel["reference_preservation_rate"] == 1.0
+    markdown = release_report.render_markdown(
+        metrics,
+        {"candidate_sha": CANDIDATE_SHA, "reference_sha": REFERENCE_SHA},
+    )
+    assert "## Stable feature-ID preservation" in markdown
+    assert "not a measure of biological completeness" in markdown
+    assert "| subset | CDS | 1 | 1/2 (0.50000) | 2/2 (1.00000) | -0.50000 |" in markdown
+
+
+def test_stable_id_preservation_skips_types_without_declared_reference_ids(
+        tmp_path):
+    runs = tmp_path / "runs"
+    path = _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+    )
+    raw = json.loads(path.read_text())
+    for version in raw["versions"].values():
+        for feature_type, row in version["summary"][
+            "stable_id_preservation"
+        ]["by_type"].items():
+            row.update({
+                "applicable": False,
+                "reason": (
+                    "reference_feature_type_absent"
+                    if feature_type == "CDS"
+                    else "no_declared_reference_ids"
+                ),
+                "n_reference_records": 0 if feature_type == "CDS" else 2,
+                "n_reference_records_with_id": 0,
+                "n_reference_ids": 0,
+                "n_preserved_ids": 0,
+                "n_output_records": 0 if feature_type == "CDS" else 2,
+                "n_output_records_with_id": 0,
+                "n_output_ids": 0,
+                "preservation_rate": None,
+            })
+    path.write_text(json.dumps(raw))
+
+    metrics = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), replicates=10,
+    )
+
+    assert not any(
+        "stable_id_preservation" in check["name"]
+        for check in metrics["verdict"]["checks"]
+    )
+    panel = metrics["panels"]["subset"]["stable_id_preservation"]
+    assert panel["CDS"]["n_applicable_cells"] == 0
+    assert panel["exon"]["candidate_preservation_rate"] is None
+
+
+def test_stable_id_preservation_rejects_arm_denominator_mismatch(tmp_path):
+    runs = tmp_path / "runs"
+    path = _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+    )
+    raw = json.loads(path.read_text())
+    candidate_cds = raw["versions"]["candidate"]["summary"][
+        "stable_id_preservation"
+    ]["by_type"]["CDS"]
+    candidate_cds.update({
+        "n_reference_records": 3,
+        "n_reference_records_with_id": 3,
+        "n_reference_ids": 3,
+        "n_preserved_ids": 2,
+        "preservation_rate": 2 / 3,
+    })
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="stable ID denominators"):
+        release_report.aggregate_pairs(
+            release_report.load_pairs([runs]), replicates=10,
+        )
+
+
+def test_stable_id_preservation_rejects_rate_count_disagreement(tmp_path):
+    runs = tmp_path / "runs"
+    path = _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+    )
+    raw = json.loads(path.read_text())
+    raw["versions"]["candidate"]["summary"]["stable_id_preservation"][
+        "by_type"
+    ]["exon"]["preservation_rate"] = 0.5
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="stable ID rate"):
+        release_report.aggregate_pairs(
+            release_report.load_pairs([runs]), replicates=10,
+        )
+
+
+@pytest.mark.parametrize(
+    "updates",
+    (
+        {
+            "applicable": False,
+            "reason": "no_declared_reference_ids",
+            "n_reference_ids": 0,
+            "n_preserved_ids": 0,
+            "preservation_rate": None,
+        },
+        {"n_output_records": 1},
+        {"n_preserved_ids": 0, "n_output_ids": 0},
+        {"n_output_ids": 3},
+    ),
+)
+def test_stable_id_preservation_rejects_impossible_counts(
+        tmp_path, updates):
+    runs = tmp_path / "runs"
+    path = _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+    )
+    raw = json.loads(path.read_text())
+    raw["versions"]["candidate"]["summary"]["stable_id_preservation"][
+        "by_type"
+    ]["CDS"].update(updates)
+    path.write_text(json.dumps(raw))
+
+    with pytest.raises(ValueError, match="stable ID counts"):
+        release_report.aggregate_pairs(
+            release_report.load_pairs([runs]), replicates=10,
+        )
+
+
+def test_load_pairs_rejects_legacy_release_schema_2(tmp_path):
+    runs = tmp_path / "runs"
+    path = _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+    )
+    raw = json.loads(path.read_text())
+    raw["schema_version"] = 2
+    path.write_text(json.dumps(raw))
+
+    assert release_report.SCHEMA_VERSION == 3
+    with pytest.raises(ValueError, match="unsupported paired schema"):
+        release_report.load_pairs([runs])
 
 
 def test_quality_aggregates_and_gates_drift_across_repetitions(tmp_path):

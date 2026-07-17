@@ -20,10 +20,12 @@ import importlib.machinery
 import json
 import math
 import os
+import re
 import shutil
 import statistics
 import subprocess
 import sys
+import urllib.parse
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,7 +45,7 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 DEFAULT_BENCHMARK_REGISTRY = HERE / "benchmarks.json"
 DEFAULT_REFERENCE_SHA = "3739dfc8f73396fccab7d7be0f95e008179cea5d"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DEFAULT_BOOTSTRAP_SEED = 20260717
 DEFAULT_BOOTSTRAP_REPLICATES = 10_000
 E2E_MODE_FEATURES = {
@@ -59,6 +61,9 @@ E2E_MODE_FEATURES = {
 E2E_MODES = tuple(E2E_MODE_FEATURES)
 SEMANTIC_HASH_ALGORITHM = "sha256-multiset-sum2-v1"
 _SEMANTIC_MODULUS = 1 << 256
+STABLE_ID_FEATURE_TYPES = ("CDS", "exon")
+STABLE_ID_METHOD = "declared-gff3-id-same-type-copy-aware-v2"
+_COPY_SUFFIX_RE = re.compile(r"_(\d+)$")
 
 
 @dataclass(frozen=True)
@@ -303,6 +308,138 @@ def gff3_fingerprints(path: Path) -> dict[str, Any]:
         "semantic_algorithm": SEMANTIC_HASH_ALGORITHM,
         "feature_records": semantic.count,
         "feature_counts": dict(sorted(feature_counts.items())),
+    }
+
+
+def _declared_id_index(
+    path: Path,
+    feature_types: Sequence[str] = STABLE_ID_FEATURE_TYPES,
+) -> dict[str, dict[str, Any]]:
+    """Index explicit column-9 IDs without inventing database row IDs.
+
+    Discontinuous CDS segments legitimately repeat one ID, so the preservation
+    denominator is the set of declared logical IDs rather than the row count.
+    """
+
+    selected = tuple(feature_types)
+    index = {
+        feature_type: {
+            "n_records": 0,
+            "n_records_with_id": 0,
+            "ids": set(),
+            "parents_by_id": {},
+        }
+        for feature_type in selected
+    }
+    with Path(path).open(encoding="utf-8", errors="replace") as handle:
+        for raw in handle:
+            if not raw or raw.startswith("#"):
+                continue
+            columns = raw.rstrip("\r\n").split("\t")
+            if len(columns) != 9 or columns[2] not in index:
+                continue
+            row = index[columns[2]]
+            row["n_records"] += 1
+            declared_id = None
+            declared_parents: set[str] = set()
+            for field in columns[8].split(";"):
+                key, separator, value = field.strip().partition("=")
+                if not separator:
+                    continue
+                key = key.strip()
+                if key == "ID" and declared_id is None:
+                    # ID is scalar in GFF3. Taking the first non-empty value
+                    # keeps malformed comma lists from inflating the denominator.
+                    declared_id = next(
+                        (
+                            urllib.parse.unquote(item.strip())
+                            for item in value.split(",")
+                            if item.strip()
+                        ),
+                        None,
+                    )
+                elif key == "Parent":
+                    declared_parents.update(
+                        urllib.parse.unquote(item.strip())
+                        for item in value.split(",")
+                        if item.strip()
+                    )
+            if declared_id:
+                row["n_records_with_id"] += 1
+                row["ids"].add(declared_id)
+                row["parents_by_id"].setdefault(declared_id, set()).update(
+                    declared_parents
+                )
+    return index
+
+
+def stable_id_preservation(
+    reference_gff: Path,
+    output_gff: Path,
+    *,
+    reference_index: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Measure declared CDS/exon ID continuity, not biological completeness."""
+
+    reference = (
+        dict(reference_index)
+        if reference_index is not None
+        else _declared_id_index(reference_gff)
+    )
+    output = _declared_id_index(output_gff)
+    by_type: dict[str, dict[str, Any]] = {}
+    for feature_type in STABLE_ID_FEATURE_TYPES:
+        reference_row = reference[feature_type]
+        output_row = output[feature_type]
+        reference_ids = set(reference_row["ids"])
+        output_ids = set(output_row["ids"])
+        reference_parents = reference_row["parents_by_id"]
+        output_parents = output_row["parents_by_id"]
+        preserved: set[str] = set()
+        for output_id in output_ids:
+            if output_id in reference_ids:
+                preserved.add(output_id)
+                continue
+            match = _COPY_SUFFIX_RE.search(output_id)
+            if match:
+                base = output_id[:match.start()]
+                suffix = match.group(0)
+                copy_parent_matches = any(
+                    output_parent.endswith(suffix)
+                    and output_parent[:-len(suffix)]
+                    in reference_parents.get(base, set())
+                    for output_parent in output_parents.get(output_id, set())
+                )
+                if base in reference_ids and copy_parent_matches:
+                    preserved.add(base)
+        n_reference_ids = len(reference_ids)
+        applicable = n_reference_ids > 0
+        if applicable:
+            reason = None
+        elif reference_row["n_records"] == 0:
+            reason = "reference_feature_type_absent"
+        else:
+            reason = "no_declared_reference_ids"
+        by_type[feature_type] = {
+            "applicable": applicable,
+            "reason": reason,
+            "n_reference_records": reference_row["n_records"],
+            "n_reference_records_with_id": (
+                reference_row["n_records_with_id"]
+            ),
+            "n_reference_ids": n_reference_ids,
+            "n_preserved_ids": len(preserved),
+            "n_output_records": output_row["n_records"],
+            "n_output_records_with_id": output_row["n_records_with_id"],
+            "n_output_ids": len(output_ids),
+            "preservation_rate": (
+                len(preserved) / n_reference_ids
+                if applicable else None
+            ),
+        }
+    return {
+        "method": STABLE_ID_METHOD,
+        "by_type": by_type,
     }
 
 
@@ -862,6 +999,7 @@ def _score_pair(
         str(isolated_ref_fa),
         log=lambda message: print(message, flush=True),
     )
+    reference_id_index = _declared_id_index(isolated_ref_gff)
     manifest = {
         "id": inputs.benchmark,
         "species": inputs.species,
@@ -908,6 +1046,11 @@ def _score_pair(
                 f"{transcript_path}"
             )
         summary["transcripts_tsv"] = str(transcript_path)
+        summary["stable_id_preservation"] = stable_id_preservation(
+            isolated_ref_gff,
+            output,
+            reference_index=reference_id_index,
+        )
         documents[label]["summary"] = summary
         documents[label]["evaluation_artifacts"] = {
             "transcripts_tsv": {

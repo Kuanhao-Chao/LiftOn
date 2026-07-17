@@ -145,6 +145,93 @@ def test_semantic_multiset_accumulator_keeps_constant_row_state():
     assert len(accumulator.hexdigest()) == 64
 
 
+def test_stable_id_preservation_uses_declared_unique_same_type_ids(tmp_path):
+    reference = tmp_path / "reference.gff3"
+    output = tmp_path / "output.gff3"
+    reference.write_text(
+        "##gff-version 3\n"
+        "chr1\tRef\tCDS\t1\t10\t.\t+\t0\tID=cds-A%3A1;Parent=tx%3A1\n"
+        "chr1\tRef\tCDS\t21\t30\t.\t+\t0\tID=cds-A%3A1;Parent=tx%3A1\n"
+        "chr1\tRef\texon\t1\t10\t.\t+\t.\tID=exon-A;Parent=tx1\n"
+        "chr1\tRef\texon\t21\t30\t.\t+\t.\tParent=tx1\n",
+        encoding="utf-8",
+    )
+    output.write_text(
+        "##gff-version 3\n"
+        "chr1\tLiftOn\tCDS\t101\t110\t.\t+\t0\tID=cds-A%3A1_1;Parent=tx%3A1_1\n"
+        "chr1\tLiftOn\tCDS\t121\t130\t.\t+\t0\tID=cds-A%3A1_1;Parent=tx%3A1_1\n"
+        # The exon ID under the wrong feature type must not count.
+        "chr1\tLiftOn\tgene\t101\t130\t.\t+\t.\tID=exon-A\n",
+        encoding="utf-8",
+    )
+
+    result = release.stable_id_preservation(reference, output)
+
+    cds = result["by_type"]["CDS"]
+    assert cds["n_reference_records"] == 2
+    assert cds["n_reference_ids"] == 1
+    assert cds["n_preserved_ids"] == 1
+    assert cds["n_output_records"] == 2
+    assert cds["n_output_records_with_id"] == 2
+    assert cds["n_output_ids"] == 1
+    assert cds["preservation_rate"] == 1.0
+    exon = result["by_type"]["exon"]
+    assert exon["n_reference_records"] == 2
+    assert exon["n_reference_records_with_id"] == 1
+    assert exon["n_reference_ids"] == 1
+    assert exon["n_preserved_ids"] == 0
+    assert exon["n_output_records"] == 0
+    assert exon["n_output_records_with_id"] == 0
+    assert exon["n_output_ids"] == 0
+    assert exon["preservation_rate"] == 0.0
+
+
+def test_stable_id_preservation_rejects_unrelated_numeric_suffix(tmp_path):
+    reference = tmp_path / "reference.gff3"
+    output = tmp_path / "output.gff3"
+    reference.write_text(
+        "##gff-version 3\n"
+        "chr1\tRef\tCDS\t1\t10\t.\t+\t0\tID=cds-A;Parent=tx-A\n",
+        encoding="utf-8",
+    )
+    output.write_text(
+        "##gff-version 3\n"
+        # A numeric ID suffix is not a copy marker unless Parent carries that
+        # same suffix and maps back to the reference parent.
+        "chr1\tLiftOn\tCDS\t101\t110\t.\t+\t0\t"
+        "ID=cds-A_7;Parent=unrelated_7\n",
+        encoding="utf-8",
+    )
+
+    cds = release.stable_id_preservation(reference, output)["by_type"]["CDS"]
+
+    assert cds["n_output_ids"] == 1
+    assert cds["n_preserved_ids"] == 0
+    assert cds["preservation_rate"] == 0.0
+
+
+def test_stable_id_preservation_marks_absent_or_idless_types_not_applicable(
+        tmp_path):
+    reference = tmp_path / "reference.gff3"
+    output = tmp_path / "output.gff3"
+    reference.write_text(
+        "##gff-version 3\n"
+        "chr1\tRef\texon\t1\t10\t.\t+\t.\tParent=tx1\n",
+        encoding="utf-8",
+    )
+    output.write_text("##gff-version 3\n", encoding="utf-8")
+
+    result = release.stable_id_preservation(reference, output)["by_type"]
+
+    assert result["CDS"]["applicable"] is False
+    assert result["CDS"]["reason"] == "reference_feature_type_absent"
+    assert result["exon"]["applicable"] is False
+    assert result["exon"]["reason"] == "no_declared_reference_ids"
+    assert result["exon"]["n_output_records"] == 0
+    assert result["exon"]["n_output_records_with_id"] == 0
+    assert result["exon"]["preservation_rate"] is None
+
+
 def test_subset_and_full_commands_pin_the_intended_protocol(tmp_path):
     source = _source(tmp_path)
     subset = release.build_lifton_argv(
@@ -444,6 +531,12 @@ def test_neutral_scoring_records_exact_transcript_evidence(tmp_path, monkeypatch
         }
         assert documents[label]["summary"]["transcripts_tsv"] == str(
             path.resolve()
+        )
+        stable_ids = documents[label]["summary"]["stable_id_preservation"]
+        assert stable_ids["method"] == release.STABLE_ID_METHOD
+        assert all(
+            row["applicable"] is False
+            for row in stable_ids["by_type"].values()
         )
 
 
