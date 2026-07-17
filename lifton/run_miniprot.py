@@ -1,4 +1,5 @@
 from lifton import align, logger, lifton_class, lifton_utils
+from io import BytesIO
 import subprocess, os, sys, copy
 from intervaltree import Interval, IntervalTree
 
@@ -7,20 +8,18 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
     """Phase 15c (V3.10) — drain a Popen's stdout/stderr in bounded
     chunks instead of `proc.communicate()`.
 
-    `communicate()` allocates `bytes(stdout)` + `bytes(stderr)` and
-    holds both simultaneously; for a multi-GB miniprot run that's an
-    8-figure peak-RSS pathology. Chunked reads keep peak buffer at
-    `chunk_size` per stream until both are drained, after which we
-    `b"".join()` once. The final bytes object is unavoidable because
-    gffbase.create_db(from_string=True) needs the full blob — but we
-    avoid the doubled-allocation interim.
+    ``communicate()`` allocates ``bytes(stdout)`` + ``bytes(stderr)`` and
+    holds both simultaneously. Chunked reads keep each live pipe read bounded
+    by ``chunk_size``. ``BytesIO.getvalue()`` then exposes each accumulated
+    buffer without the explicit second full-size allocation required by
+    ``b"".join(chunks)``.
 
     Returns ``(stdout_bytes, stderr_bytes, returncode)``.
     """
     import threading
 
-    stdout_chunks: list[bytes] = []
-    stderr_chunks: list[bytes] = []
+    stdout_buffer = BytesIO()
+    stderr_buffer = BytesIO()
 
     def _drain(stream, sink):
         if stream is None:
@@ -30,7 +29,7 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
                 buf = stream.read(chunk_size)
                 if not buf:
                     return
-                sink.append(buf)
+                sink.write(buf)
         finally:
             try:
                 stream.close()
@@ -38,17 +37,17 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
                 pass
 
     t_out = threading.Thread(
-        target=_drain, args=(proc.stdout, stdout_chunks), daemon=True,
+        target=_drain, args=(proc.stdout, stdout_buffer), daemon=True,
     )
     t_err = threading.Thread(
-        target=_drain, args=(proc.stderr, stderr_chunks), daemon=True,
+        target=_drain, args=(proc.stderr, stderr_buffer), daemon=True,
     )
     t_out.start()
     t_err.start()
     rc = proc.wait()
     t_out.join()
     t_err.join()
-    return b"".join(stdout_chunks), b"".join(stderr_chunks), rc
+    return stdout_buffer.getvalue(), stderr_buffer.getvalue(), rc
 
 
 def _resolve_miniprot_threads(threads):
@@ -158,12 +157,13 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
       ``<outdir>/miniprot/miniprot.gff3`` and return the **path**.
       This is the legacy Phase 5 contract — preserved byte-for-byte.
 
-    * ``args.stream`` is True: pipe miniprot's stdout straight into
-      RAM via ``Popen.communicate()`` and return the **bytes blob**.
+    * ``args.stream`` is True: drain miniprot's stdout in bounded chunks into
+      RAM and return the **bytes blob**.
       No disk write. Phase 7 streaming-adapter fast path.
 
-    Failure modes (any of them returns ``None`` so the pipeline
-    continues with Liftoff-only results):
+    Failure modes return ``None`` so the pipeline can finish a diagnostic
+    Liftoff-only partial result. The CLI does not publish that partial GFF3
+    unless ``--allow-partial-output`` was explicitly requested.
       1. Non-zero exit code from miniprot.
       2. miniprot prints "ERROR" to stderr (exit 0 + error is a known miniprot quirk).
       3. Output is absent or empty.
@@ -214,7 +214,7 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
                     ref_proteins_path=ref_proteins_file,
                     threads=getattr(args, "threads", 1),
                 )
-                bundle = idx.align_all()
+                bundle = idx.align_all(raw_only=True)
                 stdout_bytes = bundle.raw_bytes
                 stderr_text = ""
                 return_code = 0
@@ -264,8 +264,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         if return_code != 0:
             print(
                 f"\n[LiftOn] miniprot exited with code {return_code}. "
-                "Miniprot output will be skipped — LiftOn will continue "
-                "using Liftoff results only.",
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
                 file=sys.stderr,
             )
             return None
@@ -275,8 +275,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             print(
                 "\n[LiftOn] miniprot reported an ERROR during mapping "
                 "(exit code 0 but ERROR seen in output). "
-                "Miniprot output will be skipped — LiftOn will continue "
-                "using Liftoff results only.",
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
                 file=sys.stderr,
             )
             return None
@@ -285,8 +285,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         if output_size == 0:
             print(
                 "\n[LiftOn] miniprot produced an empty output. "
-                "Miniprot results will be skipped — LiftOn will continue "
-                "using Liftoff results only.",
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
                 file=sys.stderr,
             )
             return None
@@ -294,8 +294,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     except Exception as exc:
         print(
             f"\n[LiftOn] miniprot failed unexpectedly: {exc}\n"
-            "Miniprot output will be skipped — LiftOn will continue "
-            "using Liftoff results only.",
+            "Miniprot output will be skipped; LiftOn will stage a "
+            "Liftoff-only partial result.",
             file=sys.stderr,
         )
         return None
@@ -306,8 +306,10 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     return miniprot_output
 
 
-def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, 
-ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
+def lifton_miniprot_with_ref_protein(
+        m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai,
+        ref_proteins, ref_trans, tree_dict, ref_features_dict, args,
+        state_journal=None):
     """
         This function create a miniprot gene entry with reference protein.
 
@@ -333,7 +335,11 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     # Create LifOn gene instance
     m_gene_feature = copy.deepcopy(m_feature)
     m_gene_feature.featuretype = "gene"
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, args)
+    lifton_gene = lifton_class.Lifton_GENE(
+        ref_gene_id, m_gene_feature,
+        copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict,
+        ref_features_dict, args, state_journal=state_journal,
+    )
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
     # Create LifOn transcript instance
     Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
@@ -363,7 +369,11 @@ def _miniprot_rescue_band_ok(ratio, args):
     return lo < ratio < hi
 
 
-def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args):
+def process_miniprot(
+        mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins,
+        ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict,
+        ref_features_len_dict, ref_trans_exon_num_dict,
+        ref_features_reverse_dict, args, state_journal=None):
     if m_feature_db is None:
         return None
     mtrans_id = mtrans.attributes["ID"][0]
@@ -372,31 +382,39 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
     lifton_gene = None
     lifton_trans = None
     if not is_overlapped:
-        ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
         ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-        if ref_gene_id is None:
+        if ref_gene_id is None or ref_trans_id is None:
             return None
-        if ref_trans_id in ref_proteins.keys() and ref_trans_id in ref_trans.keys():
-            if ref_trans_id != None:
-                # Check if the additional copy is valid
-                # 1. Remove processed pseudogenes: 1 CDS in miniprot but >1 CDS in reference
-                # 2. Check the trans ratio is in the range of min_minprot and max_minprot
-                if len(list(m_feature_db.children(mtrans, featuretype='CDS'))) == 1 and ref_trans_exon_num_dict[ref_trans_id] > 1: # Processed pseudogene
-                    return None
-                miniprot_trans_ratio = (mtrans.end - mtrans.start + 1) / ref_features_len_dict[ref_gene_id]
-                if miniprot_trans_ratio > args.min_miniprot and miniprot_trans_ratio < args.max_miniprot:
-                    lifton_gene, lifton_trans, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
-                    lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
-                else: # Invalid miniprot transcript
-                    # Iteration 23: miniprot-only rescue for genuinely-missing
-                    # genes (ratio outside the default band) is no longer done
-                    # in-loop -- it mutated the shared Step-8 suppression
-                    # tree_dict mid-loop (off ⊄ on). It now runs as a separate
-                    # post-Step-8 pass (lifton.miniprot_rescue) so this default
-                    # decision is independent of --miniprot-rescue (off ⊆ on).
-                    return None
-            else: # Skip those cannot be found in reference.
-                return None
+        if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+            return None
+        # Check if the additional copy is valid:
+        # 1. Remove processed pseudogenes: one miniprot CDS but >1 ref exon.
+        # 2. Check the transcript ratio against the default miniprot band.
+        if (len(list(m_feature_db.children(mtrans, featuretype='CDS'))) == 1
+                and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1):
+            return None
+        ref_feature_len = ref_features_len_dict.get(ref_gene_id)
+        if not ref_feature_len:
+            return None
+        miniprot_trans_ratio = (
+            (mtrans.end - mtrans.start + 1) / ref_feature_len
+        )
+        if (miniprot_trans_ratio > args.min_miniprot
+                and miniprot_trans_ratio < args.max_miniprot):
+            lifton_gene, lifton_trans, transcript_id, lifton_status = \
+                lifton_miniprot_with_ref_protein(
+                    mtrans, m_feature_db, ref_db.db_connection,
+                    ref_gene_id, ref_trans_id, tgt_fai, ref_proteins,
+                    ref_trans, tree_dict, ref_features_dict, args,
+                    state_journal=state_journal,
+                )
+            lifton_gene.transcripts[transcript_id].entry.attributes[
+                "miniprot_annotation_ratio"
+            ] = [f"{miniprot_trans_ratio:.3f}"]
+        else:  # Invalid default miniprot transcript; separate rescue may add it.
+            # The separate post-Step-8 pass keeps this decision independent of
+            # rescue mode and preserves off ⊆ on.
+            return None
         lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
         lifton_utils.print_lifton_status(transcript_id, mtrans, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("miniprot")

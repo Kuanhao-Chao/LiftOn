@@ -268,18 +268,28 @@ def test_blob_adapter_propagates_build_rtree(monkeypatch, build_rtree):
 
 
 @pytest.mark.parametrize("build_rtree", [True, False])
-def test_file_adapter_propagates_build_rtree(monkeypatch, build_rtree):
+def test_file_adapter_propagates_build_rtree(
+        monkeypatch, tmp_path, build_rtree):
     seen = {}
-    sentinel = object()
+    sentinel = SimpleNamespace(conn=SimpleNamespace(close=lambda: None))
+    source = tmp_path / "input.gff3"
+    source.write_text(
+        "##gff-version 3\n"
+        "chr1\tminiprot\tmRNA\t1\t9\t.\t+\t.\tID=MP1\n"
+    )
 
     def fake_create_db(data, dbfn, **kwargs):
         seen.update(kwargs)
+        Path(dbfn).write_bytes(b"fake database")
         return sentinel
 
     monkeypatch.setattr(gffbase_adapter._gffbase, "create_db", fake_create_db)
+    monkeypatch.setattr(
+        gffbase_adapter, "open_database_path", lambda path: sentinel,
+    )
 
     result = gffbase_adapter.build_database(
-        file_name="input.gff3",
+        file_name=str(source),
         infer_genes=False,
         infer_transcripts=False,
         build_rtree=build_rtree,

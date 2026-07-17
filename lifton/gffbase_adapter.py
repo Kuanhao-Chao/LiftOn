@@ -16,7 +16,12 @@ from __future__ import annotations
 import os
 from typing import Callable, Optional, Union
 
+import duckdb
+
+from lifton import __version__ as _lifton_version
+from lifton import annotation_cache as _cache
 from lifton import gffbase as _gffbase
+from lifton.gffbase.schema import SCHEMA_VERSION
 
 
 def db_path_for(file_name: str) -> str:
@@ -27,20 +32,126 @@ def db_path_for(file_name: str) -> str:
     return file_name + ".duckdb"
 
 
-def open_existing_db(file_name: str) -> Optional["_gffbase.FeatureDB"]:
+def _cache_settings(
+    *,
+    infer_genes: bool,
+    infer_transcripts: bool,
+    merge_strategy: str,
+    id_spec,
+    transform: Optional[Callable],
+    build_rtree: bool,
+    parser_settings: Optional[dict],
+) -> dict:
+    """Return every setting that can affect gffbase ingestion."""
+    return {
+        "parser_contract_version": _cache.PARSER_CONTRACT_VERSION,
+        "parser": {
+            "native_available": _gffbase.native_available(),
+            "settings": parser_settings or {},
+        },
+        "inference": {
+            "genes": bool(infer_genes),
+            "transcripts": bool(infer_transcripts),
+        },
+        "merge_strategy": merge_strategy,
+        "id_spec": id_spec,
+        "transform": transform,
+        "build_rtree": bool(build_rtree),
+        "rtree_disabled": bool(
+            os.environ.get("LIFTON_DISABLE_RTREE")
+            or os.environ.get("GFFBASE_TEST_DISABLE_RTREE")
+        ),
+        "duckdb_version": duckdb.__version__,
+    }
+
+
+def _expected_manifest(
+    file_name: str,
+    *,
+    infer_genes: bool,
+    infer_transcripts: bool,
+    merge_strategy: str,
+    id_spec,
+    transform: Optional[Callable],
+    build_rtree: bool,
+    parser_settings: Optional[dict],
+) -> dict:
+    return _cache.build_manifest(
+        file_name,
+        backend="gffbase",
+        backend_version=_gffbase.__version__,
+        schema_version=SCHEMA_VERSION,
+        tool_version=_lifton_version,
+        settings=_cache_settings(
+            infer_genes=infer_genes,
+            infer_transcripts=infer_transcripts,
+            merge_strategy=merge_strategy,
+            id_spec=id_spec,
+            transform=transform,
+            build_rtree=build_rtree,
+            parser_settings=parser_settings,
+        ),
+    )
+
+
+def open_database_path(db_path: str) -> Optional["_gffbase.FeatureDB"]:
+    """Open a direct gffbase database input after validating its schema."""
+    if not os.path.isfile(db_path):
+        return None
+    db = None
+    try:
+        db = _gffbase.FeatureDB(os.fspath(db_path))
+        row = db.conn.execute(
+            "SELECT value FROM meta WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None or str(row[0]) != SCHEMA_VERSION:
+            db.conn.close()
+            return None
+        db.conn.execute("SELECT 1 FROM features LIMIT 1").fetchone()
+        return db
+    except Exception:
+        if db is not None:
+            try:
+                db.conn.close()
+            except Exception:
+                pass
+        return None
+
+
+def open_existing_db(
+    file_name: str,
+    *,
+    infer_genes: bool = False,
+    infer_transcripts: bool = False,
+    merge_strategy: str = "create_unique",
+    id_spec=None,
+    transform: Optional[Callable] = None,
+    build_rtree: bool = True,
+    parser_settings: Optional[dict] = None,
+) -> Optional["_gffbase.FeatureDB"]:
     """Return a :class:`gffbase.FeatureDB` attached to an existing
     DuckDB cache for ``file_name`` if one exists, else ``None``.
 
     Mirrors the legacy ``try: gffutils.FeatureDB(<file>_db)`` short-
     circuit at :mod:`lifton.annotation`.
     """
-    p = db_path_for(file_name)
-    if not os.path.exists(p):
-        return None
+    db_path = db_path_for(file_name)
     try:
-        return _gffbase.FeatureDB(p)
-    except Exception:
+        expected = _expected_manifest(
+            file_name,
+            infer_genes=infer_genes,
+            infer_transcripts=infer_transcripts,
+            merge_strategy=merge_strategy,
+            id_spec=id_spec,
+            transform=transform,
+            build_rtree=build_rtree,
+            parser_settings=parser_settings,
+        )
+    except OSError:
         return None
+    if not _cache.cache_matches(db_path, expected):
+        return None
+    return open_database_path(db_path)
 
 
 def build_database(
@@ -54,6 +165,7 @@ def build_database(
     verbose: bool = False,
     transform: Optional[Callable] = None,
     build_rtree: bool = True,
+    parser_settings: Optional[dict] = None,
 ) -> "_gffbase.FeatureDB":
     """Build a DuckDB-backed FeatureDB from a GFF3 file on disk.
 
@@ -61,18 +173,57 @@ def build_database(
     deduplicates IDs internally, so the legacy three-strategy retry
     in ``Annotation._build_database`` collapses to a single call.
     """
-    return _gffbase.create_db(
+    db_path = db_path_for(file_name)
+    expected = _expected_manifest(
         file_name,
-        dbfn=db_path_for(file_name),
-        force=force,
-        verbose=verbose,
+        infer_genes=infer_genes,
+        infer_transcripts=infer_transcripts,
         merge_strategy=merge_strategy,
         id_spec=id_spec,
         transform=transform,
-        disable_infer_genes=not infer_genes,
-        disable_infer_transcripts=not infer_transcripts,
         build_rtree=build_rtree,
+        parser_settings=parser_settings,
     )
+    if not force and _cache.cache_matches(db_path, expected):
+        existing = open_database_path(db_path)
+        if existing is not None:
+            return existing
+
+    temporary = _cache.temporary_db_path(db_path)
+    built = None
+    try:
+        built = _gffbase.create_db(
+            file_name,
+            dbfn=temporary,
+            force=True,
+            verbose=verbose,
+            merge_strategy=merge_strategy,
+            id_spec=id_spec,
+            transform=transform,
+            disable_infer_genes=not infer_genes,
+            disable_infer_transcripts=not infer_transcripts,
+            build_rtree=build_rtree,
+        )
+        built.conn.close()
+        built = None
+        if _cache.source_fingerprint(file_name) != expected["source"]:
+            raise OSError(f"Annotation changed while its database was being built: {file_name}")
+        os.replace(temporary, db_path)
+        _cache.write_manifest_atomic(db_path, expected)
+        reopened = open_database_path(db_path)
+        if reopened is None:
+            raise OSError(f"Published gffbase database could not be reopened: {db_path}")
+        return reopened
+    finally:
+        if built is not None:
+            try:
+                built.conn.close()
+            except Exception:
+                pass
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
 
 
 def build_database_from_string(

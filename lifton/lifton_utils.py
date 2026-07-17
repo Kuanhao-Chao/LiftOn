@@ -501,11 +501,6 @@ def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_re
     return ref_features_reverse_dict[ref_trans_id], ref_trans_id
 
 
-def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status):
-    final_status = ";".join(lifton_status.status)
-    fw_score.write(f"{transcript_id}\t{lifton_status.eval_dna}\t{lifton_status.eval_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
-
-
 def print_lifton_status(transcript_id, transcript, lifton_status, DEBUG=False):
     final_status = ";".join(lifton_status.status)
     logger.log(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n", debug=DEBUG)
@@ -517,6 +512,7 @@ def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
 
 
 def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status):
+    """Write the established five-column evaluation record."""
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 

@@ -232,6 +232,17 @@ def validate_gff3_file(
     result.comment_lines = meta["comment_lines"]
     result.issues.extend(parse_issues)
 
+    # A directive-only file is non-empty on disk but is not an annotation.
+    # Treat it as invalid so a failed/empty pipeline cannot report success
+    # merely because it wrote ``##gff-version 3``.
+    if result.data_lines == 0:
+        result.issues.append(GFF3Issue(
+            Severity.ERROR, 0, "", "features_present",
+            "The file contains no GFF3 feature records."
+        ))
+        result.stats = {}
+        return result
+
     # ── Build feature index ──────────────────────────────────────────────────
     id_to_record: Dict[str, GFF3Record] = {}
     parent_to_children: Dict[str, List[GFF3Record]] = defaultdict(list)

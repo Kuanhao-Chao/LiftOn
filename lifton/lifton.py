@@ -1,10 +1,119 @@
 from lifton import intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
-from intervaltree import Interval
+from intervaltree import IntervalTree
 import argparse
 from pyfaidx import Fasta
 import os, sys
 import time
 import concurrent.futures
+from contextlib import redirect_stdout
+
+from lifton.exceptions import LiftOnPartialOutputError, LiftOnValidationError
+from lifton.run_manifest import RunManifest
+
+
+def _run_outdirs(output):
+    """Return the user-output directory and LiftOn artifact directory."""
+    if output == "stdout":
+        outdir = "."
+    else:
+        outdir = os.path.dirname(output) or "."
+    return outdir, os.path.join(outdir, "lifton_output")
+
+
+def _console_stream(args):
+    """Keep stdout machine-readable when it is the GFF3 destination."""
+    return sys.stderr if getattr(args, "output", None) == "stdout" else sys.stdout
+
+
+def _ensure_run_manifest(args, outdir, lifton_outdir):
+    """Create one provenance collector per run and attach it to ``args``."""
+    manifest = getattr(args, "_run_manifest", None)
+    if manifest is not None:
+        return manifest
+
+    inputs = {
+        "target_genome": getattr(args, "target", None),
+        "reference_genome": getattr(args, "reference", None),
+        "reference_annotation": getattr(args, "reference_annotation", None),
+        "reference_proteins": getattr(args, "proteins", None),
+        "reference_transcripts": getattr(args, "transcripts", None),
+        "precomputed_liftoff": getattr(args, "liftoff", None),
+        "precomputed_miniprot": getattr(args, "miniprot", None),
+    }
+    minimap2 = getattr(args, "m", None) or "minimap2"
+    manifest = RunManifest(
+        argv=getattr(args, "_argv", sys.argv),
+        options=vars(args),
+        inputs=inputs,
+        backend={
+            "stream": bool(getattr(args, "stream", False)),
+            "inmemory_liftoff": bool(
+                getattr(args, "inmemory_liftoff", False)
+            ),
+            "native": bool(getattr(args, "native", False)),
+            "locus_pipeline": bool(getattr(args, "locus_pipeline", False)),
+        },
+        tool_commands={
+            "minimap2": (minimap2, "--version"),
+            "miniprot": ("miniprot", "--version"),
+        },
+        git_cwd=os.getcwd(),
+    )
+    args._run_manifest = manifest
+    args._run_manifest_path = os.path.join(
+        lifton_outdir, "run_manifest.json"
+    )
+    args._active_manifest_phase = None
+    args._pipeline_failures = []
+    return manifest
+
+
+def _switch_manifest_phase(args, name, details=None):
+    manifest = getattr(args, "_run_manifest", None)
+    if manifest is None:
+        return
+    active = getattr(args, "_active_manifest_phase", None)
+    if active is not None:
+        manifest.end_phase(active)
+    args._active_manifest_phase = name
+    if name is not None:
+        manifest.start_phase(name, details)
+
+
+def _record_pipeline_failure(args, phase, error, *, details=None,
+                             fatal=False, affects_completeness=True):
+    record = {
+        "phase": str(phase),
+        "message": str(error),
+        "details": dict(details or {}),
+        "fatal": bool(fatal),
+    }
+    if affects_completeness:
+        getattr(args, "_pipeline_failures", []).append(record)
+    manifest = getattr(args, "_run_manifest", None)
+    if manifest is not None:
+        manifest.record_failure(
+            phase, error, fatal=fatal, details=record["details"]
+        )
+
+
+def _finish_run_manifest(args, status):
+    manifest = getattr(args, "_run_manifest", None)
+    path = getattr(args, "_run_manifest_path", None)
+    if manifest is None or path is None:
+        return
+    active = getattr(args, "_active_manifest_phase", None)
+    if active is not None:
+        try:
+            manifest.end_phase(active, status=(
+                "success" if status in {"success", "partial_success"}
+                else "failed"
+            ))
+        except ValueError:
+            pass
+        args._active_manifest_phase = None
+    manifest.finish(status)
+    manifest.write(path)
 
 
 def _describe_annotation_source(x):
@@ -162,6 +271,12 @@ def args_optional(parser):
         help='When --validate-output is set, also print warnings (not just errors)'
     )
     parser.add_argument(
+        '--allow-partial-output', action='store_true', default=False,
+        help='Publish an output even when one or more loci could not be '
+             'serialized. The default reports partial results as a failed run; '
+             'all skipped loci are recorded in run_manifest.json.'
+    )
+    parser.add_argument(
         '--strict-gff', dest='strict_gff', action='store_true', default=False,
         help='Run the NCBI GFF3 input-side validator on the reference '
              'annotation and exit non-zero on any spec violation '
@@ -198,6 +313,13 @@ def args_optional(parser):
              '(set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
              'serial-on-gffutils). Note: combined with the default '
              'concurrent Step 4, peak busy cores can reach ~N+1.'
+    )
+    parser.add_argument(
+        '--step7-max-inflight', dest='step7_max_inflight', type=int,
+        default=None, metavar='N',
+        help='Bound submitted-but-not-emitted Step-7 loci. The default is '
+             '2 * --threads; lower values reduce peak memory and higher values '
+             'may improve utilization for uneven loci.'
     )
     parser.add_argument(
         '--native', dest='native', action='store_true', default=False,
@@ -315,6 +437,23 @@ def args_optional(parser):
              'OUT. Env LIFTON_MINIPROT_RESCUE=1 force-enables, =0 force-disables.'
     )
     parser.add_argument(
+        '--miniprot-cross-locus-rescue', dest='cross_locus_rescue',
+        action='store_true', default=False,
+        help='[EXPERIMENTAL, opt-in] Phase D cross-locus rescue. For a reference '
+             'coding gene whose DNA lift produced only a WEAK model (best emitted '
+             'protein identity < LIFTON_CROSS_LOCUS_MAX_LIFTOFF, default 0.5) '
+             'while miniprot aligns it cleanly to a DIFFERENT chromosome '
+             '(paralog/duplicate disagreement -- the Figure-4 very-distant '
+             'residual candidate-3 cannot reach), REPLACE the weak gene: drop all '
+             'its blocks from the output GFF3 and append the miniprot model '
+             '(tagged lifton_rescue=cross_locus) iff its identity beats the '
+             'emitted best by >= LIFTON_CROSS_LOCUS_MIN_GAIN (default 0.3). '
+             'Replace-not-add => duplicate-safe. Runs as a separate post-write '
+             'pass, so OFF (the default) is byte-identical. Env '
+             'LIFTON_CROSS_LOCUS_RESCUE=1 force-enables. SYNTENY CAVEAT: trades '
+             'synteny for protein identity -- keep opt-in until a strict A/B proof.'
+    )
+    parser.add_argument(
         '--no-miniprot-candidate', dest='miniprot_candidate',
         action='store_false', default=True,
         help='Opt OUT of the miniprot-only best-of-outcome candidate (the 3rd '
@@ -418,6 +557,10 @@ def parse_args(arglist):
                              liftoffrefrgrp, miniprotrefrgrp, parser_gffutils_grp, 
                              parser_outgrp, parser._optionals, parser_aligngrp]
     args = parser.parse_args(arglist)
+    args._argv = ([sys.argv[0], *sys.argv[1:]] if arglist is None
+                  else ["lifton", *list(arglist)])
+    if args.evaluation_liftoff_chm13:
+        args.evaluation = True
     if '-a' not in args.mm2_options:
         args.mm2_options += ' -a'
     if '--eqx' not in args.mm2_options:
@@ -432,6 +575,8 @@ def parse_args(arglist):
         parser.error("-sc must be greater than or equal to -s")
     if (args.chroms is None and args.unplaced is not None):
         parser.error("-unplaced must be used with -chroms")    
+    if args.step7_max_inflight is not None and args.step7_max_inflight < 1:
+        parser.error("--step7-max-inflight must be at least 1")
     return args
     
 
@@ -505,9 +650,10 @@ def run_all_lifton_steps(args):
     # import). --full-dp-align restores the exact pre-Iteration-3 giant-only path
     # for manuscript reproduction / paranoid accuracy. Lazy import keeps `align`
     # (which pulls in the lifton_class↔lifton_utils cycle) off the module top.
-    if getattr(args, "full_dp_align", False):
-        from lifton import align as _align
-        _align.configure_alignment(band=False)
+    # Configure both arms explicitly so repeated in-process calls cannot leak a
+    # previous run's ``--full-dp-align`` setting into the next invocation.
+    from lifton import align as _align
+    _align.configure_alignment(band=not getattr(args, "full_dp_align", False))
     resolve_miniprot_rescue_args(args)
     resolve_miniprot_candidate_args(args)
     ################################
@@ -515,19 +661,17 @@ def run_all_lifton_steps(args):
     ################################
     tgt_genome = args.target
     ref_genome = args.reference
-    if args.output == "stdout": 
-        outdir = "."
-    else:
-        outdir = os.path.dirname(args.output)
-        outdir = outdir if outdir != "" else "."
-        os.makedirs(outdir, exist_ok=True)
-    lifton_outdir = f"{outdir}/lifton_output/"
+    outdir, lifton_outdir = _run_outdirs(args.output)
+    os.makedirs(outdir, exist_ok=True)
+    os.makedirs(lifton_outdir, exist_ok=True)
     args.directory = "intermediate_files/"
     intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
     os.makedirs(intermediate_dir, exist_ok=True)
     stats_dir= f"{outdir}/lifton_output/stats/"
     os.makedirs(stats_dir, exist_ok=True)
     args.directory = intermediate_dir
+    manifest = _ensure_run_manifest(args, outdir, lifton_outdir)
+    _switch_manifest_phase(args, "read_genomes")
     logger.log(">> Reading target genome ...", debug=True)
     if not os.path.exists(tgt_genome):
         logger.log_error(f"Target genome file not found: {tgt_genome}")
@@ -552,12 +696,17 @@ def run_all_lifton_steps(args):
     ################################
     # Phase 5 bug fix #6: NCBI GFF3 validation gate
     ################################
+    _switch_manifest_phase(args, "validate_reference_annotation")
     from lifton.io.gff3_validator import GFF3Validator
-    target_seqids = set(tgt_fai.keys()) | set(ref_fai.keys())
-    findings = GFF3Validator(
-        target_seqids=target_seqids,
-        strict=getattr(args, "strict_gff", False),
-    ).validate(args.reference_annotation)
+    reference_seqids = set(ref_fai.keys())
+    if annotation.is_annotation_database_file(args.reference_annotation):
+        findings = []
+        manifest.set_backend_choice("reference_annotation_input", "database")
+    else:
+        findings = GFF3Validator(
+            target_seqids=reference_seqids,
+            strict=getattr(args, "strict_gff", False),
+        ).validate(args.reference_annotation)
     # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
     # thousands of `unencoded_reserved_char` findings on Dbxref values
     # (DBTAG:ID is technically reserved-char-bearing). The previous
@@ -591,18 +740,33 @@ def run_all_lifton_steps(args):
             for f in findings:
                 logger.log(str(f), debug=True)
     if _strict_gff and any(f.severity == "error" for f in findings):
+        _record_pipeline_failure(
+            args, "validate_reference_annotation",
+            "reference annotation failed strict GFF3 validation",
+            details={"errors": sum(
+                1 for finding in findings if finding.severity == "error"
+            )},
+            fatal=True,
+        )
+        _finish_run_manifest(args, "failed")
         sys.exit(2)
     ################################
     # Step 1: Building database from the reference annotation
     ################################
+    _switch_manifest_phase(args, "build_reference_database")
     logger.log("\n>> Creating reference annotation database : ", args.reference_annotation, debug=True)
     auto_convert_gtf = not args.no_auto_convert_gtf
     ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf)
+    manifest.set_backend_choice("reference_annotation", ref_db.backend)
+    manifest.set_cache_choice(
+        "reference_annotation", getattr(ref_db, "cache_status", "unknown")
+    )
 
     t3 = time.process_time()
     ################################
     # Step 2: Get all reference features to liftover
     ################################
+    _switch_manifest_phase(args, "select_reference_features")
     # Gene-like lift — DEFAULT since Iteration 12 (was opt-in --lift-gene-like in
     # Iteration 5). When the user did NOT supply an explicit -f/--features list,
     # auto-detect every gene-like top-level parent type (pseudogenes, ncRNA_gene,
@@ -632,6 +796,7 @@ def run_all_lifton_steps(args):
     ################################
     # Step 3: Extract protein & DNA dictionaries from the selected reference features
     ################################
+    _switch_manifest_phase(args, "load_reference_sequences")
     ref_trans_file = args.transcripts    
     ref_proteins_file = args.proteins    
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
@@ -656,11 +821,15 @@ def run_all_lifton_steps(args):
     logger.log("\t * number of proteins: ", len(ref_proteins.keys()), debug=True)
     trunc_ref_proteins = lifton_utils.get_truncated_protein(ref_proteins)
     logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
+    manifest.record_count("reference_transcripts", len(ref_trans.keys()))
+    manifest.record_count("reference_proteins", len(ref_proteins.keys()))
+    manifest.record_count("truncated_reference_proteins", len(trunc_ref_proteins.keys()))
 
     ################################
     # optional Step: Evaluation mode
     ################################
     if args.evaluation:
+        _switch_manifest_phase(args, "evaluation")
         tgt_annotation = args.output
         ref_annotation = args.reference_annotation
         print("Run LiftOn in evaluation mode")
@@ -685,11 +854,17 @@ def run_all_lifton_steps(args):
                     sys.stdout.write("\r>> LiftOn evaluated: %i features." % processed_features)
                 processed_features += 1
         fw_score.close()
+        manifest.record_count("evaluated_features", processed_features)
+        _switch_manifest_phase(args, None)
+        _finish_run_manifest(args, "success")
         return
     
     ################################
     # Step 4: Run liftoff & miniprot
     ################################
+    _switch_manifest_phase(args, "run_aligners", {
+        "parallel": not bool(getattr(args, "serial_aligners", False)),
+    })
     t5 = time.process_time()
     # Output-neutral perf probe: Step 4 is subprocess-dominated, so
     # process_time (parent-CPU only) cannot measure it. Capture WALL time
@@ -697,7 +872,17 @@ def run_all_lifton_steps(args):
     # is set — lets the --parallel-aligners A/B isolate the overlap saving
     # from Step-7 noise without touching the output GFF3 or time.txt.
     _w4_start = time.perf_counter()
-    if not getattr(args, "serial_aligners", False):
+    if len(ref_proteins.keys()) == 0:
+        logger.log_info(
+            ">> Reference protein set is empty; skipping miniprot."
+        )
+        liftoff_annotation = lifton_utils.exec_liftoff(
+            lifton_outdir, ref_db, args
+        )
+        miniprot_annotation = None
+        t6 = time.process_time()
+        t7 = t6
+    elif not getattr(args, "serial_aligners", False):
         # Iteration 6 (PROMOTED to default): overlap the two independent
         # external aligners so wall-clock = max(t_liftoff, t_miniprot) instead
         # of the sum. They read the same inputs and write disjoint output dirs
@@ -736,6 +921,12 @@ def run_all_lifton_steps(args):
         t6 = time.process_time()
         miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
         t7 = time.process_time()
+    if miniprot_annotation is None and len(ref_proteins.keys()) > 0:
+        _record_pipeline_failure(
+            args, "run_aligners",
+            "miniprot produced no usable annotation for a non-empty protein set",
+            details={"reference_proteins": len(ref_proteins.keys())},
+        )
     if os.environ.get("LIFTON_PERF_STEP4"):
         _mode = "serial" if getattr(args, "serial_aligners", False) else "parallel"
         sys.stderr.write(
@@ -745,6 +936,7 @@ def run_all_lifton_steps(args):
     ################################
     # Step 5: Create liftoff and miniprot database
     ################################
+    _switch_manifest_phase(args, "build_alignment_databases")
     logger.log(f"\n>> Creating liftoff annotation database : {_describe_annotation_source(liftoff_annotation)}", debug=True)
     l_feature_db = annotation.Annotation(
         liftoff_annotation,
@@ -755,11 +947,17 @@ def run_all_lifton_steps(args):
         force=args.force,
         verbose=args.verbose,
         auto_convert_gtf=False
-    ).db_connection
+    )
+    manifest.set_backend_choice("liftoff_annotation", l_feature_db.backend)
+    manifest.set_cache_choice(
+        "liftoff_annotation",
+        getattr(l_feature_db, "cache_status", "unknown"),
+    )
+    l_feature_db = l_feature_db.db_connection
     t8 = time.process_time()
     logger.log(f">> Creating miniprot annotation database : {_describe_annotation_source(miniprot_annotation)}", debug=True)
     if miniprot_annotation is not None:
-        m_feature_db = annotation.Annotation(
+        m_annotation = annotation.Annotation(
             miniprot_annotation,
             infer_genes=False,
             infer_transcripts=False,
@@ -768,21 +966,37 @@ def run_all_lifton_steps(args):
             force=args.force,
             verbose=args.verbose,
             auto_convert_gtf=False
-        ).db_connection
+        )
+        manifest.set_backend_choice("miniprot_annotation", m_annotation.backend)
+        manifest.set_cache_choice(
+            "miniprot_annotation",
+            getattr(m_annotation, "cache_status", "unknown"),
+        )
+        m_feature_db = m_annotation.db_connection
     else:
         print(
             "[LiftOn] Skipping miniprot annotation database: miniprot produced no output.",
             file=sys.stderr,
         )
         m_feature_db = None
-    fw = open(args.output, "w")
+    from lifton.output_transaction import OutputTransaction
+    output_transaction = OutputTransaction(
+        args.output,
+        stdout=getattr(args, "_gff_stdout", None),
+        work_dir=lifton_outdir,
+    )
+    args._output_transaction = output_transaction
+    staged_output_path = os.fspath(output_transaction.working_path)
+    fw = output_transaction.open()
     # Phase 15a (V5.7) — emit directive prologue BEFORE any feature row.
     # Single source of truth: lifton.io.gff3_writer.format_directives.
     # Runs on the parent thread before any worker exists, so no
     # interleaving risk and no I/O lock needed.
     from lifton.io import gff3_writer as _gff3_writer
     fw.write(_gff3_writer.format_directives(
-        getattr(ref_db, "directives", []) or []
+        _gff3_writer.target_output_directives(
+            getattr(ref_db, "directives", []) or []
+        )
     ))
     fw_score = open(f"{lifton_outdir}/score.txt", "w")
     fw_unmapped = open(f"{stats_dir}/unmapped_features.txt", "w")
@@ -796,6 +1010,7 @@ def run_all_lifton_steps(args):
     ################################
     # Step 6: Creating miniprot 2 Liftoff ID mapping & Initializing intervaltree
     ################################
+    _switch_manifest_phase(args, "initialize_locus_state")
     if m_feature_db is not None:
         ref_id_2_m_id_trans_dict, m_id_2_ref_id_trans_dict = lifton_utils.miniprot_id_mapping(m_feature_db)
     else:
@@ -828,6 +1043,7 @@ def run_all_lifton_steps(args):
     # --locus-pipeline + --threads N and emits in submission order so
     # output is byte-identical to --threads 1.
     ################################
+    _switch_manifest_phase(args, "process_liftoff_loci")
     from lifton import parallel as _parallel
     from lifton.locus_pipeline import StepContext as _StepContext
     _ctx = _StepContext(
@@ -857,6 +1073,22 @@ def run_all_lifton_steps(args):
         features, l_feature_db, _ctx, fw, transcripts_stats_dict,
         threads=_threads if _use_pool else 1,
     )
+    not_emittable_count = 0
+    for failure in getattr(_ctx, "failure_records", []):
+        kind = failure.get("kind", "processing_error")
+        if kind == "not_emittable":
+            not_emittable_count += 1
+            continue
+        _record_pipeline_failure(
+            args,
+            "process_liftoff_loci",
+            failure.get("message", kind),
+            details={
+                key: value for key, value in failure.items()
+                if key not in {"message"}
+            },
+        )
+    manifest.record_count("liftoff_loci_not_emittable", not_emittable_count)
     if os.environ.get("LIFTON_PERF_STEP7"):
         _mode = f"pool x{_threads}" if _use_pool else "serial"
         sys.stderr.write(
@@ -870,34 +1102,90 @@ def run_all_lifton_steps(args):
     # pass can skip already-lifted genes -- the dedup that makes it 0-redundant
     # + off ⊆ on. When --miniprot-rescue is OFF this set stays empty and is
     # never consulted, so the default path is byte-identical.
-    emitted_ref_gene_ids = set()
-    if getattr(args, "miniprot_rescue", False):
-        for _f in features:
-            for _locus in l_feature_db.features_of_type(_f):
-                _rgid, _ = lifton_utils.get_ref_ids_liftoff(
-                    ref_features_dict, _locus.id, None)
-                if _rgid is not None:
-                    emitted_ref_gene_ids.add(_rgid)
+    emitted_ref_gene_ids = set(getattr(
+        _ctx, "emitted_ref_gene_ids", set()
+    ))
+    # Step 7 needs a tree of every Liftoff locus when pairing DNA and protein
+    # evidence. Step 8 has a different contract: suppress miniprot only where a
+    # hierarchy was actually emitted. Rebuild that suppression tree from the
+    # ordered commit ledger so an un-emittable Liftoff attempt cannot hide a
+    # valid miniprot rescue.
+    tree_dict = {}
+    from lifton.intervals import _make_interval
+    for seqid, start, end, gene_id in getattr(
+            _ctx, "emitted_intervals", []):
+        tree_dict.setdefault(seqid, IntervalTree()).add(
+            _make_interval(start, end, gene_id)
+        )
+    manifest.record_count(
+        "liftoff_genes_emitted", len(_ctx.emitted_intervals)
+    )
 
     t11 = time.process_time()
     ################################
     # Step 8: Process miniprot transcripts
     ################################
+    _switch_manifest_phase(args, "process_miniprot_loci")
     if m_feature_db is not None:
+        from lifton.locus_pipeline import (
+            DeferredStateJournal, commit_locus_delta,
+        )
         for mtrans in m_feature_db.features_of_type('mRNA'):
+            state_journal = DeferredStateJournal(
+                ref_features_dict, buffer_score=True,
+            )
             try:
-                lifton_gene = run_miniprot.process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args)
+                lifton_gene = run_miniprot.process_miniprot(
+                    mtrans, ref_db, m_feature_db, tree_dict, tgt_fai,
+                    ref_proteins, ref_trans, ref_features_dict,
+                    state_journal.score_handle,
+                    m_id_2_ref_id_trans_dict, ref_features_len_dict,
+                    ref_trans_exon_num_dict, ref_features_reverse_dict, args,
+                    state_journal=state_journal,
+                )
                 if lifton_gene is None or lifton_gene.ref_gene_id is None:
                     continue
-                lifton_gene.write_entry(fw, transcripts_stats_dict)
+                write_result = lifton_gene.write_entry(
+                    fw, transcripts_stats_dict
+                )
+                serialization_failures = getattr(
+                    lifton_gene, "_serialization_failures", []
+                )
+                for feature_id, detail in serialization_failures:
+                    _record_pipeline_failure(
+                        args, "process_miniprot_loci", detail,
+                        details={
+                            "mRNA": mtrans.id,
+                            "feature_id": feature_id,
+                            "kind": "serialization_error",
+                        },
+                    )
+                if write_result is False:
+                    if not serialization_failures:
+                        _record_pipeline_failure(
+                            args, "process_miniprot_loci",
+                            "miniprot hierarchy was not serializable",
+                            details={"mRNA": mtrans.id},
+                        )
+                    continue
+                delta = state_journal.finish()
+                commit_locus_delta(delta, ref_features_dict, tree_dict)
+                if delta.score_text:
+                    fw_score.write(delta.score_text)
                 if getattr(args, "miniprot_rescue", False):
                     # Iter 23: record default Step-8 ref genes for the rescue dedup.
                     emitted_ref_gene_ids.add(lifton_gene.ref_gene_id)
             except Exception as e:
                 logger.log_error(f"Error during miniprot text output serialization ({mtrans.id}): {e}")
+                _record_pipeline_failure(
+                    args, "process_miniprot_loci", e,
+                    details={"mRNA": getattr(mtrans, "id", "<unknown>")},
+                )
                 
             if processed_features % 20 == 0:
-                sys.stdout.write("\r>> LiftOn processed: %i features." % processed_features)
+                _console_stream(args).write(
+                    "\r>> LiftOn processed: %i features." % processed_features
+                )
             processed_features += 1
 
     # Iteration 23: clean separate-pass miniprot-only rescue. Runs AFTER the
@@ -907,20 +1195,35 @@ def run_all_lifton_steps(args):
     # Flag-gated -> the default path never imports the module.
     if getattr(args, "miniprot_rescue", False):
         from lifton import miniprot_rescue as _miniprot_rescue
-        _miniprot_rescue.rescue_miniprot_only_pass(
+        args._rescue_failure_records = []
+        rescued_genes = _miniprot_rescue.rescue_miniprot_only_pass(
             m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins, ref_trans,
             ref_features_dict, m_id_2_ref_id_trans_dict, ref_features_len_dict,
             ref_trans_exon_num_dict, ref_features_reverse_dict,
             emitted_ref_gene_ids, fw, fw_score, transcripts_stats_dict, args)
+        manifest.record_count("miniprot_rescued_genes", rescued_genes)
+        for failure in args._rescue_failure_records:
+            _record_pipeline_failure(
+                args, "miniprot_rescue",
+                failure.get("message", "miniprot rescue failed"),
+                details={
+                    key: value for key, value in failure.items()
+                    if key != "message"
+                },
+            )
 
     t12 = time.process_time()
     ################################
     # Step 9: Printing stats
     ################################
+    _switch_manifest_phase(args, "write_reports")
     try:
         stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug, fw_feature_type=fw_feature_type)
     except Exception as e:
         logger.log_error(f"Failed to print report: {e}")
+        _record_pipeline_failure(
+            args, "write_reports", e, fatal=True,
+        )
     finally:
         # Guarantee closure of file objects
         fw.close()
@@ -933,14 +1236,33 @@ def run_all_lifton_steps(args):
         if args.write_chains: fw_chain.close()
 
     ################################
+    # Phase D: cross-locus miniprot rescue (opt-in, post-write rewrite)
+    ################################
+    # Runs AFTER the writer + score.txt close, so the default Step-7/8 output is
+    # complete + untouched when OFF. Gated -> the default path never imports the
+    # module. Replaces a WEAK DNA-lifted gene with a strictly-better miniprot
+    # model on a DIFFERENT chromosome (drop-the-block-then-append => no dup ids).
+    if getattr(args, 'cross_locus_rescue', False) or \
+            os.environ.get("LIFTON_CROSS_LOCUS_RESCUE", "0").strip().lower() \
+            not in ("", "0", "false", "no", "off"):
+        _switch_manifest_phase(args, "cross_locus_rescue")
+        from lifton import cross_locus_rescue as _xlocus
+        _xlocus.cross_locus_rescue_pass(
+            staged_output_path, f"{lifton_outdir}/score.txt", m_feature_db, ref_db,
+            tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict,
+            m_id_2_ref_id_trans_dict, ref_features_len_dict,
+            ref_trans_exon_num_dict, ref_features_reverse_dict, args)
+
+    ################################
     # Step 10: Validate output GFF3
     ################################
     if getattr(args, 'validate_output', False):
+        _switch_manifest_phase(args, "validate_output")
         print("\n\n*********************************************", file=sys.stderr)
         print("** Validating output GFF3                  **", file=sys.stderr)
         print("*********************************************", file=sys.stderr)
         val_result = gff3_validator.validate_gff3_file(
-            gff3_path=args.output,
+            gff3_path=staged_output_path,
             check_hierarchy=True,
             check_cds_phase=True,
             check_containment=True,
@@ -948,12 +1270,33 @@ def run_all_lifton_steps(args):
         )
         verbose = getattr(args, 'validate_verbose', False)
         gff3_validator.print_validation_report(val_result, verbose=verbose)
+        manifest.record_validation(
+            "gff3",
+            passed=val_result.is_valid,
+            errors=len(val_result.errors),
+            warnings=len(val_result.warnings),
+            details={"path": staged_output_path},
+        )
         if not val_result.is_valid:
             print(
                 f"\n[LiftOn] Output GFF3 has {len(val_result.errors)} error(s). "
                 f"See report above for details.",
                 file=sys.stderr,
             )
+            error = LiftOnValidationError(
+                f"output GFF3 failed validation with "
+                f"{len(val_result.errors)} error(s)"
+            )
+            _record_pipeline_failure(
+                args, "validate_output", error, fatal=True,
+                details={"errors": len(val_result.errors)},
+            )
+            partial_path = output_transaction.abort()
+            logger.log_error(
+                f"Invalid output was preserved at {partial_path}"
+            )
+            _finish_run_manifest(args, "failed")
+            raise error
 
     t13 = time.process_time()
 
@@ -970,19 +1313,20 @@ def run_all_lifton_steps(args):
         process_miniprot_transcripts = t12 - t11
         report_stats = t13 - t12
         overall_time = t13 - t1
-        print("Time taken for each step:")
-        print(f"Reading target & reference genomes: {reading_target_reference_genomes}")
-        print(f"Creating reference annotation database: {creating_reference_annotation_database}")
-        print(f"Get all reference features to liftover: {get_all_reference_features_to_lift}")
-        print(f"Extract protein & DNA dictionaries: {extract_protein_dna_dictionaries}")
-        print(f"Run liftoff & miniprot: {run_liftoff_miniprot}")
-        print(f"Create liftoff database: {create_liftoff_database}")
-        print(f"Create miniprot database: {create_miniprot_database}")
-        print(f"Miniprot 2 Liftoff ID mapping: {miniprot_2_liftoff_id_mapping}")
-        print(f"Process Liftoff genes & transcripts: {process_liftoff_genes_transcripts}")
-        print(f"Process miniprot transcripts: {process_miniprot_transcripts}")
-        print(f"Report stats: {report_stats}")
-        print(f"Overall time: {overall_time}")
+        console = _console_stream(args)
+        print("Time taken for each step:", file=console)
+        print(f"Reading target & reference genomes: {reading_target_reference_genomes}", file=console)
+        print(f"Creating reference annotation database: {creating_reference_annotation_database}", file=console)
+        print(f"Get all reference features to liftover: {get_all_reference_features_to_lift}", file=console)
+        print(f"Extract protein & DNA dictionaries: {extract_protein_dna_dictionaries}", file=console)
+        print(f"Run liftoff & miniprot: {run_liftoff_miniprot}", file=console)
+        print(f"Create liftoff database: {create_liftoff_database}", file=console)
+        print(f"Create miniprot database: {create_miniprot_database}", file=console)
+        print(f"Miniprot 2 Liftoff ID mapping: {miniprot_2_liftoff_id_mapping}", file=console)
+        print(f"Process Liftoff genes & transcripts: {process_liftoff_genes_transcripts}", file=console)
+        print(f"Process miniprot transcripts: {process_miniprot_transcripts}", file=console)
+        print(f"Report stats: {report_stats}", file=console)
+        print(f"Overall time: {overall_time}", file=console)
         fw_time = open(f"{outdir}/time.txt", "w")
         fw_time.write(f"{reading_target_reference_genomes}\tReading target & reference genomes\n")
         fw_time.write(f"{creating_reference_annotation_database}\tCreating reference annotation database\n")
@@ -997,6 +1341,69 @@ def run_all_lifton_steps(args):
         fw_time.write(f"{report_stats}\tReport stats\n")
         fw_time.write(f"{overall_time}\tOverall time\n")
         fw_time.close()
+
+    _switch_manifest_phase(args, "publish_output")
+    reference_feature_ids = [
+        feature_id for feature_id in ref_features_dict
+        if feature_id != "LiftOn-gene"
+    ]
+    mapped_reference_features = sum(
+        1 for feature_id in reference_feature_ids
+        if ref_features_dict[feature_id].copy_num > 0
+    )
+    emitted_feature_copies = sum(
+        max(0, ref_features_dict[feature_id].copy_num)
+        for feature_id in reference_feature_ids
+    )
+    emitted_transcripts = sum(
+        count for category in transcripts_stats_dict.values()
+        for count in category.values()
+    )
+    manifest.record_count("reference_features", len(reference_feature_ids))
+    manifest.record_count(
+        "mapped_reference_features", mapped_reference_features,
+    )
+    manifest.record_count(
+        "emitted_feature_copies", emitted_feature_copies,
+    )
+    manifest.record_count(
+        "emitted_transcripts", emitted_transcripts,
+    )
+    manifest.record_count("processed_features", processed_features)
+    if reference_feature_ids and emitted_feature_copies == 0:
+        _record_pipeline_failure(
+            args, "publish_output",
+            "no feature hierarchies were emitted from a non-empty reference",
+            details={"reference_features": len(reference_feature_ids)},
+        )
+    manifest.record_count(
+        "pipeline_failures", len(getattr(args, "_pipeline_failures", []))
+    )
+    failures = getattr(args, "_pipeline_failures", [])
+    if failures and not getattr(args, "allow_partial_output", False):
+        error = LiftOnPartialOutputError(
+            f"{len(failures)} locus/report failure(s) prevented publication; "
+            "rerun with --allow-partial-output to publish the staged result"
+        )
+        _record_pipeline_failure(
+            args, "publish_output", error, fatal=True,
+            details={"failure_count": len(failures)},
+            affects_completeness=False,
+        )
+        partial_path = output_transaction.abort()
+        logger.log_error(f"Partial output was preserved at {partial_path}")
+        _finish_run_manifest(args, "failed")
+        raise error
+
+    output_transaction.commit()
+    manifest.set_backend_choice(
+        "output",
+        "stdout" if args.output == "stdout" else os.path.abspath(args.output),
+    )
+    _switch_manifest_phase(args, None)
+    _finish_run_manifest(
+        args, "partial_success" if failures else "success"
+    )
 
 
 def main(arglist=None):
@@ -1015,12 +1422,85 @@ An accurate homology lift-over tool between assemblies
     '''
     print(banner, file=sys.stderr)
     args = parse_args(arglist)
-    if not run_miniprot.check_miniprot_installed():
-        sys.exit("miniprot is not installed. Please install miniprot before running LiftOn.")
-    # GH #43: minimap2 is a hard runtime dependency of the default (Liftoff) DNA-lift,
-    # but was only ever discovered as a deep FileNotFoundError mid-run. Fail fast, the
-    # same way we already preflight miniprot.
-    if not run_liftoff.check_minimap2_installed():
-        sys.exit("minimap2 is not installed. Please install minimap2 before running "
-                 "LiftOn (see https://github.com/lh3/minimap2#install).")
-    run_all_lifton_steps(args)
+    if all(hasattr(args, name) for name in (
+            "output", "target", "reference", "reference_annotation")):
+        outdir, lifton_outdir = _run_outdirs(args.output)
+        os.makedirs(outdir, exist_ok=True)
+        os.makedirs(lifton_outdir, exist_ok=True)
+        _ensure_run_manifest(args, outdir, lifton_outdir)
+    try:
+        # Only preflight tools the selected execution path will actually launch.
+        # Evaluation and valid precomputed -L/-M inputs are intentionally usable
+        # on machines without the aligner binaries.
+        if not getattr(args, "evaluation", False):
+            needs_miniprot = not (
+                getattr(args, "miniprot", None) is not None
+                and os.path.exists(args.miniprot)
+            )
+            if (needs_miniprot
+                    and not run_miniprot.check_miniprot_installed()):
+                sys.exit(
+                    "miniprot is not installed. Please install miniprot before "
+                    "running LiftOn, or provide a valid precomputed -M file."
+                )
+
+            needs_minimap2 = not (
+                getattr(args, "liftoff", None) is not None
+                and os.path.exists(args.liftoff)
+            )
+            if needs_minimap2:
+                native_requested = (
+                    bool(getattr(args, "native", False))
+                    and bool(os.environ.get("LIFTON_NATIVE_LIFTOFF_ALIGN"))
+                )
+                if native_requested:
+                    from lifton.native_bindings import is_mappy_available
+                    needs_minimap2 = not is_mappy_available()
+            custom_minimap2 = getattr(args, "m", None)
+            minimap2_path = custom_minimap2 or "minimap2"
+            minimap2_ok = True
+            if needs_minimap2:
+                minimap2_ok = (
+                    run_liftoff.check_minimap2_installed(custom_minimap2)
+                    if custom_minimap2
+                    else run_liftoff.check_minimap2_installed()
+                )
+            if needs_minimap2 and not minimap2_ok:
+                sys.exit(
+                    f"minimap2 is not installed or runnable at "
+                    f"'{minimap2_path}'. Install it, pass -m PATH, provide a "
+                    "valid precomputed -L file, or use the supported native "
+                    "Liftoff path."
+                )
+        if getattr(args, "output", None) == "stdout":
+            args._gff_stdout = sys.stdout
+            with redirect_stdout(sys.stderr):
+                run_all_lifton_steps(args)
+        else:
+            run_all_lifton_steps(args)
+    except BaseException as exc:
+        # Preserve staged GFF3 bytes for diagnosis, but never replace a valid
+        # destination after an interrupted/failed run.
+        transaction = getattr(args, "_output_transaction", None)
+        if transaction is not None:
+            try:
+                partial_path = transaction.abort()
+                logger.log_error(
+                    f"Unpublished output was preserved at {partial_path}"
+                )
+            except Exception:
+                # Already committed, or the staging filesystem itself failed.
+                pass
+
+        manifest = getattr(args, "_run_manifest", None)
+        if manifest is not None:
+            status = manifest.to_dict()["run"]["status"]
+            if status == "running":
+                manifest.record_failure("pipeline", exc, fatal=True)
+                _finish_run_manifest(args, "failed")
+            else:
+                manifest.write(args._run_manifest_path)
+        if isinstance(exc, (LiftOnPartialOutputError,
+                            LiftOnValidationError)):
+            raise SystemExit(2) from None
+        raise

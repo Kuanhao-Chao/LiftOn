@@ -18,8 +18,10 @@ output. We assert that:
 from __future__ import annotations
 
 import os
+import json
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -254,6 +256,16 @@ def test_run_all_lifton_steps_golden_path(integration_workspace,
     assert (out_dir / "lifton_output" / "stats" /
             "mapped_feature.txt").exists()
 
+    # Every completed run publishes an auditable, content-addressed manifest.
+    manifest_path = out_dir / "lifton_output" / "run_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["run"]["status"] == "success"
+    assert manifest["inputs"]["target_genome"]["sha256"]
+    assert manifest["inputs"]["reference_annotation"]["sha256"]
+    assert manifest["counts"]["processed_features"] >= 1
+    assert manifest["validation"] == {}
+    assert manifest["run"]["cache"]["reference_annotation"] == "rebuilt"
+
 
 def test_pipeline_does_not_call_external_tools(integration_workspace,
                                                hermetic_pipeline):
@@ -280,6 +292,173 @@ def test_pipeline_does_not_call_external_tools(integration_workspace,
     # this assertion proves the short-circuit fired.
     lifton_main.run_all_lifton_steps(args)
     assert out_gff.exists()
+
+
+def test_invalid_validation_preserves_previous_output(
+        integration_workspace, hermetic_pipeline, monkeypatch):
+    from lifton import gff3_validator
+    from lifton import lifton as lifton_main
+    from lifton.exceptions import LiftOnValidationError
+
+    out_gff = integration_workspace["out"] / "lifton.gff3"
+    out_gff.write_text("known-good-output\n")
+    monkeypatch.setattr(
+        gff3_validator, "validate_gff3_file",
+        lambda **kwargs: SimpleNamespace(
+            is_valid=False, errors=[object()], warnings=[],
+        ),
+    )
+    monkeypatch.setattr(
+        gff3_validator, "print_validation_report", lambda *args, **kwargs: None,
+    )
+    args = lifton_main.parse_args([
+        str(integration_workspace["tgt_fa"]),
+        str(integration_workspace["ref_fa"]),
+        "-g", str(integration_workspace["ref_gff"]),
+        "-L", str(integration_workspace["liftoff"]),
+        "-M", str(integration_workspace["miniprot"]),
+        "-o", str(out_gff),
+        "-ad", "RefSeq",
+        "--validate-output",
+        "--force",
+    ])
+
+    with pytest.raises(LiftOnValidationError):
+        lifton_main.run_all_lifton_steps(args)
+
+    assert out_gff.read_text() == "known-good-output\n"
+    partial = out_gff.with_name("lifton.partial.gff3")
+    assert partial.exists() and "##gff-version 3" in partial.read_text()
+    manifest = json.loads(
+        (integration_workspace["out"] / "lifton_output" /
+         "run_manifest.json").read_text()
+    )
+    assert manifest["run"]["status"] == "failed"
+    assert manifest["validation"]["gff3"]["passed"] is False
+
+
+@pytest.mark.parametrize("allow_partial", [False, True])
+def test_partial_output_requires_explicit_opt_in(
+        integration_workspace, hermetic_pipeline, monkeypatch, allow_partial):
+    from lifton import parallel
+    from lifton import lifton as lifton_main
+    from lifton.exceptions import LiftOnPartialOutputError
+
+    original_step7 = parallel.parallel_step7
+
+    def step7_with_reported_failure(*args, **kwargs):
+        processed = original_step7(*args, **kwargs)
+        args[2].failure_records.append({
+            "kind": "serialization_error",
+            "locus_id": "synthetic-locus",
+            "detail": "synthetic serialization failure",
+        })
+        return processed
+
+    monkeypatch.setattr(parallel, "parallel_step7", step7_with_reported_failure)
+    out_gff = integration_workspace["out"] / "lifton.gff3"
+    out_gff.write_text("known-good-output\n")
+    argv = [
+        str(integration_workspace["tgt_fa"]),
+        str(integration_workspace["ref_fa"]),
+        "-g", str(integration_workspace["ref_gff"]),
+        "-L", str(integration_workspace["liftoff"]),
+        "-M", str(integration_workspace["miniprot"]),
+        "-o", str(out_gff),
+        "-ad", "RefSeq",
+        "--force",
+    ]
+    if allow_partial:
+        argv.append("--allow-partial-output")
+    args = lifton_main.parse_args(argv)
+
+    if allow_partial:
+        lifton_main.run_all_lifton_steps(args)
+        assert out_gff.read_text().startswith("##gff-version 3\n")
+        expected_status = "partial_success"
+    else:
+        with pytest.raises(LiftOnPartialOutputError):
+            lifton_main.run_all_lifton_steps(args)
+        assert out_gff.read_text() == "known-good-output\n"
+        assert out_gff.with_name("lifton.partial.gff3").exists()
+        expected_status = "failed"
+
+    manifest = json.loads(
+        (integration_workspace["out"] / "lifton_output" /
+         "run_manifest.json").read_text()
+    )
+    assert manifest["run"]["status"] == expected_status
+    assert manifest["counts"]["pipeline_failures"] == 1
+
+
+def test_stdout_mode_emits_only_gff3(
+        integration_workspace, hermetic_pipeline, monkeypatch, capsys):
+    from lifton import lifton as lifton_main
+
+    monkeypatch.chdir(integration_workspace["out"])
+    args = lifton_main.parse_args([
+        str(integration_workspace["tgt_fa"]),
+        str(integration_workspace["ref_fa"]),
+        "-g", str(integration_workspace["ref_gff"]),
+        "-L", str(integration_workspace["liftoff"]),
+        "-M", str(integration_workspace["miniprot"]),
+        "-o", "stdout",
+        "-ad", "RefSeq",
+        "--force",
+    ])
+
+    lifton_main.run_all_lifton_steps(args)
+
+    stdout = capsys.readouterr().out
+    assert stdout.startswith("##gff-version 3\n")
+    assert "LiftOn processed" not in stdout
+    assert "Total features" not in stdout
+    for line in stdout.splitlines():
+        if line and not line.startswith("#"):
+            assert len(line.split("\t")) == 9
+
+
+def test_direct_annotation_database_runs_without_text_validation(
+        integration_workspace, hermetic_pipeline):
+    import gffutils
+
+    from lifton import lifton as lifton_main
+
+    direct_db = integration_workspace["work"] / "reference.sqlite"
+    built = gffutils.create_db(
+        str(integration_workspace["ref_gff"]),
+        dbfn=str(direct_db),
+        force=True,
+        keep_order=True,
+        merge_strategy="create_unique",
+        disable_infer_genes=True,
+        disable_infer_transcripts=True,
+    )
+    built.conn.close()
+    out_gff = integration_workspace["out"] / "direct-db.gff3"
+    args = lifton_main.parse_args([
+        str(integration_workspace["tgt_fa"]),
+        str(integration_workspace["ref_fa"]),
+        "-g", str(direct_db),
+        "-L", str(integration_workspace["liftoff"]),
+        "-M", str(integration_workspace["miniprot"]),
+        "-o", str(out_gff),
+        "-ad", "RefSeq",
+    ])
+
+    lifton_main.run_all_lifton_steps(args)
+
+    assert "\tgene\t" in out_gff.read_text()
+    manifest = json.loads(
+        (integration_workspace["out"] / "lifton_output" /
+         "run_manifest.json").read_text()
+    )
+    assert manifest["run"]["backend"][
+        "reference_annotation_input"
+    ] == "database"
+    assert manifest["run"]["cache"][
+        "reference_annotation"
+    ] == "direct_database"
 
 
 # ---------------------------------------------------------------------------
@@ -514,3 +693,145 @@ class TestMiniprotRescuePass:
         on_ids = set(_gene_ids(_run_rescue(ws_on, rescue=True)))
         assert off_ids <= on_ids
         assert "gene2" in (on_ids - off_ids)
+
+
+def _build_xlocus_workspace(work):
+    """A reference with ONE coding gene, gene1 (spliced tx1, exon1 101-199 +
+    exon2 301-399 -> the same clean 65-aa ORF as ``_build_rescue_workspace``).
+    Liftoff lifts gene1 to a WRONG target locus (401-499, pure 'A' filler ->
+    no matching ORF exists there -> catastrophically weak protein identity,
+    the exact "syntenic stub" failure mode from the Figure-4 investigation).
+    miniprot ALSO has a model for tx1 (Target=tx1) but at a THIRD, entirely
+    DIFFERENT locus (601-699 + 750-848, two CDS segments mirroring the
+    reference's own exon1/exon2 split -- a single contiguous CDS would trip
+    the processed-pseudogene filter, since the reference tx1 has >1 exon) that
+    carries an exact copy of the true ORF -> protein identity ~1.0 -- the
+    cross-locus rescue candidate. Its mRNA span (248) vs gene1's reference
+    length (399-101+1=299) gives ratio 0.83, BELOW the default -min_miniprot
+    band (0.9), so default Step 8 declines it (mirrors the out-of-band
+    condition `_build_rescue_workspace` uses for gene2) -- only the
+    cross-locus-rescue pass can recover it."""
+    work.mkdir(parents=True, exist_ok=True)
+    ref_chrom = ["A"] * 900
+    exon1 = "ATG" + "GCT" * 32          # 99 nt
+    exon2 = ("GCT" * 32) + "TAA"        # 99 nt
+    for i, ch in enumerate(exon1):
+        ref_chrom[100 + i] = ch          # 101-199
+    for i, ch in enumerate(exon2):
+        ref_chrom[300 + i] = ch          # 301-399
+    ref_seq = "".join(ref_chrom)
+
+    tgt_chrom = ["A"] * 900             # positions 401-499 stay pure filler
+    for i, ch in enumerate(exon1):
+        tgt_chrom[600 + i] = ch          # 601-699: cross-locus copy of exon1
+    for i, ch in enumerate(exon2):
+        tgt_chrom[749 + i] = ch          # 750-848: cross-locus copy of exon2
+    tgt_seq = "".join(tgt_chrom)
+
+    ref_fa = work / "ref.fa"; ref_fa.write_text(">chr1\n" + _wrap(ref_seq))
+    tgt_fa = work / "tgt.fa"; tgt_fa.write_text(">chr1\n" + _wrap(tgt_seq))
+
+    ref_gff = work / "ref.gff3"
+    ref_gff.write_text(
+        "##gff-version 3\n"
+        "chr1\ttest\tgene\t101\t399\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\ttest\tmRNA\t101\t399\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\ttest\texon\t101\t199\t.\t+\t.\tID=exon1;Parent=tx1\n"
+        "chr1\ttest\texon\t301\t399\t.\t+\t.\tID=exon2;Parent=tx1\n"
+        "chr1\ttest\tCDS\t101\t199\t.\t+\t0\tID=cds1;Parent=tx1\n"
+        "chr1\ttest\tCDS\t301\t399\t.\t+\t0\tID=cds2;Parent=tx1\n"
+    )
+    (work / "liftoff.gff3").write_text(
+        "##gff-version 3\n"
+        "chr1\tLiftoff\tgene\t401\t499\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\tLiftoff\tmRNA\t401\t499\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\tLiftoff\texon\t401\t499\t.\t+\t.\tID=exon1w;Parent=tx1\n"
+        "chr1\tLiftoff\tCDS\t401\t499\t.\t+\t0\tID=cds1w;Parent=tx1\n"
+    )
+    (work / "miniprot.gff3").write_text(
+        "##gff-version 3\n"
+        "chr1\tminiprot\tmRNA\t601\t848\t.\t+\t.\tID=MPX;Target=tx1 1 65\n"
+        "chr1\tminiprot\tCDS\t601\t699\t.\t+\t0\tID=MPX.cds1;Parent=MPX\n"
+        "chr1\tminiprot\tCDS\t750\t848\t.\t+\t0\tID=MPX.cds2;Parent=MPX\n"
+    )
+    out_dir = work / "out"; out_dir.mkdir()
+    return {"ref_fa": ref_fa, "tgt_fa": tgt_fa, "ref_gff": ref_gff,
+            "liftoff": work / "liftoff.gff3", "miniprot": work / "miniprot.gff3",
+            "out": out_dir}
+
+
+def _run_xlocus(ws, *, rescue):
+    from lifton import lifton as lifton_main
+    out_gff = ws["out"] / "lifton.gff3"
+    argv = [str(ws["tgt_fa"]), str(ws["ref_fa"]),
+            "-g", str(ws["ref_gff"]), "-L", str(ws["liftoff"]),
+            "-M", str(ws["miniprot"]), "-o", str(out_gff),
+            "-ad", "RefSeq", "--force", "--no-miniprot-rescue"]
+    if rescue:
+        argv.append("--miniprot-cross-locus-rescue")
+    lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv))
+    return out_gff.read_text()
+
+
+def _protein_identity_by_gene(body):
+    """gene id -> protein_identity parsed off its mRNA row's attributes."""
+    out = {}
+    gene_of_parent = {}
+    for ln in body.splitlines():
+        if not ln.strip() or ln.startswith("#"):
+            continue
+        cols = ln.split("\t")
+        if len(cols) < 9:
+            continue
+        attrs = dict(kv.split("=", 1) for kv in cols[8].split(";") if "=" in kv)
+        if cols[2] == "mRNA" and "protein_identity" in attrs:
+            gid = attrs.get("Parent", "")
+            out[gid] = float(attrs["protein_identity"])
+    return out
+
+
+class TestCrossLocusRescuePass:
+    """Full-pipeline regression coverage for ``lifton.cross_locus_rescue`` — the
+    mocked unit tests in tests/test_cross_locus_rescue.py stub out
+    run_miniprot.lifton_miniprot_with_ref_protein entirely, so they could not
+    catch a bug in the REAL build path. This exercises the real
+    Lifton_GENE/Lifton_TRANS/write_entry machinery end-to-end (the same class
+    of gap that let candidate-3's update_cds_list corruption slip past its own
+    mocked tests earlier this investigation) — it caught a real
+    KeyError('coding') in _build_replacement_text (a bare {} passed to
+    write_entry's coding/non-coding stats-counter branch instead of the
+    {'coding': {}, 'non-coding': {}, 'other': {}} shape lifton.py:757 uses)."""
+
+    def test_rescue_off_keeps_weak_locus(self, tmp_path, hermetic_pipeline):
+        ws = _build_xlocus_workspace(tmp_path / "w")
+        body = _run_xlocus(ws, rescue=False)
+        ids = _gene_ids(body)
+        assert ids.count("gene1") == 1
+        assert "lifton_rescue=cross_locus" not in body
+        pi = _protein_identity_by_gene(body)
+        assert pi["gene1"] < 0.5, f"expected the weak Liftoff stub, got {pi}"
+
+    def test_rescue_on_replaces_with_cross_locus_model(self, tmp_path, hermetic_pipeline):
+        ws = _build_xlocus_workspace(tmp_path / "w")
+        body = _run_xlocus(ws, rescue=True)
+        ids = _gene_ids(body)
+        # REPLACE, not ADD: gene1 appears EXACTLY once (duplicate-safe).
+        assert ids.count("gene1") == 1
+        assert "lifton_rescue=cross_locus" in body
+        pi = _protein_identity_by_gene(body)
+        assert pi["gene1"] > 0.9, f"expected the rescued high-identity model, got {pi}"
+        # the surviving gene1 sits at the cross-locus target, not the weak one.
+        gene_lines = [ln for ln in body.splitlines()
+                     if "\tgene\t" in ln and "ID=gene1" in ln]
+        assert len(gene_lines) == 1
+        assert "\t601\t798\t" in gene_lines[0] or "\t601\t" in gene_lines[0]
+
+    def test_rescue_flag_off_byte_identical_gene_set(self, tmp_path, hermetic_pipeline):
+        # Same gene-id SET both ways (replace, not add) -- unlike Iter-23's
+        # off-subset-of-on ADD semantics, Phase D's off/on gene-id sets are
+        # equal size; only gene1's CONTENT differs.
+        ws_off = _build_xlocus_workspace(tmp_path / "off")
+        off_ids = _gene_ids(_run_xlocus(ws_off, rescue=False))
+        ws_on = _build_xlocus_workspace(tmp_path / "on")
+        on_ids = _gene_ids(_run_xlocus(ws_on, rescue=True))
+        assert sorted(off_ids) == sorted(on_ids)

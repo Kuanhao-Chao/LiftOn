@@ -24,3 +24,15 @@ class LiftOnAlignmentError(LiftOnError):
     """Raised when sequence alignment cannot be carried out (e.g.
     parasail kernel failure, BioPython translation aborted, parsing
     of a CIGAR string fails)."""
+
+
+class LiftOnSerializationError(LiftOnError):
+    """Raised when an output hierarchy cannot be serialized safely."""
+
+
+class LiftOnPartialOutputError(LiftOnSerializationError):
+    """Raised when skipped loci make the generated output incomplete."""
+
+
+class LiftOnValidationError(LiftOnError):
+    """Raised when the completed output fails LiftOn's GFF3 validator."""

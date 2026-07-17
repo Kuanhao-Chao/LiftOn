@@ -17,8 +17,11 @@
 from __future__ import annotations
 
 import copy as _copy
+import io as _io
+import threading as _threading
 import traceback as _traceback
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -42,6 +45,323 @@ class StepContext:
     fw_score: Any                   # text file handle (writes are short)
     fw_chain: Optional[Any]         # text file handle or None
     args: Any                       # argparse.Namespace (carries --legacy-merge etc.)
+    # Set only on a per-task context constructed by ``make_worker_context``.
+    # The public/default context keeps this as None, preserving direct callers.
+    state_journal: Optional[Any] = None
+    # Ordered parent-thread ledger. ``parallel_step7`` keeps its integer return
+    # API while callers can inspect this list for manifest/failure policy data.
+    failure_records: List[dict] = field(default_factory=list)
+    # Canonical reference genes whose GFF3 hierarchy was actually emitted.
+    # Only ordered parent-thread ``consume`` mutates this set.
+    emitted_ref_gene_ids: set = field(default_factory=set)
+    emitted_intervals: List[Tuple[str, int, int, str]] = field(
+        default_factory=list,
+    )
+
+
+@dataclass
+class LocusDelta:
+    """Buffered side effects produced while processing one locus.
+
+    Worker threads may build arbitrarily complex ``Lifton_GENE`` objects, but
+    they must not mutate Step 7's shared counters/interval tree or write the
+    shared score/chain streams.  Those effects are captured here and committed
+    by :func:`consume` in submission order.
+    """
+
+    copy_increments: Dict[str, int] = field(default_factory=dict)
+    tree_intervals: List[Tuple[str, int, int, str]] = field(default_factory=list)
+    score_text: str = ""
+    chain_text: str = ""
+    committed: bool = False
+
+
+def commit_locus_delta(delta: LocusDelta, ref_features_dict: dict,
+                       tree_dict: dict) -> None:
+    """Commit a construction delta exactly once.
+
+    This helper is intentionally independent of the Step 7 coordinator so
+    serial evaluate-then-commit paths (notably miniprot rescue) can construct a
+    gene with :class:`DeferredStateJournal`, serialize it privately, and only
+    publish its copy/tree effects after successful serialization.
+    """
+    if delta.committed:
+        return
+    for ref_gene_id, increment in delta.copy_increments.items():
+        feature = ref_features_dict.get(ref_gene_id)
+        if feature is not None:
+            feature.copy_num += increment
+    if delta.tree_intervals:
+        from intervaltree import IntervalTree
+        from lifton.intervals import _make_interval
+        for seqid, start, end, gene_id in delta.tree_intervals:
+            if seqid not in tree_dict:
+                tree_dict[seqid] = IntervalTree()
+            tree_dict[seqid].add(_make_interval(start, end, gene_id))
+    delta.committed = True
+
+
+class DeferredStateJournal:
+    """Journal for a serial candidate whose state commits only on success.
+
+    Unlike the Step 7 journal, this class has no ordered allocation gate.  It
+    reads the current committed copy counter, making it suitable for serial
+    candidate evaluation: discarding the delta leaves the next candidate free
+    to reuse the unconsumed copy number.
+    """
+
+    def __init__(self, ref_features_dict: dict, *, buffer_score: bool = False,
+                 buffer_chain: bool = False):
+        self.ref_features_dict = ref_features_dict
+        self.delta = LocusDelta()
+        self.score_handle = _io.StringIO() if buffer_score else None
+        self.chain_handle = _io.StringIO() if buffer_chain else None
+        self._allocated = False
+        self._finished = False
+
+    def allocate_gene_copy(self, ref_gene_id, entry, _ref_features_dict):
+        if self._allocated:
+            raise RuntimeError("candidate attempted more than one root gene allocation")
+        attrs = getattr(entry, "attributes", {}) or {}
+        explicit = (int(attrs["extra_copy_number"][0])
+                    if "extra_copy_number" in attrs else None)
+        if ref_gene_id in self.ref_features_dict:
+            copy_num = (explicit if explicit is not None else int(getattr(
+                self.ref_features_dict[ref_gene_id], "copy_num", 0,
+            )))
+            self.delta.copy_increments[ref_gene_id] = 1
+        else:
+            copy_num = explicit if explicit is not None else 0
+        gene_id = (f"{ref_gene_id}_{copy_num}"
+                   if copy_num > 0 else ref_gene_id)
+        if getattr(entry, "featuretype", None) == "gene":
+            self.delta.tree_intervals.append((
+                entry.seqid, int(entry.start), int(entry.end), gene_id,
+            ))
+        self._allocated = True
+        return copy_num
+
+    def finish(self) -> LocusDelta:
+        if self._finished:
+            return self.delta
+        if self.score_handle is not None:
+            self.delta.score_text = self.score_handle.getvalue()
+        if self.chain_handle is not None:
+            self.delta.chain_text = self.chain_handle.getvalue()
+        self._finished = True
+        return self.delta
+
+
+class _JournalIntervalTree:
+    """Read-only interval-tree view used by one worker.
+
+    Reads are serialized with parent-thread commits and augmented with the
+    deterministic logical deltas registered for this locus and its predecessors.
+    This reproduces the serial visibility rules without exposing a mutating
+    ``IntervalTree`` to worker threads.
+    """
+
+    __slots__ = ("_coordinator", "_seqid", "_index")
+
+    def __init__(self, coordinator, seqid: str, index: int):
+        self._coordinator = coordinator
+        self._seqid = seqid
+        self._index = index
+
+    def overlap(self, begin: int, end: int):
+        return self._coordinator.overlap(
+            self._seqid, begin, end, through_index=self._index,
+        )
+
+
+class _JournalTreeDict(Mapping):
+    """Mapping facade whose values expose the read-only ``overlap`` API."""
+
+    __slots__ = ("_coordinator", "_index")
+
+    def __init__(self, coordinator, index: int):
+        self._coordinator = coordinator
+        self._index = index
+
+    def __getitem__(self, seqid: str):
+        if not self._coordinator.has_seqid(seqid, self._index):
+            raise KeyError(seqid)
+        return _JournalIntervalTree(self._coordinator, seqid, self._index)
+
+    def __iter__(self):
+        return iter(self._coordinator.seqids(self._index))
+
+    def __len__(self):
+        return len(self._coordinator.seqids(self._index))
+
+
+class Step7StateCoordinator:
+    """Allocate copy IDs deterministically and commit worker deltas safely.
+
+    Copy allocation is a very short ordered gate near the start of each locus;
+    expensive sequence/alignment work remains concurrent.  Global counters,
+    interval trees, and real output handles are mutated only by ordered
+    :func:`consume` calls on the parent thread.
+    """
+
+    def __init__(self, ref_features_dict: dict, tree_dict: dict):
+        self.ref_features_dict = ref_features_dict
+        self.tree_dict = tree_dict
+        self._condition = _threading.Condition(_threading.RLock())
+        self._next_index = 0
+        self._resolved_indices = set()
+        self._virtual_copy_counts: Dict[str, int] = {}
+        self._logical_intervals: Dict[str, List[Tuple[int, Any]]] = {}
+
+    def allocate_gene(self, index: int, ref_gene_id: Optional[str], entry,
+                      delta: LocusDelta) -> int:
+        """Return the copy number this locus receives in serial order."""
+        with self._condition:
+            while index != self._next_index:
+                self._condition.wait()
+
+            explicit = None
+            attrs = getattr(entry, "attributes", {}) or {}
+            if "extra_copy_number" in attrs:
+                explicit = int(attrs["extra_copy_number"][0])
+
+            if ref_gene_id in self.ref_features_dict:
+                if ref_gene_id not in self._virtual_copy_counts:
+                    self._virtual_copy_counts[ref_gene_id] = int(
+                        getattr(self.ref_features_dict[ref_gene_id],
+                                "copy_num", 0)
+                    )
+                copy_num = (explicit if explicit is not None else
+                            self._virtual_copy_counts[ref_gene_id])
+                self._virtual_copy_counts[ref_gene_id] += 1
+                delta.copy_increments[ref_gene_id] = (
+                    delta.copy_increments.get(ref_gene_id, 0) + 1
+                )
+            else:
+                copy_num = explicit if explicit is not None else 0
+
+            gene_id = (f"{ref_gene_id}_{copy_num}"
+                       if copy_num > 0 else ref_gene_id)
+            if getattr(entry, "featuretype", None) == "gene":
+                seqid = entry.seqid
+                interval_tuple = (seqid, int(entry.start), int(entry.end),
+                                  gene_id)
+                delta.tree_intervals.append(interval_tuple)
+                from lifton.intervals import _make_interval
+                interval = _make_interval(entry.start, entry.end, gene_id)
+                self._logical_intervals.setdefault(seqid, []).append(
+                    (index, interval)
+                )
+
+            self._resolved_indices.add(index)
+            self._next_index += 1
+            self._condition.notify_all()
+            return copy_num
+
+    def finish_without_allocation(self, index: int) -> None:
+        """Release the ordered gate when a locus never built a gene."""
+        with self._condition:
+            if index in self._resolved_indices:
+                return
+            while index != self._next_index:
+                self._condition.wait()
+            self._resolved_indices.add(index)
+            self._next_index += 1
+            self._condition.notify_all()
+
+    def seqids(self, through_index: int):
+        with self._condition:
+            result = set(self.tree_dict.keys())
+            result.update(
+                seqid for seqid, rows in self._logical_intervals.items()
+                if any(index <= through_index for index, _ in rows)
+            )
+            return tuple(result)
+
+    def has_seqid(self, seqid: str, through_index: int) -> bool:
+        with self._condition:
+            if seqid in self.tree_dict:
+                return True
+            return any(
+                index <= through_index
+                for index, _ in self._logical_intervals.get(seqid, ())
+            )
+
+    def overlap(self, seqid: str, begin: int, end: int,
+                *, through_index: int):
+        with self._condition:
+            base_tree = self.tree_dict.get(seqid)
+            overlaps = (set(base_tree.overlap(begin, end))
+                        if base_tree is not None else set())
+            for index, interval in self._logical_intervals.get(seqid, ()):
+                if index <= through_index and interval.overlaps(begin, end):
+                    overlaps.add(interval)
+            return overlaps
+
+    def commit(self, delta: LocusDelta) -> None:
+        """Apply one delta exactly once; caller guarantees index order."""
+        with self._condition:
+            commit_locus_delta(
+                delta, self.ref_features_dict, self.tree_dict,
+            )
+
+
+class LocusStateJournal:
+    """Per-worker journal backing a :class:`LocusDelta`."""
+
+    def __init__(self, index: int, coordinator: Step7StateCoordinator,
+                 *, buffer_score: bool, buffer_chain: bool):
+        self.index = index
+        self.coordinator = coordinator
+        self.delta = LocusDelta()
+        self.score_handle = _io.StringIO() if buffer_score else None
+        self.chain_handle = _io.StringIO() if buffer_chain else None
+        self._allocated = False
+        self._finished = False
+
+    @property
+    def tree_view(self):
+        return _JournalTreeDict(self.coordinator, self.index)
+
+    def allocate_gene_copy(self, ref_gene_id, entry, _ref_features_dict):
+        if self._allocated:
+            raise RuntimeError(
+                f"locus {self.index} attempted more than one root gene allocation"
+            )
+        copy_num = self.coordinator.allocate_gene(
+            self.index, ref_gene_id, entry, self.delta,
+        )
+        self._allocated = True
+        return copy_num
+
+    def finish(self) -> LocusDelta:
+        if self._finished:
+            return self.delta
+        if not self._allocated:
+            self.coordinator.finish_without_allocation(self.index)
+        if self.score_handle is not None:
+            self.delta.score_text = self.score_handle.getvalue()
+        if self.chain_handle is not None:
+            self.delta.chain_text = self.chain_handle.getvalue()
+        self._finished = True
+        return self.delta
+
+
+def make_worker_context(ctx: StepContext, index: int,
+                        coordinator: Step7StateCoordinator) -> StepContext:
+    """Return a task-local context with journaled state and sidecars."""
+    journal = LocusStateJournal(
+        index, coordinator,
+        buffer_score=ctx.fw_score is not None,
+        buffer_chain=ctx.fw_chain is not None,
+    )
+    return replace(
+        ctx,
+        tree_dict=journal.tree_view,
+        fw_score=journal.score_handle,
+        fw_chain=journal.chain_handle,
+        state_journal=journal,
+    )
 
 
 @dataclass
@@ -57,6 +377,7 @@ class LocusResult:
     error_tb: Optional[str] = None   # formatted traceback captured at the raise
                                      # site, so the parent can log the real cause
                                      # even when the exception's __str__ is broken
+    delta: LocusDelta = field(default_factory=LocusDelta)
 
     @property
     def emittable(self) -> bool:
@@ -83,6 +404,7 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
     # Local import keeps the module-load graph free of cycles and
     # matches the lazy-import pattern used elsewhere in lifton/.
     from lifton import run_liftoff
+    journal = getattr(ctx, "state_journal", None)
 
     # The merge mode (default best-of-outcome vs --legacy-merge) is read from
     # ctx.args inside process_liftoff, so nothing extra is threaded here.
@@ -102,6 +424,7 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
             ctx.fw_chain,
             ctx.args,
             ENTRY_FEATURE=True,
+            state_journal=journal,
         )
     except Exception as exc:        # V1.4 fix: narrowed from BaseException
         # KeyboardInterrupt, SystemExit, GeneratorExit are BaseException
@@ -113,11 +436,19 @@ def process_locus(submission_index: int, locus, *, ctx: StepContext) -> LocusRes
             lifton_gene=None,
             error=exc,
             error_tb=_traceback.format_exc(),
+            delta=(journal.finish() if journal is not None else LocusDelta()),
         )
+    finally:
+        # This also releases the coordinator's ordered allocation gate when
+        # the locus returned before constructing a root gene. BaseException
+        # still propagates, but cannot strand sibling workers behind the gate.
+        if journal is not None:
+            journal.finish()
     return LocusResult(
         index=submission_index,
         locus_id=getattr(locus, "id", "<unknown>"),
         lifton_gene=gene,
+        delta=(journal.delta if journal is not None else LocusDelta()),
     )
 
 
@@ -700,6 +1031,8 @@ class _ThreadLocalCtxFactory:
             fw_score=self._parent_ctx.fw_score,
             fw_chain=self._parent_ctx.fw_chain,
             args=self._parent_ctx.args,
+            state_journal=None,
+            failure_records=self._parent_ctx.failure_records,
         )
         self._local.ctx = thread_local_ctx
         return thread_local_ctx
@@ -751,6 +1084,8 @@ def _build_proxied_ctx(payload: MaterialisedLocus,
         fw_score=ctx.fw_score,
         fw_chain=ctx.fw_chain,
         args=ctx.args,
+        state_journal=getattr(ctx, "state_journal", None),
+        failure_records=getattr(ctx, "failure_records", []),
     )
 
 
@@ -776,6 +1111,7 @@ def process_locus_native(payload: MaterialisedLocus,
     code's algorithmic path is unchanged.
     """
     from lifton import run_liftoff
+    journal = getattr(ctx, "state_journal", None)
     proxy_ctx = _build_proxied_ctx(payload, ctx)
     try:
         gene = run_liftoff.process_liftoff(
@@ -787,6 +1123,7 @@ def process_locus_native(payload: MaterialisedLocus,
             proxy_ctx.ref_features_dict,
             proxy_ctx.fw_score, proxy_ctx.fw_chain, proxy_ctx.args,
             ENTRY_FEATURE=True,
+            state_journal=journal,
         )
     except Exception as exc:        # V1.4 fix: narrowed from BaseException
         return LocusResult(
@@ -795,15 +1132,22 @@ def process_locus_native(payload: MaterialisedLocus,
             lifton_gene=None,
             error=exc,
             error_tb=_traceback.format_exc(),
+            delta=(journal.finish() if journal is not None else LocusDelta()),
         )
+    finally:
+        if journal is not None:
+            journal.finish()
     return LocusResult(
         index=payload.submission_index,
         locus_id=payload.locus_id,
         lifton_gene=gene,
+        delta=(journal.delta if journal is not None else LocusDelta()),
     )
 
 
-def consume(result: LocusResult, fw, transcripts_stats_dict: dict) -> bool:
+def consume(result: LocusResult, fw, transcripts_stats_dict: dict, *,
+            ctx: Optional[StepContext] = None,
+            state_coordinator: Optional[Step7StateCoordinator] = None) -> bool:
     """Apply a :class:`LocusResult` to the output file handle and the
     stats dict. Mirrors the existing inline body in `lifton.py`'s
     Step 7 loop; centralising it here means the serial path and the
@@ -817,6 +1161,8 @@ def consume(result: LocusResult, fw, transcripts_stats_dict: dict) -> bool:
         absent or invalid genes are silently skipped (Phase 5
         contract).
     """
+    failure_records = (getattr(ctx, "failure_records", None)
+                       if ctx is not None else None)
     if result.error is not None:
         # Mirror the inline `try/except` in lifton.py:425-426 — log
         # to stderr, swallow the error, keep going.
@@ -840,8 +1186,69 @@ def consume(result: LocusResult, fw, transcripts_stats_dict: dict) -> bool:
             f"Error during Liftoff gene processing ({result.locus_id}): "
             f"{detail}"
         )
+        if failure_records is not None:
+            failure_records.append({
+                "stage": "step7",
+                "kind": "processing_error",
+                "locus_id": result.locus_id,
+                "detail": detail,
+            })
         return False
     if not result.emittable:
+        if failure_records is not None:
+            failure_records.append({
+                "stage": "step7",
+                "kind": "not_emittable",
+                "locus_id": result.locus_id,
+            })
         return False
-    result.lifton_gene.write_entry(fw, transcripts_stats_dict)
+    write_result = result.lifton_gene.write_entry(fw, transcripts_stats_dict)
+    serialization_failures = getattr(
+        result.lifton_gene, "_serialization_failures", [],
+    )
+    if failure_records is not None:
+        for feature_id, detail in serialization_failures:
+            failure_records.append({
+                "stage": "step7",
+                "kind": "serialization_error",
+                "locus_id": result.locus_id,
+                "feature_id": feature_id,
+                "detail": detail,
+            })
+        if write_result is False and not serialization_failures:
+            failure_records.append({
+                "stage": "step7",
+                "kind": "serialization_error",
+                "locus_id": result.locus_id,
+            })
+    # ``None`` is the historical success return.  The atomic serializer now
+    # returns an explicit boolean, so only False means the model was rejected.
+    if write_result is False:
+        return False
+
+    # Copy counters, suppression intervals, and sidecars describe published
+    # models. Commit them only after the complete hierarchy reached the staged
+    # GFF3 stream; a failed attempt must not inflate completeness statistics or
+    # leave score/chain rows with no corresponding feature.
+    if state_coordinator is not None:
+        state_coordinator.commit(result.delta)
+    if ctx is not None:
+        if result.delta.score_text and ctx.fw_score is not None:
+            ctx.fw_score.write(result.delta.score_text)
+        if result.delta.chain_text and ctx.fw_chain is not None:
+            ctx.fw_chain.write(result.delta.chain_text)
+        emitted = getattr(ctx, "emitted_ref_gene_ids", None)
+        ref_gene_id = getattr(result.lifton_gene, "ref_gene_id", None)
+        if emitted is not None and ref_gene_id is not None:
+            emitted.add(ref_gene_id)
+        emitted_intervals = getattr(ctx, "emitted_intervals", None)
+        if emitted_intervals is not None:
+            entry = getattr(result.lifton_gene, "entry", None)
+            # Step 8's overlap suppression applies only to successfully
+            # published protein-coding gene loci.  Lightweight test doubles and
+            # non-gene top-level features need not expose genomic coordinates.
+            if entry is not None and getattr(entry, "featuretype", None) == "gene":
+                emitted_intervals.append((
+                    entry.seqid, int(entry.start), int(entry.end), entry.id,
+                ))
     return True

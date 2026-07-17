@@ -22,12 +22,14 @@ the shipped lifton2 design (``lifton2/lifton2/miniprot_rescue.py``).
 The whole pass is gated behind ``args.miniprot_rescue``; the caller never imports
 this module when the flag is OFF, so the default path is provably inert.
 """
+import io
 import os
 import sys
 
 from intervaltree import Interval
 
 from lifton import run_miniprot, lifton_utils, logger
+from lifton.locus_pipeline import DeferredStateJournal, commit_locus_delta
 
 
 # Divergence-adaptive protein-identity floor (PROMOTED to default ON). The
@@ -78,6 +80,38 @@ def _dna_lift_recall(universe, emitted):
     if not universe:
         return 1.0
     return len(universe & set(emitted)) / len(universe)
+
+
+def _stage_gene(lifton_gene):
+    """Serialize to a private buffer and collect stats before committing state."""
+    buffer = io.StringIO()
+    staged_stats = {'coding': {}, 'non-coding': {}, 'other': {}}
+    written = lifton_gene.write_entry(buffer, staged_stats)
+    failures = getattr(lifton_gene, "_serialization_failures", [])
+    if written is False:
+        return None, None, failures
+    return buffer.getvalue(), staged_stats, failures
+
+
+def _merge_stats(target, staged):
+    for feature_type, entries in staged.items():
+        bucket = target[feature_type]
+        for feature_id, count in entries.items():
+            bucket[feature_id] = bucket.get(feature_id, 0) + count
+
+
+def _record_failure(args, mtrans, error, *, feature_id=None):
+    records = getattr(args, "_rescue_failure_records", None)
+    if records is None:
+        records = []
+        args._rescue_failure_records = records
+    record = {
+        "mRNA": getattr(mtrans, "id", "<unknown>"),
+        "message": str(error),
+    }
+    if feature_id is not None:
+        record["feature_id"] = feature_id
+    records.append(record)
 
 
 def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
@@ -184,26 +218,22 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             if not run_miniprot._miniprot_rescue_band_ok(ratio, args):
                 continue
 
-            # (7) build + score. NOTE: constructing the Lifton_GENE adds it to
-            #     tree_dict (lifton_class.Lifton_GENE.__init__), so a later
-            #     overlapping rescue in this loop is suppressed at step (4) --
-            #     cascading dedup, lifton2-style. Safe: this is post-loop, so
-            #     no default Step-8 decision can be perturbed.
+            # (7) Build + score against isolated mutable state. Construction
+            #     must not consume a copy number or add a suppression interval
+            #     until every quality/serialization gate has passed.
+            state_journal = DeferredStateJournal(
+                ref_features_dict, buffer_score=True,
+            )
             lifton_gene, lifton_trans, transcript_id, lifton_status = \
                 run_miniprot.lifton_miniprot_with_ref_protein(
                     mtrans, m_feature_db, ref_db.db_connection, ref_gene_id,
                     ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict,
-                    ref_features_dict, args)
+                    ref_features_dict, args, state_journal=state_journal)
 
             # (8) PI floor -- the quality gate (mirror the in-loop pre-ORF
             #     check at process_miniprot:401, on the miniprot alignment
             #     identity set by lifton_miniprot_with_ref_protein).
             if lifton_status.lifton_aa < floor:
-                # The build already inserted this candidate into tree_dict; the
-                # stray interval only suppresses OTHER candidates at the same
-                # missed locus (competing reps of the same gene), which is the
-                # desired dedup -- it can never resurrect a lost default
-                # feature, so off ⊆ on is unaffected.
                 continue
 
             # (9) tag attrs BEFORE the ORF/status tail (parity with the in-loop
@@ -221,16 +251,34 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
                                              lifton_status, DEBUG=args.debug)
             lifton_gene.add_lifton_gene_status_attrs("miniprot")
             lifton_gene.add_lifton_trans_status_attrs(transcript_id, lifton_status)
-            lifton_utils.write_lifton_status(fw_score, transcript_id, mtrans,
-                                             lifton_status)
-
-            # (11) emit + record dedup (so a later hit for the same ref gene
-            #      and a later overlapping rescue are both skipped).
-            lifton_gene.write_entry(fw, transcripts_stats_dict)
+            # (11) Stage the complete hierarchy, publish it, then commit the
+            #      copy/interval journal. A rejected or unserializable model is
+            #      now fully inert, making fixed-floor output a strict subset
+            #      of adaptive-floor output.
+            block, staged_stats, serialization_failures = _stage_gene(
+                lifton_gene
+            )
+            for feature_id, detail in serialization_failures:
+                _record_failure(
+                    args, mtrans, detail, feature_id=feature_id,
+                )
+            if block is None:
+                continue
+            lifton_utils.write_lifton_status(
+                state_journal.score_handle, transcript_id, mtrans,
+                lifton_status,
+            )
+            fw.write(block)
+            delta = state_journal.finish()
+            commit_locus_delta(delta, ref_features_dict, tree_dict)
+            _merge_stats(transcripts_stats_dict, staged_stats)
+            if delta.score_text:
+                fw_score.write(delta.score_text)
             emitted_ref_gene_ids.add(ref_gene_id)
             added += 1
         except Exception as e:
             logger.log_error(f"miniprot-only rescue error ({mtrans.id}): {e}")
+            _record_failure(args, mtrans, e)
 
     if added:
         sys.stderr.write(

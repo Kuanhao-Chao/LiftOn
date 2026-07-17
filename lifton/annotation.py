@@ -9,6 +9,7 @@ Builds a gffutils SQLite database from an annotation file with:
 """
 
 import gffutils
+import gffutils.constants
 import sys
 import os
 import subprocess
@@ -16,7 +17,7 @@ from collections import defaultdict
 from typing import Optional
 import re
 
-from lifton import extract_sequence, logger
+from lifton import __version__, annotation_cache, extract_sequence, logger
 from lifton.annotation_validator import (
     validate_annotation_file,
     print_validation_report,
@@ -24,6 +25,20 @@ from lifton.annotation_validator import (
     print_db_build_success,
 )
 from lifton.exceptions import LiftOnInputError
+
+
+def is_annotation_database_file(path) -> bool:
+    """Return whether *path* has a SQLite or DuckDB file signature.
+
+    This is a cheap outer-pipeline guard only. :class:`Annotation` still opens
+    the database and validates the expected feature schema before accepting it.
+    """
+    try:
+        with open(os.fspath(path), "rb") as handle:
+            header = handle.read(16)
+    except (OSError, TypeError, ValueError):
+        return False
+    return header.startswith(b"SQLite format 3\x00") or header[8:12] == b"DUCK"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -79,17 +94,18 @@ class Annotation:
         if self._is_blob:
             self.file_name = "<in-memory blob>"
         else:
-            self.file_name  = source
+            self.file_name = os.fspath(source)
         self.merge_strategy = merge_strategy
         self.id_spec        = id_spec
         self.force          = force
         self.verbose        = verbose
         self.auto_convert_gtf = auto_convert_gtf
+        self.infer_genes = infer_genes
+        self.infer_transcripts = infer_transcripts
+        self.cache_status = "not_applicable"
         # Phase 15a (V5.7) — capture every `##` / `#!` directive in
         # input order so the writer can preserve them.
         self.directives: list[str] = []
-        if not self._is_blob:
-            self._capture_directives(self.file_name)
 
         # ── Blob branch — build an in-memory FeatureDB and stop ───────────────
         if self._is_blob:
@@ -104,21 +120,17 @@ class Annotation:
                 force=True,
                 verbose=verbose,
             )
+            self.cache_status = "in_memory"
             return
 
-        # ── 0. Check if the file is already a gffutils database ───────────────
-        if os.path.exists(self.file_name) and os.path.getsize(self.file_name) > 0:
-            try:
-                # If this succeeds, it's a valid SQLite DB matching gffutils schema
-                self._db_connection = gffutils.FeatureDB(self.file_name)
-                if self.verbose:
-                    logger.log_success(f"Loaded existing gffutils DB directly from {self.file_name}")
-                return
-            except Exception:
-                pass  # It's not a DB file; proceed to parse as GFF3/GTF
+        # ── 0. Direct database inputs bypass all text parsing/validation ───────
+        if self._open_direct_database():
+            return
+        self._capture_directives(self.file_name)
 
         # ── 1. Detect file format ─────────────────────────────────────────────
         file_format = self._detect_file_format()
+        self._detected_file_format = file_format
 
         if file_format == "GTF format":
             self._handle_gtf_input(self.file_name, infer_genes, infer_transcripts)
@@ -187,6 +199,58 @@ class Annotation:
     @property
     def db_connection(self):
         return self._db_connection
+
+    def _open_direct_database(self) -> bool:
+        """Open a database supplied as the primary input path.
+
+        Direct database inputs are authoritative inputs, not derived sidecar
+        caches, and therefore do not require a source manifest.  Detection is
+        intentionally completed before format detection, directive scanning,
+        and annotation text validation.
+        """
+        try:
+            if not os.path.isfile(self.file_name) or os.path.getsize(self.file_name) == 0:
+                return False
+        except OSError:
+            return False
+
+        direct = None
+        try:
+            direct = gffutils.FeatureDB(self.file_name)
+            # Force a schema query; construction alone can accept unrelated
+            # SQLite files that do not contain gffutils tables.
+            direct.execute("SELECT 1 FROM features LIMIT 1").fetchone()
+        except Exception:
+            if direct is not None:
+                try:
+                    direct.conn.close()
+                except Exception:
+                    pass
+            direct = None
+        if direct is not None:
+            self.backend = "gffutils"
+            self.cache_status = "direct_database"
+            self._db_connection = direct
+            self.directives = list(getattr(direct, "directives", []))
+            if self.verbose:
+                logger.log_success(f"Loaded existing gffutils DB directly from {self.file_name}")
+            return True
+
+        if (self.backend == "gffbase"
+                or self.file_name.lower().endswith(".duckdb")
+                or is_annotation_database_file(self.file_name)):
+            from lifton import gffbase_adapter as _adapter
+
+            direct = _adapter.open_database_path(self.file_name)
+            if direct is not None:
+                self.backend = "gffbase"
+                self.cache_status = "direct_database"
+                self._db_connection = direct
+                self.directives = list(getattr(direct, "directives", []))
+                if self.verbose:
+                    logger.log_success(f"Loaded existing gffbase DB directly from {self.file_name}")
+                return True
+        return False
 
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -299,6 +363,34 @@ class Annotation:
     # Step 3: database building
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _parser_cache_settings(self) -> dict:
+        """Describe parsing choices shared by both database backends."""
+        return {
+            "auto_convert_gtf": bool(self.auto_convert_gtf),
+            "detected_format": getattr(self, "_detected_file_format", "GFF format"),
+            "gtf_transform": "suffix_transcript_id" if self.infer_genes else None,
+        }
+
+    def _gffutils_manifest(self) -> dict:
+        settings = {
+            "parser_contract_version": annotation_cache.PARSER_CONTRACT_VERSION,
+            "parser": self._parser_cache_settings(),
+            "inference": {
+                "genes": bool(self.infer_genes),
+                "transcripts": bool(self.infer_transcripts),
+            },
+            "merge_strategy": self.merge_strategy,
+            "id_spec": self.id_spec,
+        }
+        return annotation_cache.build_manifest(
+            self.file_name,
+            backend="gffutils",
+            backend_version=gffutils.__version__,
+            schema_version=annotation_cache.schema_digest(gffutils.constants.SCHEMA),
+            tool_version=__version__,
+            settings=settings,
+        )
+
     def _get_db_connection(self):
         """
         Try to open an existing FeatureDB; if that fails, build one.
@@ -310,30 +402,80 @@ class Annotation:
         """
         if self.backend == "gffbase":
             from lifton import gffbase_adapter as _adapter
-            db = _adapter.open_existing_db(self.file_name)
+
+            adapter_args = {
+                "infer_genes": self.infer_genes,
+                "infer_transcripts": self.infer_transcripts,
+                "merge_strategy": self.merge_strategy,
+                "id_spec": self.id_spec,
+                "parser_settings": self._parser_cache_settings(),
+            }
+            db = None
+            if not self.force:
+                db = _adapter.open_existing_db(self.file_name, **adapter_args)
             if db is None:
+                self.cache_status = "rebuilt"
                 db = _adapter.build_database(
                     file_name=self.file_name,
-                    infer_genes=self.infer_genes,
-                    infer_transcripts=self.infer_transcripts,
-                    merge_strategy=self.merge_strategy,
-                    id_spec=self.id_spec,
                     force=True,
                     verbose=self.verbose,
+                    **adapter_args,
                 )
+            else:
+                self.cache_status = "hit"
             self._db_connection = db
             return
 
         db_path = self.file_name + "_db"
-        try:
-            feature_db = gffutils.FeatureDB(db_path)
-            if self.verbose:
-                logger.log_success(f"Opened existing gffutils DB: {db_path}")
-            self._db_connection = feature_db
-        except Exception:
-            self._db_connection = self._build_database()
+        expected = self._gffutils_manifest()
+        if not self.force and annotation_cache.cache_matches(db_path, expected):
+            feature_db = None
+            try:
+                feature_db = gffutils.FeatureDB(db_path)
+                feature_db.execute("SELECT 1 FROM features LIMIT 1").fetchone()
+                if self.verbose:
+                    logger.log_success(f"Opened existing gffutils DB: {db_path}")
+                self._db_connection = feature_db
+                self.cache_status = "hit"
+                return
+            except Exception:
+                if feature_db is not None:
+                    try:
+                        feature_db.conn.close()
+                    except Exception:
+                        pass
+        self.cache_status = "rebuilt"
+        self._db_connection = self._build_database(expected)
 
-    def _build_database(self) -> gffutils.FeatureDB:
+    def _build_database(self, expected_manifest=None) -> gffutils.FeatureDB:
+        """Build into a temporary SQLite file and atomically publish it."""
+        db_path = self.file_name + "_db"
+        expected = expected_manifest or self._gffutils_manifest()
+        temporary = annotation_cache.temporary_db_path(db_path)
+        built = None
+        try:
+            built = self._build_database_at(temporary)
+            built.conn.close()
+            built = None
+            if annotation_cache.source_fingerprint(self.file_name) != expected["source"]:
+                raise OSError(
+                    f"Annotation changed while its database was being built: {self.file_name}"
+                )
+            os.replace(temporary, db_path)
+            annotation_cache.write_manifest_atomic(db_path, expected)
+            return gffutils.FeatureDB(db_path)
+        finally:
+            if built is not None:
+                try:
+                    built.conn.close()
+                except Exception:
+                    pass
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+
+    def _build_database_at(self, db_path: str) -> gffutils.FeatureDB:
         """
         Build a gffutils database with 3 progressively more permissive strategies.
 
@@ -365,10 +507,10 @@ class Annotation:
         try:
             db = gffutils.create_db(
                 self.file_name,
-                self.file_name + "_db",
+                db_path,
                 merge_strategy=self.merge_strategy,
                 id_spec=self.id_spec,
-                force=self.force,
+                force=True,
                 verbose=self.verbose,
                 disable_infer_transcripts=disable_transcripts,
                 disable_infer_genes=disable_genes,
@@ -395,7 +537,7 @@ class Annotation:
         try:
             db = gffutils.create_db(
                 self.file_name,
-                self.file_name + "_db",
+                db_path,
                 merge_strategy="create_unique",
                 id_spec=self.id_spec,
                 force=True,
@@ -422,7 +564,7 @@ class Annotation:
         try:
             db = gffutils.create_db(
                 self.file_name,
-                self.file_name + "_db",
+                db_path,
                 merge_strategy="merge",
                 id_spec=self.id_spec,
                 force=True,
