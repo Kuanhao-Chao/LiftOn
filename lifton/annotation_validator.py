@@ -11,6 +11,7 @@ import hashlib
 import os
 import sys
 import re
+import urllib.parse
 from dataclasses import dataclass, field
 from collections import defaultdict
 from typing import List, Dict, Optional
@@ -59,6 +60,8 @@ class AnnotationScanResult:
     missing_target_seqids: tuple[str, ...] = ()
     duplicate_ids: tuple[tuple[str, tuple[int, ...]], ...] = ()
     discontinuous_cds_ids: tuple[str, ...] = ()
+    cds_namespace_ids: tuple[str, ...] = ()
+    copy_suffix_ids: tuple[str, ...] = ()
     orphan_parents: tuple[str, ...] = ()
     bad_column_count_lines: tuple[int, ...] = ()
     ncbi_findings: tuple[ValidationFinding, ...] = ()
@@ -157,6 +160,8 @@ def scan_annotation(
     missing_seqids: set[str] = set()
     bad_columns: List[int] = []
     all_ids: set[str] = set()
+    cds_namespace_ids: set[str] = set()
+    copy_suffix_ids: set[str] = set()
     parent_first_line: Dict[str, int] = {}
     id_state: Dict[str, dict] = {}
     ncbi_findings: List[ValidationFinding] = []
@@ -217,6 +222,11 @@ def scan_annotation(
                 feature_id = feature_values[0] if feature_values else ""
                 if feature_id:
                     all_ids.add(feature_id)
+                    decoded_id = urllib.parse.unquote(feature_id)
+                    if decoded_id.startswith("cds-"):
+                        cds_namespace_ids.add(decoded_id)
+                    if re.search(r"_\d+$", decoded_id):
+                        copy_suffix_ids.add(decoded_id)
                     state = id_state.get(feature_id)
                     signature = _cds_signature(columns, attrs)
                     if state is None:
@@ -327,6 +337,8 @@ def scan_annotation(
         missing_target_seqids=tuple(sorted(missing_seqids)),
         duplicate_ids=tuple(duplicate_items),
         discontinuous_cds_ids=tuple(valid_discontinuous),
+        cds_namespace_ids=tuple(sorted(cds_namespace_ids)),
+        copy_suffix_ids=tuple(sorted(copy_suffix_ids)),
         orphan_parents=tuple(orphan_items[:max_findings_per_rule]),
         bad_column_count_lines=tuple(bad_columns),
         ncbi_findings=tuple(ncbi_findings),

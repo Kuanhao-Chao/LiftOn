@@ -3,9 +3,11 @@ from intervaltree import IntervalTree
 import argparse
 from pyfaidx import Fasta
 import os, sys
+import re
 import time
 import concurrent.futures
 from contextlib import redirect_stdout
+from urllib.parse import unquote
 
 from lifton.exceptions import (
     LiftOnError,
@@ -14,6 +16,34 @@ from lifton.exceptions import (
 )
 from lifton.run_manifest import RunManifest
 from lifton.locus_pipeline import safe_exception_text
+
+
+def _allocator_source_ids(database):
+    """Collect only declared IDs relevant to file-scoped CDS allocation.
+
+    Direct database and in-memory annotation inputs do not have an
+    ``AnnotationScanResult``. Inspect logical ``ID`` attributes rather than
+    database row keys: merge strategies may suffix internal keys for valid
+    discontinuous CDS rows.
+    """
+
+    cds_namespace_ids = set()
+    copy_suffix_ids = set()
+    try:
+        features = database.all_features()
+    except Exception:
+        return cds_namespace_ids, copy_suffix_ids
+    for feature in features:
+        values = getattr(feature, "attributes", {}).get("ID", [])
+        if isinstance(values, str):
+            values = [values]
+        for value in values:
+            identifier = unquote(str(value))
+            if identifier.startswith("cds-"):
+                cds_namespace_ids.add(identifier)
+            if re.search(r"_\d+$", identifier):
+                copy_suffix_ids.add(identifier)
+    return cds_namespace_ids, copy_suffix_ids
 
 
 def _run_outdirs(output):
@@ -1054,7 +1084,9 @@ def run_all_lifton_steps(args):
         verbose=args.verbose,
         auto_convert_gtf=False
     )
-    manifest.set_backend_choice("liftoff_annotation", l_feature_db.backend)
+    manifest.set_backend_choice(
+        "liftoff_annotation", l_feature_db.backend
+    )
     manifest.set_cache_choice(
         "liftoff_annotation",
         getattr(l_feature_db, "cache_status", "unknown"),
@@ -1084,7 +1116,33 @@ def run_all_lifton_steps(args):
             "[LiftOn] Skipping miniprot annotation database: miniprot produced no output.",
             file=sys.stderr,
         )
+        m_annotation = None
         m_feature_db = None
+    # Reserve every explicit source identifier in LiftOn's synthesized CDS
+    # namespace before the first output row. This makes ID allocation
+    # file-scoped: an early ID-less transcript cannot take a stable ID that a
+    # later transcript (or copy) needs to preserve.
+    from lifton.cds_id_allocator import CdsIdAllocator
+    source_scan = getattr(ref_db, "scan_result", None)
+    if source_scan is not None:
+        reserved_cds_ids = set(source_scan.cds_namespace_ids)
+        reserved_copy_suffix_ids = set(source_scan.copy_suffix_ids)
+    else:
+        reserved_cds_ids, reserved_copy_suffix_ids = (
+            _allocator_source_ids(ref_db.db_connection)
+        )
+
+    args._cds_id_allocator = CdsIdAllocator(
+        reserved_cds_ids,
+        exact_reserved_source_ids=reserved_copy_suffix_ids,
+    )
+    manifest.record_count(
+        "reserved_source_cds_namespace_ids", len(reserved_cds_ids)
+    )
+    manifest.record_count(
+        "reserved_source_copy_suffix_ids",
+        len(reserved_copy_suffix_ids),
+    )
     from lifton.output_transaction import OutputTransaction
     output_transaction = OutputTransaction(
         args.output,
@@ -1311,8 +1369,17 @@ def run_all_lifton_steps(args):
                 )
                 if lifton_gene is None or lifton_gene.ref_gene_id is None:
                     continue
-                write_result = lifton_gene.write_entry(
-                    fw, transcripts_stats_dict
+                cds_id_allocator = getattr(
+                    args, "_cds_id_allocator", None
+                )
+                write_result = (
+                    lifton_gene.write_entry(fw, transcripts_stats_dict)
+                    if cds_id_allocator is None
+                    else lifton_gene.write_entry(
+                        fw,
+                        transcripts_stats_dict,
+                        cds_id_allocator=cds_id_allocator,
+                    )
                 )
                 serialization_failures = getattr(
                     lifton_gene, "_serialization_failures", []
