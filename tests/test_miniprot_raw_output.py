@@ -22,6 +22,9 @@ def _facade_process(stdout=GFF_BLOB, stderr=b"", returncode=0):
     proc = mock.MagicMock()
     proc.communicate.return_value = (stdout, stderr)
     proc.returncode = returncode
+    proc.wait.return_value = returncode
+    proc.stdout = BytesIO(stdout)
+    proc.stderr = BytesIO(stderr)
     return proc
 
 
@@ -90,8 +93,8 @@ def test_real_binding_shape_raw_only_skips_reparse_and_preserves_lines():
     parser.assert_not_called()
 
 
-def test_native_stream_pipeline_requests_raw_only(tmp_path):
-    """The pipeline path returns exact bytes without touching the parser."""
+def test_native_stream_pipeline_writes_database_without_hit_graph(tmp_path):
+    """Native flag keeps the bounded DB stream path parser-free."""
     args = SimpleNamespace(
         mp_options="",
         stream=True,
@@ -112,7 +115,11 @@ def test_native_stream_pipeline_requests_raw_only(tmp_path):
             str(tmp_path) + "/", args, "target.fa", "proteins.fa",
         )
 
-    assert output == GFF_BLOB
+    assert output.endswith("miniprot.duckdb")
+    from lifton.gffbase_adapter import open_database_path
+    db = open_database_path(output)
+    assert db.count_features_of_type("mRNA") == 1
+    db.conn.close()
     parser.assert_not_called()
 
 

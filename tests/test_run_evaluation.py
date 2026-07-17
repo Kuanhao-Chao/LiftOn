@@ -2,10 +2,12 @@
 
 from io import StringIO
 from types import SimpleNamespace
+import time
 
 import gffutils
 import pytest
 
+from lifton import lifton as lifton_main
 from lifton import lifton_class, run_evaluation
 
 
@@ -266,3 +268,121 @@ def test_unexpected_reference_lookup_interrupt_propagates():
 
     with pytest.raises(KeyboardInterrupt):
         run_evaluation._lookup_reference_feature(InterruptedDB(), "tx1")
+
+
+def test_parallel_evaluation_is_bounded_ordered_and_state_isolated(monkeypatch):
+    ref_db = _db([
+        _row("gene", 1, 90, "ID=gene1;gene_biotype=protein_coding"),
+        _row("mRNA", 1, 90, "ID=tx1;Parent=gene1"),
+        _row("gene", 101, 190, "ID=gene2;gene_biotype=protein_coding"),
+        _row("mRNA", 101, 190, "ID=tx2;Parent=gene2"),
+    ])
+    tgt_db = _db([
+        _row("gene", 1, 90, "ID=gene1"),
+        _row("mRNA", 1, 90, "ID=tx1;Parent=gene1"),
+        _row("exon", 1, 90, "ID=ex1;Parent=tx1"),
+        _row("gene", 101, 190, "ID=gene2"),
+        _row("mRNA", 101, 190, "ID=tx2;Parent=gene2"),
+        _row("exon", 101, 190, "ID=ex2;Parent=tx2"),
+    ])
+    ref_features = {
+        "gene1": lifton_class.Lifton_feature("gene1"),
+        "gene2": lifton_class.Lifton_feature("gene2"),
+    }
+
+    def fake_orf(self, trans_id, ref_trans_id, _fai, _proteins, _transcripts,
+                 status, **_kwargs):
+        if trans_id == "tx1":
+            time.sleep(0.03)
+        status.lifton_dna = 0.5
+        status.lifton_aa = 0.75
+        return None, None
+
+    monkeypatch.setattr(lifton_class.Lifton_GENE, "orf_search_protein", fake_orf)
+    score = StringIO()
+    args = _args()
+    processed, failures = run_evaluation.parallel_evaluate_loci(
+        tgt_db.features_of_type("gene"),
+        ref_db,
+        tgt_db,
+        {},
+        object(),
+        {},
+        {},
+        ref_features,
+        score,
+        args,
+        threads=2,
+        max_inflight=2,
+    )
+
+    assert processed == 2
+    assert failures == []
+    assert [line.split("\t", 1)[0] for line in score.getvalue().splitlines()] == [
+        "tx1", "tx2",
+    ]
+    assert ref_features["gene1"].copy_num == 0
+    assert ref_features["gene2"].copy_num == 0
+    assert args._evaluation_max_inflight_observed <= 2
+
+
+def test_parallel_evaluation_reports_one_locus_failure_and_continues(monkeypatch):
+    loci = [SimpleNamespace(id="bad"), SimpleNamespace(id="good")]
+
+    def fake_materialize(index, locus, *_args):
+        return run_evaluation.EvaluationPayload(index, locus, {}, {}, {})
+
+    def fake_worker(payload, **_kwargs):
+        if payload.locus.id == "bad":
+            return run_evaluation.EvaluationResult(
+                payload.index, payload.locus.id, error=ValueError("broken"),
+            )
+        return run_evaluation.EvaluationResult(
+            payload.index, payload.locus.id, score_text="good\n", evaluated=True,
+        )
+
+    monkeypatch.setattr(
+        run_evaluation, "materialize_evaluation_payload", fake_materialize,
+    )
+    monkeypatch.setattr(run_evaluation, "evaluate_payload", fake_worker)
+    score = StringIO()
+    args = _args()
+    processed, failures = run_evaluation.parallel_evaluate_loci(
+        loci, object(), object(), {}, object(), {}, {}, {}, score, args,
+        threads=2, max_inflight=1,
+    )
+
+    assert processed == 2
+    assert score.getvalue() == "good\n"
+    assert len(failures) == 1
+    assert failures[0].locus_id == "bad"
+    assert args._evaluation_max_inflight_observed == 1
+
+
+def test_evaluation_failure_reporting_tolerates_broken_exception_str():
+    class BrokenStrError(RuntimeError):
+        def __str__(self):
+            raise TypeError("broken exception renderer")
+
+    class RecordingManifest:
+        def __init__(self):
+            self.errors = []
+
+        def record_failure(self, _phase, error, **_kwargs):
+            self.errors.append(error)
+
+    manifest = RecordingManifest()
+    args = SimpleNamespace(
+        _pipeline_failures=[], _run_manifest=manifest,
+    )
+
+    lifton_main._record_pipeline_failure(
+        args,
+        "evaluation",
+        BrokenStrError("broken"),
+        details={"locus": "bad", "traceback": "evaluation trace"},
+        fatal=True,
+    )
+
+    assert args._pipeline_failures[0]["message"] == "evaluation trace"
+    assert manifest.errors == ["evaluation trace"]

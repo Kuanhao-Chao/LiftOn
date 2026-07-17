@@ -322,16 +322,43 @@ class TestThreadFanout:
         were running concurrently. Threads are required (the GIL is
         released by `time.sleep`).
 
-        Override the Phase 9 thread-safety guard via the env-var
-        escape hatch so the parallel path is taken even though the
-        test uses Mock FeatureDBs (no real backend involvement)."""
-        monkeypatch.setenv("LIFTON_PARALLEL_FORCE", "1")
+        A lightweight reopenable-factory double keeps this test focused on
+        executor fan-out; non-reopenable production databases deliberately
+        use the true serial fallback."""
         from lifton import run_liftoff
         N = 4
         loci = [SimpleNamespace(id=f"l_{i}", _idx=i) for i in range(N)]
 
         class FakeDB:
             def features_of_type(self, ft): yield from loci
+
+        db = FakeDB()
+
+        class Factory:
+            viable = True
+
+            def __init__(self, _ctx):
+                pass
+
+            def open_root_scan(self):
+                return db
+
+            def close_root_scan(self, _db):
+                pass
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(
+            locus_pipeline, "_ThreadLocalCtxFactory", Factory,
+        )
+        monkeypatch.setattr(
+            locus_pipeline,
+            "materialise_locus_with_factory",
+            lambda index, locus, _factory: locus_pipeline.MaterialisedLocus(
+                index, locus, locus.id,
+            ),
+        )
 
         barrier = threading.Barrier(N, timeout=2.0)
 
@@ -350,7 +377,7 @@ class TestThreadFanout:
         # If threads weren't running concurrently, the barrier would
         # time out and Brokenfit raise.
         parallel.parallel_step7(
-            ["gene"], FakeDB(), _fake_ctx(), fw, stats, threads=N,
+            ["gene"], db, _fake_ctx(), fw, stats, threads=N,
         )
         # And output remains deterministic.
         assert fw.getvalue() == "0\n1\n2\n3\n"

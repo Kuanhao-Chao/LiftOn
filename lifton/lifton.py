@@ -7,8 +7,13 @@ import time
 import concurrent.futures
 from contextlib import redirect_stdout
 
-from lifton.exceptions import LiftOnPartialOutputError, LiftOnValidationError
+from lifton.exceptions import (
+    LiftOnError,
+    LiftOnPartialOutputError,
+    LiftOnValidationError,
+)
 from lifton.run_manifest import RunManifest
+from lifton.locus_pipeline import safe_exception_text
 
 
 def _run_outdirs(output):
@@ -82,10 +87,12 @@ def _switch_manifest_phase(args, name, details=None):
 
 def _record_pipeline_failure(args, phase, error, *, details=None,
                              fatal=False, affects_completeness=True):
+    details = dict(details or {})
+    message = safe_exception_text(error, details.get("traceback"))
     record = {
         "phase": str(phase),
-        "message": str(error),
-        "details": dict(details or {}),
+        "message": message,
+        "details": details,
         "fatal": bool(fatal),
     }
     if affects_completeness:
@@ -93,7 +100,7 @@ def _record_pipeline_failure(args, phase, error, *, details=None,
     manifest = getattr(args, "_run_manifest", None)
     if manifest is not None:
         manifest.record_failure(
-            phase, error, fatal=fatal, details=record["details"]
+            phase, message, fatal=fatal, details=record["details"]
         )
 
 
@@ -303,8 +310,8 @@ def args_optional(parser):
     parser.add_argument(
         '--locus-pipeline', dest='locus_pipeline', action='store_true',
         default=False,
-        help='Locus-major fan-out: dispatch Step 7 (per-Liftoff-gene '
-             'processing) through a ThreadPoolExecutor sized by --threads. '
+        help='Locus-major fan-out: dispatch per-locus Step 7, Step 8, and '
+             'evaluation work through bounded workers sized by --threads. '
              'Output is emitted in submission order so --threads N is '
              'byte-identical to --threads 1; this flag changes scheduling, '
              'not algorithms. As of Iteration 8 this works on the DEFAULT '
@@ -322,17 +329,25 @@ def args_optional(parser):
              'may improve utilization for uneven loci.'
     )
     parser.add_argument(
+        '--step8-max-inflight', dest='step8_max_inflight', type=int,
+        default=None, metavar='N',
+        help='Bound analyzed-but-not-published miniprot candidates in Step 8. '
+             'The default is 2 * --threads; lower values reduce peak memory.'
+    )
+    parser.add_argument(
+        '--evaluation-max-inflight', dest='evaluation_max_inflight', type=int,
+        default=None, metavar='N',
+        help='Bound submitted-but-not-written loci in evaluation mode. The '
+             'default is 2 * --threads; lower values reduce peak memory.'
+    )
+    parser.add_argument(
         '--native', dest='native', action='store_true', default=False,
-        help='Phase 10 native bindings: route miniprot through the '
-             'pyminiprot-shaped facade and unlock in-process Step-7 '
-             'threading (Phase 17b). As of Iteration 7, --native does NOT '
-             'route Liftoff\'s minimap2 alignment through `mappy` by '
-             'default — that in-process path is slower and slightly less '
-             'accurate than the subprocess minimap2 path (mappy can\'t take '
-             '--end-bonus/-p), so Liftoff alignment stays on the proven '
-             'subprocess path. Set LIFTON_NATIVE_LIFTOFF_ALIGN=1 to opt the '
-             'mappy Liftoff path back in (e.g. no minimap2 binary on PATH). '
-             'Falls back gracefully when mappy is not installed.'
+        help='Enable experimental native compatibility hooks. The proven '
+             'miniprot subprocess/direct-stream and minimap2 paths remain '
+             'the defaults, and bounded locus workers do not require this '
+             'flag. Set LIFTON_NATIVE_LIFTOFF_ALIGN=1 as well to opt into '
+             'the mappy Liftoff path (for example when minimap2 is absent); '
+             'it falls back gracefully when mappy is unavailable.'
     )
     parser.add_argument(
         '--serial-aligners', dest='serial_aligners', action='store_true',
@@ -577,6 +592,11 @@ def parse_args(arglist):
         parser.error("-unplaced must be used with -chroms")    
     if args.step7_max_inflight is not None and args.step7_max_inflight < 1:
         parser.error("--step7-max-inflight must be at least 1")
+    if args.step8_max_inflight is not None and args.step8_max_inflight < 1:
+        parser.error("--step8-max-inflight must be at least 1")
+    if (args.evaluation_max_inflight is not None
+            and args.evaluation_max_inflight < 1):
+        parser.error("--evaluation-max-inflight must be at least 1")
     return args
     
 
@@ -697,16 +717,17 @@ def run_all_lifton_steps(args):
     # Phase 5 bug fix #6: NCBI GFF3 validation gate
     ################################
     _switch_manifest_phase(args, "validate_reference_annotation")
-    from lifton.io.gff3_validator import GFF3Validator
     reference_seqids = set(ref_fai.keys())
+    reference_annotation_scan = None
     if annotation.is_annotation_database_file(args.reference_annotation):
         findings = []
         manifest.set_backend_choice("reference_annotation_input", "database")
     else:
-        findings = GFF3Validator(
+        reference_annotation_scan = annotation.scan_annotation(
+            args.reference_annotation,
             target_seqids=reference_seqids,
-            strict=getattr(args, "strict_gff", False),
-        ).validate(args.reference_annotation)
+        )
+        findings = list(reference_annotation_scan.ncbi_findings)
     # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
     # thousands of `unencoded_reserved_char` findings on Dbxref values
     # (DBTAG:ID is technically reserved-char-bearing). The previous
@@ -756,7 +777,17 @@ def run_all_lifton_steps(args):
     _switch_manifest_phase(args, "build_reference_database")
     logger.log("\n>> Creating reference annotation database : ", args.reference_annotation, debug=True)
     auto_convert_gtf = not args.no_auto_convert_gtf
-    ref_db = annotation.Annotation(args.reference_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf)
+    ref_db = annotation.Annotation(
+        args.reference_annotation,
+        args.infer_genes,
+        args.infer_transcripts,
+        args.merge_strategy,
+        args.id_spec,
+        args.force,
+        args.verbose,
+        auto_convert_gtf,
+        scan_result=reference_annotation_scan,
+    )
     manifest.set_backend_choice("reference_annotation", ref_db.backend)
     manifest.set_cache_choice(
         "reference_annotation", getattr(ref_db, "cache_status", "unknown")
@@ -844,17 +875,92 @@ def run_all_lifton_steps(args):
         os.makedirs(lifton_outdir, exist_ok=True)
         auto_convert_gtf = not args.no_auto_convert_gtf
         tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
-        fw_score = open(lifton_outdir+"/eval.txt", "w")
+        from lifton.output_transaction import OutputTransaction
+        evaluation_transaction = OutputTransaction(
+            os.path.join(lifton_outdir, "eval.txt")
+        )
+        evaluation_transaction.install_signal_handlers()
+        args._output_transaction = evaluation_transaction
+        fw_score = evaluation_transaction.open()
         tree_dict = {}
         processed_features = 0
-        for feature in features:
-            for locus in tgt_feature_db.features_of_type(feature):#, limit=("chr1", 146652669, 146708545)):
-                lifton_gene = run_evaluation.evaluation(None, locus, ref_db.db_connection, tgt_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, args, ENTRY_FEATURE=True)
-                if processed_features % 20 == 0:
-                    sys.stdout.write("\r>> LiftOn evaluated: %i features." % processed_features)
-                processed_features += 1
-        fw_score.close()
+        evaluation_failures = []
+        evaluation_threads = int(getattr(args, "threads", 1) or 1)
+        if (bool(getattr(args, "locus_pipeline", False))
+                and evaluation_threads > 1):
+            def evaluation_loci():
+                for feature in features:
+                    yield from tgt_feature_db.features_of_type(feature)
+
+            processed_features, evaluation_failures = \
+                run_evaluation.parallel_evaluate_loci(
+                    evaluation_loci(),
+                    ref_db.db_connection,
+                    tgt_feature_db,
+                    tree_dict,
+                    tgt_fai,
+                    ref_proteins,
+                    ref_trans,
+                    ref_features_dict,
+                    fw_score,
+                    args,
+                    threads=evaluation_threads,
+                    max_inflight=getattr(
+                        args, "evaluation_max_inflight", None,
+                    ),
+                )
+        else:
+            for feature in features:
+                for locus in tgt_feature_db.features_of_type(feature):
+                    run_evaluation.evaluation(
+                        None, locus, ref_db.db_connection, tgt_feature_db,
+                        tree_dict, tgt_fai, ref_proteins, ref_trans,
+                        ref_features_dict, fw_score, args,
+                        ENTRY_FEATURE=True,
+                    )
+                    if processed_features % 20 == 0:
+                        sys.stdout.write(
+                            "\r>> LiftOn evaluated: %i features."
+                            % processed_features
+                        )
+                    processed_features += 1
+        evaluation_transaction.close()
+        for failure in evaluation_failures:
+            _record_pipeline_failure(
+                args,
+                "evaluation",
+                failure.error,
+                details={
+                    "locus": failure.locus_id,
+                    "traceback": failure.error_tb,
+                },
+                fatal=True,
+            )
         manifest.record_count("evaluated_features", processed_features)
+        manifest.record_count(
+            "evaluation_failures", len(evaluation_failures),
+        )
+        manifest.record_count(
+            "evaluation_max_inflight_observed",
+            getattr(
+                args,
+                "_evaluation_max_inflight_observed",
+                1 if processed_features else 0,
+            ),
+        )
+        if evaluation_failures:
+            partial_path = evaluation_transaction.abort()
+            args._output_transaction = None
+            logger.log_error(
+                f"Incomplete evaluation was preserved at {partial_path}"
+            )
+            _switch_manifest_phase(args, None)
+            _finish_run_manifest(args, "failed")
+            raise LiftOnError(
+                f"evaluation failed for {len(evaluation_failures)} loci"
+            )
+        evaluation_transaction.commit()
+        args._output_transaction = None
         _switch_manifest_phase(args, None)
         _finish_run_manifest(args, "success")
         return
@@ -985,6 +1091,7 @@ def run_all_lifton_steps(args):
         stdout=getattr(args, "_gff_stdout", None),
         work_dir=lifton_outdir,
     )
+    output_transaction.install_signal_handlers()
     args._output_transaction = output_transaction
     staged_output_path = os.fspath(output_transaction.working_path)
     fw = output_transaction.open()
@@ -1073,6 +1180,17 @@ def run_all_lifton_steps(args):
         features, l_feature_db, _ctx, fw, transcripts_stats_dict,
         threads=_threads if _use_pool else 1,
     )
+    manifest.record_count(
+        "step7_max_inflight_observed",
+        getattr(args, "_step7_max_inflight_observed", 0),
+    )
+    step7_fallback_reason = getattr(
+        args, "_step7_parallel_fallback_reason", None,
+    )
+    if step7_fallback_reason:
+        manifest.set_backend_choice(
+            "step7_parallel_fallback", step7_fallback_reason,
+        )
     not_emittable_count = 0
     for failure in getattr(_ctx, "failure_records", []):
         kind = failure.get("kind", "processing_error")
@@ -1126,11 +1244,59 @@ def run_all_lifton_steps(args):
     # Step 8: Process miniprot transcripts
     ################################
     _switch_manifest_phase(args, "process_miniprot_loci")
-    if m_feature_db is not None:
+    step8_candidates_processed = 0
+    step8_genes_emitted = 0
+    step8_max_inflight_observed = 0
+    if m_feature_db is not None and _use_pool:
+        from lifton import miniprot_pipeline as _miniprot_pipeline
+
+        step8_outcome = _miniprot_pipeline.parallel_step8(
+            m_feature_db.features_of_type("mRNA"),
+            ref_db,
+            m_feature_db,
+            tree_dict,
+            tgt_fai,
+            ref_proteins,
+            ref_trans,
+            ref_features_dict,
+            fw,
+            fw_score,
+            transcripts_stats_dict,
+            m_id_2_ref_id_trans_dict,
+            ref_features_len_dict,
+            ref_trans_exon_num_dict,
+            ref_features_reverse_dict,
+            args,
+            threads=_threads,
+            max_inflight=getattr(args, "step8_max_inflight", None),
+        )
+        processed_features += step8_outcome.processed
+        emitted_ref_gene_ids.update(step8_outcome.emitted_ref_gene_ids)
+        step8_candidates_processed = step8_outcome.processed
+        step8_genes_emitted = step8_outcome.emitted
+        step8_max_inflight_observed = step8_outcome.max_inflight_observed
+        for failure in step8_outcome.failures:
+            _record_pipeline_failure(
+                args,
+                "process_miniprot_loci",
+                failure.get("message", failure.get("kind", "failure")),
+                details={
+                    key: value for key, value in failure.items()
+                    if key != "message"
+                },
+            )
+    elif m_feature_db is not None:
         from lifton.locus_pipeline import (
             DeferredStateJournal, commit_locus_delta,
         )
         for mtrans in m_feature_db.features_of_type('mRNA'):
+            step8_candidates_processed += 1
+            processed_features += 1
+            if processed_features % 20 == 0:
+                _console_stream(args).write(
+                    "\r>> LiftOn processed: %i features."
+                    % processed_features
+                )
             state_journal = DeferredStateJournal(
                 ref_features_dict, buffer_score=True,
             )
@@ -1172,21 +1338,34 @@ def run_all_lifton_steps(args):
                 commit_locus_delta(delta, ref_features_dict, tree_dict)
                 if delta.score_text:
                     fw_score.write(delta.score_text)
+                step8_genes_emitted += 1
                 if getattr(args, "miniprot_rescue", False):
                     # Iter 23: record default Step-8 ref genes for the rescue dedup.
                     emitted_ref_gene_ids.add(lifton_gene.ref_gene_id)
             except Exception as e:
-                logger.log_error(f"Error during miniprot text output serialization ({mtrans.id}): {e}")
+                error_text = safe_exception_text(e)
+                logger.log_error(
+                    "Error during miniprot text output serialization "
+                    f"({mtrans.id}): {error_text}"
+                )
                 _record_pipeline_failure(
-                    args, "process_miniprot_loci", e,
+                    args, "process_miniprot_loci", error_text,
                     details={"mRNA": getattr(mtrans, "id", "<unknown>")},
                 )
-                
-            if processed_features % 20 == 0:
-                _console_stream(args).write(
-                    "\r>> LiftOn processed: %i features." % processed_features
-                )
-            processed_features += 1
+
+        step8_max_inflight_observed = (
+            1 if step8_candidates_processed else 0
+        )
+
+    manifest.record_count(
+        "miniprot_candidates_processed", step8_candidates_processed,
+    )
+    manifest.record_count(
+        "miniprot_genes_emitted", step8_genes_emitted,
+    )
+    manifest.record_count(
+        "step8_max_inflight_observed", step8_max_inflight_observed,
+    )
 
     # Iteration 23: clean separate-pass miniprot-only rescue. Runs AFTER the
     # Step-8 loop has fully closed, so no rescue mutates tree_dict during a
@@ -1256,6 +1435,40 @@ def run_all_lifton_steps(args):
     ################################
     # Step 10: Validate output GFF3
     ################################
+    _switch_manifest_phase(args, "validate_output_structure")
+    structural_result = gff3_validator.validate_gff3_structure(
+        staged_output_path,
+    )
+    manifest.record_validation(
+        "gff3_structural",
+        passed=structural_result.is_valid,
+        errors=len(structural_result.errors),
+        warnings=len(structural_result.warnings),
+        details={"path": staged_output_path},
+    )
+    if not structural_result.is_valid:
+        gff3_validator.print_validation_report(
+            structural_result,
+            verbose=True,
+        )
+        error = LiftOnValidationError(
+            "output GFF3 failed mandatory structural validation with "
+            f"{len(structural_result.errors)} error(s)"
+        )
+        _record_pipeline_failure(
+            args,
+            "validate_output_structure",
+            error,
+            fatal=True,
+            details={"errors": len(structural_result.errors)},
+        )
+        partial_path = output_transaction.abort()
+        logger.log_error(
+            f"Invalid output was preserved at {partial_path}"
+        )
+        _finish_run_manifest(args, "failed")
+        raise error
+
     if getattr(args, 'validate_output', False):
         _switch_manifest_phase(args, "validate_output")
         print("\n\n*********************************************", file=sys.stderr)

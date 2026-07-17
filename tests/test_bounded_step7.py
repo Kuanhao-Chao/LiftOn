@@ -45,7 +45,7 @@ def _context(db, *, window, output="out.gff3"):
     )
 
 
-@pytest.mark.parametrize("mode", ["fused", "parent", "two_phase"])
+@pytest.mark.parametrize("mode", ["fused", "two_phase"])
 def test_dispatch_window_is_tied_to_ordered_emission(
         monkeypatch, mode):
     """A blocked first locus cannot cause unbounded later submission."""
@@ -62,7 +62,7 @@ def test_dispatch_window_is_tied_to_ordered_emission(
 
     class _Factory:
         def __init__(self, _ctx):
-            self.viable = mode != "parent"
+            self.viable = True
 
     def materialise(index, locus, _ctx_or_factory):
         return MaterialisedLocus(

@@ -194,7 +194,7 @@ class TestFacadeParity:
 # ---------------------------------------------------------------------------
 
 class TestCallSiteRobustness:
-    def test_run_miniprot_missing_threads_attr(self):
+    def test_run_miniprot_missing_threads_attr(self, tmp_path):
         from lifton import run_miniprot
         from io import BytesIO
 
@@ -202,7 +202,10 @@ class TestCallSiteRobustness:
             p = mock.MagicMock()
             p.wait.return_value = 0
             p.returncode = 0
-            p.stdout = BytesIO(b"##gff-version 3\n")
+            p.stdout = BytesIO(
+                b"##gff-version 3\n"
+                b"chr1\tmp\tmRNA\t1\t9\t.\t+\t.\tID=MP1\n"
+            )
             p.stderr = BytesIO(b"")
             return p
 
@@ -211,5 +214,7 @@ class TestCallSiteRobustness:
         args = SimpleNamespace(mp_options="", stream=True, miniprot=None)
         with mock.patch.object(run_miniprot.subprocess, "Popen",
                                return_value=_make_proc()):
-            out = run_miniprot.run_miniprot("/tmp/", args, "tgt.fa", "rp.fa")
-        assert out == b"##gff-version 3\n"
+            out = run_miniprot.run_miniprot(
+                str(tmp_path) + "/", args, "tgt.fa", "rp.fa",
+            )
+        assert out.endswith("miniprot.duckdb")

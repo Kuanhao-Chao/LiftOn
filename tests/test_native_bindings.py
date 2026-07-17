@@ -316,12 +316,9 @@ class TestMiniprotIndexSubprocess:
 # ---------------------------------------------------------------------------
 
 class TestMiniprotFacadeStreamingParity:
-    """The Phase 7 streaming-path bytes are produced by piping
-    miniprot stdout through `subprocess.Popen.communicate()`. The
-    Phase 10 facade does the same — both paths must yield byte-
-    identical bytes for the same input."""
+    """Facade bytes and direct DB ingest describe the same records."""
 
-    def test_facade_vs_streaming_run_miniprot(self):
+    def test_facade_vs_streaming_run_miniprot(self, tmp_path):
         from lifton import run_miniprot
         # Patch `subprocess.Popen` for BOTH callers with the same
         # canned stdout, then verify the bytes captured by each
@@ -343,15 +340,20 @@ class TestMiniprotFacadeStreamingParity:
         with mock.patch.object(run_miniprot.subprocess, "Popen",
                                return_value=_make_proc()):
             args = SimpleNamespace(mp_options="", stream=True, miniprot=None)
-            stream_bytes = run_miniprot.run_miniprot(
-                "/tmp/", args, "tgt.fa", "rp.fa",
+            stream_database = run_miniprot.run_miniprot(
+                str(tmp_path) + "/", args, "tgt.fa", "rp.fa",
             )
         # Patch the facade's subprocess
         with mock.patch.object(subprocess, "Popen", return_value=_make_proc()):
             idx = MiniprotIndex("tgt.fa", ref_proteins_path="rp.fa")
             idx.align_all()
             facade_bytes = idx.raw_bytes
-        assert stream_bytes == facade_bytes
+        from lifton.gffbase_adapter import open_database_path
+        database = open_database_path(stream_database)
+        assert database.count_features_of_type("mRNA") == 1
+        assert database.count_features_of_type("CDS") == 2
+        database.conn.close()
+        assert facade_bytes == _FAKE_GFF_BLOB
 
 
 # ---------------------------------------------------------------------------
@@ -717,7 +719,7 @@ class TestParallelStep7WithNative:
         monkeypatch.setattr(run_liftoff, "process_liftoff", fake)
 
         ctx = locus_pipeline.StepContext(
-            ref_db=mock.Mock(), l_feature_db=FakeDB(), m_feature_db=None,
+            ref_db={}, l_feature_db=FakeDB(), m_feature_db=None,
             ref_id_2_m_id_trans_dict={}, tree_dict={},
             tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
             ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,

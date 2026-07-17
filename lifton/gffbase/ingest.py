@@ -66,6 +66,87 @@ class IngestStats:
     directives: List[str] = None  # type: ignore[assignment]
 
 
+class GFF3ChunkDecoder:
+    """Incrementally decode byte chunks into validated GFF3 records.
+
+    Only an incomplete trailing line is retained between calls.  Oversized
+    input chunks are internally split at ``max_chunk_bytes`` (1 MiB by
+    default), and pathological unbroken lines fail before growing without a
+    bound.
+    """
+
+    def __init__(
+        self, *, max_chunk_bytes: int = 1 << 20,
+        max_line_bytes: int = 8 << 20,
+    ):
+        self.max_chunk_bytes = max(1, int(max_chunk_bytes))
+        self.max_line_bytes = max(self.max_chunk_bytes, int(max_line_bytes))
+        self._pending = bytearray()
+        self._line_no = 0
+        self.byte_count = 0
+        self.feature_count = 0
+        self.max_pending_bytes = 0
+        self.directives: List[str] = []
+
+    def feed(self, chunk: bytes):
+        if not isinstance(chunk, (bytes, bytearray, memoryview)):
+            raise TypeError("GFF3ChunkDecoder.feed expects a bytes-like chunk")
+        data = chunk if isinstance(chunk, bytes) else bytes(chunk)
+        self.byte_count += len(data)
+        for offset in range(0, len(data), self.max_chunk_bytes):
+            piece_end = min(len(data), offset + self.max_chunk_bytes)
+            cursor = offset
+            while True:
+                newline = data.find(b"\n", cursor, piece_end)
+                if newline < 0:
+                    self._pending.extend(data[cursor:piece_end])
+                    self.max_pending_bytes = max(
+                        self.max_pending_bytes, len(self._pending),
+                    )
+                    break
+                if self._pending:
+                    self._pending.extend(data[cursor:newline])
+                    raw = bytes(self._pending)
+                    self._pending.clear()
+                else:
+                    raw = data[cursor:newline]
+                record = self._decode_line(raw.rstrip(b"\r"))
+                if record is not None:
+                    yield record
+                cursor = newline + 1
+            if len(self._pending) > self.max_line_bytes:
+                raise ValueError(
+                    "GFF3 record exceeds the configured maximum line size "
+                    f"({self.max_line_bytes} bytes)"
+                )
+
+    def finish(self):
+        if self._pending:
+            raw = bytes(self._pending).rstrip(b"\r")
+            self._pending.clear()
+            record = self._decode_line(raw)
+            if record is not None:
+                yield record
+
+    @property
+    def pending_bytes(self) -> int:
+        return len(self._pending)
+
+    def _decode_line(self, raw: bytes):
+        self._line_no += 1
+        if not raw:
+            return None
+        line = raw.decode("utf-8", errors="strict")
+        if line.startswith("#"):
+            if line.startswith("##") or line.startswith("#!"):
+                self.directives.append(line)
+            return None
+        from ._pyfallback.parser import _parse_line_into_feature
+        record = _parse_line_into_feature(line, self._line_no)
+        self.feature_count += 1
+        return record
+
+
 # ---------------------------------------------------------------------------
 # Arrow batch builder. Accumulates ParsedFeature output until a fixed row
 # count, then yields one PyArrow Table per category (features, attributes).
@@ -270,10 +351,12 @@ def _derive_id(feat: ParsedFeature, dialect_fmt: str, autoincrement: dict) -> st
 # Public entry point.
 # ---------------------------------------------------------------------------
 
-def from_file(
-    path: str,
+def _from_record_stream_impl(
+    records: Iterable[ParsedFeature],
     dbfn: str = ":memory:",
     *,
+    dialect: Optional[dict] = None,
+    directives: Optional[List[str]] = None,
     force: bool = False,
     batch_size: int = DEFAULT_BATCH_SIZE,
     max_depth: int = DEFAULT_MAX_DEPTH,
@@ -282,11 +365,13 @@ def from_file(
     gtf_subfeature: str = "exon",
     engine: Optional[str] = "auto",
     build_rtree: bool = True,
+    _connection_out: Optional[List[duckdb.DuckDBPyConnection]] = None,
 ) -> Tuple[duckdb.DuckDBPyConnection, IngestStats]:
-    """Ingest a GFF3 or GTF file into a DuckDB database.
+    """Ingest an incremental ``ParsedFeature`` stream into DuckDB.
 
-    Returns the open connection plus an `IngestStats` summary. The connection
-    is the canonical handle the (Phase 5) `FeatureDB` will wrap.
+    The iterable may expose parser-style ``dialect()`` and ``directives()``
+    methods; explicit arguments take precedence.  Only the active Arrow batch
+    (default 50,000 records) is retained in Python memory.
     """
     if dbfn != ":memory:":
         if os.path.exists(dbfn) and not force:
@@ -297,6 +382,8 @@ def from_file(
             os.unlink(dbfn)
 
     con = duckdb.connect(dbfn)
+    if _connection_out is not None:
+        _connection_out.append(con)
     _apply_pragmas(con)
     con.execute(DDL)
 
@@ -323,8 +410,6 @@ def from_file(
     if has_spatial:
         con.execute("ALTER TABLE features ADD COLUMN IF NOT EXISTS bbox GEOMETRY")
 
-    # Drive the parser.
-    it = _parser.parse_gff(path, engine=engine)
     seqid_to_y: dict = {}
     builder = _ArrowBatchBuilder(seqid_to_y, has_spatial=has_spatial)
     autoinc: dict = {}
@@ -343,11 +428,14 @@ def from_file(
     # stable from the first yielded record onward.
     _fmt_cache: Optional[str] = None
 
-    for feat in it:
+    for feat in records:
         file_order += 1
         n_raw += 1
         if _fmt_cache is None:
-            _fmt_cache = _dialect_fmt_safe(it)
+            _fmt_cache = (
+                (dialect or {}).get("fmt", "gff3")
+                if dialect is not None else _dialect_fmt_safe(records)
+            )
         fid = _derive_id(feat, _fmt_cache, autoinc)
         seen = id_counts.get(fid, 0)
         if seen:
@@ -376,13 +464,21 @@ def from_file(
         )
         con.unregister("__staging_dups")
 
-    dialect = it.dialect()
-    directives = list(it.directives())
-    fmt = (dialect or {}).get("fmt", "gff3")
+    resolved_dialect = dialect
+    if resolved_dialect is None:
+        getter = getattr(records, "dialect", None)
+        resolved_dialect = getter() if callable(getter) else {"fmt": "gff3"}
+    resolved_directives = directives
+    if resolved_directives is None:
+        getter = getattr(records, "directives", None)
+        resolved_directives = list(getter()) if callable(getter) else []
+    else:
+        resolved_directives = list(resolved_directives)
+    fmt = (resolved_dialect or {}).get("fmt", "gff3")
 
     # Persist directives in one shot (set-based).
-    if directives:
-        dir_table = pa.table({"directive": directives})
+    if resolved_directives:
+        dir_table = pa.table({"directive": resolved_directives})
         con.register("__staging_directives", dir_table)
         con.execute("INSERT INTO directives (directive) SELECT directive FROM __staging_directives")
         con.unregister("__staging_directives")
@@ -442,7 +538,10 @@ def from_file(
 
     # Meta — record dialect, fmt, and the rtree availability so a re-opened
     # DB can route queries correctly without probing.
-    _write_meta(con, dialect, fmt, rtree_built=rtree_built, max_depth=max_depth)
+    _write_meta(
+        con, resolved_dialect, fmt,
+        rtree_built=rtree_built, max_depth=max_depth,
+    )
 
     return con, IngestStats(
         n_features_raw=n_raw,
@@ -453,9 +552,79 @@ def from_file(
         n_closure_rows=n_closure,
         rtree_built=rtree_built,
         fmt=fmt,
-        dialect=dialect,
-        directives=directives,
+        dialect=resolved_dialect,
+        directives=resolved_directives,
     )
+
+
+def from_record_stream(
+    records: Iterable[ParsedFeature],
+    dbfn: str = ":memory:",
+    *,
+    dialect: Optional[dict] = None,
+    directives: Optional[List[str]] = None,
+    force: bool = False,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    max_depth: int = DEFAULT_MAX_DEPTH,
+    disable_infer_genes: bool = False,
+    disable_infer_transcripts: bool = False,
+    gtf_subfeature: str = "exon",
+    engine: Optional[str] = "auto",
+    build_rtree: bool = True,
+) -> Tuple[duckdb.DuckDBPyConnection, IngestStats]:
+    """Ingest records and explicitly close the database on every failure."""
+
+    connection: List[duckdb.DuckDBPyConnection] = []
+    try:
+        return _from_record_stream_impl(
+            records,
+            dbfn=dbfn,
+            dialect=dialect,
+            directives=directives,
+            force=force,
+            batch_size=batch_size,
+            max_depth=max_depth,
+            disable_infer_genes=disable_infer_genes,
+            disable_infer_transcripts=disable_infer_transcripts,
+            gtf_subfeature=gtf_subfeature,
+            engine=engine,
+            build_rtree=build_rtree,
+            _connection_out=connection,
+        )
+    except BaseException:
+        if connection:
+            try:
+                connection[0].close()
+            except Exception:
+                pass
+        raise
+
+
+def from_file(
+    path: str,
+    dbfn: str = ":memory:",
+    *,
+    force: bool = False,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    max_depth: int = DEFAULT_MAX_DEPTH,
+    disable_infer_genes: bool = False,
+    disable_infer_transcripts: bool = False,
+    gtf_subfeature: str = "exon",
+    engine: Optional[str] = "auto",
+    build_rtree: bool = True,
+) -> Tuple[duckdb.DuckDBPyConnection, IngestStats]:
+    """Parse a file and delegate to the incremental record ingest path."""
+    records = _parser.parse_gff(path, engine=engine)
+    try:
+        return from_record_stream(
+            records, dbfn=dbfn, force=force, batch_size=batch_size,
+            max_depth=max_depth,
+            disable_infer_genes=disable_infer_genes,
+            disable_infer_transcripts=disable_infer_transcripts,
+            gtf_subfeature=gtf_subfeature, build_rtree=build_rtree,
+        )
+    finally:
+        records.close()
 
 
 # ---------------------------------------------------------------------------

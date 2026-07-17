@@ -220,7 +220,7 @@ class TestRunMiniprotLegacy:
 
 
 class TestRunMiniprotStreaming:
-    """Phase 7 streaming branch returns bytes — no disk write."""
+    """Streaming branch publishes DuckDB without an intermediate GFF3."""
 
     def _patch_popen(self, stdout_bytes, stderr_bytes=b"", returncode=0):
         # Phase 15c: the streaming branch now drives `.stdout.read()`
@@ -238,7 +238,7 @@ class TestRunMiniprotStreaming:
         return mock.patch("lifton.run_miniprot.subprocess.Popen",
                           return_value=proc)
 
-    def test_streaming_returns_bytes(self, tmp_path, fake_miniprot_args):
+    def test_streaming_returns_database_path(self, tmp_path, fake_miniprot_args):
         from lifton import run_miniprot
         fake_miniprot_args.stream = True
         gff_blob = (b"##gff-version 3\n"
@@ -247,8 +247,11 @@ class TestRunMiniprotStreaming:
             result = run_miniprot.run_miniprot(
                 str(tmp_path) + "/", fake_miniprot_args, "tgt.fa", "ref.fa"
             )
-        assert isinstance(result, (bytes, bytearray))
-        assert b"MP1" in result
+        assert isinstance(result, str)
+        assert result.endswith("miniprot.duckdb")
+        db = gffbase_adapter.open_database_path(result)
+        assert db.count_features_of_type("mRNA") == 1
+        db.conn.close()
 
     def test_streaming_no_disk_write(self, tmp_path, fake_miniprot_args):
         """Streaming branch must NOT write miniprot.gff3."""
@@ -259,11 +262,12 @@ class TestRunMiniprotStreaming:
             run_miniprot.run_miniprot(
                 str(tmp_path) + "/", fake_miniprot_args, "tgt.fa", "ref.fa"
             )
-        # The miniprot/ directory may have been created (mkdir is unconditional),
-        # but no miniprot.gff3 file should exist inside it.
+        # The staged database is the stream sink; no text sidecar is created.
         assert not (tmp_path / "miniprot" / "miniprot.gff3").exists()
+        assert (tmp_path / "miniprot" / "miniprot.duckdb").exists()
 
-    def test_streaming_nonzero_exit_returns_none(self, tmp_path, fake_miniprot_args):
+    def test_streaming_nonzero_exit_returns_none(
+            self, tmp_path, fake_miniprot_args, capsys):
         from lifton import run_miniprot
         fake_miniprot_args.stream = True
         with self._patch_popen(b"", b"miniprot crashed\n", returncode=1):
@@ -271,8 +275,12 @@ class TestRunMiniprotStreaming:
                 str(tmp_path) + "/", fake_miniprot_args, "tgt.fa", "ref.fa"
             )
         assert result is None
+        stderr = capsys.readouterr().err
+        assert "miniprot crashed" in stderr
+        assert "exited with code 1" in stderr
 
-    def test_streaming_error_in_stderr_returns_none(self, tmp_path, fake_miniprot_args):
+    def test_streaming_error_in_stderr_returns_none(
+            self, tmp_path, fake_miniprot_args, capsys):
         from lifton import run_miniprot
         fake_miniprot_args.stream = True
         with self._patch_popen(b"", b"ERROR during mapping\n", returncode=0):
@@ -280,6 +288,9 @@ class TestRunMiniprotStreaming:
                 str(tmp_path) + "/", fake_miniprot_args, "tgt.fa", "ref.fa"
             )
         assert result is None
+        stderr = capsys.readouterr().err
+        assert "ERROR during mapping" in stderr
+        assert "reported ERROR" in stderr
 
     def test_streaming_empty_stdout_returns_none(self, tmp_path, fake_miniprot_args):
         from lifton import run_miniprot
@@ -290,21 +301,24 @@ class TestRunMiniprotStreaming:
             )
         assert result is None
 
-    def test_streaming_large_blob_does_not_truncate(self, tmp_path, fake_miniprot_args):
-        """Pipe-buffer deadlock guard: a 10 MB synthetic miniprot stdout
-        ingests cleanly without truncation. communicate() drains both
-        pipes simultaneously."""
+    def test_streaming_many_records_does_not_truncate(
+            self, tmp_path, fake_miniprot_args):
+        """Chunk boundaries preserve every row without a whole-output blob."""
         from lifton import run_miniprot
         fake_miniprot_args.stream = True
-        big_blob = (b"##gff-version 3\n"
-                    + b"chr1\tmp\tmRNA\t1\t10\t.\t+\t.\tID=MP_X;Target=tx 1 10\n" * 200_000)
-        assert len(big_blob) > 5 * 1024 * 1024  # > 5 MB
+        count = 5_000
+        big_blob = b"##gff-version 3\n" + b"".join(
+            f"chr1\tmp\tmRNA\t1\t10\t.\t+\t.\tID=MP_{i};Target=tx 1 10\n".encode()
+            for i in range(count)
+        )
         with self._patch_popen(big_blob):
             result = run_miniprot.run_miniprot(
                 str(tmp_path) + "/", fake_miniprot_args, "tgt.fa", "ref.fa"
             )
         assert result is not None
-        assert len(result) == len(big_blob)
+        db = gffbase_adapter.open_database_path(result)
+        assert db.count_features_of_type("mRNA") == count
+        db.conn.close()
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import OrderedDict
 from typing import Iterator, List, Optional, Tuple, Union
 
 import duckdb
@@ -34,6 +35,7 @@ _SELECT_FEATURE = (
     'id, seqid, source, featuretype, start, "end", '
     'score, strand, frame, attributes_blob, extra_blob, file_order'
 )
+_SCAN_BATCH_SIZE = 10_000
 
 
 class FeatureDB:
@@ -200,6 +202,31 @@ class FeatureDB:
         ).fetchone()
         return row is not None
 
+    def features_batched(self, feature_ids):
+        """Fetch full :class:`Feature` objects for many IDs in one query.
+
+        The returned ordered mapping follows first appearance in
+        ``feature_ids``; missing IDs are omitted, matching repeated scalar
+        ``db[id]`` lookups when misses are caught by the caller.
+        """
+        ids = list(OrderedDict.fromkeys(self._coerce_id_list(feature_ids)))
+        result = OrderedDict()
+        if not ids:
+            return result
+        values, params = self._anchor_values(ids)
+        rows = self.conn.execute(
+            f"WITH anchors(anchor_ordinal, anchor) AS (VALUES {values}) "
+            f"SELECT a.anchor_ordinal, {self._select_feature_aliased('f')} "
+            "FROM anchors a JOIN features f ON f.id = a.anchor "
+            "ORDER BY a.anchor_ordinal",
+            params,
+        ).fetchall()
+        for ordinal, *feature_row in rows:
+            result[ids[int(ordinal)]] = feature_from_row(
+                tuple(feature_row), dialect=self.dialect,
+            )
+        return result
+
     # ------------------------------------------------------------------
     # Counts and distinct-value iterators
     # ------------------------------------------------------------------
@@ -258,6 +285,46 @@ class FeatureDB:
             order_by=order_by, reverse=reverse,
             completely_within=completely_within,
         )
+
+    def features_of_type_stream_safe(
+        self, featuretype, *, batch_size: int = 256,
+    ) -> Iterator[Feature]:
+        """Yield roots safely while the same connection services child reads.
+
+        DuckDB's Python connection is also its active result cursor, so a
+        hierarchy query issued between two yielded roots invalidates a normal
+        ``features_of_type`` scan.  Keyset pagination materializes only one
+        small page and reissues the scan after that page has been consumed.
+        """
+        size = max(1, int(batch_size))
+        types = (list(featuretype) if isinstance(featuretype, (list, tuple, set))
+                 else [featuretype])
+        placeholders = ",".join("?" for _ in types)
+        last_order = None
+        last_id = None
+        while True:
+            where = [f"featuretype IN ({placeholders})"]
+            params = list(types)
+            if last_order is not None:
+                where.append(
+                    "(COALESCE(file_order, 9223372036854775807) > ? OR "
+                    "(COALESCE(file_order, 9223372036854775807) = ? "
+                    "AND id > ?))"
+                )
+                params.extend([last_order, last_order, last_id])
+            rows = self.conn.execute(
+                f"SELECT {_SELECT_FEATURE}, "
+                "COALESCE(file_order, 9223372036854775807) AS scan_order "
+                "FROM features "
+                f"WHERE {' AND '.join(where)} "
+                "ORDER BY scan_order, id LIMIT ?",
+                params + [size],
+            ).fetchall()
+            if not rows:
+                return
+            last_order, last_id = rows[-1][-1], rows[-1][0]
+            for row in rows:
+                yield feature_from_row(row[:-1], dialect=self.dialect)
 
     def _build_scan_sql(self, *, base_where, base_params,
                         limit, strand, featuretype,
@@ -670,6 +737,41 @@ class FeatureDB:
             direction="children", format=format,
         )
 
+    def children_batched_features(
+        self,
+        feature_ids,
+        level: Optional[int] = None,
+        featuretype: Optional[Union[str, List[str]]] = None,
+        order_by=None,
+        reverse: bool = False,
+    ):
+        """Return scalar-compatible child ``Feature`` tuples by anchor.
+
+        Unlike :meth:`children_batched`, this API reconstructs every database
+        row field, including raw attributes/extra columns and file order.  A
+        single relation query serves each cache/dynamic group, while anchor
+        ordinals and hierarchy depth stay in SQL to preserve deterministic
+        grouping and the same per-anchor ordering as :meth:`children`.
+        """
+        return self._relation_batched_features(
+            feature_ids, level=level, featuretype=featuretype,
+            order_by=order_by, reverse=reverse, direction="children",
+        )
+
+    def parents_batched_features(
+        self,
+        feature_ids,
+        level: Optional[int] = None,
+        featuretype: Optional[Union[str, List[str]]] = None,
+        order_by=None,
+        reverse: bool = False,
+    ):
+        """Full-feature counterpart of :meth:`parents_batched`."""
+        return self._relation_batched_features(
+            feature_ids, level=level, featuretype=featuretype,
+            order_by=order_by, reverse=reverse, direction="parents",
+        )
+
     def parents_batched(
         self,
         feature_ids,
@@ -779,6 +881,142 @@ class FeatureDB:
                     f"feature_ids may contain only str or Feature; got {type(item)!r}"
                 )
         return out
+
+    @staticmethod
+    def _anchor_values(ids):
+        values = ",".join("(?, ?)" for _ in ids)
+        params = []
+        for ordinal, anchor in enumerate(ids):
+            params.extend([ordinal, anchor])
+        return values, params
+
+    def _relation_batched_features(
+        self, feature_ids, *, level, featuretype, order_by, reverse,
+        direction: str,
+    ):
+        ids = list(OrderedDict.fromkeys(self._coerce_id_list(feature_ids)))
+        result = OrderedDict((anchor, []) for anchor in ids)
+        if not ids:
+            return OrderedDict()
+
+        dynamic_ids = set(self._batched_dynamic_anchors(
+            ids, level=level, direction=direction,
+        ))
+        groups = (
+            ([anchor for anchor in ids if anchor not in dynamic_ids], False),
+            ([anchor for anchor in ids if anchor in dynamic_ids], True),
+        )
+        ordinal_by_id = {anchor: ordinal for ordinal, anchor in enumerate(ids)}
+        for anchors, dynamic in groups:
+            if not anchors:
+                continue
+            rows = self._relation_batched_feature_rows(
+                anchors, ordinal_by_id=ordinal_by_id, level=level,
+                featuretype=featuretype, order_by=order_by,
+                reverse=reverse, direction=direction, dynamic=dynamic,
+            )
+            for ordinal, _depth, *feature_row in rows:
+                anchor = ids[int(ordinal)]
+                result[anchor].append(feature_from_row(
+                    tuple(feature_row), dialect=self.dialect,
+                ))
+        return OrderedDict(
+            (anchor, tuple(features)) for anchor, features in result.items()
+        )
+
+    def _batched_dynamic_anchors(self, ids, *, level, direction):
+        if level is not None:
+            return ids if level > self._max_depth else ()
+        if self._closure_max_depth == 0:
+            return ids
+        placeholders = ",".join("?" for _ in ids)
+        if direction == "children":
+            sql = (
+                "SELECT DISTINCT c.ancestor FROM closure c "
+                "JOIN edges e ON e.parent = c.descendant "
+                f"WHERE c.ancestor IN ({placeholders}) AND c.depth = ?"
+            )
+        else:
+            sql = (
+                "SELECT DISTINCT c.descendant FROM closure c "
+                "JOIN edges e ON e.child = c.ancestor "
+                f"WHERE c.descendant IN ({placeholders}) AND c.depth = ?"
+            )
+        return tuple(row[0] for row in self.conn.execute(
+            sql, list(ids) + [self._max_depth],
+        ).fetchall())
+
+    def _relation_batched_feature_rows(
+        self, anchors, *, ordinal_by_id, level, featuretype, order_by,
+        reverse, direction, dynamic,
+    ):
+        values = ",".join("(?, ?)" for _ in anchors)
+        params = []
+        for anchor in anchors:
+            params.extend([ordinal_by_id[anchor], anchor])
+        feature_where, feature_params = self._featuretype_filter(
+            featuretype, qualifier="f",
+        )
+        where = []
+        params_after = []
+
+        if direction == "children":
+            cached_anchor, cached_related = "ancestor", "descendant"
+            edge_anchor, edge_related = "parent", "child"
+        else:
+            cached_anchor, cached_related = "descendant", "ancestor"
+            edge_anchor, edge_related = "child", "parent"
+
+        if dynamic:
+            max_walk = level if level is not None else max(64, self._max_depth * 4)
+            params_after.append(max_walk)
+            if level is not None:
+                where.append("w.depth = ?")
+                params_after.append(level)
+            relation_sql = f"""
+                WITH RECURSIVE
+                anchors(anchor_ordinal, anchor) AS (VALUES {values}),
+                walk(anchor_ordinal, anchor, id, depth) AS (
+                    SELECT a.anchor_ordinal, a.anchor, e.{edge_related}, 1
+                    FROM anchors a
+                    JOIN edges e ON e.{edge_anchor} = a.anchor
+                    UNION ALL
+                    SELECT w.anchor_ordinal, w.anchor, e.{edge_related},
+                           w.depth + 1
+                    FROM walk w
+                    JOIN edges e ON e.{edge_anchor} = w.id
+                    WHERE w.depth < ?
+                )
+                SELECT w.anchor_ordinal, w.depth,
+                       {self._select_feature_aliased('f')}
+                FROM walk w JOIN features f ON f.id = w.id
+            """
+            relation_alias = "w"
+        else:
+            if level is not None:
+                where.append("c.depth = ?")
+                params_after.append(level)
+            relation_sql = f"""
+                WITH anchors(anchor_ordinal, anchor) AS (VALUES {values})
+                SELECT a.anchor_ordinal, c.depth,
+                       {self._select_feature_aliased('f')}
+                FROM anchors a
+                JOIN closure c ON c.{cached_anchor} = a.anchor
+                JOIN features f ON f.id = c.{cached_related}
+            """
+            relation_alias = "a"
+
+        where.extend(feature_where)
+        params_after.extend(feature_params)
+        if where:
+            relation_sql += " WHERE " + " AND ".join(where)
+        relation_sql += (
+            f" ORDER BY {relation_alias}.anchor_ordinal, "
+            f"{self._order_clause_qualified(order_by, reverse, 'f')}"
+        )
+        return self.conn.execute(
+            relation_sql, params + params_after,
+        ).fetchall()
 
     def _materialize_batched(self, sql: str, params: list, *, format: str):
         """Execute `sql` and return the result in the requested shape.
@@ -1395,10 +1633,17 @@ class FeatureDB:
     # ------------------------------------------------------------------
 
     def _yield_features(self, sql: str, params: list) -> Iterator[Feature]:
-        cur = self.conn.execute(sql, params)
-        while True:
-            rows = cur.fetchmany(10_000)
-            if not rows:
-                return
-            for row in rows:
-                yield feature_from_row(row, dialect=self.dialect)
+        # A DuckDB connection is also its active result cursor.  Use an
+        # independent cursor so a caller can issue children/parents queries on
+        # ``self.conn`` between yielded roots without invalidating this scan.
+        cur = self.conn.cursor()
+        try:
+            cur.execute(sql, params)
+            while True:
+                rows = cur.fetchmany(_SCAN_BATCH_SIZE)
+                if not rows:
+                    return
+                for row in rows:
+                    yield feature_from_row(row, dialect=self.dialect)
+        finally:
+            cur.close()

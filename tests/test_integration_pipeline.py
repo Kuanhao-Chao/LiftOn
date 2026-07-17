@@ -263,7 +263,10 @@ def test_run_all_lifton_steps_golden_path(integration_workspace,
     assert manifest["inputs"]["target_genome"]["sha256"]
     assert manifest["inputs"]["reference_annotation"]["sha256"]
     assert manifest["counts"]["processed_features"] >= 1
-    assert manifest["validation"] == {}
+    assert manifest["counts"]["miniprot_candidates_processed"] == 1
+    assert manifest["counts"]["miniprot_genes_emitted"] == 0
+    assert manifest["counts"]["step8_max_inflight_observed"] == 1
+    assert manifest["validation"]["gff3_structural"]["passed"] is True
     assert manifest["run"]["cache"]["reference_annotation"] == "rebuilt"
 
 
@@ -335,6 +338,56 @@ def test_invalid_validation_preserves_previous_output(
     )
     assert manifest["run"]["status"] == "failed"
     assert manifest["validation"]["gff3"]["passed"] is False
+
+
+def test_mandatory_structural_validation_cannot_be_bypassed(
+        integration_workspace, hermetic_pipeline, monkeypatch):
+    from lifton import gff3_validator
+    from lifton import lifton as lifton_main
+    from lifton.exceptions import LiftOnValidationError
+
+    out_gff = integration_workspace["out"] / "lifton.gff3"
+    out_gff.write_text("known-good-output\n")
+    monkeypatch.setattr(
+        gff3_validator,
+        "validate_gff3_structure",
+        lambda *args, **kwargs: SimpleNamespace(
+            is_valid=False,
+            errors=[object()],
+            warnings=[],
+            stats={},
+            file_path=str(out_gff),
+            total_lines=1,
+            data_lines=1,
+            comment_lines=0,
+        ),
+    )
+    monkeypatch.setattr(
+        gff3_validator, "print_validation_report", lambda *args, **kwargs: None,
+    )
+    args = lifton_main.parse_args([
+        str(integration_workspace["tgt_fa"]),
+        str(integration_workspace["ref_fa"]),
+        "-g", str(integration_workspace["ref_gff"]),
+        "-L", str(integration_workspace["liftoff"]),
+        "-M", str(integration_workspace["miniprot"]),
+        "-o", str(out_gff),
+        "-ad", "RefSeq",
+        "--allow-partial-output",
+        "--force",
+    ])
+
+    with pytest.raises(LiftOnValidationError):
+        lifton_main.run_all_lifton_steps(args)
+
+    assert out_gff.read_text() == "known-good-output\n"
+    assert out_gff.with_name("lifton.partial.gff3").exists()
+    manifest = json.loads(
+        (integration_workspace["out"] / "lifton_output" /
+         "run_manifest.json").read_text()
+    )
+    assert manifest["run"]["status"] == "failed"
+    assert manifest["validation"]["gff3_structural"]["passed"] is False
 
 
 @pytest.mark.parametrize("allow_partial", [False, True])

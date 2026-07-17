@@ -43,7 +43,7 @@ from typing import Any, Iterator, Mapping, Sequence
 from . import __version__
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REDACTED = "<redacted>"
 DEFAULT_DEPENDENCIES = (
     "lifton",
