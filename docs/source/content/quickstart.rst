@@ -37,6 +37,21 @@ Run the following commands:
 
 After this step, you will obtain a directory, :code:`GRCh38_2_CHM13/`, which contains the output annotation file :code:`GRCh38_2_CHM13_lifton.gff3` in GFF3 format. Additionally, a directory :code:`lifton_output/` includes various outputs such as sequence identity scores, Liftoff and miniprot outputs, statistics files about unmapped features, extra copies, intermediate files, and more. Further explanations of the output file hierarchy are provided in the :ref:`output files section <output_files>`.
 
+On the first run, LiftOn builds :code:`target_all.mmi` under
+:code:`GRCh38_2_CHM13/lifton_output/intermediate_files/`; later alignment passes
+in the same run reuse it. LiftOn validates any existing :code:`chm13_chr22.fa.mmi`
+next to the target FASTA before using it. If that file is an unresolved Git LFS
+pointer, corrupt, or for a different target assembly, LiftOn preserves it,
+warns, creates a valid run-local index, and retries the alignment automatically.
+You do not need Git LFS or a precomputed index to run this example.
+
+LiftOn also writes :code:`lifton_output/run_manifest.json`, which fingerprints
+the inputs and records versions, cache choices, phase timings, counts, and
+validation results. The final GFF3 is replaced atomically only after a
+successful run. On failure, inspect the preserved :code:`*.partial.gff3` and
+manifest; pass :code:`--allow-partial-output` only if incomplete output is
+acceptable for your workflow.
+
 
 
 Interpreting outputs on the terminal

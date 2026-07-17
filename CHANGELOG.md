@@ -6,8 +6,48 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **Auditable run manifests and transactional output.** Every completed CLI
+  run writes `lifton_output/run_manifest.json` with sanitized arguments,
+  SHA-256 input fingerprints, software/tool versions, backend and cache
+  choices, phase timings, resource usage, counts, validation, and failures.
+  GFF3 output is staged and atomically published only after success; failed
+  data is preserved as `*.partial.gff3`. Partial publication requires the
+  explicit `--allow-partial-output` option.
+- **Content-addressed annotation caches.** gffutils and gffbase databases now
+  require a matching manifest covering source content, parser/inference
+  settings, backend/schema, and LiftOn version. Stale or corrupt caches rebuild
+  under a temporary name and publish atomically.
+
+### Performance
+
+- **Bounded locus scheduling and raw native miniprot output.** Parallel Step 7
+  now keeps at most `2 * --threads` submitted-but-not-emitted loci by default
+  (`--step7-max-inflight` overrides it) and lazily materializes full payloads.
+  Native streaming miniprot can return exact raw GFF3 bytes without decoding
+  and constructing a duplicate hit graph, while chunk capture avoids an
+  additional list-join-sized allocation.
+
 ### Fixed
 
+- **Deterministic, isolated locus state.** Parallel Step 7 buffers copy/tree,
+  score, and chain side effects per locus and commits them in submission order;
+  miniprot candidates do not consume copy IDs or suppression intervals before
+  acceptance. GFF3 hierarchies are buffered so malformed children cannot leave
+  half-written transcript blocks, and statistics count emitted models only.
+- **Output validation exit status and directive provenance.** A validation
+  failure now exits non-zero and cannot replace an existing output. Reference
+  assembly/species/coordinate directives are no longer copied onto target
+  coordinates.
+
+- **Header-only Liftoff output from an invalid minimap2 index (GH #57).**
+  LiftOn now validates cached `.mmi` files, detects unresolved Git LFS
+  pointers and corrupt or stale indexes, and rebuilds them in the run's
+  `lifton_output/intermediate_files/` directory. Minimap2 failures and
+  malformed SAM headers are reported at the alignment stage instead of later
+  appearing as an annotation-format error. Generated minimap2 indexes are no
+  longer stored in Git LFS.
 - **`--stream` miniprot ingest crash (GH #56).** DuckDB 1.5.3 and 1.5.4 can
   fail while appending gffbase's internal spatial `GEOMETRY` column once a
   large GFF3 crosses a row-group boundary. Those releases are excluded, and

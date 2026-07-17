@@ -21,6 +21,7 @@ After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_out
       └── lifton_output
          |
          ├── score.txt
+         ├── run_manifest.json
          |
          ├── liftoff
          │   ├── liftoff.gff3
@@ -35,6 +36,7 @@ After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_out
          │   ├── proteins.fa
          │   ├── reference_all_genes.fa
          │   ├── reference_all_to_target_all.sam
+         │   ├── target_all.mmi
          │   ├── ref_feature.txt
          │   ├── ref_transcript.txt
          │   └── transcripts.fa
@@ -52,6 +54,12 @@ After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_out
 lifton.gff3
 --------------
 This is the main output of LiftOn software. It is an annotation file of the target genome in GFF3 format. Following is an example of a gene locus. For more details about GFF3, check `GFF3 file format <https://useast.ensembl.org/info/website/upload/GFF3.html>`_. 
+
+LiftOn stages this file and publishes it atomically after processing succeeds.
+If a locus cannot be serialized or ``--validate-output`` finds an error, an
+existing output is left untouched and the staged data is preserved as
+``*.partial.gff3``. Use ``--allow-partial-output`` only when publishing a
+known-incomplete result is intentional.
 
 .. dropdown:: Example
    :animate: fade-in-slide-down
@@ -77,6 +85,15 @@ lifton_output/
 ---------------
 
 This directory contains all LiftOn outputs, including the following:
+
+run_manifest.json
++++++++++++++++++++++++++++++++++++
+
+This JSON file records the exact command and sanitized options, SHA-256 input
+fingerprints, LiftOn/Python/dependency/tool versions, Git revision, selected
+backends and cache decisions, phase timings, resource use, output validation,
+counts, and per-stage failures. Archive it with ``lifton.gff3`` to make a run
+auditable and reproducible.
 
 
 1. score.txt
@@ -138,7 +155,15 @@ The miniprot GFF3 file generated during the LiftOn process.
 4. intermediate_files/
 +++++++++++++++++++++++++++++++++++
 
-In this directory, it stores all intermdeiate files, including protein sequences (FASTA), gene seuqence to genome alignment (SAM), transcript sequences (FASTA), the type of the reference gene (coding or non-coding), and the type of the reference transcript (coding or non-coding).
+This directory stores intermediate protein and transcript sequences (FASTA),
+gene-to-genome alignments (SAM), reference feature classifications, and the
+run-local minimap2 target index (normally :code:`target_all.mmi`; chromosome
+splits use their target prefix). LiftOn first validates a cached
+:code:`<target FASTA>.mmi` next to the target FASTA. A missing index, unresolved
+Git LFS pointer, corrupt index, or index built for a different target is rebuilt
+here automatically so the input directory does not need to be writable. LiftOn
+preserves invalid adjacent files. Run-local indexes can be deleted after a run;
+they are generated data, not part of the final annotation.
 
          
 |
