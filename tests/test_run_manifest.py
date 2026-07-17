@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -130,6 +131,20 @@ def test_manifest_records_timing_counts_validation_choices_and_json(
     assert stored["run"]["cache"] == {"minimap2_index": "miss", "miniprot": "hit"}
     assert stored["inputs"]["annotation"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert stored["inputs"]["missing"]["exists"] is False
+    fingerprint_phase = stored["phases"]["fingerprint_inputs"]
+    assert fingerprint_phase["status"] == "success"
+    assert fingerprint_phase["details"] == {
+        "algorithm": "sha256",
+        "block_size_bytes": 1024 * 1024,
+        "execution": "background-thread",
+    }
+    assert fingerprint_phase["duration_seconds"] >= 0
+    assert fingerprint_phase["metrics"]["input_count"] == 2
+    assert fingerprint_phase["metrics"]["hashed_files"] == 1
+    assert fingerprint_phase["metrics"]["unavailable_inputs"] == 1
+    assert fingerprint_phase["metrics"]["bytes_hashed"] == source.stat().st_size
+    assert fingerprint_phase["metrics"]["changed_inputs"] == 0
+    assert fingerprint_phase["metrics"]["join_wait_seconds"] >= 0
     assert stored["phases"]["alignment"]["status"] == "success"
     assert stored["phases"]["alignment"]["duration_seconds"] >= 0
     assert stored["counts"] == {"genes": 3}
@@ -147,6 +162,225 @@ def test_manifest_records_timing_counts_validation_choices_and_json(
     snapshot = manifest.to_dict()
     snapshot["counts"]["genes"] = 999
     assert manifest.to_dict()["counts"]["genes"] == 3
+
+
+def test_manifest_hashes_in_background_and_joins_before_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "large.fa"
+    source.write_bytes(b">chr1\n" + b"ACGT" * 1024)
+    worker_started = threading.Event()
+    release_worker = threading.Event()
+    publisher_started = threading.Event()
+    original = run_manifest.fingerprint_inputs
+
+    def delayed_fingerprints(inputs):
+        worker_started.set()
+        if not release_worker.wait(timeout=5):
+            raise RuntimeError("test fingerprint worker timed out")
+        return original(inputs)
+
+    monkeypatch.setattr(run_manifest, "fingerprint_inputs", delayed_fingerprints)
+    manifest = run_manifest.RunManifest(
+        inputs={"target": source},
+        dependency_names=(),
+        tool_commands={},
+        collect_git=False,
+    )
+    assert worker_started.wait(timeout=1)
+    assert manifest.to_dict()["inputs"]["target"]["fingerprint_status"] == "pending"
+    assert manifest.to_dict()["phases"]["fingerprint_inputs"]["status"] == "running"
+
+    output = tmp_path / "run.json"
+    publisher_errors = []
+
+    def publish():
+        publisher_started.set()
+        try:
+            manifest.finish("success")
+            manifest.write(output)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            publisher_errors.append(exc)
+
+    publisher = threading.Thread(target=publish)
+    publisher.start()
+    assert publisher_started.wait(timeout=1)
+    assert publisher.is_alive()
+    assert not output.exists()
+
+    release_worker.set()
+    publisher.join(timeout=5)
+    assert not publisher.is_alive()
+    assert publisher_errors == []
+    stored = json.loads(output.read_text(encoding="utf-8"))
+    assert stored["inputs"]["target"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert stored["inputs"]["target"]["fingerprint_status"] == "complete"
+    assert stored["phases"]["fingerprint_inputs"]["status"] == "success"
+
+
+def test_manifest_records_worker_failure_without_pending_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "target.fa"
+    source.write_bytes(b">chr1\nACGT\n")
+
+    def failed_fingerprints(_inputs):
+        raise RuntimeError("worker boom")
+
+    monkeypatch.setattr(run_manifest, "fingerprint_inputs", failed_fingerprints)
+    manifest = run_manifest.RunManifest(
+        inputs={"target": source},
+        dependency_names=(),
+        tool_commands={},
+        collect_git=False,
+    )
+    manifest.finish("success")
+    snapshot = manifest.to_dict()
+    assert snapshot["run"]["status"] == "success"
+    assert snapshot["inputs"]["target"]["fingerprint_status"] == "unavailable"
+    assert snapshot["inputs"]["target"]["sha256"] is None
+    assert "worker boom" in snapshot["inputs"]["target"]["error"]
+    phase = snapshot["phases"]["fingerprint_inputs"]
+    assert phase["status"] == "failed"
+    assert phase["metrics"]["unavailable_inputs"] == 1
+    assert snapshot["failures"][0]["phase"] == "fingerprint_inputs"
+    assert snapshot["failures"][0]["message"] == "worker boom"
+
+
+def test_fingerprint_rejects_file_changed_while_hashing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "changing.fa"
+    source.write_bytes(b">chr1\nACGT\n")
+    real_sha256 = hashlib.sha256
+    mutated = False
+
+    class MutatingDigest:
+        def __init__(self):
+            self.digest = real_sha256()
+
+        def update(self, block):
+            nonlocal mutated
+            self.digest.update(block)
+            if not mutated:
+                mutated = True
+                with source.open("ab") as handle:
+                    handle.write(b"N")
+
+        def hexdigest(self):
+            return self.digest.hexdigest()
+
+    monkeypatch.setattr(run_manifest.hashlib, "sha256", MutatingDigest)
+    fingerprint = run_manifest.fingerprint_input(source, block_size=3)
+    assert fingerprint["changed_during_hash"] is True
+    assert fingerprint["fingerprint_status"] == "changed"
+    assert fingerprint["sha256"] is None
+    assert fingerprint["error"] == "input changed while computing SHA-256"
+    assert fingerprint["stat_after"]["size_bytes"] > fingerprint["size_bytes"]
+
+    source.write_bytes(b">chr1\nTGCA\n")
+    mutated = False
+    manifest = run_manifest.RunManifest(
+        inputs={"target": source},
+        dependency_names=(),
+        tool_commands={},
+        collect_git=False,
+    )
+    manifest.finish("success")
+    snapshot = manifest.to_dict()
+    assert snapshot["inputs"]["target"]["sha256"] is None
+    assert snapshot["phases"]["fingerprint_inputs"]["status"] == "failed"
+    assert snapshot["phases"]["fingerprint_inputs"]["metrics"]["changed_inputs"] == 1
+    assert snapshot["failures"][0]["phase"] == "fingerprint_inputs"
+
+
+def test_fingerprint_classifies_deleted_path_as_changed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "deleted-during-hash.fa"
+    source.write_bytes(b">chr1\nACGT\n")
+    real_sha256 = hashlib.sha256
+    deleted = False
+
+    class DeletingDigest:
+        def __init__(self):
+            self.digest = real_sha256()
+
+        def update(self, block):
+            nonlocal deleted
+            self.digest.update(block)
+            if not deleted:
+                deleted = True
+                source.unlink()
+
+        def hexdigest(self):
+            return self.digest.hexdigest()
+
+    monkeypatch.setattr(run_manifest.hashlib, "sha256", DeletingDigest)
+    fingerprint = run_manifest.fingerprint_input(source, block_size=3)
+    assert fingerprint["changed_during_hash"] is True
+    assert fingerprint["fingerprint_status"] == "changed"
+    assert fingerprint["sha256"] is None
+    assert fingerprint["error"].startswith(
+        "input path changed while computing SHA-256: FileNotFoundError:"
+    )
+
+
+def test_fingerprint_classifies_delete_between_stat_and_open_as_changed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "deleted-before-open.fa"
+    source.write_bytes(b">chr1\nACGT\n")
+    original_open = Path.open
+    deleted = False
+
+    def deleting_open(path, *args, **kwargs):
+        nonlocal deleted
+        if path == source and not deleted:
+            deleted = True
+            source.unlink()
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", deleting_open)
+    fingerprint = run_manifest.fingerprint_input(source)
+
+    assert fingerprint["exists"] is True
+    assert fingerprint["is_file"] is True
+    assert fingerprint["changed_during_hash"] is True
+    assert fingerprint["fingerprint_status"] == "changed"
+    assert fingerprint["sha256"] is None
+    assert fingerprint["error"].startswith(
+        "input path changed or became unreadable while computing SHA-256: "
+        "FileNotFoundError:"
+    )
+
+
+def test_fingerprint_keeps_stable_unreadable_file_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "unreadable.fa"
+    source.write_bytes(b">chr1\nACGT\n")
+    original_open = Path.open
+
+    def denied_open(path, *args, **kwargs):
+        if path == source:
+            raise PermissionError("permission denied")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", denied_open)
+    fingerprint = run_manifest.fingerprint_input(source)
+
+    assert fingerprint["exists"] is True
+    assert fingerprint["changed_during_hash"] is False
+    assert fingerprint["fingerprint_status"] == "unavailable"
+    assert fingerprint["sha256"] is None
+    assert fingerprint["error"] == "PermissionError: permission denied"
 
 
 def test_phase_context_records_failure_and_reraises() -> None:
