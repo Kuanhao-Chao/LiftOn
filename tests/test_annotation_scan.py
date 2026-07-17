@@ -38,6 +38,25 @@ def test_scan_rejects_empty_id_without_crashing(tmp_path):
     assert any(finding.rule == "empty_id" for finding in scan.ncbi_findings)
 
 
+def test_scan_reserves_decoded_cds_namespace_ids(tmp_path):
+    source = tmp_path / "cds-ids.gff3"
+    source.write_text(
+        "##gff-version 3\n"
+        "chr1\tRefSeq\texon\t1\t30\t.\t+\t.\t"
+        "ID=cds-A%3A1;Parent=tx1\n"
+        "chr1\tRefSeq\tCDS\t1\t30\t.\t+\t0\t"
+        "ID=protein-A;Parent=tx1\n"
+        "chr1\tRefSeq\texon\t31\t60\t.\t+\t.\t"
+        "ID=stable%3Aname_1;Parent=tx1\n",
+        encoding="utf-8",
+    )
+
+    scan = scan_annotation(str(source))
+
+    assert scan.cds_namespace_ids == ("cds-A:1",)
+    assert scan.copy_suffix_ids == ("stable:name_1",)
+
+
 def test_scan_is_stable_and_classifies_only_true_id_collisions(tmp_path):
     source = tmp_path / "annotation.gff3"
     source.write_text(

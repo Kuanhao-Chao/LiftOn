@@ -200,7 +200,16 @@ def _build_replacement_text(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans
     # .py:22) -- a bare {} raises KeyError('coding'). Mirror lifton.py:757's shape
     # (a throwaway copy since we only need the write side effect, not the counts).
     _throwaway_stats = {"coding": {}, "non-coding": {}, "other": {}}
-    written = lifton_gene.write_entry(buf, _throwaway_stats)
+    cds_id_allocator = getattr(args, "_cds_id_allocator", None)
+    written = (
+        lifton_gene.write_entry(buf, _throwaway_stats)
+        if cds_id_allocator is None
+        else lifton_gene.write_entry(
+            buf,
+            _throwaway_stats,
+            cds_id_allocator=cds_id_allocator,
+        )
+    )
     if written is False or getattr(
             lifton_gene, "_serialization_failures", []):
         return None, None

@@ -1,4 +1,5 @@
 from lifton import align, coreutils, get_id_fraction, variants, logger
+from lifton.cds_id_allocator import CdsIdAllocator
 from lifton.io import feature_serializer
 import copy, os, re
 from Bio.Seq import Seq
@@ -226,12 +227,17 @@ class Lifton_GENE:
     def add_lifton_trans_status_attrs(self, trans_id, lifton_status):
         self.transcripts[trans_id].add_lifton_trans_status_attrs(lifton_status)
 
-    def write_entry(self, fw, transcripts_stats_dict):
+    def write_entry(
+        self,
+        fw,
+        transcripts_stats_dict,
+        cds_id_allocator=None,
+    ):
         # Iter-24: normalize parent-child containment (extend exons to cover
         # their CDS; set each transcript + the gene span to the child envelope)
         # right before serialisation, so the emitted GFF3 is always valid.
         # No-op on well-formed genes -> byte-identical default.
-        self.normalize_containment()
+        self.normalize_containment(cds_id_allocator=cds_id_allocator)
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
         return feature_serializer.write_gene(self, fw, transcripts_stats_dict)
 
@@ -240,7 +246,7 @@ class Lifton_GENE:
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
 
-    def normalize_containment(self):
+    def normalize_containment(self, cds_id_allocator=None):
         """Normalize every child's containment, then widen the gene span to
         cover all children. No-op when disabled / well-formed. ``self.transcripts``
         can hold both coding ``Lifton_TRANS`` and gene-like ``LiftOn_FEATURE``
@@ -253,7 +259,10 @@ class Lifton_GENE:
         for trans in self.transcripts.values():
             fn = getattr(trans, "normalize_containment", None)
             if fn is not None:
-                fn()
+                if hasattr(trans, "exons"):
+                    fn(cds_id_allocator=cds_id_allocator)
+                else:
+                    fn()
         self.entry.start = min(t.entry.start for t in self.transcripts.values())
         self.entry.end = max(t.entry.end for t in self.transcripts.values())
 
@@ -294,7 +303,7 @@ class LiftOn_FEATURE:
         self.features[Lifton_feature.entry.id] = Lifton_feature
         return Lifton_feature
 
-    def normalize_containment(self):
+    def normalize_containment(self, cds_id_allocator=None):
         """Recursively normalize the generic-feature hierarchy (gene-like
         features: pseudogenes, ncRNA genes, structured mobile elements) so a
         feature always contains its children. Only ever EXTENDS this feature's
@@ -891,7 +900,7 @@ class Lifton_TRANS:
         self.entry.start = self.exons[0].entry.start
         self.entry.end = self.exons[-1].entry.end
 
-    def normalize_containment(self):
+    def normalize_containment(self, cds_id_allocator=None):
         """Guarantee GFF3 parent-child containment for this transcript.
 
         ORF-boundary patching / chaining can leave a CDS extending a few bp
@@ -938,17 +947,113 @@ class Lifton_TRANS:
                 new_id = f"{base}-{i}"
                 exon.entry.id = new_id
                 exon.entry.attributes["ID"] = [new_id]
-        # GH #32/#8: give every CDS an ID. LiftOn resets each CDS's attributes to
-        # {Parent} only (add_lifton_cds / add_novel_lifton_cds), so emitted CDS lines
-        # carried no ID=. Per the GFF3 convention (and gff3_validator's
-        # DISCONTINUOUS_FEATURE_TYPES = {"CDS"}), the multiple CDS segments of ONE
-        # transcript SHARE a single ID; assign cds-<trans> (strip a leading "rna-" for
-        # a clean, RefSeq-like id). Unique per transcript -> file-unique; same ID +
-        # same Parent + same type is the valid discontinuous-CDS form.
-        cds_id = "cds-" + re.sub(r"^rna-", "", (self.entry.id or ""))
-        for exon in self.exons:
-            if exon.cds is not None:
-                exon.cds.entry.attributes["ID"] = [cds_id]
+        # GH #32/#8: give every CDS an ID. Preserve an existing stable source ID
+        # (for example NCBI's cds-NP_*) and use it to fill missing segments.
+        # Chaining/miniprot can rebuild every segment without an ID; only then
+        # synthesize the shared discontinuous-feature ID from the transcript.
+        cds_features = [
+            exon.cds for exon in self.exons if exon.cds is not None
+        ]
+        if not cds_features:
+            return
+
+        def first_id(values):
+            if isinstance(values, str):
+                values = [values]
+            return next(
+                (str(value) for value in values if value not in (None, "")),
+                None,
+            )
+
+        reserved_ids = {
+            feature_id
+            for feature_id in (
+                first_id(exon.entry.attributes.get("ID", []))
+                for exon in self.exons
+            )
+            if feature_id
+        }
+        if self.entry.id:
+            reserved_ids.add(self.entry.id)
+
+        ref_trans_id = getattr(self, "ref_tran_id", None)
+        copy_suffix = ""
+        if (
+            ref_trans_id
+            and self.entry.id
+            and self.entry.id.startswith(f"{ref_trans_id}_")
+        ):
+            copy_suffix = self.entry.id[len(ref_trans_id):]
+            if not copy_suffix[1:].isdigit():
+                copy_suffix = ""
+
+        def preservable_cds_id(cds):
+            cds_id = getattr(cds, "_source_id_base", None)
+            if not cds_id or cds_id in reserved_ids:
+                return None
+            if copy_suffix:
+                cds_id += copy_suffix
+            return None if cds_id in reserved_ids else cds_id
+
+        normalized_ids = [
+            preservable_cds_id(cds) for cds in cds_features
+        ]
+        allocator = cds_id_allocator or CdsIdAllocator()
+        parent_id = str(self.entry.id or "")
+        source_ids = [
+            getattr(cds, "_source_id_base", None)
+            for cds in cds_features
+        ]
+        for cds_id in dict.fromkeys(
+            identifier for identifier in normalized_ids if identifier
+        ):
+            source_id = next(
+                source
+                for identifier, source in zip(normalized_ids, source_ids)
+                if identifier == cds_id
+            )
+            if allocator.reserve_explicit(
+                cds_id,
+                parent_id,
+                source_identifier=source_id,
+            ):
+                continue
+            normalized_ids = [
+                None if identifier == cds_id else identifier
+                for identifier in normalized_ids
+            ]
+        existing_ids = list(dict.fromkeys(
+            cds_id for cds_id in normalized_ids if cds_id
+        ))
+        synthetic_base = (
+            "cds-" + re.sub(r"^rna-", "", (self.entry.id or ""))
+        )
+        needs_synthetic = (
+            not existing_ids
+            or (len(existing_ids) > 1 and any(
+                identifier is None for identifier in normalized_ids
+            ))
+        )
+        synthetic_id = (
+            allocator.allocate_synthetic(
+                synthetic_base,
+                parent_id,
+                local_reserved_ids=reserved_ids | set(existing_ids),
+            )
+            if needs_synthetic else None
+        )
+
+        if len(existing_ids) <= 1:
+            shared_id = existing_ids[0] if existing_ids else synthetic_id
+            for cds in cds_features:
+                cds.entry.attributes["ID"] = [shared_id]
+            return
+
+        # Multiple pre-existing IDs can be valid segment-level identifiers.
+        # Do not collapse them; fill only gaps. Copies still need distinct IDs
+        # from the source transcript, so append the transcript's copy suffix.
+        for cds, cds_id in zip(cds_features, normalized_ids):
+            cds.entry.attributes["ID"] = [cds_id or synthetic_id]
 
     def print_transcript(self):
         print(f"\t{self.entry}")
@@ -980,6 +1085,8 @@ class Lifton_EXON:
         gffutil_entry_cds.start = start
         gffutil_entry_cds.end = end
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
+        Lifton_cds._source_id = None
+        Lifton_cds._source_id_base = None
         attributes = {}
         attributes['Parent'] = self.entry.attributes['Parent']
         Lifton_cds.entry.attributes = attributes
@@ -987,8 +1094,11 @@ class Lifton_EXON:
 
     def add_lifton_cds(self, Lifton_cds):
         if Lifton_cds is not None:
-            attributes = {}
-            attributes['Parent'] = self.entry.attributes['Parent']
+            # Source ID/copy provenance lives on ``Lifton_CDS`` until the
+            # enabled write-funnel normalizer validates and materializes it.
+            # Keeping emitted attributes at the historical {Parent} shape
+            # preserves the LIFTON_NO_CONTAINMENT_NORMALIZE byte escape hatch.
+            attributes = {'Parent': self.entry.attributes['Parent']}
             Lifton_cds.entry.attributes = attributes
         self.cds = Lifton_cds
 
@@ -1007,6 +1117,37 @@ class Lifton_CDS:
         gffutil_entry_cds.source = "LiftOn"
         gffutil_entry_cds.featuretype = "CDS"
         self.entry = gffutil_entry_cds
+        source_id = self.entry.attributes.get("ID", [])
+        if isinstance(source_id, str):
+            self._source_id = source_id or None
+        else:
+            self._source_id = next(
+                (
+                    str(identifier)
+                    for identifier in source_id
+                    if identifier not in (None, "")
+                ),
+                None,
+            )
+        source_copy_number = self.entry.attributes.get(
+            "extra_copy_number", []
+        )
+        if isinstance(source_copy_number, str):
+            source_copy_number = [source_copy_number]
+        self._source_copy_number = (
+            str(source_copy_number[0]) if source_copy_number else None
+        )
+        copy_suffix = (
+            f"_{self._source_copy_number}"
+            if self._source_copy_number not in (None, "", "0") else ""
+        )
+        self._source_id_base = self._source_id
+        if (
+            self._source_id_base
+            and copy_suffix
+            and self._source_id_base.endswith(copy_suffix)
+        ):
+            self._source_id_base = self._source_id_base[:-len(copy_suffix)]
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
 
     def update_CDS_info(self, start, end):

@@ -82,11 +82,19 @@ def _dna_lift_recall(universe, emitted):
     return len(universe & set(emitted)) / len(universe)
 
 
-def _stage_gene(lifton_gene):
+def _stage_gene(lifton_gene, cds_id_allocator=None):
     """Serialize to a private buffer and collect stats before committing state."""
     buffer = io.StringIO()
     staged_stats = {'coding': {}, 'non-coding': {}, 'other': {}}
-    written = lifton_gene.write_entry(buffer, staged_stats)
+    written = (
+        lifton_gene.write_entry(buffer, staged_stats)
+        if cds_id_allocator is None
+        else lifton_gene.write_entry(
+            buffer,
+            staged_stats,
+            cds_id_allocator=cds_id_allocator,
+        )
+    )
     failures = getattr(lifton_gene, "_serialization_failures", [])
     if written is False:
         return None, None, failures
@@ -256,7 +264,10 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             #      now fully inert, making fixed-floor output a strict subset
             #      of adaptive-floor output.
             block, staged_stats, serialization_failures = _stage_gene(
-                lifton_gene
+                lifton_gene,
+                cds_id_allocator=getattr(
+                    args, "_cds_id_allocator", None
+                ),
             )
             for feature_id, detail in serialization_failures:
                 _record_failure(

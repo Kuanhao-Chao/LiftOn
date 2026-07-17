@@ -380,7 +380,19 @@ def parallel_step8(transcripts: Iterable[Any], ref_db, m_feature_db, tree_dict,
             )
             _, _, transcript_ids = _rebase_gene_copy(gene, copy_num)
             block = io.StringIO()
-            if gene.write_entry(block, transcripts_stats_dict) is False:
+            cds_id_allocator = getattr(
+                args, "_cds_id_allocator", None
+            )
+            write_result = (
+                gene.write_entry(block, transcripts_stats_dict)
+                if cds_id_allocator is None
+                else gene.write_entry(
+                    block,
+                    transcripts_stats_dict,
+                    cds_id_allocator=cds_id_allocator,
+                )
+            )
+            if write_result is False:
                 outcome.failures.append({
                     "mRNA": transcript_id,
                     "kind": "serialization_error",

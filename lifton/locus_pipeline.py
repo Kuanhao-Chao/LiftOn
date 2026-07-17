@@ -1485,7 +1485,20 @@ def consume(result: LocusResult, fw, transcripts_stats_dict: dict, *,
                 "locus_id": result.locus_id,
             })
         return False
-    write_result = result.lifton_gene.write_entry(fw, transcripts_stats_dict)
+    cds_id_allocator = (
+        getattr(getattr(ctx, "args", None), "_cds_id_allocator", None)
+        if ctx is not None else None
+    )
+    if cds_id_allocator is None:
+        write_result = result.lifton_gene.write_entry(
+            fw, transcripts_stats_dict
+        )
+    else:
+        write_result = result.lifton_gene.write_entry(
+            fw,
+            transcripts_stats_dict,
+            cds_id_allocator=cds_id_allocator,
+        )
     serialization_failures = getattr(
         result.lifton_gene, "_serialization_failures", [],
     )
