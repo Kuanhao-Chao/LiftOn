@@ -83,15 +83,30 @@ class AnnotationScanResult:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _attribute_values(attributes: str) -> Dict[str, tuple[str, ...]]:
+    """Parse only hierarchy identity fields needed by the consolidated scan."""
+
     parsed: Dict[str, tuple[str, ...]] = {}
     for piece in attributes.split(";"):
         piece = piece.strip()
-        if not piece or "=" not in piece:
+        if not piece:
             continue
-        key, value = piece.split("=", 1)
-        parsed[key.strip()] = tuple(
-            item.strip() for item in value.split(",") if item.strip()
-        )
+        if piece.startswith("ID="):
+            key, value = "ID", piece[3:]
+        elif piece.startswith("Parent="):
+            key, value = "Parent", piece[7:]
+        else:
+            key, separator, value = piece.partition("=")
+            if not separator:
+                continue
+            key = key.strip()
+            if key != "ID" and key != "Parent":
+                continue
+        values = []
+        for item in value.split(","):
+            item = item.strip()
+            if item:
+                values.append(item)
+        parsed[key] = tuple(values)
     return parsed
 
 
@@ -148,6 +163,7 @@ def scan_annotation(
     ncbi_counts: Dict[str, int] = defaultdict(int)
     ncbi_validator = GFF3Validator(
         target_seqids=target_seqid_set,
+        track_references=False,
     )
     gtf_key = re.compile(r'(?:^|;)\s*(?:gene_id|transcript_id)\s+"')
 
@@ -165,7 +181,8 @@ def scan_annotation(
                 line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
 
                 # Drain per-line findings to keep malformed inputs bounded.
-                for finding in ncbi_validator.validate_line(lineno, line + "\n"):
+                ncbi_validator._validate_line(lineno, line)
+                for finding in ncbi_validator._findings:
                     keep_finding(finding)
                 ncbi_validator._findings.clear()
                 ncbi_validator._declared_ids.clear()
@@ -196,7 +213,8 @@ def scan_annotation(
                     dialect_counts["GTF"] += 1
 
                 attrs = _attribute_values(attributes)
-                feature_id = attrs.get("ID", ("",))[0]
+                feature_values = attrs.get("ID", ())
+                feature_id = feature_values[0] if feature_values else ""
                 if feature_id:
                     all_ids.add(feature_id)
                     state = id_state.get(feature_id)

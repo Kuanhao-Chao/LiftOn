@@ -10,10 +10,32 @@ import pytest
 from lifton import annotation
 from lifton.annotation_validator import (
     AnnotationScanResult,
+    _attribute_values,
     scan_annotation,
     validate_annotation_file,
 )
 from lifton.exceptions import LiftOnInputError
+
+
+def test_identity_attribute_parser_preserves_compatible_edge_cases():
+    assert _attribute_values(
+        "Dbxref=ID=decoy; ID = gene1 ;Parent=tx1, tx2;Note=Parent=fake"
+    ) == {"ID": ("gene1",), "Parent": ("tx1", "tx2")}
+    assert _attribute_values("ID=;Parent=") == {"ID": (), "Parent": ()}
+
+
+def test_scan_rejects_empty_id_without_crashing(tmp_path):
+    source = tmp_path / "empty-id.gff3"
+    source.write_text(
+        "##gff-version 3\n"
+        "chr1\tRefSeq\tgene\t1\t90\t.\t+\t.\tID=\n"
+    )
+
+    scan = scan_annotation(str(source))
+
+    assert scan.data_lines == 1
+    assert scan.duplicate_ids == ()
+    assert any(finding.rule == "empty_id" for finding in scan.ncbi_findings)
 
 
 def test_scan_is_stable_and_classifies_only_true_id_collisions(tmp_path):
