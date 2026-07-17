@@ -867,6 +867,14 @@ def validate_artifacts(cell: Mapping[str, Any], started_ns: int) -> tuple[list[s
 
 
 def performance_regressions(cell: Mapping[str, Any], baseline_path: Path) -> list[dict[str, Any]]:
+    """Return performance failures against the immutable canonical result.
+
+    Subset wall time is a paired measurement: the same cell runs the frozen
+    stable executable immediately before devel. Normalize devel's raw change by
+    that control's change so host and input drift cannot flip a near-threshold
+    result. Memory and cells without a paired control remain absolute checks.
+    """
+
     if cell["kind"] not in {"subset", "full_refresh"}:
         return []
     baseline = read_json(baseline_path)
@@ -874,9 +882,13 @@ def performance_regressions(cell: Mapping[str, Any], baseline_path: Path) -> lis
     result = read_json(Path(cell["artifacts"]["result_json"]))
     if cell["kind"] == "subset":
         current_record = result.get(cell["artifacts"]["result_key"], {})
-        current_wall = current_record.get("wall_s", {}).get("lifton_devel")
+        baseline_wall = base.get("wall_s", {})
+        current_wall_values = current_record.get("wall_s", {})
+        current_wall = current_wall_values.get("lifton_devel")
         current_rss = current_record.get("peak_rss_mb", {}).get("lifton_devel")
     else:
+        baseline_wall = {}
+        current_wall_values = {}
         profile = result.get("summary", {}).get("profile", {})
         current_wall = profile.get("wall_clock_seconds")
         current_rss = profile.get("peak_rss_mb")
@@ -888,12 +900,33 @@ def performance_regressions(cell: Mapping[str, Any], baseline_path: Path) -> lis
     for metric, (old, new) in values.items():
         if not (_number(old) and _number(new)) or old <= 0:
             continue
-        ratio = float(new) / float(old)
+        raw_ratio = float(new) / float(old)
+        ratio = raw_ratio
+        comparison = "absolute"
+        control = None
+        if metric == "wall_s" and cell["kind"] == "subset":
+            control_old = baseline_wall.get("lifton_stable")
+            control_new = current_wall_values.get("lifton_stable")
+            if (_number(control_old) and _number(control_new)
+                    and control_old > 0 and control_new > 0):
+                control_ratio = float(control_new) / float(control_old)
+                ratio = raw_ratio / control_ratio
+                comparison = "paired_stable_normalized"
+                control = {
+                    "tool": "lifton_stable",
+                    "baseline": control_old,
+                    "current": control_new,
+                    "ratio": control_ratio,
+                }
         if ratio > 1.25:
-            regressions.append({
+            record = {
                 "metric": metric, "baseline": old, "current": new,
-                "ratio": ratio, "threshold": 1.25,
-            })
+                "raw_ratio": raw_ratio, "ratio": ratio,
+                "comparison": comparison, "threshold": 1.25,
+            }
+            if control is not None:
+                record["control"] = control
+            regressions.append(record)
     return regressions
 
 
@@ -1049,6 +1082,7 @@ def _mark_failed(cell: Mapping[str, Any], errors: Sequence[str], *,
     _write_status(
         cell, "failed", attempts=attempt, failed_at=document["failed_at"],
         errors=list(errors), returncode=returncode, isolated_retry=False,
+        validation=document["validation"], performance=document["performance"],
     )
 
 

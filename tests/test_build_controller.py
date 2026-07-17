@@ -420,6 +420,26 @@ def test_performance_regression_gets_one_isolated_retry_then_hard_fails(
     assert "isolated rerun" in failed["errors"][0]
 
 
+def test_failed_status_replaces_retry_evidence_with_latest_attempt(tmp_path):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    controller.initialize_run(run_dir, plan)
+    controller._write_status(
+        cell, "retry_pending", attempts=1,
+        validation={"attempt": 1},
+        performance=[{"current": 126.0}],
+    )
+
+    controller._mark_failed(
+        cell, ["isolated retry failed"], returncode=0, attempt=2,
+        validation={"attempt": 2},
+        performance=[{"current": 130.0}],
+    )
+
+    status = json.loads((Path(cell["cell_dir"]) / "status.json").read_text())
+    assert status["validation"] == {"attempt": 2}
+    assert status["performance"] == [{"current": 130.0}]
+
+
 def test_performance_gate_compares_wall_and_rss_to_canonical_cell(tmp_path):
     baseline = tmp_path / "baseline.json"
     result = tmp_path / "result.json"
@@ -443,6 +463,42 @@ def test_performance_gate_compares_wall_and_rss_to_canonical_cell(tmp_path):
     regressions = controller.performance_regressions(cell, baseline)
     assert {item["metric"] for item in regressions} == {"wall_s", "peak_rss_mb"}
     assert all(item["ratio"] > 1.25 for item in regressions)
+
+
+def test_subset_wall_gate_normalizes_to_paired_stable_control(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    result = tmp_path / "result.json"
+    _write_json(baseline, {
+        "subset:demo": {
+            "wall_s": {"lifton_stable": 200.0, "lifton_devel": 100.0},
+            "peak_rss_mb": {"lifton_devel": 200.0},
+        }
+    })
+    current = {
+        "subset:demo": {
+            "wall_s": {"lifton_stable": 240.0, "lifton_devel": 126.0},
+            "peak_rss_mb": {"lifton_devel": 200.0},
+        }
+    }
+    _write_json(result, current)
+    cell = {
+        "kind": "subset",
+        "artifacts": {"result_key": "subset:demo", "result_json": str(result)},
+    }
+
+    assert controller.performance_regressions(cell, baseline) == []
+
+    current["subset:demo"]["wall_s"]["lifton_devel"] = 160.0
+    _write_json(result, current)
+    regressions = controller.performance_regressions(cell, baseline)
+
+    assert len(regressions) == 1
+    regression = regressions[0]
+    assert regression["metric"] == "wall_s"
+    assert regression["comparison"] == "paired_stable_normalized"
+    assert regression["raw_ratio"] == pytest.approx(1.6)
+    assert regression["control"]["ratio"] == pytest.approx(1.2)
+    assert regression["ratio"] == pytest.approx(1.6 / 1.2)
 
 
 def test_resume_rejects_changed_provenance(monkeypatch):

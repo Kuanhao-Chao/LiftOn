@@ -40,11 +40,13 @@ seconds and resource checks repeat every 30 seconds; every value has a
 corresponding ``start`` option.
 
 A cell receives ``.success`` only after its command, result schema, LiftOn run
-manifest, streaming structural check, and full GFF3 validator succeed. A wall
-time or peak-RSS regression above 25% receives one isolated rerun. ``retry``
-only resets failed cells, while ``reconcile --deep`` audits published markers
-and artifacts. The controller writes review-only reconciled results and
-**never modifies the canonical benchmark baseline**; reseeding remains the
+manifest, streaming structural check, and full GFF3 validator succeed. Subset
+wall time is normalized by the paired stable executable when both measurements
+are available; peak RSS and unpaired cells use absolute comparisons. A
+regression above 25% receives one isolated rerun. ``retry`` only resets failed
+cells, while ``reconcile --deep`` audits published markers and artifacts. The
+controller writes review-only reconciled results and **never modifies the
+canonical benchmark baseline**; reseeding remains the
 separate, reviewed ``make benchmark-gate-update`` action.
 
 For convenience, ``make benchmark-build-plan`` and ``make benchmark-build``
