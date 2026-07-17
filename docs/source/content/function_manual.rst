@@ -28,8 +28,10 @@ LiftOn
                   [-max_miniprot MAX_MINIPROT] [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH]
                   [-f TYPES] [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT]
                   [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO] [-gap_extend GE]
-                  [-polish] [-cds] [-time] [--validate-output] [--validate-verbose] [--strict-gff]
-                  [--stream] [--inmemory-liftoff] [--locus-pipeline] [--native] [--serial-aligners]
+                  [-polish] [-cds] [-time] [--validate-output] [--validate-verbose]
+                  [--allow-partial-output] [--strict-gff] [--stream] [--inmemory-liftoff]
+                  [--locus-pipeline] [--step7-max-inflight N] [--step8-max-inflight N]
+                  [--evaluation-max-inflight N] [--native] [--serial-aligners]
                   [--parallel-aligners] [--optimize] [--legacy-merge] [--full-dp-align] [--fast-align]
                   [--gene-only] [--lift-gene-like] [--no-miniprot-rescue] [--miniprot-rescue]
                   [--merge-strategy STRATEGY] [--id-spec ID_SPEC] [--force] [--verbose]
@@ -76,6 +78,10 @@ LiftOn
       -u FILE               write unmapped features to FILE; default is "unmapped_features.txt"
       -exclude_partial      write partial mappings below -s and -a threshold to unmapped_features.txt; if true partial/low sequence identity mappings will be included
                               in the gff file with partial_mapping=True, low_identity=True in comments
+      --allow-partial-output
+                              publish structurally valid output despite recorded
+                              per-locus failures; otherwise preserve it as
+                              *.partial.gff3 and exit non-zero
 
       * Miscellaneous settings:
       -h, --help            show this help message and exit
@@ -109,16 +115,29 @@ LiftOn
                               The source of the reference annotation (RefSeq / GENCODE / others)
       --no-auto-convert-gtf disable automatic GTF -> GFF3 conversion
 
-      * Validation (exit-code only; does not change output bytes):
+      * Validation (does not change output bytes):
+      (always on)           stream-validate GFF3 structure before atomic
+                            publication; failures preserve *.partial.gff3 and
+                            exit non-zero
       --strict-gff          run the NCBI GFF3 input-side validator on the reference annotation; exit non-zero on any spec violation
-      --validate-output     re-validate the generated output GFF3 after writing; print a structured report to stderr
+      --validate-output     add full hierarchy, containment, phase, and LiftOn-attribute validation before publication
       --validate-verbose    with --validate-output, also print warnings (not just errors)
 
       * Performance fast-paths (BYTE-IDENTICAL to the default output):
-      --stream              pipe miniprot output into an in-memory database; skip the miniprot.gff3 disk round-trip / SQLite re-ingest
+      --stream              incrementally ingest miniprot stdout into a staged
+                            DuckDB database; skip miniprot.gff3 and duplicate
+                            graph materialization
       --inmemory-liftoff    feed Liftoff's lifted features to the database in-process; skip the liftoff.gff3 disk write / re-ingest
-      --locus-pipeline      fan out per-locus work through a thread pool sized by --threads; emitted in submission order (byte-identical to -t 1)
-      --native              route miniprot through the in-process native facade + unlock in-process threading; falls back gracefully if mappy is absent
+      --locus-pipeline      fan out Steps 7, 8, and evaluation through bounded
+                            workers sized by --threads; publish in submission
+                            order (byte-identical to -t 1)
+      --step7-max-inflight N
+                              bound submitted-but-not-emitted Step-7 loci; default 2 * --threads
+      --step8-max-inflight N
+                              bound analyzed-but-not-published Step-8 candidates; default 2 * --threads
+      --evaluation-max-inflight N
+                              bound submitted-but-not-written evaluation loci; default 2 * --threads
+      --native              enable experimental native compatibility hooks; combine with LIFTON_NATIVE_LIFTOFF_ALIGN=1 to opt into mappy, while miniprot and bounded locus workers retain their proven paths
       --serial-aligners     opt OUT of the (default) concurrent Liftoff||miniprot overlap; run them sequentially
 
       * Output-changing flags (opt-outs that RESTORE pre-v1.0.9 behaviour):
@@ -192,20 +211,31 @@ scheduling), and which flag restores the older behaviour.
    * - Flag
      - Effect (BYTE-IDENTICAL to the default output)
    * - ``--stream``
-     - Pipe miniprot output into an in-memory database; skip the ``miniprot.gff3`` disk round-trip and SQLite re-ingest.
+     - Incrementally ingest miniprot stdout into a staged, checkpointed DuckDB
+       database; skip ``miniprot.gff3`` and duplicate graph materialization.
    * - ``--inmemory-liftoff``
      - Feed Liftoff's lifted features to the database in-process; skip the ``liftoff.gff3`` disk write and re-ingest.
    * - ``--threads N --locus-pipeline``
-     - Fan out per-locus work across a thread pool; emitted in submission order so ``--threads N`` == ``--threads 1`` byte-for-byte.
+     - Fan out Steps 7, 8, and evaluation; ordered publication keeps
+       ``--threads N`` == ``--threads 1`` byte-for-byte. Each stage defaults to
+       at most ``2 * N`` in-flight items; tune it with
+       ``--step7-max-inflight``, ``--step8-max-inflight``, or
+       ``--evaluation-max-inflight`` to trade utilization for memory.
    * - ``--native``
-     - Route miniprot through the in-process native facade and unlock in-process threading; falls back gracefully if ``mappy`` is absent.
+     - Enable experimental native compatibility hooks. With
+       ``LIFTON_NATIVE_LIFTOFF_ALIGN=1``, opt into mappy for Liftoff; miniprot
+       keeps its guarded subprocess/direct-stream path and bounded locus
+       workers do not require this flag.
    * - ``--serial-aligners``
      - Opt out of the (default) concurrent Liftoff/miniprot overlap; useful on core-constrained machines. ``--parallel-aligners`` is a deprecated no-op alias.
 
-**Validation flags (change the exit code / emit a report; do NOT change output bytes):**
-``--strict-gff`` (validate the reference annotation on input), ``--validate-output``
-and ``--validate-verbose`` (re-validate the written output GFF3). A standalone
-``gff3-validate`` console script is also installed alongside ``lifton``.
+**Validation (changes the exit code, never output bytes):** Every staged output
+must pass structural validation before atomic publication. This gate rejects
+malformed records and hierarchy references even without a flag, and
+``--allow-partial-output`` cannot bypass it. ``--strict-gff`` validates the
+reference input; ``--validate-output`` adds the full output validator, with
+``--validate-verbose`` showing warnings. The standalone ``gff3-validate``
+console script is installed alongside ``lifton``.
 
 |
 |

@@ -29,8 +29,9 @@ After running LiftOn, you will obtain a LiftOn GFF3 file and a :code:`lifton_out
          │   └── unmapped_features.txt
          |
          ├── miniprot
-         │   ├── miniprot.gff3
-         │   └── miniprot.gff3_db
+         │   ├── miniprot.gff3       # default path
+         │   ├── miniprot.gff3_db    # default path
+         │   └── miniprot.duckdb     # --stream path
          |
          ├── intermediate_files
          │   ├── proteins.fa
@@ -55,11 +56,13 @@ lifton.gff3
 --------------
 This is the main output of LiftOn software. It is an annotation file of the target genome in GFF3 format. Following is an example of a gene locus. For more details about GFF3, check `GFF3 file format <https://useast.ensembl.org/info/website/upload/GFF3.html>`_. 
 
-LiftOn stages this file and publishes it atomically after processing succeeds.
-If a locus cannot be serialized or ``--validate-output`` finds an error, an
-existing output is left untouched and the staged data is preserved as
-``*.partial.gff3``. Use ``--allow-partial-output`` only when publishing a
-known-incomplete result is intentional.
+LiftOn stages this file in the destination directory and publishes it with an
+atomic replacement only after processing succeeds. Every run applies a
+streaming structural GFF3 gate before publication; ``--validate-output`` adds
+deeper hierarchy, containment, CDS-phase, and LiftOn-attribute checks. Invalid
+output never replaces an existing file and is preserved as
+``*.partial.gff3``. ``--allow-partial-output`` permits known per-locus failures,
+but never bypasses either validation gate.
 
 .. dropdown:: Example
    :animate: fade-in-slide-down

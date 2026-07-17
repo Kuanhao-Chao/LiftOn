@@ -77,8 +77,9 @@ list.
 - ``--threads N --locus-pipeline`` — fan out per-locus work across a thread pool;
   output is emitted in submission order so ``--threads N`` is byte-identical to
   ``--threads 1`` (now works on the default backend without ``--native``).
-- ``--native`` — route miniprot through the in-process native facade and unlock
-  in-process threading; falls back gracefully if ``mappy`` is not installed.
+- ``--native`` — enable experimental native compatibility hooks. The mappy
+  Liftoff route also requires ``LIFTON_NATIVE_LIFTOFF_ALIGN=1``; miniprot and
+  bounded locus workers keep their proven paths.
 - **Concurrent aligner step is now the default** (miniprot and Liftoff overlap);
   pass ``--serial-aligners`` to opt out (``--parallel-aligners`` is a kept no-op
   alias).
@@ -101,8 +102,8 @@ list.
 **Packaging:**
 
 - Python floor raised to ``>=3.10`` (the ``networkx>=3.3`` dependency requires Python ≥3.10; 3.9 is EOL).
-- ``mappy`` is an optional dependency enabling the in-process ``--native`` path;
-  the runtime falls back gracefully when it is absent.
+- ``mappy`` is an optional dependency for the explicitly enabled native
+  Liftoff route; the runtime falls back gracefully when it is absent.
 - Added ``MANIFEST.in``, ``pyproject.toml`` (PEP 517/518 build config), and PyPI
   trove classifiers / project URLs.
 - The vendored ``gffbase`` ships its pure-Python fallback parser (no pre-built
@@ -156,4 +157,3 @@ v1.0.0
    :alt: My Logo
    :class: logo, header-image only-dark
    :align: center
-

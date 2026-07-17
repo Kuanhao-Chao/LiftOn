@@ -15,19 +15,36 @@ All notable changes to **LiftOn** are documented here. This project follows
   GFF3 output is staged and atomically published only after success; failed
   data is preserved as `*.partial.gff3`. Partial publication requires the
   explicit `--allow-partial-output` option.
+- **Always-on structural output validation.** Before publication, LiftOn now
+  streams over every staged GFF3 and rejects malformed columns, coordinates,
+  strands, CDS phases, IDs, or parent relationships. This mandatory gate is
+  recorded as `gff3_structural` in the run manifest and cannot be bypassed by
+  `--allow-partial-output`; `--validate-output` retains the deeper optional
+  project-specific checks.
 - **Content-addressed annotation caches.** gffutils and gffbase databases now
   require a matching manifest covering source content, parser/inference
   settings, backend/schema, and LiftOn version. Stale or corrupt caches rebuild
   under a temporary name and publish atomically.
+- **Guarded benchmark build controller.** Maintainers can run resumable gate,
+  subset, full, and end-to-end stages in isolated tmux cells with frozen
+  provenance, resource admission checks, artifact validation, and explicit
+  retry/reconciliation commands. Controller runs never update the canonical
+  benchmark baseline.
 
 ### Performance
 
-- **Bounded locus scheduling and raw native miniprot output.** Parallel Step 7
+- **Bounded locus scheduling and direct miniprot ingest.** Parallel Step 7
   now keeps at most `2 * --threads` submitted-but-not-emitted loci by default
   (`--step7-max-inflight` overrides it) and lazily materializes full payloads.
-  Native streaming miniprot can return exact raw GFF3 bytes without decoding
-  and constructing a duplicate hit graph, while chunk capture avoids an
-  additional list-join-sized allocation.
+  Parallel Step 8 and evaluation use the same ordered bound, configurable with
+  `--step8-max-inflight` and `--evaluation-max-inflight`. `--stream` now parses
+  miniprot stdout incrementally into a staged, checkpointed DuckDB database,
+  avoiding both `miniprot.gff3` and a second in-memory hit graph.
+
+### Development
+
+- `make test-fault` runs deterministic injected-failure coverage;
+  `make test-fault-stress` opts into the longer repeated stress cases.
 
 ### Fixed
 
@@ -217,8 +234,9 @@ default output** (pinned by the 24-cell byte-identity matrix test):
   thread pool; output is emitted in submission order so `--threads N` is
   byte-identical to `--threads 1`. Now works on the default backend without
   `--native`.
-- `--native` — route miniprot through the in-process native facade and unlock
-  in-process threading; falls back gracefully if `mappy` is not installed.
+- `--native` — enable experimental native compatibility hooks. The mappy
+  Liftoff route additionally requires `LIFTON_NATIVE_LIFTOFF_ALIGN=1`; the
+  guarded miniprot and bounded-locus paths do not require this flag.
 - **Concurrent aligner step is now the default** — miniprot (subprocess) and
   Liftoff (DNA) now overlap, collapsing that step's wall-clock to the larger of
   the two. Pass `--serial-aligners` to opt out. (`--parallel-aligners` is a kept
@@ -249,8 +267,8 @@ default output** (pinned by the 24-cell byte-identity matrix test):
 
 - **Python floor raised to `>=3.10`** (the `networkx>=3.3` dependency requires
   Python ≥3.10, and 3.9 reached EOL in 2025-10).
-- **`mappy` is an optional dependency** that enables the in-process `--native`
-  path; the runtime falls back gracefully when it is absent.
+- **`mappy` is an optional dependency** for the explicitly enabled native
+  Liftoff route; the runtime falls back gracefully when it is absent.
 - Added a `MANIFEST.in`, a `pyproject.toml` (PEP 517/518 build configuration),
   and PyPI trove classifiers / project URLs.
 - The vendored `gffbase` ships its pure-Python fallback parser (no pre-built
