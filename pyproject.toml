@@ -9,3 +9,9 @@
 [build-system]
 requires = ["setuptools>=61,<81", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+markers = [
+    "fault: focused injected-failure and signal-safety tests",
+    "fault_stress: longer repeated fault-injection tests (run explicitly)",
+]

@@ -39,6 +39,9 @@ class TestGffutilsCacheManifest:
         }
         assert manifest["settings"]["merge_strategy"] == "create_unique"
         assert manifest["settings"]["id_spec"] is None
+        assert manifest["manifest_format_version"] == 2
+        assert manifest["settings"]["parser_contract_version"] == 2
+        assert Path(db_path + ".lock").exists()
         _close(ann.db_connection)
 
     def test_matching_manifest_reuses_database(self, gff_standard, monkeypatch):
@@ -51,6 +54,30 @@ class TestGffutilsCacheManifest:
         monkeypatch.setattr(annotation.gffutils, "create_db", unexpected_build)
         second = annotation.Annotation(str(gff_standard), False, False, force=False)
         assert second.db_connection["gene1"].id == "gene1"
+        _close(second.db_connection)
+
+    def test_cache_is_rechecked_after_waiting_for_lock(
+            self, gff_standard, monkeypatch):
+        first = annotation.Annotation(str(gff_standard), False, False, force=True)
+        _close(first.db_connection)
+        real_matches = annotation_cache.cache_matches
+        calls = 0
+
+        def miss_then_match(db_path, expected):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return False
+            return real_matches(db_path, expected)
+
+        def unexpected_build(*args, **kwargs):
+            raise AssertionError("cache published by a peer must be reused")
+
+        monkeypatch.setattr(annotation_cache, "cache_matches", miss_then_match)
+        monkeypatch.setattr(annotation.gffutils, "create_db", unexpected_build)
+        second = annotation.Annotation(str(gff_standard), False, False, force=False)
+        assert calls >= 2
+        assert second.cache_status == "hit"
         _close(second.db_connection)
 
     def test_same_size_source_change_invalidates_by_sha256(self, gff_standard, monkeypatch):

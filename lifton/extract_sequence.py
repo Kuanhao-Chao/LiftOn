@@ -335,4 +335,8 @@ def get_padding_length(sequence_length):
 
 def get_protein_sequence(parent_feature, fasta, features, warned=None):
     dna = get_dna_sequence(parent_feature, fasta, features, warned=warned)
-    return str(Seq(dna).translate())
+    # Biopython has historically truncated an incomplete terminal codon while
+    # warning that this behavior may change. Make that established LiftOn
+    # result explicit and warning-free.
+    complete_length = len(dna) - (len(dna) % 3)
+    return str(Seq(dna[:complete_length]).translate())

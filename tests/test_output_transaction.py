@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import signal
 from pathlib import Path
 
 import pytest
@@ -65,6 +66,16 @@ def test_abort_preserves_predictable_partial_artifact(tmp_path):
     assert destination.read_text() == "previous good output\n"
     assert not transaction.working_path.exists()
     assert transaction.state is OutputTransactionState.ABORTED
+
+
+def test_non_gff_text_output_uses_matching_partial_suffix(tmp_path):
+    transaction = OutputTransaction(tmp_path / "eval.txt")
+    transaction.open().write("incomplete score\n")
+
+    partial = transaction.abort()
+
+    assert partial == tmp_path / "eval.partial.txt"
+    assert partial.read_text() == "incomplete score\n"
 
 
 def test_stdout_receives_nothing_before_commit(tmp_path):
@@ -155,3 +166,94 @@ def test_missing_staging_directory_is_reported(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="staging directory"):
         OutputTransaction(missing / "out.gff3")
+
+
+@pytest.mark.fault
+def test_close_failure_enters_failed_state_and_abort_preserves_bytes(
+        tmp_path, monkeypatch):
+    transaction = OutputTransaction(tmp_path / "result.gff3")
+    transaction.open().write("recoverable bytes\n")
+    real_fsync = __import__("os").fsync
+    calls = 0
+
+    def first_fsync_fails(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("injected fsync failure")
+        return real_fsync(descriptor)
+
+    monkeypatch.setattr("lifton.output_transaction.os.fsync", first_fsync_fails)
+    with pytest.raises(OSError, match="injected fsync failure"):
+        transaction.close()
+    assert transaction.state is OutputTransactionState.FAILED
+    assert transaction.abort().read_text() == "recoverable bytes\n"
+
+
+@pytest.mark.fault
+def test_signal_handler_preserves_partial_and_restores_handlers(
+        tmp_path, monkeypatch):
+    transaction = OutputTransaction(tmp_path / "result.gff3")
+    transaction.open().write("interrupted\n")
+    installed = []
+
+    monkeypatch.setattr(signal, "getsignal", lambda signum: signal.SIG_IGN)
+    monkeypatch.setattr(
+        signal,
+        "signal",
+        lambda signum, handler: installed.append((signum, handler)),
+    )
+
+    assert transaction.install_signal_handlers()
+    transaction._handle_signal(signal.SIGTERM, None)
+
+    assert transaction.state is OutputTransactionState.ABORTED
+    assert transaction.partial_path.read_text() == "interrupted\n"
+    assert any(signum == signal.SIGTERM for signum, _handler in installed)
+
+
+@pytest.mark.fault
+def test_abort_replace_failure_restores_handlers_and_keeps_working_file(
+        tmp_path, monkeypatch):
+    transaction = OutputTransaction(tmp_path / "result.gff3")
+    transaction.open().write("recoverable\n")
+    monkeypatch.setattr(signal, "getsignal", lambda signum: signal.SIG_IGN)
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+    transaction.install_signal_handlers()
+
+    def failed_replace(source, destination):
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr("lifton.output_transaction.os.replace", failed_replace)
+    with pytest.raises(OSError, match="injected replace failure"):
+        transaction.abort()
+
+    assert transaction.state is OutputTransactionState.CLOSED
+    assert transaction.working_path.exists()
+    assert transaction._signal_handlers == {}
+
+
+@pytest.mark.fault
+def test_abort_fsync_failure_restores_handlers_after_preserving_partial(
+        tmp_path, monkeypatch):
+    transaction = OutputTransaction(tmp_path / "result.gff3")
+    transaction.open().write("recoverable\n")
+    transaction.close()
+    monkeypatch.setattr(signal, "getsignal", lambda signum: signal.SIG_IGN)
+    monkeypatch.setattr(signal, "signal", lambda *args: None)
+    transaction.install_signal_handlers()
+
+    def failed_directory_fsync(path):
+        raise OSError("injected directory fsync failure")
+
+    monkeypatch.setattr(
+        "lifton.output_transaction._fsync_directory",
+        failed_directory_fsync,
+    )
+
+    with pytest.raises(OSError, match="injected directory fsync failure"):
+        transaction.abort()
+
+    assert transaction.state is OutputTransactionState.ABORTED
+    assert transaction.partial_path.read_text() == "recoverable\n"
+    assert transaction._signal_handlers == {}

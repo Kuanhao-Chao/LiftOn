@@ -668,7 +668,11 @@ class Lifton_TRANS:
     def translate_coding_seq(self, coding_seq):
         protein_seq = None
         if coding_seq != "":
-            protein_seq = str(Seq(coding_seq).translate())
+            # Biopython has historically truncated a terminal partial codon
+            # while warning that it may become an error. Preserve that result
+            # explicitly so frameshift evaluation remains warning-free.
+            complete_length = len(coding_seq) - (len(coding_seq) % 3)
+            protein_seq = str(Seq(coding_seq[:complete_length]).translate())
         return protein_seq
 
     def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):

@@ -8,6 +8,7 @@ in-memory FeatureDB so attribute handling is identical to production.
 from __future__ import annotations
 
 import copy
+import warnings
 from types import SimpleNamespace
 
 import pytest
@@ -817,8 +818,11 @@ class TestExtremeFrameshiftORFRescue:
         trans = self._stub_trans()
         # translate accepts a non-multiple-of-3 sequence (Bio.Seq
         # truncates the trailing partial codon); call must not raise.
-        protein = trans.translate_coding_seq(broken)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            protein = trans.translate_coding_seq(broken)
         assert protein is not None
+        assert not caught
 
     def test_orf_search_handles_zero_atg_sequence(self):
         """Methods §68: 'searching for start codons (ATG)'. When no
