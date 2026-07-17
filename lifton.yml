@@ -28,15 +28,20 @@ dependencies:
       - argcomplete==3.5.0
       - argh==0.31.3
       - biopython==1.84
+      - build>=1.0
       - cigar==0.1.3
+      - coverage>=6.0
+      - duckdb>=1.0,!=1.5.3,!=1.5.4
+      - flake8
       - gffutils==0.13
+      - hypothesis>=6.0
       - importlib-metadata==8.5.0
       - iniconfig==2.0.0
       - interlap==0.2.7
       - intervaltree==3.1.0
-      - lifton==1.0.6
       # Phase 16 Tier 5: mappy unlocks the in-process minimap2 path
-      # under `--native` in lifton/liftoff/native_align.py.
+      # under `--native` in lifton/liftoff/native_align.py. It is also a
+      # declared LiftOn runtime dependency, so keep it in the dev environment.
       - mappy
       - networkx==3.3
       - numpy==2.1.1
@@ -44,10 +49,10 @@ dependencies:
       - parasail==1.3.4
       - pluggy==1.5.0
       - pyfaidx==0.8.1.2
+      - pyarrow>=14
       - pysam==0.22.1
       - pytest==8.3.3
       - simplejson==3.19.3
       - sortedcontainers==2.4.0
       - ujson==5.10.0
       - zipp==3.20.2
-prefix: /home/kh.chao/miniconda3/envs/lifton

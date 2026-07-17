@@ -30,9 +30,9 @@ System requirements
    * ujson>=3.2.0
    * duckdb>=1.0,!=1.5.3,!=1.5.4
    * pyarrow>=14
-   * mappy   (*optional* — only needed for the explicitly enabled native Liftoff path)
+   * mappy   (installed by pip; used only by the explicitly enabled native Liftoff path)
 
-These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe has been submitted and is under review). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. Two exceptions: **mappy** is optional (only the ``--native`` plus ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` path needs it), and the two external binaries **miniprot** and **minimap2**, which are not on PyPI and must be installed manually and be on your ``PATH`` (LiftOn preflight-checks both at startup and exits with a clear message if either is missing). Please see the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ and the `minimap2 installation guide <https://github.com/lh3/minimap2#install>`_ on GitHub. (miniprot drives the protein-to-genome alignment; minimap2 drives the Liftoff DNA lift-over.)
+These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe has been submitted and is under review). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. LiftOn declares **mappy** as a runtime dependency so supported pip installs are ready for the ``--native`` plus ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` path; ordinary runs do not activate that path. The two external binaries **miniprot** and **minimap2** are not on PyPI and must be installed manually and be on your ``PATH`` (LiftOn preflight-checks both at startup and exits with a clear message if either is missing). Please see the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ and the `minimap2 installation guide <https://github.com/lh3/minimap2#install>`_ on GitHub. (miniprot drives the protein-to-genome alignment; minimap2 drives the Liftoff DNA lift-over.)
 
 .. admonition:: Version warning
    :class: important
@@ -66,13 +66,14 @@ These dependencies are resolved automatically when you ``pip install lifton`` (a
       $ conda install -y -c bioconda -c conda-forge \
             parasail-python pysam pyfaidx gffutils intervaltree \
             biopython networkx ujson cigar duckdb pyarrow
-      $ pip install mappy     # optional — native Liftoff path only
+      $ pip install mappy     # preinstall the declared native-path dependency
       $ pip install lifton
 
-   ``mappy`` is **optional**: it is used only when ``--native`` and
-   ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` explicitly select the experimental
-   Liftoff alignment path. Otherwise LiftOn keeps the proven subprocess path;
-   if mappy is unavailable, that opt-in also falls back gracefully.
+   ``mappy`` is declared in LiftOn's package metadata, but it is used only when
+   ``--native`` and ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` explicitly select the
+   experimental Liftoff alignment path. Otherwise LiftOn keeps the proven
+   subprocess path. If a manually managed environment lacks mappy, the opt-in
+   path falls back gracefully.
 
    The vendored ``gffbase`` backend runs **pure-Python by default** (no
    pre-built ``.so`` ships in the package), so no Rust toolchain is required to
