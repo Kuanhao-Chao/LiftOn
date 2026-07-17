@@ -1,0 +1,3245 @@
+"""Aggregate immutable paired runs into a concise LiftOn release report.
+
+Raw controller artifacts remain below ``benchmarks/compare/_runs``.  This
+module emits only the small, reviewable publication set: ``REPORT.md``,
+``metrics.json``, and ``manifest.json``.
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import math
+import os
+import re
+import shutil
+import statistics
+import tempfile
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any, Iterable, Mapping, Sequence
+
+from .release_evaluation import (
+    DEFAULT_BOOTSTRAP_REPLICATES,
+    DEFAULT_BOOTSTRAP_SEED,
+    SCHEMA_VERSION,
+    _percentile,
+    bootstrap_geomean_ratio,
+    gff3_fingerprints,
+    sha256_file,
+    validate_e2e_biology,
+)
+
+
+QUALITY_METRICS = (
+    "completeness_coding",
+    "completeness_feature_total",
+    "covpi",
+    "recall_at_0.5",
+    "recall_at_0.75",
+    "recall_at_0.9",
+    "recall_at_0.95",
+    "intron_chain_exact_recall",
+    "orf_valid_recall",
+)
+QUALITY_AGGREGATE_FLOOR = -0.001
+QUALITY_CELL_FLOOR = -0.010
+COMMON_PI_CELL_FLOOR = -0.005
+ABSOLUTE_BASELINE_TOLERANCES = {
+    "completeness_coding": 0.010,
+    "completeness_feature_total": 0.010,
+    "covpi": 0.010,
+    "mean_pi": 0.010,
+}
+E2E_FEATURE_COMPLETENESS_FLOOR = 0.50
+E2E_MEAN_PI_FLOOR = 0.50
+PANEL_RATIO_LIMIT = 1.10
+CELL_RATIO_LIMIT = 1.25
+MEMORY_ENVELOPE_GIB = 192.0
+APPROVED_RESOURCE_POLICY = {
+    "threads_per_cell": 8,
+    "max_active": 4,
+    "max_full": 2,
+    "max_worker_threads": 32,
+    "load1_limit": 32.0,
+    "min_available_gib": 256.0,
+    "stagger_seconds": 15.0,
+    "poll_seconds": 30.0,
+}
+TOOLING_FILE_KEYS = (
+    "tooling_build_controller",
+    "tooling_release_evaluation",
+    "tooling_release_report",
+    "tooling_run_benchmarks",
+    "tooling_gff3_validator",
+)
+PANEL_CONCURRENCY = {
+    # Mirrors the approved shared-host controller policy: subset cells may use
+    # all four active slots; genome-scale full/E2E cells are capped at two.
+    "subset": 4,
+    "full": 2,
+    "e2e": 2,
+}
+RELEASE_PANELS = tuple(PANEL_CONCURRENCY)
+CANONICAL_PANEL_COUNTS = {
+    "subset": 34,
+    "full": 17,
+    "e2e": 5,
+}
+CAMPAIGN_SCHEMA_VERSION = 1
+DEFAULT_RELEASE_REPETITIONS = 4
+_SHA1_RE = re.compile(r"[0-9a-f]{40}")
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def _live_artifact_record(path: Path) -> dict[str, Any]:
+    """Return a stable cryptographic record, rejecting a concurrent rewrite."""
+
+    resolved = Path(path).resolve()
+    before = resolved.stat()
+    digest = sha256_file(resolved)
+    after = resolved.stat()
+    if (
+        before.st_size != after.st_size
+        or before.st_mtime_ns != after.st_mtime_ns
+    ):
+        raise ValueError(f"artifact changed while it was hashed: {resolved}")
+    return {
+        "path": str(resolved),
+        "size": after.st_size,
+        "mtime_ns": after.st_mtime_ns,
+        "sha256": digest,
+    }
+
+
+def _verify_artifact_record(
+    record: Any,
+    *,
+    source: Path,
+    label: str,
+    expected_path: Path | None = None,
+) -> dict[str, Any]:
+    """Verify one controller record against the live artifact byte-for-byte."""
+
+    if not isinstance(record, Mapping):
+        raise ValueError(f"{source}: {label} evidence is malformed")
+    raw_path = record.get("path")
+    size = record.get("size")
+    mtime_ns = record.get("mtime_ns")
+    digest = record.get("sha256")
+    if (
+        not isinstance(raw_path, str)
+        or not Path(raw_path).is_absolute()
+        or not _integer(size)
+        or size <= 0
+        or not _integer(mtime_ns)
+        or mtime_ns <= 0
+        or not isinstance(digest, str)
+        or _SHA256_RE.fullmatch(digest) is None
+    ):
+        raise ValueError(f"{source}: {label} evidence is malformed")
+    path = Path(raw_path).resolve()
+    if expected_path is not None and path != Path(expected_path).resolve():
+        raise ValueError(
+            f"{source}: {label} evidence path does not match the controller plan"
+        )
+    try:
+        observed = _live_artifact_record(path)
+    except OSError as exc:
+        raise ValueError(
+            f"{source}: {label} evidence is unavailable: {exc}"
+        ) from exc
+    if dict(record) != observed:
+        raise ValueError(
+            f"{source}: {label} changed after success "
+            "(controller cryptographic evidence)"
+        )
+    return observed
+
+
+def _truthy(value: Any) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "t"}
+
+
+def _binary_flag(value: Any, *, path: Path, line: int, field: str) -> bool:
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "t"}:
+        return True
+    if normalized in {"0", "false", "no", "f"}:
+        return False
+    raise ValueError(
+        f"{path}:{line}: {field} must be a binary flag, got {value!r}"
+    )
+
+
+def _optional_unit_value(
+    value: Any,
+    *,
+    path: Path,
+    line: int,
+    field: str,
+) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{path}:{line}: {field} must be numeric when non-empty"
+        ) from exc
+    if not math.isfinite(parsed) or not 0.0 <= parsed <= 1.0:
+        raise ValueError(
+            f"{path}:{line}: {field} must be finite and within [0, 1]"
+        )
+    return parsed
+
+
+def _number(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
+def _integer(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _normalized_git_sha(value: Any, *, label: str) -> str:
+    if (
+        not isinstance(value, str)
+        or _SHA1_RE.fullmatch(value.lower()) is None
+    ):
+        raise ValueError(
+            f"{label} SHA must be an exact 40-character Git SHA"
+        )
+    return value.lower()
+
+
+def _positive_profile_value(
+    pair: Mapping[str, Any],
+    label: str,
+    key: str,
+    *,
+    source: Path,
+) -> float:
+    value = (pair.get("versions", {}).get(label, {}).get("profile", {})).get(key)
+    if not _number(value) or float(value) <= 0:
+        raise ValueError(
+            f"{source}: {label} profile {key!r} must be positive and finite"
+        )
+    return float(value)
+
+
+def _e2e_biology_errors(version: Any) -> list[str]:
+    """Reuse the producer's complete E2E biology contract."""
+
+    if not isinstance(version, Mapping):
+        return ["end-to-end version evidence is missing or not an object"]
+    try:
+        validate_e2e_biology(version)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        return [str(exc)]
+    return []
+
+
+def _load_transcript_metrics(path: Path, n_reference_coding: Any) -> dict[str, Any]:
+    if not _integer(n_reference_coding) or n_reference_coding <= 0:
+        raise ValueError(
+            f"{path}: n_reference_coding must be a positive integer"
+        )
+    denominator = n_reference_coding
+    recovered_pi: list[float] = []
+    recovered_coding = 0
+    coding_ids: set[str] = set()
+    intron_exact = 0
+    orf_valid = 0
+    intron_scored = 0
+    orf_scored = 0
+    exon_sn: list[float] = []
+    exon_sp: list[float] = []
+    with path.open(encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        required = {
+            "ref_mrna_id",
+            "recovered",
+            "is_coding",
+            "protein_identity",
+            "dna_identity",
+            "intron_chain_exact",
+            "orf_valid",
+            "exon_sn",
+            "exon_sp",
+        }
+        missing_columns = required - set(reader.fieldnames or ())
+        if missing_columns:
+            raise ValueError(
+                f"{path}: transcript TSV lacks columns "
+                f"{sorted(missing_columns)}"
+            )
+        for line_number, row in enumerate(reader, 2):
+            protein_identity = _optional_unit_value(
+                row.get("protein_identity"),
+                path=path,
+                line=line_number,
+                field="protein_identity",
+            )
+            _optional_unit_value(
+                row.get("dna_identity"),
+                path=path,
+                line=line_number,
+                field="dna_identity",
+            )
+            is_coding = _binary_flag(
+                row.get("is_coding"),
+                path=path,
+                line=line_number,
+                field="is_coding",
+            )
+            recovered = _binary_flag(
+                row.get("recovered"),
+                path=path,
+                line=line_number,
+                field="recovered",
+            )
+            if not is_coding:
+                continue
+            reference_id = str(row.get("ref_mrna_id") or "").strip()
+            if not reference_id:
+                raise ValueError(
+                    f"{path}:{line_number}: coding row lacks ref_mrna_id"
+                )
+            if reference_id in coding_ids:
+                raise ValueError(
+                    f"{path}:{line_number}: duplicate coding reference row "
+                    f"{reference_id!r}"
+                )
+            coding_ids.add(reference_id)
+            if not recovered:
+                continue
+            recovered_coding += 1
+            if protein_identity is not None:
+                recovered_pi.append(protein_identity)
+            if row.get("intron_chain_exact") not in (None, ""):
+                intron_scored += 1
+                intron_exact += int(_binary_flag(
+                    row["intron_chain_exact"],
+                    path=path,
+                    line=line_number,
+                    field="intron_chain_exact",
+                ))
+            if row.get("orf_valid") not in (None, ""):
+                orf_scored += 1
+                orf_valid += int(_binary_flag(
+                    row["orf_valid"],
+                    path=path,
+                    line=line_number,
+                    field="orf_valid",
+                ))
+            for key, values in (("exon_sn", exon_sn), ("exon_sp", exon_sp)):
+                parsed = _optional_unit_value(
+                    row.get(key),
+                    path=path,
+                    line=line_number,
+                    field=key,
+                )
+                if parsed is not None:
+                    values.append(parsed)
+    if len(coding_ids) != denominator:
+        raise ValueError(
+            f"{path}: found {len(coding_ids)} unique coding reference rows, "
+            f"expected {denominator}"
+        )
+    structural_counts = {
+        "intron_chain_exact": intron_scored,
+        "orf_valid": orf_scored,
+        "exon_sn": len(exon_sn),
+        "exon_sp": len(exon_sp),
+    }
+    incomplete = {
+        field: count
+        for field, count in structural_counts.items()
+        if count != recovered_coding
+    }
+    if incomplete:
+        raise ValueError(
+            f"{path}: recovered coding rows have incomplete structural "
+            f"quality values: expected {recovered_coding}, observed={incomplete}"
+        )
+    result: dict[str, Any] = {
+        "n_reference_coding": denominator,
+        "n_recovered_coding": recovered_coding,
+        "n_recovered_coding_with_pi": len(recovered_pi),
+        "sum_protein_identity": sum(recovered_pi),
+        "mean_protein_identity_scored": (
+            statistics.fmean(recovered_pi) if recovered_pi else None
+        ),
+        "median_protein_identity_scored": (
+            statistics.median(recovered_pi) if recovered_pi else None
+        ),
+        "covpi": sum(recovered_pi) / denominator if denominator else None,
+        "intron_chain_exact_successes": intron_exact,
+        "intron_chain_exact_n_scored": intron_scored,
+        "intron_chain_exact_recall": intron_exact / denominator if denominator else None,
+        "orf_valid_successes": orf_valid,
+        "orf_valid_n_scored": orf_scored,
+        "orf_valid_recall": orf_valid / denominator if denominator else None,
+        "exon_sn_mean": statistics.fmean(exon_sn) if exon_sn else None,
+        "exon_sp_mean": statistics.fmean(exon_sp) if exon_sp else None,
+    }
+    for threshold in (0.5, 0.75, 0.9, 0.95):
+        successes = sum(value >= threshold for value in recovered_pi)
+        result[f"recall_at_{threshold:g}_successes"] = successes
+        result[f"recall_at_{threshold:g}"] = (
+            successes / denominator if denominator else None
+        )
+    return result
+
+
+def _required_unit_metric(
+    value: Any,
+    *,
+    path: Path,
+    label: str,
+    field: str,
+) -> float:
+    if not _number(value) or not 0.0 <= float(value) <= 1.0:
+        raise ValueError(
+            f"{path}: {label} summary {field!r} must be finite and within [0, 1]"
+        )
+    return float(value)
+
+
+def _validate_feature_completeness(
+    feature_types: Any,
+    *,
+    path: Path,
+    label: str,
+) -> tuple[dict[str, Any], float]:
+    if not isinstance(feature_types, Mapping) or not feature_types:
+        raise ValueError(
+            f"{path}: {label} completeness_by_type is missing or empty"
+        )
+    normalized = {}
+    for feature_type, raw in feature_types.items():
+        if (
+            not isinstance(feature_type, str)
+            or not feature_type
+            or not isinstance(raw, Mapping)
+        ):
+            raise ValueError(
+                f"{path}: {label} completeness_by_type is malformed"
+            )
+        n_reference = raw.get("n_reference")
+        n_recovered = raw.get("n_recovered")
+        n_extra = raw.get("n_extra_copies")
+        n_tool = raw.get("n_tool_features")
+        if (
+            not _integer(n_reference)
+            or n_reference <= 0
+            or not _integer(n_recovered)
+            or not 0 <= n_recovered <= n_reference
+            or not _integer(n_extra)
+            or n_extra < 0
+            or not _integer(n_tool)
+            or n_tool < 0
+        ):
+            raise ValueError(
+                f"{path}: {label} completeness_by_type[{feature_type!r}] "
+                "has invalid counts"
+            )
+        fraction = _required_unit_metric(
+            raw.get("pct_recovered"),
+            path=path,
+            label=label,
+            field=f"completeness_by_type.{feature_type}.pct_recovered",
+        )
+        if not math.isclose(
+            fraction,
+            n_recovered / n_reference,
+            rel_tol=0.0,
+            abs_tol=5.1e-6,
+        ):
+            raise ValueError(
+                f"{path}: {label} completeness_by_type[{feature_type!r}] "
+                "fraction disagrees with its counts"
+            )
+        normalized[feature_type] = dict(raw)
+    overall = normalized.get("_overall_")
+    if not isinstance(overall, Mapping):
+        raise ValueError(
+            f"{path}: {label} completeness_by_type lacks _overall_"
+        )
+    return normalized, float(overall["pct_recovered"])
+
+
+def _version_quality(
+    pair_path: Path,
+    pair: Mapping[str, Any],
+    label: str,
+) -> dict[str, Any]:
+    version = pair["versions"][label]
+    summary = version.get("summary")
+    if not isinstance(summary, Mapping):
+        raise ValueError(f"{pair_path}: {label} evaluator summary is malformed")
+    transcript_path = pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
+    transcript = _load_transcript_metrics(
+        transcript_path,
+        summary.get("n_reference_coding"),
+    )
+    completeness = _required_unit_metric(
+        summary.get("completeness_coding"),
+        path=pair_path,
+        label=label,
+        field="completeness_coding",
+    )
+    expected_completeness = (
+        transcript["n_recovered_coding"]
+        / transcript["n_reference_coding"]
+    )
+    if not math.isclose(
+        completeness,
+        expected_completeness,
+        rel_tol=0.0,
+        abs_tol=5.1e-6,
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} completeness_coding disagrees with "
+            "the evaluator TSV"
+        )
+    feature_total = _required_unit_metric(
+        summary.get("completeness_feature_total"),
+        path=pair_path,
+        label=label,
+        field="completeness_feature_total",
+    )
+    feature_types, expected_feature_total = _validate_feature_completeness(
+        summary.get("completeness_by_type"),
+        path=pair_path,
+        label=label,
+    )
+    if not math.isclose(
+        feature_total,
+        expected_feature_total,
+        rel_tol=0.0,
+        abs_tol=5.1e-6,
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} completeness_feature_total disagrees "
+            "with completeness_by_type._overall_"
+        )
+    if summary.get("n_recovered_coding") != transcript["n_recovered_coding"]:
+        raise ValueError(
+            f"{pair_path}: {label} n_recovered_coding disagrees with "
+            "the evaluator TSV"
+        )
+    identity = summary.get("protein_identity")
+    if not isinstance(identity, Mapping):
+        raise ValueError(
+            f"{pair_path}: {label} protein_identity summary is malformed"
+        )
+    if identity.get("n") != transcript["n_recovered_coding_with_pi"]:
+        raise ValueError(
+            f"{pair_path}: {label} protein_identity.n disagrees with "
+            "the evaluator TSV"
+        )
+    for field, observed_key in (
+        ("mean", "mean_protein_identity_scored"),
+        ("median", "median_protein_identity_scored"),
+    ):
+        observed = transcript[observed_key]
+        reported = identity.get(field)
+        if observed is None:
+            if reported is not None:
+                raise ValueError(
+                    f"{pair_path}: {label} protein_identity.{field} must be null "
+                    "when no coding identity was scored"
+                )
+        else:
+            parsed = _required_unit_metric(
+                reported,
+                path=pair_path,
+                label=label,
+                field=f"protein_identity.{field}",
+            )
+            if not math.isclose(
+                parsed,
+                observed,
+                rel_tol=0.0,
+                abs_tol=5.1e-6,
+            ):
+                raise ValueError(
+                    f"{pair_path}: {label} protein_identity.{field} disagrees "
+                    "with the evaluator TSV"
+                )
+    return {
+        "completeness_coding": completeness,
+        "completeness_feature_total": feature_total,
+        "mean_pi": identity.get("mean"),
+        "median_pi": identity.get("median"),
+        "feature_types": feature_types,
+        **transcript,
+    }
+
+
+def _warning_inventory(pair: Mapping[str, Any], label: str) -> Counter[str]:
+    return Counter(
+        str(issue.get("check", "unknown"))
+        for issue in pair["versions"][label]["validation"].get("issues", [])
+        if str(issue.get("severity", "")).upper().endswith("WARNING")
+    )
+
+
+def _verify_transcript_artifact(
+    pair_path: Path,
+    pair: Mapping[str, Any],
+    label: str,
+    controller_record: Any,
+) -> Path:
+    """Verify the live neutral-evaluator TSV against both evidence layers."""
+
+    expected = (
+        pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
+    ).resolve()
+    version = (pair.get("versions") or {}).get(label)
+    artifact_group = (
+        version.get("evaluation_artifacts")
+        if isinstance(version, Mapping) else None
+    )
+    pair_record = (
+        artifact_group.get("transcripts_tsv")
+        if isinstance(artifact_group, Mapping) else None
+    )
+    if not isinstance(pair_record, Mapping):
+        raise ValueError(
+            f"{pair_path}: {label} pair result lacks evaluator TSV evidence"
+        )
+    summary = version.get("summary")
+    summary_path = (
+        summary.get("transcripts_tsv")
+        if isinstance(summary, Mapping) else None
+    )
+    for source, value in (
+        ("pair result", pair_record.get("path")),
+        ("evaluator summary", summary_path),
+    ):
+        if (
+            not isinstance(value, str)
+            or not Path(value).is_absolute()
+            or Path(value).resolve() != expected
+        ):
+            raise ValueError(
+                f"{pair_path}: {label} {source} evaluator TSV path does not "
+                "match the canonical cell path"
+            )
+    pair_size = pair_record.get("size")
+    pair_sha = pair_record.get("sha256")
+    if (
+        not _integer(pair_size)
+        or pair_size <= 0
+        or not isinstance(pair_sha, str)
+        or _SHA256_RE.fullmatch(pair_sha) is None
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} pair-result evaluator TSV evidence is malformed"
+        )
+    if not isinstance(controller_record, Mapping):
+        raise ValueError(
+            f"{pair_path}: {label} controller success lacks evaluator TSV evidence"
+        )
+    controller_path = controller_record.get("path")
+    if (
+        not isinstance(controller_path, str)
+        or not Path(controller_path).is_absolute()
+        or Path(controller_path).resolve() != expected
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} controller evaluator TSV path does not "
+            "match the canonical cell path"
+        )
+    if (
+        controller_record.get("size") != pair_size
+        or controller_record.get("sha256") != pair_sha
+        or not _integer(controller_record.get("mtime_ns"))
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} controller and pair-result evaluator TSV "
+            "evidence disagree"
+        )
+    try:
+        stat = expected.stat()
+        observed_sha = sha256_file(expected)
+    except OSError as exc:
+        raise ValueError(
+            f"{pair_path}: {label} evaluator TSV is unavailable: {exc}"
+        ) from exc
+    if (
+        not expected.is_file()
+        or stat.st_size != pair_size
+        or stat.st_mtime_ns != controller_record["mtime_ns"]
+        or observed_sha != pair_sha
+    ):
+        raise ValueError(
+            f"{pair_path}: live {label} evaluator TSV no longer matches "
+            "cryptographic controller evidence"
+        )
+    return expected
+
+
+def _paired_common_pi(pair_path: Path) -> dict[str, Any] | None:
+    paths = {
+        label: pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
+        for label in ("candidate", "reference")
+    }
+    recovered = {}
+    for label, path in paths.items():
+        values = {}
+        with path.open(encoding="utf-8") as handle:
+            for row in csv.DictReader(handle, delimiter="\t"):
+                if not _truthy(row.get("is_coding")) or not _truthy(row.get("recovered")):
+                    continue
+                try:
+                    value = float(row["protein_identity"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                key = str(row["ref_mrna_id"])
+                values[key] = max(values.get(key, -math.inf), value)
+        recovered[label] = values
+    keys = sorted(set(recovered["candidate"]) & set(recovered["reference"]))
+    if not keys:
+        return None
+    deltas = [
+        recovered["candidate"][key] - recovered["reference"][key]
+        for key in keys
+    ]
+    return {
+        "n_common": len(keys),
+        "mean_delta": statistics.fmean(deltas),
+        "n_improved": sum(value > 1e-9 for value in deltas),
+        "n_regressed": sum(value < -1e-9 for value in deltas),
+        "n_tied": sum(abs(value) <= 1e-9 for value in deltas),
+    }
+
+
+def _controller_pair_paths(
+    root: Path,
+    *,
+    verify_content: bool = False,
+) -> list[Path] | None:
+    """Select only current successful cell artifacts from a controller run."""
+
+    plan_path = root / "plan.json"
+    if not plan_path.is_file():
+        return None
+    try:
+        plan = json.loads(plan_path.read_text())
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(f"{plan_path}: controller plan is unreadable: {exc}") from exc
+    from . import build_controller
+
+    if plan.get("schema_version") != build_controller.CONTROLLER_SCHEMA_VERSION:
+        raise ValueError(f"{plan_path}: unsupported controller plan schema")
+    if verify_content:
+        try:
+            build_controller.validate_plan_integrity(plan)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{plan_path}: controller plan integrity validation failed: {exc}"
+            ) from exc
+    cells = [
+        cell for cell in plan.get("cells", [])
+        if isinstance(cell, Mapping) and cell.get("kind") == "paired_release"
+    ]
+    if not cells:
+        raise ValueError(f"{plan_path}: controller plan has no paired release cells")
+    selected = []
+    for cell in cells:
+        cell_dir = Path(str(cell.get("cell_dir", ""))).resolve()
+        expected_root = (root / "cells").resolve()
+        if not cell_dir.is_relative_to(expected_root):
+            raise ValueError(
+                f"{plan_path}: paired cell escapes the controller run: {cell_dir}"
+            )
+        status_path = cell_dir / "status.json"
+        success_path = cell_dir / ".success"
+        try:
+            status = json.loads(status_path.read_text())
+            success = json.loads(success_path.read_text())
+        except (OSError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{cell_dir}: successful controller evidence is unreadable: {exc}"
+            ) from exc
+        if (
+            status.get("schema_version")
+            != build_controller.CONTROLLER_SCHEMA_VERSION
+            or success.get("schema_version")
+            != build_controller.CONTROLLER_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                f"{cell_dir}: unsupported controller success/status schema"
+            )
+        if status.get("state") != "success":
+            raise ValueError(
+                f"{cell_dir}: controller cell state is {status.get('state')!r}, "
+                "not 'success'"
+            )
+        fingerprint = cell.get("fingerprint")
+        if (
+            not isinstance(fingerprint, str)
+            or status.get("fingerprint") != fingerprint
+            or success.get("fingerprint") != fingerprint
+        ):
+            raise ValueError(
+                f"{cell_dir}: controller success fingerprint does not match the plan"
+            )
+        recorded_artifacts = (
+            success.get("validation", {}).get("artifacts", {})
+            if isinstance(success.get("validation"), Mapping)
+            else {}
+        )
+        if not isinstance(recorded_artifacts, Mapping) or not recorded_artifacts:
+            raise ValueError(
+                f"{cell_dir}: controller success lacks validated artifacts"
+            )
+        for name, metadata in recorded_artifacts.items():
+            verified = _verify_artifact_record(
+                metadata,
+                source=success_path,
+                label=f"validated artifact {name!r}",
+            )
+            if not Path(verified["path"]).is_relative_to(cell_dir):
+                raise ValueError(
+                    f"{cell_dir}: validated artifact {name!r} escapes its cell"
+                )
+        result_path = Path(
+            str((cell.get("artifacts") or {}).get("result_json", ""))
+        ).resolve()
+        if not result_path.is_relative_to(cell_dir):
+            raise ValueError(
+                f"{cell_dir}: paired result escapes its controller cell"
+            )
+        if not result_path.is_file():
+            raise ValueError(f"{cell_dir}: paired result is missing: {result_path}")
+        if verify_content:
+            required_names = (
+                "result_json",
+                "candidate_gff",
+                "reference_gff",
+                "candidate_manifest",
+                "reference_manifest",
+                "candidate_gff_validation",
+                "reference_gff_validation",
+            )
+            configured = cell.get("artifacts")
+            if not isinstance(configured, Mapping):
+                raise ValueError(f"{cell_dir}: controller artifacts are malformed")
+            expected_artifacts = {
+                name: Path(str(configured.get(name, ""))).resolve()
+                for name in required_names[:5]
+            }
+            expected_artifacts.update({
+                "candidate_gff_validation": (
+                    cell_dir / "candidate_gff_validation.json"
+                ).resolve(),
+                "reference_gff_validation": (
+                    cell_dir / "reference_gff_validation.json"
+                ).resolve(),
+            })
+            for name in required_names:
+                metadata = recorded_artifacts.get(name)
+                if not isinstance(metadata, Mapping):
+                    raise ValueError(
+                        f"{cell_dir}: controller success lacks {name!r} evidence"
+                    )
+                _verify_artifact_record(
+                    metadata,
+                    source=success_path,
+                    label=f"controller success {name!r}",
+                    expected_path=expected_artifacts[name],
+                )
+
+            try:
+                pair = json.loads(result_path.read_text())
+            except (OSError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"{result_path}: paired result is unreadable: {exc}"
+                ) from exc
+            if pair.get("schema_version") != SCHEMA_VERSION:
+                raise ValueError(f"{result_path}: unsupported paired schema")
+            expected_identity = {
+                "panel": cell.get("panel"),
+                "benchmark": cell.get("benchmark"),
+                "repetition": cell.get("repetition"),
+                "order": cell.get("expected_order"),
+                "threads": cell.get("threads"),
+            }
+            if any(
+                pair.get(name) != expected
+                for name, expected in expected_identity.items()
+            ):
+                raise ValueError(
+                    f"{result_path}: pair identity/protocol does not match "
+                    "the controller cell"
+                )
+            pair_inputs = pair.get("inputs")
+            controller_inputs = cell.get("input_fingerprints")
+            if (
+                not isinstance(pair_inputs, Mapping)
+                or not isinstance(controller_inputs, Mapping)
+                or set(pair_inputs) != set(controller_inputs)
+                or any(
+                    not isinstance(pair_inputs.get(name), Mapping)
+                    or not isinstance(controller_inputs.get(name), Mapping)
+                    or Path(str(pair_inputs[name].get("path", ""))).resolve()
+                    != Path(str(controller_inputs[name].get("path", ""))).resolve()
+                    or pair_inputs[name].get("size")
+                    != controller_inputs[name].get("size")
+                    or pair_inputs[name].get("sha256")
+                    != controller_inputs[name].get("sha256")
+                    for name in pair_inputs
+                )
+            ):
+                raise ValueError(
+                    f"{result_path}: pair inputs do not match controller "
+                    "fingerprint evidence"
+                )
+            paired_configuration = plan.get("paired")
+            expected_modes = {
+                label: (
+                    (paired_configuration.get(label) or {}).get("e2e_mode")
+                    if cell.get("panel") == "e2e"
+                    else cell.get("panel")
+                )
+                for label in ("candidate", "reference")
+            }
+            if pair.get("modes") != expected_modes:
+                raise ValueError(
+                    f"{result_path}: pair modes do not match the controller plan"
+                )
+            paired_provenance = (plan.get("provenance") or {}).get("paired")
+            frozen_sources = (
+                paired_provenance.get("sources")
+                if isinstance(paired_provenance, Mapping) else None
+            )
+            if pair.get("provenance") != frozen_sources:
+                raise ValueError(
+                    f"{result_path}: pair source provenance does not match "
+                    "the frozen controller plan"
+                )
+            if pair.get("registries") != paired_configuration.get("registries"):
+                raise ValueError(
+                    f"{result_path}: pair registries do not match the frozen "
+                    "controller plan"
+                )
+            success_validation = success.get("validation")
+            success_fingerprints = (
+                success_validation.get("gff_fingerprints", {})
+                if isinstance(success_validation, Mapping)
+                else {}
+            )
+            success_evaluation = (
+                success_validation.get("evaluation_artifacts", {})
+                if isinstance(success_validation, Mapping)
+                else {}
+            )
+            for label in ("candidate", "reference"):
+                gff_path = Path(str(configured[f"{label}_gff"])).resolve()
+                observed = gff3_fingerprints(gff_path)
+                if success_fingerprints.get(label) != observed:
+                    raise ValueError(
+                        f"{cell_dir}: live {label} GFF3 no longer matches "
+                        "controller success evidence"
+                    )
+                version = (pair.get("versions") or {}).get(label)
+                if not isinstance(version, Mapping):
+                    raise ValueError(
+                        f"{result_path}: {label} version evidence is malformed"
+                    )
+                if Path(str(version.get("output_gff", ""))).resolve() != gff_path:
+                    raise ValueError(
+                        f"{result_path}: {label} output path does not match "
+                        "the controller plan"
+                    )
+                manifest_path = Path(
+                    str(configured[f"{label}_manifest"])
+                ).resolve()
+                if (
+                    Path(str(version.get("release_manifest", ""))).resolve()
+                    != manifest_path
+                ):
+                    raise ValueError(
+                        f"{result_path}: {label} release-manifest path does "
+                        "not match the controller plan"
+                    )
+                if version.get("fingerprints") != observed:
+                    raise ValueError(
+                        f"{result_path}: {label} GFF3 fingerprints disagree "
+                        "with the live artifact"
+                    )
+                label_evaluation = (
+                    success_evaluation.get(label)
+                    if isinstance(success_evaluation, Mapping) else None
+                )
+                transcript_record = (
+                    label_evaluation.get("transcripts_tsv")
+                    if isinstance(label_evaluation, Mapping) else None
+                )
+                transcript_path = _verify_transcript_artifact(
+                    result_path,
+                    pair,
+                    label,
+                    transcript_record,
+                )
+                if (
+                    transcript_path.stat().st_mtime_ns
+                    > result_path.stat().st_mtime_ns
+                ):
+                    raise ValueError(
+                        f"{cell_dir}: evaluator TSV changed after pair_result.json "
+                        f"was published: {transcript_path}"
+                    )
+        selected.append(result_path)
+    return selected
+
+
+def load_pairs(roots: Iterable[Path]) -> list[tuple[Path, dict[str, Any]]]:
+    pairs = []
+    seen = set()
+    for root in roots:
+        root = Path(root).resolve()
+        controller_paths = _controller_pair_paths(root)
+        paths = (
+            controller_paths
+            if controller_paths is not None
+            else sorted(root.rglob("pair_result.json"))
+        )
+        for path in paths:
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            raw = json.loads(path.read_text())
+            if raw.get("schema_version") != SCHEMA_VERSION:
+                raise ValueError(f"unsupported paired schema in {path}")
+            pairs.append((path, raw))
+            seen.add(resolved)
+    return pairs
+
+
+def _canonical_release_ids() -> dict[str, tuple[str, ...]]:
+    """Derive the complete release panels without honoring partial ``--ids``."""
+
+    from . import build_controller
+
+    selected = {
+        panel: tuple(build_controller.select_ids(
+            f"paired-{panel}",
+            baseline=build_controller.DEFAULT_BASELINE,
+            dataset_registry=build_controller.DEFAULT_DATASET_REGISTRY,
+        ))
+        for panel in RELEASE_PANELS
+    }
+    malformed = {
+        panel: len(ids)
+        for panel, ids in selected.items()
+        if (
+            len(ids) != CANONICAL_PANEL_COUNTS[panel]
+            or len(ids) != len(set(ids))
+        )
+    }
+    if malformed:
+        raise RuntimeError(
+            "repository canonical release panels have unexpected counts or "
+            f"duplicate IDs: {malformed}"
+        )
+    return selected
+
+
+def _canonical_quality_baselines() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load frozen per-cell stable quality, with explicit legacy fallback."""
+
+    from . import build_controller
+
+    path = Path(build_controller.DEFAULT_BASELINE).resolve()
+    document = json.loads(path.read_text())
+    if not isinstance(document, Mapping):
+        raise ValueError(f"{path}: canonical quality baseline is not an object")
+    baselines = {}
+    for panel in ("subset", "full"):
+        for benchmark in _canonical_release_ids()[panel]:
+            key = f"{panel}:{benchmark}"
+            row = document.get(key)
+            if not isinstance(row, Mapping):
+                raise ValueError(f"{path}: canonical baseline lacks {key}")
+            metrics = {}
+            for metric, source_path in (
+                ("completeness_coding", ("completeness_coding",)),
+                (
+                    "completeness_feature_total",
+                    ("completeness_feature_total",),
+                ),
+                ("mean_pi", ("mean_pi",)),
+                ("covpi", ("joint", "covpi")),
+            ):
+                current: Any = row
+                for field in source_path:
+                    current = (
+                        current.get(field)
+                        if isinstance(current, Mapping) else None
+                    )
+                stable = (
+                    current.get("lifton_stable")
+                    if isinstance(current, Mapping) else None
+                )
+                tool = "lifton_stable"
+                if not _number(stable):
+                    stable = (
+                        current.get("lifton_devel")
+                        if isinstance(current, Mapping) else None
+                    )
+                    tool = "lifton_devel_frozen_fallback"
+                if not _number(stable) or not 0.0 <= float(stable) <= 1.0:
+                    raise ValueError(
+                        f"{path}: {key} has no finite canonical {metric}"
+                    )
+                tolerance = ABSOLUTE_BASELINE_TOLERANCES[metric]
+                metrics[metric] = {
+                    "baseline": float(stable),
+                    "tool": tool,
+                    "tolerance": tolerance,
+                    "floor": max(0.0, float(stable) - tolerance),
+                }
+            baselines[key] = metrics
+    return baselines, {
+        "path": str(path),
+        "size": path.stat().st_size,
+        "sha256": sha256_file(path),
+    }
+
+
+def canonical_campaign_spec(
+    repetitions: int = DEFAULT_RELEASE_REPETITIONS,
+) -> dict[str, Any]:
+    """Return a reviewable template for the complete canonical campaign."""
+
+    if (
+        not _integer(repetitions)
+        or repetitions <= 0
+        or repetitions % 2
+    ):
+        raise ValueError(
+            "release repetitions must be a positive even integer"
+        )
+    return {
+        "schema_version": CAMPAIGN_SCHEMA_VERSION,
+        "panels": {
+            panel: {
+                "ids": list(ids),
+                "repetitions": repetitions,
+            }
+            for panel, ids in _canonical_release_ids().items()
+        },
+    }
+
+
+def _normalize_campaign_spec(document: Any) -> dict[str, Any]:
+    if not isinstance(document, Mapping):
+        raise ValueError("campaign specification must be a JSON object")
+    if document.get("schema_version") != CAMPAIGN_SCHEMA_VERSION:
+        raise ValueError(
+            f"campaign specification schema_version must be "
+            f"{CAMPAIGN_SCHEMA_VERSION}"
+        )
+    panels = document.get("panels")
+    if not isinstance(panels, Mapping) or set(panels) != set(RELEASE_PANELS):
+        raise ValueError(
+            "campaign specification must define exactly subset, full, and e2e"
+        )
+    normalized: dict[str, Any] = {
+        "schema_version": CAMPAIGN_SCHEMA_VERSION,
+        "panels": {},
+    }
+    canonical_ids = _canonical_release_ids()
+    for panel in RELEASE_PANELS:
+        row = panels.get(panel)
+        if not isinstance(row, Mapping):
+            raise ValueError(f"campaign panel {panel!r} must be an object")
+        ids = row.get("ids")
+        if (
+            not isinstance(ids, list)
+            or not ids
+            or not all(isinstance(value, str) and value for value in ids)
+            or len(ids) != len(set(ids))
+        ):
+            raise ValueError(
+                f"campaign panel {panel!r} ids must be a non-empty unique list"
+            )
+        if ids != list(canonical_ids[panel]):
+            missing = sorted(set(canonical_ids[panel]) - set(ids))
+            unexpected = sorted(set(ids) - set(canonical_ids[panel]))
+            raise ValueError(
+                f"campaign panel {panel!r} must enumerate the canonical "
+                f"{len(canonical_ids[panel])} IDs in canonical order; "
+                f"missing={missing}, unexpected={unexpected}"
+            )
+        repetitions = row.get("repetitions")
+        if (
+            not _integer(repetitions)
+            or repetitions <= 0
+            or repetitions % 2
+        ):
+            raise ValueError(
+                f"campaign panel {panel!r} repetitions must be a positive "
+                "even integer so AB/BA order is balanced"
+            )
+        normalized["panels"][panel] = {
+            "ids": list(ids),
+            "repetitions": repetitions,
+        }
+    return normalized
+
+
+def _expected_campaign_keys(
+    campaign: Mapping[str, Any],
+) -> set[tuple[str, str, int]]:
+    return {
+        (panel, benchmark, repetition)
+        for panel, row in campaign["panels"].items()
+        for benchmark in row["ids"]
+        for repetition in range(1, row["repetitions"] + 1)
+    }
+
+
+def _verify_source_file_record(
+    record: Any,
+    *,
+    source: Path,
+    label: str,
+    expected_path: Path | None = None,
+) -> dict[str, Any]:
+    """Verify a provenance file record whose contract omits mutable mtimes."""
+
+    if not isinstance(record, Mapping):
+        raise ValueError(f"{source}: {label} provenance is malformed")
+    raw_path = record.get("path")
+    size = record.get("size")
+    digest = record.get("sha256")
+    if (
+        not isinstance(raw_path, str)
+        or not Path(raw_path).is_absolute()
+        or not _integer(size)
+        or size <= 0
+        or not isinstance(digest, str)
+        or _SHA256_RE.fullmatch(digest) is None
+    ):
+        raise ValueError(f"{source}: {label} provenance is malformed")
+    path = Path(raw_path).resolve()
+    if expected_path is not None and path != Path(expected_path).resolve():
+        raise ValueError(
+            f"{source}: {label} provenance path is not the expected source file"
+        )
+    try:
+        observed = _live_artifact_record(path)
+    except OSError as exc:
+        raise ValueError(
+            f"{source}: {label} provenance file is unavailable: {exc}"
+        ) from exc
+    normalized = {
+        "path": observed["path"],
+        "size": observed["size"],
+        "sha256": observed["sha256"],
+    }
+    if dict(record) != normalized:
+        raise ValueError(
+            f"{source}: {label} provenance file changed after planning"
+        )
+    return normalized
+
+
+def _current_reporter_git_state() -> dict[str, Any]:
+    from . import build_controller
+
+    return build_controller.collect_git_state(build_controller.REPO_ROOT)
+
+
+def _validate_resource_policy(policy: Mapping[str, Any], plan_path: Path) -> None:
+    for name, expected in APPROVED_RESOURCE_POLICY.items():
+        value = policy.get(name)
+        if (
+            not _number(value)
+            or (
+                isinstance(expected, int)
+                and (not _integer(value) or value != expected)
+            )
+            or (
+                not isinstance(expected, int)
+                and float(value) != expected
+            )
+        ):
+            raise ValueError(
+                f"{plan_path}: controller resource policy {name!r} is "
+                f"{value!r}, expected {expected!r}"
+            )
+
+
+def _expected_tooling_paths() -> dict[str, Path]:
+    from . import build_controller
+
+    root = Path(build_controller.REPO_ROOT).resolve()
+    return {
+        "tooling_build_controller": Path(build_controller.__file__).resolve(),
+        "tooling_release_evaluation": (
+            root / "benchmarks" / "compare" / "release_evaluation.py"
+        ).resolve(),
+        "tooling_release_report": Path(__file__).resolve(),
+        "tooling_run_benchmarks": (
+            root / "benchmarks" / "run_benchmarks.py"
+        ).resolve(),
+        "tooling_gff3_validator": (
+            root / "lifton" / "gff3_validator.py"
+        ).resolve(),
+    }
+
+
+def _controller_publication_evidence(
+    roots: Sequence[Path],
+    campaign: Mapping[str, Any],
+    *,
+    candidate_sha: str,
+    reference_sha: str,
+) -> tuple[list[Path], dict[str, Any]]:
+    """Require one complete, non-canary controller run for every panel."""
+
+    from . import build_controller
+
+    if len(roots) != len(RELEASE_PANELS):
+        raise ValueError(
+            "release publication requires exactly one controller root for "
+            "each of subset, full, and e2e"
+        )
+    by_panel: dict[str, dict[str, Any]] = {}
+    pair_paths: list[Path] = []
+    compatibility_signature: str | None = None
+    compatibility_sha256: str | None = None
+    reporter_git = _current_reporter_git_state()
+    clean_diff = hashlib.sha256(b"").hexdigest()
+    if (
+        reporter_git.get("dirty_tracked_paths") != []
+        or reporter_git.get("tracked_diff_sha256") != clean_diff
+    ):
+        raise ValueError(
+            "release reporting requires the current reporter checkout to be "
+            "clean and committed"
+        )
+    tooling_paths = _expected_tooling_paths()
+    for raw_root in roots:
+        root = Path(raw_root).resolve()
+        plan_path = root / "plan.json"
+        try:
+            plan = json.loads(plan_path.read_text())
+        except (OSError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{plan_path}: release publication requires a readable "
+                f"controller plan: {exc}"
+            ) from exc
+        if plan.get("schema_version") != build_controller.CONTROLLER_SCHEMA_VERSION:
+            raise ValueError(f"{plan_path}: unsupported controller plan schema")
+        stage = plan.get("stage")
+        if isinstance(stage, str) and stage.endswith("-canary"):
+            raise ValueError(
+                f"{plan_path}: canary stage {stage!r} is diagnostic and cannot "
+                "be published as a full release campaign"
+            )
+        try:
+            build_controller.validate_plan_integrity(plan)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{plan_path}: controller plan integrity validation failed: {exc}"
+            ) from exc
+        if not isinstance(stage, str) or stage not in {
+            f"paired-{panel}" for panel in RELEASE_PANELS
+        }:
+            raise ValueError(
+                f"{plan_path}: stage must be paired-subset, paired-full, "
+                "or paired-e2e"
+            )
+        provenance = plan.get("provenance")
+        policy = plan.get("policy")
+        if not isinstance(provenance, Mapping) or not isinstance(policy, Mapping):
+            raise ValueError(
+                f"{plan_path}: controller provenance or policy is malformed"
+            )
+        plan_cells = plan.get("cells")
+        if (
+            not isinstance(plan_cells, list)
+            or not plan_cells
+            or not all(isinstance(cell, Mapping) for cell in plan_cells)
+        ):
+            raise ValueError(
+                f"{plan_path}: controller cells are missing or malformed"
+            )
+        _validate_resource_policy(policy, plan_path)
+        panel = stage.removeprefix("paired-")
+        if panel in by_panel:
+            raise ValueError(f"duplicate controller root for panel {panel!r}")
+        expected = campaign["panels"][panel]
+        if plan.get("ids") != expected["ids"]:
+            raise ValueError(
+                f"{plan_path}: controller ids do not match the expected "
+                f"{panel!r} campaign"
+            )
+        paired = plan.get("paired")
+        if not isinstance(paired, Mapping):
+            raise ValueError(f"{plan_path}: paired configuration is missing")
+        if (
+            paired.get("panel") != panel
+            or paired.get("repetitions") != expected["repetitions"]
+        ):
+            raise ValueError(
+                f"{plan_path}: paired panel/repetition configuration does not "
+                "match the campaign specification"
+            )
+        inputs = plan.get("inputs")
+        registries = paired.get("registries")
+        if (
+            not isinstance(inputs, Mapping)
+            or not isinstance(registries, Mapping)
+            or Path(str(inputs.get("registry", ""))).resolve()
+            != Path(str(registries.get("benchmark", ""))).resolve()
+            or Path(str(inputs.get("dataset_registry", ""))).resolve()
+            != Path(str(registries.get("dataset", ""))).resolve()
+        ):
+            raise ValueError(
+                f"{plan_path}: controller input registries disagree with "
+                "the frozen paired configuration"
+            )
+        for label, expected_sha in (
+            ("candidate", candidate_sha),
+            ("reference", reference_sha),
+        ):
+            source = paired.get(label)
+            if not isinstance(source, Mapping) or source.get("sha") != expected_sha:
+                raise ValueError(
+                    f"{plan_path}: {label} SHA does not match the report"
+                )
+
+        cells = [
+            cell for cell in plan_cells
+            if cell.get("kind") == "paired_release"
+        ]
+        if len(cells) != len(plan_cells):
+            raise ValueError(
+                f"{plan_path}: release panel contains non-paired cells"
+            )
+        if any(
+            cell.get("threads") != APPROVED_RESOURCE_POLICY["threads_per_cell"]
+            for cell in cells
+        ):
+            raise ValueError(
+                f"{plan_path}: a paired cell violates the approved thread policy"
+            )
+        observed_keys = {
+            (panel, cell.get("benchmark"), cell.get("repetition"))
+            for cell in cells
+        }
+        expected_keys = {
+            (panel, benchmark, repetition)
+            for benchmark in expected["ids"]
+            for repetition in range(1, expected["repetitions"] + 1)
+        }
+        if observed_keys != expected_keys or len(cells) != len(expected_keys):
+            raise ValueError(
+                f"{plan_path}: controller cells do not exactly match the "
+                "expected campaign matrix"
+            )
+        selected = _controller_pair_paths(root, verify_content=True)
+        if selected is None or len(selected) != len(expected_keys):
+            raise ValueError(
+                f"{plan_path}: controller did not provide every expected result"
+            )
+        pair_paths.extend(selected)
+
+        required_provenance = {
+            name: provenance.get(name)
+            for name in ("git", "files", "tools", "runtime")
+        }
+        if any(
+            not isinstance(value, Mapping) or not value
+            for value in required_provenance.values()
+        ):
+            raise ValueError(
+                f"{plan_path}: release controller provenance lacks git, files, "
+                "tools, or Python runtime evidence"
+            )
+        git_state = required_provenance["git"]
+        if (
+            git_state.get("dirty_tracked_paths") != []
+            or git_state.get("tracked_diff_sha256") != clean_diff
+        ):
+            raise ValueError(
+                f"{plan_path}: release controller was planned from a dirty "
+                "tracked working tree"
+            )
+        if git_state != reporter_git:
+            raise ValueError(
+                f"{plan_path}: current reporter Git HEAD/state does not match "
+                "the controller plan"
+            )
+        files = required_provenance["files"]
+        for name in TOOLING_FILE_KEYS:
+            _verify_source_file_record(
+                files.get(name),
+                source=plan_path,
+                label=name,
+                expected_path=tooling_paths[name],
+            )
+        for name, expected_path in (
+            ("benchmark_registry", Path(registries["benchmark"])),
+            ("dataset_registry", Path(registries["dataset"])),
+            ("baseline", Path(inputs.get("baseline", ""))),
+        ):
+            _verify_source_file_record(
+                files.get(name),
+                source=plan_path,
+                label=name,
+                expected_path=expected_path,
+            )
+        paired_provenance = provenance.get("paired")
+        paired_sources = (
+            paired_provenance.get("sources")
+            if isinstance(paired_provenance, Mapping) else None
+        )
+        if not isinstance(paired_sources, Mapping) or set(paired_sources) != {
+            "candidate", "reference",
+        }:
+            raise ValueError(
+                f"{plan_path}: paired source provenance is missing or malformed"
+            )
+        common = {
+            **required_provenance,
+            "paired_sources": paired_sources,
+            "policy": dict(policy),
+            "lifton_executable": paired.get("lifton_executable"),
+            "registries": paired.get("registries"),
+            "repetitions": paired.get("repetitions"),
+            "sources": {
+                label: {
+                    "root": (paired.get(label) or {}).get("root"),
+                    "sha": (paired.get(label) or {}).get("sha"),
+                }
+                for label in ("candidate", "reference")
+            },
+        }
+        signature = _canonical_json(
+            common,
+            source=plan_path,
+            field="cross-root controller provenance",
+        )
+        if compatibility_signature is None:
+            compatibility_signature = signature
+            compatibility_sha256 = hashlib.sha256(signature.encode()).hexdigest()
+        elif signature != compatibility_signature:
+            raise ValueError(
+                f"{plan_path}: controller toolchain, registry, source, or "
+                "thread provenance differs across release roots"
+            )
+        by_panel[panel] = {
+            "root": str(root),
+            "plan": _live_artifact_record(plan_path),
+            "stage": stage,
+            "ids": list(plan["ids"]),
+            "repetitions": paired["repetitions"],
+            "resource_policy": {
+                name: policy[name] for name in APPROVED_RESOURCE_POLICY
+            },
+        }
+    if set(by_panel) != set(RELEASE_PANELS):
+        raise ValueError("release controller roots do not cover every panel")
+    return pair_paths, {
+        "validated": True,
+        "compatibility_sha256": compatibility_sha256,
+        "panels": {
+            panel: by_panel[panel]
+            for panel in RELEASE_PANELS
+        },
+    }
+
+
+def _controller_artifact_evidence(
+    roots: Sequence[Path],
+) -> dict[str, Any]:
+    """Rehash the complete controller evidence set for publication."""
+
+    cells = []
+    tooling = None
+    provenance_files = None
+    for raw_root in roots:
+        root = Path(raw_root).resolve()
+        plan_path = root / "plan.json"
+        plan = json.loads(plan_path.read_text())
+        files = plan["provenance"]["files"]
+        current_tooling = {
+            name: _verify_source_file_record(
+                files[name],
+                source=plan_path,
+                label=name,
+                expected_path=_expected_tooling_paths()[name],
+            )
+            for name in TOOLING_FILE_KEYS
+        }
+        current_provenance_files = {
+            name: _verify_source_file_record(
+                record,
+                source=plan_path,
+                label=name,
+            )
+            for name, record in sorted(files.items())
+        }
+        if tooling is None:
+            tooling = current_tooling
+            provenance_files = current_provenance_files
+        elif tooling != current_tooling:
+            raise ValueError(
+                f"{plan_path}: tooling evidence differs across controller roots"
+            )
+        elif provenance_files != current_provenance_files:
+            raise ValueError(
+                f"{plan_path}: source-file evidence differs across controller roots"
+            )
+        for cell in plan["cells"]:
+            if cell.get("kind") != "paired_release":
+                continue
+            cell_dir = Path(cell["cell_dir"]).resolve()
+            status_path = cell_dir / "status.json"
+            success_path = cell_dir / ".success"
+            success = json.loads(success_path.read_text())
+            artifacts = success["validation"]["artifacts"]
+            evaluations = success["validation"]["evaluation_artifacts"]
+            validated_artifacts = {
+                name: _verify_artifact_record(
+                    record,
+                    source=success_path,
+                    label=f"validated artifact {name!r}",
+                )
+                for name, record in sorted(artifacts.items())
+            }
+            evaluator_artifacts = {
+                label: {
+                    "transcripts_tsv": _verify_artifact_record(
+                        evidence["transcripts_tsv"],
+                        source=success_path,
+                        label=f"{label} evaluator TSV",
+                    )
+                }
+                for label, evidence in sorted(evaluations.items())
+            }
+            cells.append({
+                "panel": cell["panel"],
+                "benchmark": cell["benchmark"],
+                "repetition": cell["repetition"],
+                "status": _live_artifact_record(status_path),
+                "success": _live_artifact_record(success_path),
+                "validated_artifacts": validated_artifacts,
+                "evaluator_artifacts": evaluator_artifacts,
+            })
+    return {
+        "tooling": tooling or {},
+        "provenance_files": provenance_files or {},
+        "cells": cells,
+    }
+
+
+def _canonical_json(value: Any, *, source: Path, field: str) -> str:
+    try:
+        return json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{source}: {field} is not finite canonical JSON: {exc}"
+        ) from exc
+
+
+def validate_campaign(
+    pairs: Sequence[tuple[Path, Mapping[str, Any]]],
+    *,
+    candidate_sha: str | None = None,
+    reference_sha: str | None = None,
+    expected_campaign: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Fail closed on provenance, repetition identity, and raw measurements."""
+
+    if not pairs:
+        raise ValueError("paired campaign is empty")
+
+    def pair_sha(path: Path, pair: Mapping[str, Any], label: str) -> str:
+        value = (pair.get("provenance", {}).get(label, {})).get("sha")
+        if (
+            not isinstance(value, str)
+            or _SHA1_RE.fullmatch(value.lower()) is None
+        ):
+            raise ValueError(
+                f"{path}: {label} provenance SHA must be an exact Git SHA"
+            )
+        return value.lower()
+
+    first_path, first_pair = pairs[0]
+    expected_candidate = (
+        candidate_sha
+        if candidate_sha is not None
+        else pair_sha(first_path, first_pair, "candidate")
+    )
+    expected_reference = (
+        reference_sha
+        if reference_sha is not None
+        else pair_sha(first_path, first_pair, "reference")
+    )
+    expected_candidate = _normalized_git_sha(
+        expected_candidate, label="candidate",
+    )
+    expected_reference = _normalized_git_sha(
+        expected_reference, label="reference",
+    )
+
+    seen_repetitions: dict[tuple[str, str, int], Path] = {}
+    cell_signatures: dict[tuple[str, str], tuple[str, int, str]] = {}
+    panel_protocols: dict[str, tuple[int, str]] = {}
+    for path, pair in pairs:
+        panel = pair.get("panel")
+        benchmark = pair.get("benchmark")
+        repetition = pair.get("repetition")
+        if not isinstance(panel, str) or not panel:
+            raise ValueError(f"{path}: panel must be a non-empty string")
+        if not isinstance(benchmark, str) or not benchmark:
+            raise ValueError(f"{path}: benchmark must be a non-empty string")
+        if not _integer(repetition) or repetition <= 0:
+            raise ValueError(f"{path}: repetition must be a positive integer")
+
+        key = (panel, benchmark, repetition)
+        if key in seen_repetitions:
+            raise ValueError(
+                f"duplicate paired repetition {key}: "
+                f"{seen_repetitions[key]} and {path}"
+            )
+        seen_repetitions[key] = path
+
+        order = pair.get("order")
+        if (
+            not isinstance(order, (list, tuple))
+            or len(order) != 2
+            or sorted(order) != ["candidate", "reference"]
+        ):
+            raise ValueError(
+                f"{path}: order must contain candidate and reference exactly once"
+            )
+        expected_order = (
+            ["reference", "candidate"]
+            if repetition % 2 else ["candidate", "reference"]
+        )
+        if list(order) != expected_order:
+            raise ValueError(
+                f"{path}: repetition {repetition} violates alternating AB/BA "
+                f"order; expected {expected_order}"
+            )
+
+        actual_candidate = pair_sha(path, pair, "candidate")
+        actual_reference = pair_sha(path, pair, "reference")
+        if actual_candidate != expected_candidate:
+            raise ValueError(
+                f"{path}: candidate provenance SHA {actual_candidate} does not "
+                f"match report SHA {expected_candidate}"
+            )
+        if actual_reference != expected_reference:
+            raise ValueError(
+                f"{path}: reference provenance SHA {actual_reference} does not "
+                f"match report SHA {expected_reference}"
+            )
+
+        threads = pair.get("threads")
+        if not _integer(threads) or threads <= 0:
+            raise ValueError(f"{path}: threads must be a positive integer")
+        inputs = pair.get("inputs")
+        if not isinstance(inputs, Mapping) or not inputs:
+            raise ValueError(f"{path}: inputs must be a non-empty fingerprint object")
+        for name, record in inputs.items():
+            if not isinstance(name, str) or not name or not isinstance(record, Mapping):
+                raise ValueError(f"{path}: input fingerprint entries are malformed")
+            fingerprint = record.get("sha256")
+            if (
+                not isinstance(fingerprint, str)
+                or _SHA256_RE.fullmatch(fingerprint.lower()) is None
+                or not _integer(record.get("size"))
+                or record["size"] <= 0
+                or not isinstance(record.get("path"), str)
+                or not record["path"]
+            ):
+                raise ValueError(
+                    f"{path}: input fingerprint {name!r} is incomplete or malformed"
+                )
+        modes = pair.get("modes")
+        if not isinstance(modes, Mapping):
+            raise ValueError(f"{path}: modes must be an object")
+        if set(modes) != {"candidate", "reference"} or not all(
+            isinstance(modes[label], str) and modes[label]
+            for label in ("candidate", "reference")
+        ):
+            raise ValueError(
+                f"{path}: modes must contain non-empty candidate/reference values"
+            )
+        signature = (
+            _canonical_json(inputs, source=path, field="inputs"),
+            threads,
+            _canonical_json(modes, source=path, field="modes"),
+        )
+        cell_key = (panel, benchmark)
+        previous = cell_signatures.setdefault(cell_key, signature)
+        if previous != signature:
+            raise ValueError(
+                f"{path}: inputs, threads, or modes changed across repetitions "
+                f"of {cell_key}"
+            )
+        panel_protocol = (threads, signature[2])
+        previous_protocol = panel_protocols.setdefault(panel, panel_protocol)
+        if previous_protocol != panel_protocol:
+            raise ValueError(
+                f"{path}: threads or modes differ across {panel!r} panel cells"
+            )
+
+        raw_profiles = {}
+        versions = pair.get("versions")
+        if not isinstance(versions, Mapping):
+            raise ValueError(f"{path}: versions must be an object")
+        for label in ("candidate", "reference"):
+            version = versions.get(label)
+            if not isinstance(version, Mapping):
+                raise ValueError(f"{path}: {label} version evidence is malformed")
+            wall = _positive_profile_value(
+                pair, label, "wall_clock_seconds", source=path,
+            )
+            rss = _positive_profile_value(
+                pair, label, "peak_rss_mb", source=path,
+            )
+            raw_profiles[label] = {"wall": wall, "peak_rss": rss}
+            profile = version.get("profile")
+            if not isinstance(profile, Mapping) or profile.get("exit_code") != 0:
+                raise ValueError(
+                    f"{path}: {label} profile must be a successful profile object"
+                )
+            for required in ("user_cpu_seconds", "sys_cpu_seconds"):
+                value = profile.get(required)
+                if not _number(value) or float(value) < 0:
+                    raise ValueError(
+                        f"{path}: {label} profile {required!r} must be "
+                        "non-negative and finite"
+                    )
+            validation = version.get("validation")
+            if (
+                not isinstance(validation, Mapping)
+                or not isinstance(validation.get("is_valid"), bool)
+                or not _integer(validation.get("n_errors"))
+                or validation["n_errors"] < 0
+                or validation["is_valid"] != (validation["n_errors"] == 0)
+            ):
+                raise ValueError(
+                    f"{path}: {label} GFF3 validation evidence is malformed"
+                )
+            fingerprints = version.get("fingerprints")
+            if not isinstance(fingerprints, Mapping) or any(
+                not isinstance(fingerprints.get(name), str)
+                or _SHA256_RE.fullmatch(fingerprints[name].lower()) is None
+                for name in ("byte_sha256", "semantic_sha256")
+            ):
+                raise ValueError(
+                    f"{path}: {label} GFF3 fingerprints are malformed"
+                )
+            if panel == "e2e":
+                evaluation_profile = version.get("evaluation_profile")
+                if (
+                    not isinstance(evaluation_profile, Mapping)
+                    or evaluation_profile.get("exit_code") != 0
+                ):
+                    raise ValueError(
+                        f"{path}: {label} E2E evaluation profile is unsuccessful"
+                    )
+                for name in (
+                    "wall_clock_seconds",
+                    "peak_rss_mb",
+                    "user_cpu_seconds",
+                    "sys_cpu_seconds",
+                ):
+                    value = evaluation_profile.get(name)
+                    minimum = 0.0 if name.endswith("cpu_seconds") else 0.0
+                    if (
+                        not _number(value)
+                        or float(value) < minimum
+                        or (
+                            name in ("wall_clock_seconds", "peak_rss_mb")
+                            and float(value) <= 0
+                        )
+                    ):
+                        raise ValueError(
+                            f"{path}: {label} E2E evaluation profile {name!r} "
+                            "is invalid"
+                        )
+
+        ratios = pair.get("ratios")
+        if not isinstance(ratios, Mapping):
+            raise ValueError(f"{path}: ratios must be an object")
+        expected_ratios = {
+            "wall": (
+                raw_profiles["candidate"]["wall"]
+                / raw_profiles["reference"]["wall"]
+            ),
+            "peak_rss": (
+                raw_profiles["candidate"]["peak_rss"]
+                / raw_profiles["reference"]["peak_rss"]
+            ),
+        }
+        for name, expected in expected_ratios.items():
+            value = ratios.get(name)
+            if not _number(value) or float(value) <= 0:
+                raise ValueError(
+                    f"{path}: raw ratio {name!r} must be positive and finite"
+                )
+            if not math.isclose(
+                float(value), expected, rel_tol=1e-9, abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    f"{path}: raw ratio {name!r} does not match profile data"
+                )
+
+    for panel, benchmark in cell_signatures:
+        repetitions = sorted(
+            repetition
+            for seen_panel, seen_benchmark, repetition in seen_repetitions
+            if (seen_panel, seen_benchmark) == (panel, benchmark)
+        )
+        expected = list(range(1, max(repetitions) + 1))
+        if repetitions != expected:
+            raise ValueError(
+                f"{panel}/{benchmark}: repetitions must be contiguous from 1; "
+                f"found {repetitions}"
+            )
+    matrix_complete = False
+    normalized_campaign = None
+    if expected_campaign is not None:
+        normalized_campaign = _normalize_campaign_spec(expected_campaign)
+        observed_keys = set(seen_repetitions)
+        expected_keys = _expected_campaign_keys(normalized_campaign)
+        if observed_keys != expected_keys:
+            missing = sorted(expected_keys - observed_keys)
+            unexpected = sorted(observed_keys - expected_keys)
+            raise ValueError(
+                "paired results do not match the expected campaign matrix; "
+                f"missing={missing}, unexpected={unexpected}"
+            )
+        matrix_complete = True
+
+    return {
+        "candidate_sha": expected_candidate,
+        "reference_sha": expected_reference,
+        "n_pairs": len(pairs),
+        "n_cells": len(cell_signatures),
+        "matrix_complete": matrix_complete,
+        "expected_campaign": normalized_campaign,
+    }
+
+
+def _bootstrap_delta(
+    values: Sequence[float],
+    *,
+    seed: int,
+    replicates: int,
+) -> dict[str, Any] | None:
+    clean = [float(value) for value in values if _number(value)]
+    if not clean:
+        return None
+    if len(clean) == 1:
+        return {
+            "estimate": clean[0],
+            "low": clean[0],
+            "high": clean[0],
+            "replicates": 1,
+            "seed": seed,
+        }
+    import numpy as np
+
+    array = np.asarray(clean, dtype=float)
+    rng = np.random.default_rng(seed)
+    means = []
+    remaining = max(1, int(replicates))
+    while remaining:
+        batch = min(256, remaining)
+        indices = rng.integers(0, len(array), size=(batch, len(array)))
+        means.extend(array[indices].mean(axis=1).tolist())
+        remaining -= batch
+    return {
+        "estimate": statistics.fmean(clean),
+        "low": _percentile(means, 0.025),
+        "high": _percentile(means, 0.975),
+        "replicates": len(means),
+        "seed": seed,
+    }
+
+
+def _median(values: Iterable[float]) -> float | None:
+    clean = [float(value) for value in values if _number(value)]
+    return statistics.median(clean) if clean else None
+
+
+def _group_cells(
+    pairs: Sequence[tuple[Path, Mapping[str, Any]]],
+) -> dict[tuple[str, str], list[tuple[Path, Mapping[str, Any]]]]:
+    grouped: dict[tuple[str, str], list[tuple[Path, Mapping[str, Any]]]] = defaultdict(list)
+    for path, pair in pairs:
+        grouped[(str(pair["panel"]), str(pair["benchmark"]))].append((path, pair))
+    for rows in grouped.values():
+        rows.sort(key=lambda item: int(item[1]["repetition"]))
+    return grouped
+
+
+def _quality_is_deterministic(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    source: Path,
+) -> bool:
+    return len({
+        _canonical_json(row, source=source, field="quality evidence")
+        for row in rows
+    }) == 1
+
+
+def _aggregate_quality_repetitions(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    result = dict(rows[0])
+    numeric_fields = {
+        *QUALITY_METRICS,
+        "mean_pi",
+        "median_pi",
+        "exon_sn_mean",
+        "exon_sp_mean",
+    }
+    for field in numeric_fields:
+        values = [row.get(field) for row in rows]
+        if all(_number(value) for value in values):
+            result[field] = statistics.median(float(value) for value in values)
+    result["repetition_metrics"] = [dict(row) for row in rows]
+    return result
+
+
+def _aggregate_common_pi(
+    values: Sequence[Mapping[str, Any] | None],
+) -> dict[str, Any] | None:
+    present = [value for value in values if value is not None]
+    if not present:
+        return None
+    result = dict(present[0])
+    result["mean_delta"] = statistics.median(
+        float(value["mean_delta"]) for value in present
+    )
+    result["repetitions_scored"] = len(present)
+    result["repetition_metrics"] = [
+        dict(value) if isinstance(value, Mapping) else None
+        for value in values
+    ]
+    return result
+
+
+def aggregate_pairs(
+    pairs: Sequence[tuple[Path, Mapping[str, Any]]],
+    *,
+    seed: int = DEFAULT_BOOTSTRAP_SEED,
+    replicates: int = DEFAULT_BOOTSTRAP_REPLICATES,
+    candidate_sha: str | None = None,
+    reference_sha: str | None = None,
+    expected_campaign: Mapping[str, Any] | None = None,
+    publication_mode: str = "diagnostic",
+    controller_evidence: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not _integer(replicates) or replicates <= 0:
+        raise ValueError("bootstrap replicates must be a positive integer")
+    if not _integer(seed):
+        raise ValueError("bootstrap seed must be an integer")
+    if publication_mode not in {"diagnostic", "release"}:
+        raise ValueError("publication_mode must be diagnostic or release")
+    if publication_mode == "release" and (
+        expected_campaign is None
+        or not isinstance(controller_evidence, Mapping)
+        or controller_evidence.get("validated") is not True
+    ):
+        raise ValueError(
+            "release publication requires an expected campaign and validated "
+            "controller evidence"
+        )
+    campaign = validate_campaign(
+        pairs,
+        candidate_sha=candidate_sha,
+        reference_sha=reference_sha,
+        expected_campaign=expected_campaign,
+    )
+    quality_baselines, quality_baseline_artifact = (
+        _canonical_quality_baselines()
+    )
+    grouped = _group_cells(pairs)
+    cells = []
+    warning_totals = {
+        "candidate": Counter(),
+        "reference": Counter(),
+    }
+    for (panel, benchmark), rows in sorted(grouped.items()):
+        if panel not in PANEL_CONCURRENCY:
+            raise ValueError(
+                f"no release-report concurrency policy for panel {panel!r}"
+            )
+        candidate_wall_seconds = [
+            _positive_profile_value(
+                pair, "candidate", "wall_clock_seconds", source=path,
+            )
+            for path, pair in rows
+        ]
+        reference_wall_seconds = [
+            _positive_profile_value(
+                pair, "reference", "wall_clock_seconds", source=path,
+            )
+            for path, pair in rows
+        ]
+        candidate_rss_mb = [
+            _positive_profile_value(
+                pair, "candidate", "peak_rss_mb", source=path,
+            )
+            for path, pair in rows
+        ]
+        reference_rss_mb = [
+            _positive_profile_value(
+                pair, "reference", "peak_rss_mb", source=path,
+            )
+            for path, pair in rows
+        ]
+        wall = [
+            candidate / reference
+            for candidate, reference in zip(
+                candidate_wall_seconds, reference_wall_seconds,
+            )
+        ]
+        rss = [
+            candidate / reference
+            for candidate, reference in zip(candidate_rss_mb, reference_rss_mb)
+        ]
+        # Validate every evaluator TSV before selecting the first repetition's
+        # deterministic quality values for the cell-level comparison.
+        repetition_quality = {
+            label: [
+                _version_quality(path, pair, label)
+                for path, pair in rows
+            ]
+            for label in ("candidate", "reference")
+        }
+        first_path, first = rows[0]
+        candidate = _aggregate_quality_repetitions(
+            repetition_quality["candidate"]
+        )
+        reference = _aggregate_quality_repetitions(
+            repetition_quality["reference"]
+        )
+        candidate_quality_deterministic = _quality_is_deterministic(
+            repetition_quality["candidate"],
+            source=first_path,
+        )
+        reference_quality_deterministic = _quality_is_deterministic(
+            repetition_quality["reference"],
+            source=first_path,
+        )
+        deltas = {
+            metric: statistics.median(
+                candidate_row[metric] - reference_row[metric]
+                for candidate_row, reference_row in zip(
+                    repetition_quality["candidate"],
+                    repetition_quality["reference"],
+                )
+            )
+            for metric in QUALITY_METRICS
+        }
+        candidate_hashes = {
+            pair["versions"]["candidate"]["fingerprints"]["byte_sha256"]
+            for _, pair in rows
+        }
+        candidate_semantic = {
+            pair["versions"]["candidate"]["fingerprints"]["semantic_sha256"]
+            for _, pair in rows
+        }
+        reference_hashes = {
+            pair["versions"]["reference"]["fingerprints"]["byte_sha256"]
+            for _, pair in rows
+        }
+        reference_semantic = {
+            pair["versions"]["reference"]["fingerprints"]["semantic_sha256"]
+            for _, pair in rows
+        }
+        for label in warning_totals:
+            for _, pair in rows[:1]:
+                warning_totals[label].update(_warning_inventory(pair, label))
+        common_pi_repetitions = [
+            _paired_common_pi(path)
+            for path, _pair in rows
+        ]
+        common_pi = _aggregate_common_pi(common_pi_repetitions)
+        common_pi_deterministic = len({
+            _canonical_json(
+                value,
+                source=first_path,
+                field="common-set protein identity",
+            )
+            for value in common_pi_repetitions
+        }) == 1
+        e2e_biology = None
+        if panel == "e2e":
+            e2e_biology = {}
+            for label in ("candidate", "reference"):
+                summaries = [
+                    pair["versions"][label]
+                    for _, pair in rows
+                ]
+                errors = []
+                for (_, pair), summary in zip(rows, summaries):
+                    errors.extend(
+                        f"repetition {pair['repetition']}: {error}"
+                        for error in _e2e_biology_errors(summary)
+                    )
+                biological_summaries = [
+                    summary.get("biological_summary")
+                    if isinstance(summary, Mapping) else None
+                    for summary in summaries
+                ]
+                biology_signatures = set()
+                deterministic = True
+                for summary in summaries:
+                    if not isinstance(summary, Mapping):
+                        deterministic = False
+                        continue
+                    try:
+                        biology_signatures.add(_canonical_json(
+                            {
+                                "biological_summary": summary.get(
+                                    "biological_summary"
+                                ),
+                                "score_summary": summary.get("score_summary"),
+                                "evaluation_summary": summary.get(
+                                    "evaluation_summary"
+                                ),
+                            },
+                            source=first_path,
+                            field=f"{label} E2E biology",
+                        ))
+                    except ValueError:
+                        deterministic = False
+                deterministic = deterministic and len(biology_signatures) == 1
+                e2e_biology[label] = {
+                    "valid": not errors,
+                    "errors": errors,
+                    "deterministic": deterministic,
+                    "summary": (
+                        dict(biological_summaries[0])
+                        if isinstance(biological_summaries[0], Mapping)
+                        else None
+                    ),
+                    "repetition_summaries": [
+                        {
+                            "biological_summary": summary.get(
+                                "biological_summary"
+                            ),
+                            "score_summary": summary.get("score_summary"),
+                            "evaluation_summary": summary.get(
+                                "evaluation_summary"
+                            ),
+                        }
+                        if isinstance(summary, Mapping) else None
+                        for summary in summaries
+                    ],
+                }
+        absolute_quality = {
+            "baseline": quality_baselines.get(f"{panel}:{benchmark}"),
+        }
+        for label, quality in (
+            ("candidate", candidate),
+            ("reference", reference),
+        ):
+            absolute_quality[label] = {
+                "n_reference_coding": quality["n_reference_coding"],
+                "n_recovered_coding": quality["n_recovered_coding"],
+                "n_recovered_coding_with_pi": (
+                    quality["n_recovered_coding_with_pi"]
+                ),
+                "completeness_coding": quality["completeness_coding"],
+                "completeness_feature_total": (
+                    quality["completeness_feature_total"]
+                ),
+                "covpi": quality["covpi"],
+                "mean_pi": quality["mean_pi"],
+            }
+        cell = {
+            "panel": panel,
+            "benchmark": benchmark,
+            "repetitions": len(rows),
+            "orders": [pair["order"] for _, pair in rows],
+            "modes": dict(first["modes"]),
+            "candidate_wall_seconds_median": statistics.median(
+                candidate_wall_seconds
+            ),
+            "reference_wall_seconds_median": statistics.median(
+                reference_wall_seconds
+            ),
+            "wall_ratio_median": statistics.median(wall),
+            "wall_ratio_min": min(wall),
+            "wall_ratio_max": max(wall),
+            "rss_ratio_median": statistics.median(rss),
+            "rss_ratio_min": min(rss),
+            "rss_ratio_max": max(rss),
+            "candidate_peak_rss_gib": max(candidate_rss_mb) / 1024.0,
+            "candidate": candidate,
+            "reference": reference,
+            "quality_deltas": deltas,
+            "common_pi": common_pi,
+            "common_pi_deterministic": common_pi_deterministic,
+            "e2e_biology": e2e_biology,
+            "candidate_quality_deterministic": candidate_quality_deterministic,
+            "reference_quality_deterministic": reference_quality_deterministic,
+            "candidate_byte_deterministic": len(candidate_hashes) == 1,
+            "candidate_semantic_deterministic": len(candidate_semantic) == 1,
+            "reference_byte_deterministic": len(reference_hashes) == 1,
+            "reference_semantic_deterministic": len(reference_semantic) == 1,
+            "candidate_valid": all(
+                pair["versions"]["candidate"]["validation"]["is_valid"]
+                for _, pair in rows
+            ),
+            "reference_valid": all(
+                pair["versions"]["reference"]["validation"]["is_valid"]
+                for _, pair in rows
+            ),
+            "absolute_quality": absolute_quality,
+        }
+        cells.append(cell)
+
+    panels: dict[str, Any] = {}
+    for panel in sorted({cell["panel"] for cell in cells}):
+        selected = [cell for cell in cells if cell["panel"] == panel]
+        wall_values = [cell["wall_ratio_median"] for cell in selected]
+        rss_values = [cell["rss_ratio_median"] for cell in selected]
+        candidate_wall_total = sum(
+            cell["candidate_wall_seconds_median"] for cell in selected
+        )
+        reference_wall_total = sum(
+            cell["reference_wall_seconds_median"] for cell in selected
+        )
+        concurrency = PANEL_CONCURRENCY[panel]
+        memory_cells = sorted(
+            selected,
+            key=lambda cell: (
+                -cell["candidate_peak_rss_gib"],
+                cell["benchmark"],
+            ),
+        )[:concurrency]
+        memory_contributors = [
+            {
+                "benchmark": cell["benchmark"],
+                "candidate_peak_rss_gib": cell["candidate_peak_rss_gib"],
+            }
+            for cell in memory_cells
+        ]
+        quality = {}
+        for metric in QUALITY_METRICS:
+            deltas = [
+                cell["quality_deltas"][metric]
+                for cell in selected
+                if _number(cell["quality_deltas"][metric])
+            ]
+            quality[metric] = _bootstrap_delta(
+                deltas,
+                seed=seed + sum(ord(char) for char in f"{panel}:{metric}"),
+                replicates=replicates,
+            )
+        panels[panel] = {
+            "n_cells": len(selected),
+            "wall_ratio": bootstrap_geomean_ratio(
+                wall_values, replicates=replicates, seed=seed,
+            ),
+            "rss_ratio": bootstrap_geomean_ratio(
+                rss_values, replicates=replicates, seed=seed + 1,
+            ),
+            "candidate_wall_seconds_total_of_cell_medians": candidate_wall_total,
+            "reference_wall_seconds_total_of_cell_medians": reference_wall_total,
+            "wall_total_ratio": candidate_wall_total / reference_wall_total,
+            "wall_ratio_median": _median(wall_values),
+            "wall_ratio_p95": _percentile(wall_values, 0.95),
+            "wall_ratio_worst": max(wall_values) if wall_values else None,
+            "rss_ratio_median": _median(rss_values),
+            "rss_ratio_p95": _percentile(rss_values, 0.95),
+            "rss_ratio_worst": max(rss_values) if rss_values else None,
+            "candidate_peak_rss_gib": max(
+                (cell["candidate_peak_rss_gib"] for cell in selected),
+                default=None,
+            ),
+            "candidate_concurrency_limit": concurrency,
+            "candidate_concurrent_memory_envelope_gib": sum(
+                item["candidate_peak_rss_gib"]
+                for item in memory_contributors
+            ),
+            "candidate_concurrent_memory_contributors": memory_contributors,
+            "modes": dict(selected[0]["modes"]),
+            "quality": quality,
+        }
+    release_evidence_valid = (
+        publication_mode == "release"
+        and campaign["matrix_complete"]
+        and isinstance(controller_evidence, Mapping)
+        and controller_evidence.get("validated") is True
+    )
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "campaign": campaign,
+        "publication": {
+            "mode": publication_mode,
+            "release_evidence_valid": release_evidence_valid,
+            "controller_evidence": (
+                dict(controller_evidence)
+                if isinstance(controller_evidence, Mapping)
+                else None
+            ),
+        },
+        "bootstrap": {"seed": seed, "replicates": replicates},
+        "policy": {
+            "panel_concurrency": dict(PANEL_CONCURRENCY),
+            "candidate_concurrent_memory_limit_gib": MEMORY_ENVELOPE_GIB,
+        },
+        "quality_baseline_artifact": quality_baseline_artifact,
+        "cells": cells,
+        "panels": panels,
+        "warnings": {
+            label: dict(sorted(counter.items()))
+            for label, counter in warning_totals.items()
+        },
+    }
+    payload["verdict"] = evaluate_verdict(payload)
+    return payload
+
+
+def evaluate_verdict(metrics: Mapping[str, Any]) -> dict[str, Any]:
+    checks = []
+
+    def add(name: str, passed: bool, actual: Any, limit: Any) -> None:
+        checks.append({
+            "name": name,
+            "passed": bool(passed),
+            "actual": actual,
+            "limit": limit,
+        })
+
+    cells = list(metrics.get("cells", []))
+    publication = metrics.get("publication")
+    release_evidence_valid = (
+        isinstance(publication, Mapping)
+        and publication.get("mode") == "release"
+        and publication.get("release_evidence_valid") is True
+    )
+    add(
+        "complete_immutable_release_campaign",
+        release_evidence_valid,
+        (
+            publication.get("mode")
+            if isinstance(publication, Mapping) else "diagnostic"
+        ),
+        "release mode with complete controller-backed evidence",
+    )
+    add(
+        "all_candidate_outputs_valid",
+        bool(cells) and all(cell.get("candidate_valid") is True for cell in cells),
+        sum(cell.get("candidate_valid") is True for cell in cells),
+        len(cells),
+    )
+    add(
+        "candidate_quality_byte_deterministic",
+        bool(cells) and all(
+            cell.get("candidate_quality_deterministic") is True
+            and cell.get("common_pi_deterministic") is True
+            for cell in cells
+        ),
+        sum(
+            cell.get("candidate_quality_deterministic") is True
+            and cell.get("common_pi_deterministic") is True
+            for cell in cells
+        ),
+        len(cells),
+    )
+    add(
+        "candidate_outputs_byte_deterministic",
+        bool(cells) and all(
+            cell.get("candidate_byte_deterministic") is True
+            for cell in cells
+        ),
+        sum(
+            cell.get("candidate_byte_deterministic") is True
+            for cell in cells
+        ),
+        len(cells),
+    )
+    add(
+        "reference_quality_byte_deterministic",
+        bool(cells) and all(
+            cell.get("reference_quality_deterministic") is True
+            and cell.get("common_pi_deterministic") is True
+            for cell in cells
+        ),
+        sum(
+            cell.get("reference_quality_deterministic") is True
+            and cell.get("common_pi_deterministic") is True
+            for cell in cells
+        ),
+        len(cells),
+    )
+    add(
+        "all_reference_outputs_valid",
+        bool(cells) and all(cell.get("reference_valid") is True for cell in cells),
+        sum(cell.get("reference_valid") is True for cell in cells),
+        len(cells),
+    )
+    add(
+        "reference_outputs_byte_deterministic",
+        bool(cells) and all(
+            cell.get("reference_byte_deterministic") is True
+            for cell in cells
+        ),
+        sum(
+            cell.get("reference_byte_deterministic") is True
+            for cell in cells
+        ),
+        len(cells),
+    )
+    for panel, summary in metrics.get("panels", {}).items():
+        wall = summary.get("wall_ratio") or {}
+        rss = summary.get("rss_ratio") or {}
+        add(
+            f"{panel}.wall_gmr_upper",
+            _number(wall.get("high")) and wall["high"] <= PANEL_RATIO_LIMIT,
+            wall.get("high"),
+            PANEL_RATIO_LIMIT,
+        )
+        add(
+            f"{panel}.rss_gmr_upper",
+            _number(rss.get("high")) and rss["high"] <= PANEL_RATIO_LIMIT,
+            rss.get("high"),
+            PANEL_RATIO_LIMIT,
+        )
+        add(
+            f"{panel}.wall_total_ratio",
+            _number(summary.get("wall_total_ratio"))
+            and summary["wall_total_ratio"] <= PANEL_RATIO_LIMIT,
+            summary.get("wall_total_ratio"),
+            PANEL_RATIO_LIMIT,
+        )
+        add(
+            f"{panel}.candidate_concurrent_memory_envelope_gib",
+            _number(summary.get("candidate_concurrent_memory_envelope_gib"))
+            and summary["candidate_concurrent_memory_envelope_gib"]
+            <= MEMORY_ENVELOPE_GIB,
+            summary.get("candidate_concurrent_memory_envelope_gib"),
+            MEMORY_ENVELOPE_GIB,
+        )
+        add(
+            f"{panel}.worst_wall_cell",
+            _number(summary.get("wall_ratio_worst"))
+            and summary["wall_ratio_worst"] <= CELL_RATIO_LIMIT,
+            summary.get("wall_ratio_worst"),
+            CELL_RATIO_LIMIT,
+        )
+        add(
+            f"{panel}.worst_rss_cell",
+            _number(summary.get("rss_ratio_worst"))
+            and summary["rss_ratio_worst"] <= CELL_RATIO_LIMIT,
+            summary.get("rss_ratio_worst"),
+            CELL_RATIO_LIMIT,
+        )
+        for metric, interval in summary.get("quality", {}).items():
+            if interval is None:
+                continue
+            add(
+                f"{panel}.{metric}.lower",
+                interval["low"] >= QUALITY_AGGREGATE_FLOOR,
+                interval["low"],
+                QUALITY_AGGREGATE_FLOOR,
+            )
+    for cell in cells:
+        absolute = cell.get("absolute_quality") or {}
+        baseline = absolute.get("baseline")
+        for label in ("candidate", "reference"):
+            observed = absolute.get(label) or {}
+            add(
+                f"{cell['panel']}.{cell['benchmark']}.{label}."
+                "positive_coding_recovery",
+                _integer(observed.get("n_reference_coding"))
+                and observed["n_reference_coding"] > 0
+                and _integer(observed.get("n_recovered_coding"))
+                and observed["n_recovered_coding"] > 0,
+                {
+                    "reference": observed.get("n_reference_coding"),
+                    "recovered": observed.get("n_recovered_coding"),
+                },
+                "positive recovered coding count",
+            )
+            add(
+                f"{cell['panel']}.{cell['benchmark']}.{label}.valid_pi",
+                _integer(observed.get("n_recovered_coding_with_pi"))
+                and observed["n_recovered_coding_with_pi"] > 0
+                and _number(observed.get("mean_pi"))
+                and observed["mean_pi"] > 0
+                and _number(observed.get("covpi"))
+                and observed["covpi"] > 0,
+                {
+                    "n": observed.get("n_recovered_coding_with_pi"),
+                    "mean_pi": observed.get("mean_pi"),
+                    "covpi": observed.get("covpi"),
+                },
+                "positive scored coding count and finite PI",
+            )
+            if isinstance(baseline, Mapping):
+                for metric, threshold in baseline.items():
+                    floor = (
+                        threshold.get("floor")
+                        if isinstance(threshold, Mapping) else None
+                    )
+                    value = observed.get(metric)
+                    add(
+                        f"{cell['panel']}.{cell['benchmark']}.{label}."
+                        f"absolute_{metric}",
+                        _number(value)
+                        and _number(floor)
+                        and float(value) >= float(floor),
+                        value,
+                        threshold,
+                    )
+        if cell.get("panel") == "e2e":
+            biology = cell.get("e2e_biology") or {}
+            modes = cell.get("modes") or {}
+            add(
+                f"e2e.{cell['benchmark']}.candidate_reference_modes_match",
+                modes.get("candidate") == modes.get("reference")
+                and bool(modes.get("candidate")),
+                modes,
+                "identical candidate/reference E2E modes",
+            )
+            for label in ("candidate", "reference"):
+                result = biology.get(label) or {}
+                add(
+                    f"e2e.{cell['benchmark']}.{label}.biological_summary",
+                    result.get("valid") is True,
+                    result.get("errors", ["missing validation result"]),
+                    "schema-valid, non-empty biological summary",
+                )
+                add(
+                    f"e2e.{cell['benchmark']}.{label}.biology_deterministic",
+                    result.get("deterministic") is True,
+                    result.get("deterministic"),
+                    True,
+                )
+                summary = result.get("summary") or {}
+                add(
+                    f"e2e.{cell['benchmark']}.{label}."
+                    "absolute_feature_completeness",
+                    _number(summary.get("feature_completeness"))
+                    and summary["feature_completeness"]
+                    >= E2E_FEATURE_COMPLETENESS_FLOOR,
+                    summary.get("feature_completeness"),
+                    E2E_FEATURE_COMPLETENESS_FLOOR,
+                )
+                add(
+                    f"e2e.{cell['benchmark']}.{label}."
+                    "absolute_mean_protein_identity",
+                    _number(summary.get("mean_protein_identity"))
+                    and summary["mean_protein_identity"]
+                    >= E2E_MEAN_PI_FLOOR,
+                    summary.get("mean_protein_identity"),
+                    E2E_MEAN_PI_FLOOR,
+                )
+        for metric, delta in cell.get("quality_deltas", {}).items():
+            if _number(delta):
+                add(
+                    f"{cell['panel']}.{cell['benchmark']}.{metric}",
+                    delta >= QUALITY_CELL_FLOOR,
+                    delta,
+                    QUALITY_CELL_FLOOR,
+                )
+        common = cell.get("common_pi")
+        add(
+            f"{cell['panel']}.{cell['benchmark']}.common_pi_present",
+            isinstance(common, Mapping)
+            and _integer(common.get("n_common"))
+            and common["n_common"] > 0,
+            common.get("n_common") if isinstance(common, Mapping) else None,
+            "positive common coding set",
+        )
+        if common is not None:
+            add(
+                f"{cell['panel']}.{cell['benchmark']}.common_pi",
+                common["mean_delta"] >= COMMON_PI_CELL_FLOOR,
+                common["mean_delta"],
+                COMMON_PI_CELL_FLOOR,
+            )
+    diagnostic_checks = [
+        check for check in checks
+        if check["name"] != "complete_immutable_release_campaign"
+    ]
+    return {
+        "passed": bool(checks) and all(check["passed"] for check in checks),
+        "diagnostic_passed": (
+            bool(diagnostic_checks)
+            and all(check["passed"] for check in diagnostic_checks)
+        ),
+        "checks": checks,
+        "n_passed": sum(check["passed"] for check in checks),
+        "n_failed": sum(not check["passed"] for check in checks),
+    }
+
+
+def _format_ratio(value: Any) -> str:
+    return f"{float(value):.3f}×" if _number(value) else "n/a"
+
+
+def _format_gib(value: Any) -> str:
+    return f"{float(value):.2f} GiB" if _number(value) else "n/a"
+
+
+def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> str:
+    verdict = metrics["verdict"]
+    publication = metrics.get("publication") or {}
+    diagnostic = publication.get("mode") != "release"
+    verdict_text = (
+        "DIAGNOSTIC ONLY "
+        f"({'CHECKS PASS' if verdict.get('diagnostic_passed') else 'CHECKS FAIL'})"
+        if diagnostic
+        else ("PASS" if verdict["passed"] else "FAIL")
+    )
+    lines = [
+        "# LiftOn v1.0.10.1 Release Evaluation",
+        "",
+        f"**Verdict:** {verdict_text}  ",
+        f"**Candidate:** `{manifest['candidate_sha']}`  ",
+        f"**Reference:** `{manifest['reference_sha']}`",
+        "",
+        "## Performance",
+        "",
+        "| Panel | Candidate mode | Reference mode | Cells | Wall GMR (95% CI) | "
+        "Total wall | RSS GMR (95% CI) | Worst wall | Worst RSS | "
+        "Concurrent candidate RSS |",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for panel, summary in sorted(metrics["panels"].items()):
+        wall = summary.get("wall_ratio") or {}
+        rss = summary.get("rss_ratio") or {}
+        wall_ci = (
+            f"{_format_ratio(wall.get('estimate'))} "
+            f"[{_format_ratio(wall.get('low'))}, {_format_ratio(wall.get('high'))}]"
+        )
+        rss_ci = (
+            f"{_format_ratio(rss.get('estimate'))} "
+            f"[{_format_ratio(rss.get('low'))}, {_format_ratio(rss.get('high'))}]"
+        )
+        modes = summary.get("modes") or {}
+        lines.append(
+            f"| {panel} | {modes.get('candidate', 'n/a')} | "
+            f"{modes.get('reference', 'n/a')} | {summary['n_cells']} | {wall_ci} | "
+            f"{_format_ratio(summary.get('wall_total_ratio'))} | {rss_ci} | "
+            f"{_format_ratio(summary.get('wall_ratio_worst'))} | "
+            f"{_format_ratio(summary.get('rss_ratio_worst'))} | "
+            f"{_format_gib(summary.get('candidate_concurrent_memory_envelope_gib'))} "
+            f"({summary.get('candidate_concurrency_limit', 0)} slots) |"
+        )
+    lines.extend([
+        "",
+        "Ratios below 1.0 favor the candidate. Timings are paired and alternate "
+        "reference/candidate execution order. Total wall is the sum of candidate "
+        "per-cell median seconds divided by the corresponding reference sum. "
+        "The concurrent RSS envelope conservatively sums the largest four subset "
+        "cell peaks or largest two full/E2E cell peaks and must remain at or below "
+        f"{MEMORY_ENVELOPE_GIB:.0f} GiB.",
+        (
+            "This is an ad-hoc diagnostic aggregation, not a publishable release "
+            "verdict. A release PASS requires an explicit complete campaign "
+            "matrix and immutable successful controller evidence."
+            if diagnostic else
+            "The release verdict is backed by the explicit complete campaign "
+            "matrix and immutable successful controller evidence."
+        ),
+        "",
+        "## Annotation correctness",
+        "",
+        "| Panel | Metric | Delta (95% panel bootstrap CI) |",
+        "|---|---|---:|",
+    ])
+    for panel, summary in sorted(metrics["panels"].items()):
+        for metric, interval in summary.get("quality", {}).items():
+            if interval is None:
+                continue
+            lines.append(
+                f"| {panel} | {metric} | {interval['estimate']:+.5f} "
+                f"[{interval['low']:+.5f}, {interval['high']:+.5f}] |"
+            )
+    e2e_cells = [
+        cell for cell in metrics.get("cells", [])
+        if cell.get("panel") == "e2e"
+    ]
+    if e2e_cells:
+        lines.extend([
+            "",
+            "## End-to-end biological validation",
+            "",
+            "| Dataset | Version | Status | Reference features | Feature "
+            "completeness | Evaluated coding records | Mean protein identity |",
+            "|---|---|---|---:|---:|---:|---:|",
+        ])
+        for cell in e2e_cells:
+            for label in ("candidate", "reference"):
+                biology = (cell.get("e2e_biology") or {}).get(label) or {}
+                summary = biology.get("summary") or {}
+                status = "PASS" if biology.get("valid") else "FAIL"
+                completeness = summary.get("feature_completeness")
+                completeness_text = (
+                    f"{float(completeness):.5f}"
+                    if _number(completeness) else "n/a"
+                )
+                identity = summary.get("mean_protein_identity")
+                identity_text = (
+                    f"{float(identity):.5f}" if _number(identity) else "n/a"
+                )
+                lines.append(
+                    f"| {cell['benchmark']} | {label} | {status} | "
+                    f"{summary.get('reference_features', 'n/a')} | "
+                    f"{completeness_text} | "
+                    f"{summary.get('evaluated_coding_records', 'n/a')} | "
+                    f"{identity_text} |"
+                )
+    failures = [check for check in verdict["checks"] if not check["passed"]]
+    lines.extend([
+        "",
+        "## Gate results",
+        "",
+        f"- Passed: {verdict['n_passed']}",
+        f"- Failed: {verdict['n_failed']}",
+    ])
+    if failures:
+        lines.extend(["", "Failed checks:"])
+        for check in failures:
+            lines.append(
+                f"- `{check['name']}`: actual `{check['actual']}`, "
+                f"limit `{check['limit']}`"
+            )
+    lines.extend([
+        "",
+        "The publication manifest hashes every controller success marker, "
+        "validated GFF3, arm manifest, GFF3 validation record, evaluator TSV, "
+        "tooling source, and paired result used for this report. Other raw logs "
+        "and profiles remain in the controller run directories.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _write_durable_text(path: Path, text: str) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _remove_publication_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+
+
+def _validate_publication_destination(
+    output_dir: Path,
+    roots: Sequence[Path],
+) -> None:
+    """Reject unsafe replacement targets before moving or deleting anything."""
+
+    from . import build_controller
+
+    repo_root = Path(build_controller.REPO_ROOT).resolve()
+    run_roots = [Path(root).resolve() for root in roots]
+    if repo_root == output_dir or repo_root.is_relative_to(output_dir):
+        raise ValueError(
+            f"output directory may not be an ancestor of the repository: "
+            f"{output_dir}"
+        )
+    if any(
+        run_root == output_dir
+        or run_root.is_relative_to(output_dir)
+        or output_dir.is_relative_to(run_root)
+        for run_root in run_roots
+    ):
+        raise ValueError(
+            f"output directory may not overlap a controller run root: "
+            f"{output_dir}"
+        )
+    if not (output_dir.exists() or output_dir.is_symlink()):
+        return
+    if output_dir.is_symlink() or not output_dir.is_dir():
+        raise ValueError(
+            f"refusing to replace a non-directory or symlink output: {output_dir}"
+        )
+    expected_names = {"REPORT.md", "manifest.json", "metrics.json"}
+    observed_names = {path.name for path in output_dir.iterdir()}
+    if observed_names != expected_names or any(
+        not (output_dir / name).is_file() for name in expected_names
+    ):
+        raise ValueError(
+            f"refusing to replace unrecognized publication directory: {output_dir}"
+        )
+    manifest_path = output_dir / "manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"refusing to replace publication with invalid manifest: {exc}"
+        ) from exc
+    required_manifest_fields = {
+        "schema_version",
+        "candidate_sha",
+        "reference_sha",
+        "publication_mode",
+        "expected_campaign",
+        "controller_evidence",
+        "publication_evidence",
+        "quality_baseline_artifact",
+        "bootstrap",
+        "run_roots",
+        "pair_results",
+        "controller_plans",
+    }
+    bootstrap = manifest.get("bootstrap") if isinstance(manifest, Mapping) else None
+    if (
+        not isinstance(manifest, Mapping)
+        or set(manifest) != required_manifest_fields
+        or manifest.get("schema_version") != SCHEMA_VERSION
+        or manifest.get("publication_mode") not in {"diagnostic", "release"}
+        or any(
+            not isinstance(manifest.get(name), str)
+            or _SHA1_RE.fullmatch(manifest[name]) is None
+            for name in ("candidate_sha", "reference_sha")
+        )
+        or not isinstance(bootstrap, Mapping)
+        or not _integer(bootstrap.get("seed"))
+        or not _integer(bootstrap.get("replicates"))
+        or bootstrap["replicates"] <= 0
+        or not isinstance(manifest.get("run_roots"), list)
+        or not manifest["run_roots"]
+        or not all(
+            isinstance(path, str) and Path(path).is_absolute()
+            for path in manifest["run_roots"]
+        )
+        or not isinstance(manifest.get("pair_results"), list)
+        or not manifest["pair_results"]
+        or not isinstance(manifest.get("controller_plans"), list)
+    ):
+        raise ValueError(
+            f"refusing to replace publication with invalid manifest: "
+            f"{manifest_path}"
+        )
+    try:
+        metrics = json.loads((output_dir / "metrics.json").read_text())
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"refusing to replace publication with invalid metrics: {exc}"
+        ) from exc
+    if (
+        not isinstance(metrics, Mapping)
+        or metrics.get("schema_version") != SCHEMA_VERSION
+        or not isinstance(metrics.get("verdict"), Mapping)
+        or not isinstance(metrics["verdict"].get("passed"), bool)
+        or not (output_dir / "REPORT.md").read_text().startswith(
+            "# LiftOn v1.0.10.1 Release Evaluation\n"
+        )
+    ):
+        raise ValueError(
+            f"refusing to replace publication with invalid report/metrics: "
+            f"{output_dir}"
+        )
+
+
+def _write_report_once(
+    roots: Sequence[Path],
+    output_dir: Path,
+    *,
+    candidate_sha: str,
+    reference_sha: str,
+    seed: int = DEFAULT_BOOTSTRAP_SEED,
+    replicates: int = DEFAULT_BOOTSTRAP_REPLICATES,
+    expected_campaign: Mapping[str, Any] | None = None,
+    diagnostic: bool = False,
+) -> dict[str, Any]:
+    candidate_sha = _normalized_git_sha(candidate_sha, label="candidate")
+    reference_sha = _normalized_git_sha(reference_sha, label="reference")
+    controller_evidence = None
+    normalized_campaign = None
+    if diagnostic:
+        if expected_campaign is not None:
+            raise ValueError(
+                "diagnostic reports cannot claim an expected release campaign"
+            )
+        pairs = load_pairs(roots)
+    else:
+        if expected_campaign is None:
+            raise ValueError(
+                "release publication requires an explicit campaign specification; "
+                "use diagnostic=True for a non-release report"
+            )
+        normalized_campaign = _normalize_campaign_spec(expected_campaign)
+        pair_paths, controller_evidence = _controller_publication_evidence(
+            roots,
+            normalized_campaign,
+            candidate_sha=candidate_sha,
+            reference_sha=reference_sha,
+        )
+        pairs = []
+        for path in pair_paths:
+            raw = json.loads(path.read_text())
+            if raw.get("schema_version") != SCHEMA_VERSION:
+                raise ValueError(f"unsupported paired schema in {path}")
+            pairs.append((path, raw))
+    if not pairs:
+        raise RuntimeError("no pair_result.json files found")
+    metrics = aggregate_pairs(
+        pairs,
+        seed=seed,
+        replicates=replicates,
+        candidate_sha=candidate_sha,
+        reference_sha=reference_sha,
+        expected_campaign=normalized_campaign,
+        publication_mode="diagnostic" if diagnostic else "release",
+        controller_evidence=controller_evidence,
+    )
+    publication_evidence = (
+        None if diagnostic else _controller_artifact_evidence(roots)
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "schema_version": SCHEMA_VERSION,
+        "candidate_sha": candidate_sha,
+        "reference_sha": reference_sha,
+        "publication_mode": "diagnostic" if diagnostic else "release",
+        "expected_campaign": normalized_campaign,
+        "controller_evidence": controller_evidence,
+        "publication_evidence": publication_evidence,
+        "quality_baseline_artifact": metrics["quality_baseline_artifact"],
+        "bootstrap": {"seed": seed, "replicates": replicates},
+        "run_roots": [str(Path(root).resolve()) for root in roots],
+        "pair_results": [
+            {
+                "path": str(path.resolve()),
+                "sha256": sha256_file(path),
+                "panel": pair["panel"],
+                "benchmark": pair["benchmark"],
+                "repetition": pair["repetition"],
+                "transcript_metrics": {
+                    label: {
+                        "path": str(
+                            (
+                                path.parent
+                                / "evaluation"
+                                / f"{label}.transcripts.tsv"
+                            ).resolve()
+                        ),
+                        "sha256": sha256_file(
+                            path.parent
+                            / "evaluation"
+                            / f"{label}.transcripts.tsv"
+                        ),
+                    }
+                    for label in ("candidate", "reference")
+                },
+                "outputs": {
+                    label: {
+                        "path": str(
+                            Path(pair["versions"][label].get("output_gff", ""))
+                            .resolve()
+                        ),
+                        "present": Path(
+                            pair["versions"][label].get("output_gff", "")
+                        ).is_file(),
+                        "sha256": (
+                            sha256_file(Path(
+                                pair["versions"][label]["output_gff"]
+                            ))
+                            if Path(
+                                pair["versions"][label].get("output_gff", "")
+                            ).is_file()
+                            else None
+                        ),
+                    }
+                    for label in ("candidate", "reference")
+                },
+            }
+            for path, pair in pairs
+        ],
+        "controller_plans": [
+            {
+                "path": str((Path(root) / "plan.json").resolve()),
+                "sha256": sha256_file(Path(root) / "plan.json"),
+            }
+            for root in roots
+            if (Path(root) / "plan.json").is_file()
+        ],
+    }
+    _write_durable_text(
+        output_dir / "metrics.json",
+        json.dumps(metrics, indent=2) + "\n",
+    )
+    _write_durable_text(
+        output_dir / "manifest.json",
+        json.dumps(manifest, indent=2) + "\n",
+    )
+    _write_durable_text(
+        output_dir / "REPORT.md",
+        render_markdown(metrics, manifest),
+    )
+    return {"metrics": metrics, "manifest": manifest}
+
+
+def write_report(
+    roots: Sequence[Path],
+    output_dir: Path,
+    *,
+    candidate_sha: str,
+    reference_sha: str,
+    seed: int = DEFAULT_BOOTSTRAP_SEED,
+    replicates: int = DEFAULT_BOOTSTRAP_REPLICATES,
+    expected_campaign: Mapping[str, Any] | None = None,
+    diagnostic: bool = False,
+) -> dict[str, Any]:
+    """Build and atomically replace a stale-PASS-safe publication directory."""
+
+    output_dir = Path(output_dir).resolve()
+    _validate_publication_destination(output_dir, roots)
+    parent = output_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    quarantined = None
+    if output_dir.exists() or output_dir.is_symlink():
+        quarantined = Path(tempfile.mkdtemp(
+            prefix=f".{output_dir.name}.stale-",
+            dir=parent,
+        ))
+        quarantined.rmdir()
+        os.replace(output_dir, quarantined)
+    staging = Path(tempfile.mkdtemp(
+        prefix=f".{output_dir.name}.tmp-",
+        dir=parent,
+    ))
+    published = False
+    try:
+        result = _write_report_once(
+            roots,
+            staging,
+            candidate_sha=candidate_sha,
+            reference_sha=reference_sha,
+            seed=seed,
+            replicates=replicates,
+            expected_campaign=expected_campaign,
+            diagnostic=diagnostic,
+        )
+        directory_fd = os.open(staging, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        os.replace(staging, output_dir)
+        published = True
+        parent_fd = os.open(parent, os.O_RDONLY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+    except BaseException:
+        if published and (output_dir.exists() or output_dir.is_symlink()):
+            try:
+                os.replace(output_dir, staging)
+            except OSError:
+                pass
+        if staging.exists() or staging.is_symlink():
+            _remove_publication_path(staging)
+        raise
+    if quarantined is not None:
+        try:
+            _remove_publication_path(quarantined)
+        except OSError:
+            # The canonical path is already the new durable publication. A
+            # best-effort stale-backup cleanup must not invalidate it.
+            pass
+    return result
+
+
+def _positive_int_argument(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runs-root", action="append", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--candidate-sha", required=True)
+    parser.add_argument("--reference-sha", required=True)
+    parser.add_argument(
+        "--campaign-spec",
+        help=(
+            "JSON declaring exact subset/full/e2e ids and repetitions; required "
+            "for a release verdict"
+        ),
+    )
+    parser.add_argument(
+        "--diagnostic",
+        action="store_true",
+        help="allow partial/ad-hoc roots but never emit a release PASS",
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_BOOTSTRAP_SEED)
+    parser.add_argument(
+        "--replicates",
+        type=_positive_int_argument,
+        default=DEFAULT_BOOTSTRAP_REPLICATES,
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not args.diagnostic and not args.campaign_spec:
+        parser.error("--campaign-spec is required unless --diagnostic is used")
+    if args.diagnostic and args.campaign_spec:
+        parser.error("--campaign-spec cannot be combined with --diagnostic")
+    campaign = (
+        json.loads(Path(args.campaign_spec).read_text())
+        if args.campaign_spec else None
+    )
+    result = write_report(
+        [Path(root) for root in args.runs_root],
+        Path(args.output_dir),
+        candidate_sha=args.candidate_sha,
+        reference_sha=args.reference_sha,
+        seed=args.seed,
+        replicates=args.replicates,
+        expected_campaign=campaign,
+        diagnostic=args.diagnostic,
+    )
+    if not args.diagnostic and not result["metrics"]["verdict"]["passed"]:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -19,20 +19,30 @@ also useful for reviewing exact commands and provenance before a long run.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import hashlib
+import importlib.metadata as importlib_metadata
 import json
+import math
 import os
 import re
+import signal
 import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - tmux controller targets POSIX hosts
+    fcntl = None
 
 
 HERE = Path(__file__).resolve().parent
@@ -47,12 +57,50 @@ DEFAULT_RUNS_ROOT = HERE / "_runs"
 DEFAULT_REGISTRY = HERE / "benchmarks.json"
 DEFAULT_DATASET_REGISTRY = HERE.parent / "datasets.json"
 DEFAULT_BASELINE = HERE / "fourway_results.json"
-CONTROLLER_SCHEMA_VERSION = 1
+CONTROLLER_SCHEMA_VERSION = 2
+DEFAULT_PAIRED_REPETITIONS = 4
+STATUS_EXIT_SUCCESS = 0
+STATUS_EXIT_FAILED = 1
+STATUS_EXIT_INVALID = 2
+STATUS_EXIT_INCOMPLETE = 3
+REQUIRED_RUNTIME_DISTRIBUTIONS = (
+    "duckdb",
+    "gffutils",
+    "mappy",
+    "numpy",
+    "parasail",
+    "pyarrow",
+    "pyfaidx",
+    "pysam",
+)
+OPTIONAL_RUNTIME_DISTRIBUTIONS = ("lifton",)
+PROVENANCE_TOOLING_FILES = {
+    "tooling_build_controller": Path(__file__).resolve(),
+    "tooling_release_evaluation": HERE / "release_evaluation.py",
+    "tooling_release_report": HERE / "release_report.py",
+    "tooling_run_benchmarks": HERE.parent / "run_benchmarks.py",
+    "tooling_gff3_validator": REPO_ROOT / "lifton" / "gff3_validator.py",
+}
+WATCHDOG_LOW_CPU_FRACTION = 0.05
+WATCHDOG_CONTROL_FILES = {
+    ".failed.json", ".success", "cell.json", "exit.json",
+    "performance_retry.json", "status.json",
+}
 
 SUBSET_CANARIES = ("human_mane", "human_to_zebrafish")
 FULL_CANARIES = ("arabidopsis", "human_to_zebrafish")
 E2E_DATASETS = ("bee", "human", "arabidopsis", "rice", "mouse")
 E2E_CANARIES = ("bee", "human")
+PAIRED_STAGE_PREFIX = "paired-"
+PAIRED_STAGES = (
+    "paired-subset-canary", "paired-subset",
+    "paired-full-canary", "paired-full",
+    "paired-e2e-canary", "paired-e2e",
+)
+PAIRED_E2E_MODES = (
+    "safe", "stream", "inmemory", "native",
+    "stream-inmemory", "stream-native", "inmemory-native", "fast",
+)
 
 ACTIVE_STATES = {"launching", "running"}
 PENDING_STATES = {"pending", "retry_pending"}
@@ -70,6 +118,12 @@ class Policy:
     min_available_gib: float = 256.0
     stagger_seconds: float = 15.0
     poll_seconds: float = 30.0
+    subset_timeout_seconds: float = 3.0 * 60.0 * 60.0
+    full_timeout_seconds: float = 8.0 * 60.0 * 60.0
+    e2e_timeout_seconds: float = 24.0 * 60.0 * 60.0
+    stall_timeout_seconds: float = 2.0 * 60.0 * 60.0
+    watchdog_poll_seconds: float = 30.0
+    terminate_grace_seconds: float = 30.0
 
     def validate(self) -> None:
         numeric_positive = {
@@ -79,6 +133,12 @@ class Policy:
             "max_worker_threads": self.max_worker_threads,
             "load1_limit": self.load1_limit,
             "min_available_gib": self.min_available_gib,
+            "subset_timeout_seconds": self.subset_timeout_seconds,
+            "full_timeout_seconds": self.full_timeout_seconds,
+            "e2e_timeout_seconds": self.e2e_timeout_seconds,
+            "stall_timeout_seconds": self.stall_timeout_seconds,
+            "watchdog_poll_seconds": self.watchdog_poll_seconds,
+            "terminate_grace_seconds": self.terminate_grace_seconds,
         }
         bad = [name for name, value in numeric_positive.items() if value <= 0]
         if bad:
@@ -226,6 +286,60 @@ def probe_tool(name: str, candidate: str) -> dict[str, Any]:
     return record
 
 
+def collect_runtime_dependencies() -> dict[str, Any]:
+    """Fingerprint the shared Python runtime used by every benchmark arm."""
+
+    distributions: dict[str, Any] = {}
+    required = set(REQUIRED_RUNTIME_DISTRIBUTIONS)
+    for requested in sorted(required | set(OPTIONAL_RUNTIME_DISTRIBUTIONS)):
+        try:
+            distribution = importlib_metadata.distribution(requested)
+        except importlib_metadata.PackageNotFoundError as exc:
+            if requested in required:
+                raise RuntimeError(
+                    "required runtime distribution cannot be fingerprinted: "
+                    f"{requested}"
+                ) from exc
+            continue
+        version = str(distribution.version or "").strip()
+        if not version:
+            raise RuntimeError(
+                "runtime distribution has no fingerprintable version: "
+                f"{requested}"
+            )
+        metadata_hashes: dict[str, Any] = {}
+        for filename in ("METADATA", "WHEEL", "INSTALLER", "direct_url.json"):
+            try:
+                text = distribution.read_text(filename)
+            except (OSError, UnicodeError) as exc:
+                raise RuntimeError(
+                    "runtime distribution metadata cannot be fingerprinted: "
+                    f"{requested}/{filename}: {exc}"
+                ) from exc
+            if text is None:
+                continue
+            encoded = text.encode("utf-8")
+            metadata_hashes[filename] = {
+                "size": len(encoded),
+                "sha256": hashlib.sha256(encoded).hexdigest(),
+            }
+        distributions[requested] = {
+            "name": str(distribution.metadata.get("Name") or requested),
+            "version": version,
+            "metadata": metadata_hashes,
+        }
+    return {
+        "python": {
+            "implementation": sys.implementation.name,
+            "version": ".".join(str(part) for part in sys.version_info[:3]),
+            "cache_tag": sys.implementation.cache_tag,
+            "abi_flags": getattr(sys, "abiflags", ""),
+            "executable": str(Path(sys.executable).resolve()),
+        },
+        "distributions": distributions,
+    }
+
+
 def _registry_tools(registry: Path) -> dict[str, str]:
     try:
         raw = read_json(registry)
@@ -258,6 +372,7 @@ def collect_provenance(
         ("benchmark_registry", registry),
         ("dataset_registry", dataset_registry),
         ("baseline", baseline),
+        *sorted(PROVENANCE_TOOLING_FILES.items()),
     ):
         path = Path(path).resolve()
         if not path.is_file():
@@ -275,6 +390,7 @@ def collect_provenance(
         "git": collect_git_state(repo_root),
         "files": files,
         "tools": tools,
+        "runtime": collect_runtime_dependencies(),
     }
     document["fingerprint"] = canonical_hash(document)
     return document
@@ -296,8 +412,20 @@ def _dataset_ids(path: Path) -> list[str]:
     ]
 
 
+def _base_stage(stage: str) -> str:
+    return stage[len(PAIRED_STAGE_PREFIX):] if stage.startswith(PAIRED_STAGE_PREFIX) else stage
+
+
+def _paired_panel(stage: str) -> str | None:
+    if not stage.startswith(PAIRED_STAGE_PREFIX):
+        return None
+    base = _base_stage(stage)
+    return base.split("-", 1)[0]
+
+
 def select_ids(stage: str, *, baseline: Path, dataset_registry: Path,
                requested: Sequence[str] | None = None) -> list[str]:
+    stage = _base_stage(stage)
     if requested:
         selected = list(dict.fromkeys(requested))
     elif stage == "subset-canary":
@@ -337,6 +465,178 @@ def safe_name(value: str, *, limit: int = 70) -> str:
         return cleaned
     suffix = hashlib.sha256(cleaned.encode()).hexdigest()[:10]
     return f"{cleaned[:limit - 11]}-{suffix}"
+
+
+def paired_configuration(
+    *,
+    stage: str,
+    candidate_root: Path,
+    candidate_sha: str,
+    reference_root: Path,
+    reference_sha: str,
+    repetitions: int,
+    lifton_executable: Path,
+    candidate_e2e_mode: str,
+    reference_e2e_mode: str,
+    benchmark_registry: Path = DEFAULT_REGISTRY,
+    dataset_registry: Path = DEFAULT_DATASET_REGISTRY,
+) -> dict[str, Any]:
+    """Validate and normalize the immutable paired-source configuration."""
+
+    panel = _paired_panel(stage)
+    if panel not in {"subset", "full", "e2e"}:
+        raise ValueError(f"stage {stage!r} is not a paired benchmark stage")
+    if not 1 <= repetitions <= 5:
+        raise ValueError("paired repetitions must be between 1 and 5")
+    if not _base_stage(stage).endswith("-canary") and repetitions % 2:
+        raise ValueError(
+            "non-canary paired stages require an even repetition count for "
+            "balanced reference/candidate order"
+        )
+    for label, sha in (("candidate", candidate_sha), ("reference", reference_sha)):
+        if not re.fullmatch(r"[0-9a-fA-F]{40}", str(sha)):
+            raise ValueError(f"{label} SHA must be an exact 40-character Git SHA")
+    for label, mode in (
+        ("candidate", candidate_e2e_mode),
+        ("reference", reference_e2e_mode),
+    ):
+        if mode not in PAIRED_E2E_MODES:
+            raise ValueError(
+                f"{label} E2E mode must be one of {', '.join(PAIRED_E2E_MODES)}"
+            )
+    return {
+        "panel": panel,
+        "repetitions": int(repetitions),
+        "lifton_executable": str(Path(lifton_executable).resolve()),
+        "registries": {
+            "benchmark": str(Path(benchmark_registry).resolve()),
+            "dataset": str(Path(dataset_registry).resolve()),
+        },
+        "candidate": {
+            "root": str(Path(candidate_root).resolve()),
+            "sha": str(candidate_sha).lower(),
+            "e2e_mode": candidate_e2e_mode,
+        },
+        "reference": {
+            "root": str(Path(reference_root).resolve()),
+            "sha": str(reference_sha).lower(),
+            "e2e_mode": reference_e2e_mode,
+        },
+    }
+
+
+def _paired_source_specs(configuration: Mapping[str, Any]) -> dict[str, Any]:
+    from benchmarks.compare import release_evaluation
+
+    executable = Path(configuration["lifton_executable"])
+    return {
+        label: release_evaluation.SourceSpec(
+            label=label,
+            root=Path(configuration[label]["root"]),
+            sha=str(configuration[label]["sha"]),
+            lifton_executable=executable,
+        )
+        for label in ("candidate", "reference")
+    }
+
+
+def _prepare_paired_provenance(
+    configuration: Mapping[str, Any],
+    benchmark_ids: Sequence[str],
+) -> dict[str, Any]:
+    """Verify both sources and hash every canonical input before planning."""
+
+    from benchmarks.compare import release_evaluation
+
+    sources = {
+        label: release_evaluation.verify_source(spec)
+        for label, spec in _paired_source_specs(configuration).items()
+    }
+    inputs: dict[str, Any] = {}
+    for benchmark in benchmark_ids:
+        resolved = release_evaluation.resolve_panel_inputs(
+            str(configuration["panel"]), benchmark,
+            benchmark_registry=Path(configuration["registries"]["benchmark"]),
+            dataset_registry=Path(configuration["registries"]["dataset"]),
+        )
+        records = release_evaluation.input_fingerprints(resolved)
+        for record in records.values():
+            stat = Path(record["path"]).stat()
+            record.update({
+                "mtime_ns": stat.st_mtime_ns,
+                "ctime_ns": stat.st_ctime_ns,
+                "st_dev": stat.st_dev,
+                "st_ino": stat.st_ino,
+            })
+        inputs[benchmark] = records
+    return {
+        "configuration": dict(configuration),
+        "sources": sources,
+        "inputs": inputs,
+    }
+
+
+def _current_paired_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
+    """Recheck sources and cheaply verify the plan-time input fingerprints."""
+
+    from benchmarks.compare import release_evaluation
+
+    configuration = plan["paired"]
+    sources = {
+        label: release_evaluation.verify_source(spec)
+        for label, spec in _paired_source_specs(configuration).items()
+    }
+    expected_inputs = plan["provenance"]["paired"]["inputs"]
+    inputs: dict[str, Any] = {}
+    for benchmark, expected_records in expected_inputs.items():
+        current_records: dict[str, Any] = {}
+        for name, expected in expected_records.items():
+            path = Path(expected["path"])
+            try:
+                stat = path.stat()
+            except OSError as exc:
+                current_records[name] = {
+                    "path": str(path), "error": str(exc),
+                }
+                continue
+            record = {
+                "path": str(path.resolve()),
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+                "ctime_ns": stat.st_ctime_ns,
+                "st_dev": stat.st_dev,
+                "st_ino": stat.st_ino,
+            }
+            if (
+                all(
+                    record[field_name] == expected.get(field_name)
+                    for field_name in (
+                        "size", "mtime_ns", "ctime_ns", "st_dev", "st_ino",
+                    )
+                )
+            ):
+                record["sha256"] = expected.get("sha256")
+            else:
+                record["sha256"] = release_evaluation.sha256_file(path)
+            current_records[name] = record
+        inputs[benchmark] = current_records
+    return {
+        "configuration": dict(configuration),
+        "sources": sources,
+        "inputs": inputs,
+    }
+
+
+def _add_paired_provenance(
+    provenance: Mapping[str, Any],
+    paired: Mapping[str, Any],
+) -> dict[str, Any]:
+    document = {
+        key: value for key, value in provenance.items() if key != "fingerprint"
+    }
+    document["paired"] = dict(paired)
+    document["fingerprint"] = canonical_hash(document)
+    return document
 
 
 def _validator_command(gff_path: Path) -> list[str]:
@@ -453,9 +753,104 @@ def _e2e_cell(dataset: str, cell_dir: Path, threads: int,
     }
 
 
+def _paired_cell(
+    benchmark: str,
+    cell_dir: Path,
+    threads: int,
+    *,
+    configuration: Mapping[str, Any],
+    repetition: int,
+    input_fingerprints: Mapping[str, Any],
+) -> dict[str, Any]:
+    panel = str(configuration["panel"])
+    pair_root = cell_dir / "pair"
+    if panel == "e2e":
+        candidate_gff = pair_root / "candidate" / "artifacts" / benchmark / "lifton.gff3"
+        reference_gff = pair_root / "reference" / "artifacts" / benchmark / "lifton.gff3"
+    else:
+        candidate_gff = pair_root / "candidate" / "candidate.gff3"
+        reference_gff = pair_root / "reference" / "reference.gff3"
+    candidate_manifest = pair_root / "candidate" / "release_run_manifest.json"
+    reference_manifest = pair_root / "reference" / "release_run_manifest.json"
+    expected_order = (
+        ["reference", "candidate"]
+        if repetition % 2
+        else ["candidate", "reference"]
+    )
+    executable = str(configuration["lifton_executable"])
+    command = [
+        sys.executable, "-m", "benchmarks.compare.release_evaluation", "run-pair",
+        "--panel", panel,
+        "--benchmark", benchmark,
+        "--repetition", str(repetition),
+        "--candidate-root", str(configuration["candidate"]["root"]),
+        "--candidate-sha", str(configuration["candidate"]["sha"]),
+        "--reference-root", str(configuration["reference"]["root"]),
+        "--reference-sha", str(configuration["reference"]["sha"]),
+        "--lifton-executable", executable,
+        "--cell-dir", str(pair_root),
+        "--threads", str(threads),
+        "--benchmark-registry", str(configuration["registries"]["benchmark"]),
+        "--dataset-registry", str(configuration["registries"]["dataset"]),
+        "--candidate-e2e-mode", str(configuration["candidate"]["e2e_mode"]),
+        "--reference-e2e-mode", str(configuration["reference"]["e2e_mode"]),
+    ]
+    return {
+        "id": (
+            f"paired_{panel}__{safe_name(benchmark)}"
+            f"__repetition_{repetition:02d}"
+        ),
+        "kind": "paired_release",
+        "benchmark": benchmark,
+        "mode": f"paired_{panel}",
+        "panel": panel,
+        "repetition": repetition,
+        "expected_order": expected_order,
+        "threads": threads,
+        "full_job": panel in {"full", "e2e"},
+        "exclusive": True,
+        "command": command,
+        "environment": {},
+        "paired": dict(configuration),
+        "input_fingerprints": dict(input_fingerprints),
+        "artifacts": {
+            "result_json": str(pair_root / "pair_result.json"),
+            "result_key": f"paired:{panel}:{benchmark}:repetition-{repetition:02d}",
+            "candidate_gff": str(candidate_gff),
+            "reference_gff": str(reference_gff),
+            "candidate_manifest": str(candidate_manifest),
+            "reference_manifest": str(reference_manifest),
+            "candidate_gff_validator": _validator_command(candidate_gff),
+            "reference_gff_validator": _validator_command(reference_gff),
+        },
+        "cell_dir": str(cell_dir),
+    }
+
+
 def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
-                policy: Policy, dataset_registry: Path) -> list[dict[str, Any]]:
+                policy: Policy, dataset_registry: Path,
+                paired: Mapping[str, Any] | None = None,
+                paired_inputs: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     cells: list[dict[str, Any]] = []
+    panel = _paired_panel(stage)
+    if panel is not None:
+        if paired is None or paired_inputs is None:
+            raise ValueError("paired stages require immutable source and input configuration")
+        for item in ids:
+            for repetition in range(1, int(paired["repetitions"]) + 1):
+                cell_id = (
+                    f"paired_{panel}__{safe_name(item)}"
+                    f"__repetition_{repetition:02d}"
+                )
+                cells.append(_paired_cell(
+                    item,
+                    run_dir / "cells" / cell_id,
+                    policy.threads_per_cell,
+                    configuration=paired,
+                    repetition=repetition,
+                    input_fingerprints=paired_inputs[item],
+                ))
+        return cells
     for item in ids:
         prefix = "gate" if stage == "gates" else stage.split("-", 1)[0]
         cell_id = f"{prefix}__{safe_name(item)}"
@@ -478,15 +873,100 @@ def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
 def _cell_fingerprint(cell: Mapping[str, Any], provenance_fingerprint: str) -> str:
     material = {
         "provenance": provenance_fingerprint,
-        "kind": cell["kind"],
-        "benchmark": cell["benchmark"],
-        "mode": cell["mode"],
-        "threads": cell["threads"],
-        "command": cell["command"],
-        "environment": cell.get("environment", {}),
-        "artifacts": cell.get("artifacts", {}),
+        "cell": {
+            key: value for key, value in cell.items()
+            if key != "fingerprint"
+        },
     }
     return canonical_hash(material)
+
+
+def _plan_fingerprint(plan: Mapping[str, Any]) -> str:
+    return canonical_hash({
+        key: value for key, value in plan.items()
+        if key != "fingerprint"
+    })
+
+
+def validate_plan_integrity(plan: Mapping[str, Any]) -> None:
+    """Recompute every immutable digest and paired redundancy contract."""
+
+    provenance = plan.get("provenance")
+    if not isinstance(provenance, Mapping):
+        raise ValueError("plan provenance is missing or malformed")
+    provenance_fingerprint = provenance.get("fingerprint")
+    if not isinstance(provenance_fingerprint, str):
+        raise ValueError("plan provenance fingerprint is missing")
+    expected_provenance = canonical_hash({
+        key: value for key, value in provenance.items()
+        if key != "fingerprint"
+    })
+    if provenance_fingerprint != expected_provenance:
+        raise ValueError("plan provenance fingerprint does not match its content")
+
+    cells = plan.get("cells")
+    if not isinstance(cells, list) or not cells:
+        raise ValueError("plan cells are missing or empty")
+    for cell in cells:
+        if not isinstance(cell, Mapping):
+            raise ValueError("plan contains a malformed cell")
+        expected_cell = _cell_fingerprint(cell, provenance_fingerprint)
+        if cell.get("fingerprint") != expected_cell:
+            raise ValueError(
+                f"cell fingerprint does not match immutable content: "
+                f"{cell.get('id', '<unknown>')}"
+            )
+
+    paired = plan.get("paired")
+    frozen_paired = provenance.get("paired")
+    if paired is None:
+        if frozen_paired is not None:
+            raise ValueError("unpaired plan unexpectedly contains paired provenance")
+    else:
+        if not isinstance(frozen_paired, Mapping):
+            raise ValueError("paired plan lacks frozen paired provenance")
+        if frozen_paired.get("configuration") != paired:
+            raise ValueError(
+                "plan paired configuration disagrees with frozen provenance"
+            )
+        frozen_inputs = frozen_paired.get("inputs")
+        if not isinstance(frozen_inputs, Mapping):
+            raise ValueError("paired plan lacks frozen input fingerprints")
+        for cell in cells:
+            if cell.get("kind") != "paired_release":
+                raise ValueError("paired plan contains a non-paired cell")
+            if cell.get("paired") != paired:
+                raise ValueError(
+                    f"cell paired configuration disagrees with plan: {cell['id']}"
+                )
+            if cell.get("input_fingerprints") != frozen_inputs.get(
+                cell.get("benchmark")
+            ):
+                raise ValueError(
+                    f"cell input fingerprints disagree with frozen provenance: "
+                    f"{cell['id']}"
+                )
+            repetition = cell.get("repetition")
+            if (
+                not isinstance(repetition, int)
+                or isinstance(repetition, bool)
+                or not 1 <= repetition <= int(paired["repetitions"])
+            ):
+                raise ValueError(f"cell repetition is invalid: {cell['id']}")
+            expected_order = (
+                ["reference", "candidate"]
+                if repetition % 2 else ["candidate", "reference"]
+            )
+            if cell.get("expected_order") != expected_order:
+                raise ValueError(
+                    f"cell expected order is inconsistent: {cell['id']}"
+                )
+            if cell.get("panel") != paired.get("panel"):
+                raise ValueError(f"cell panel is inconsistent: {cell['id']}")
+
+    expected_plan = _plan_fingerprint(plan)
+    if plan.get("fingerprint") != expected_plan:
+        raise ValueError("plan fingerprint does not match immutable content")
 
 
 def create_plan(
@@ -500,21 +980,76 @@ def create_plan(
     dataset_registry: Path,
     baseline: Path,
     policy: Policy,
+    paired: Mapping[str, Any] | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     policy.validate()
+    panel = _paired_panel(stage)
+    if panel is None and paired is not None:
+        raise ValueError("paired source configuration is only valid for paired stages")
+    if panel is not None:
+        if paired is None:
+            raise ValueError(
+                "paired stages require candidate/reference roots and exact SHAs"
+            )
+        try:
+            paired = paired_configuration(
+                stage=stage,
+                candidate_root=Path(paired["candidate"]["root"]),
+                candidate_sha=str(paired["candidate"]["sha"]),
+                reference_root=Path(paired["reference"]["root"]),
+                reference_sha=str(paired["reference"]["sha"]),
+                repetitions=int(paired["repetitions"]),
+                lifton_executable=Path(paired["lifton_executable"]),
+                candidate_e2e_mode=str(paired["candidate"]["e2e_mode"]),
+                reference_e2e_mode=str(paired["reference"]["e2e_mode"]),
+                benchmark_registry=Path(
+                    paired.get("registries", {}).get(
+                        "benchmark", DEFAULT_REGISTRY,
+                    )
+                ),
+                dataset_registry=Path(
+                    paired.get("registries", {}).get(
+                        "dataset", DEFAULT_DATASET_REGISTRY,
+                    )
+                ),
+            )
+        except (AttributeError, KeyError, TypeError) as exc:
+            raise ValueError(
+                f"paired source configuration is incomplete: {exc}"
+            ) from exc
+        expected_registries = {
+            "benchmark": str(Path(registry).resolve()),
+            "dataset": str(Path(dataset_registry).resolve()),
+        }
+        if paired["registries"] != expected_registries:
+            raise ValueError(
+                "paired registry configuration does not match the plan inputs"
+            )
+    ids = select_ids(
+        stage, baseline=baseline, dataset_registry=dataset_registry,
+        requested=requested_ids,
+    )
     provenance = collect_provenance(
         repo_root=repo_root, registry=registry,
         dataset_registry=dataset_registry, baseline=baseline,
     )
+    paired_provenance = None
+    if paired is not None:
+        paired_provenance = _prepare_paired_provenance(paired, ids)
+        provenance = _add_paired_provenance(provenance, paired_provenance)
     if run_id is None:
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"{stamp}-{stage}-{provenance['fingerprint'][:8]}"
     run_id = safe_name(run_id, limit=100)
     run_dir = Path(runs_root).resolve() / run_id
-    ids = select_ids(stage, baseline=baseline,
-                     dataset_registry=dataset_registry, requested=requested_ids)
-    cells = build_cells(stage, ids, run_dir=run_dir, policy=policy,
-                        dataset_registry=dataset_registry)
+    cells = build_cells(
+        stage, ids, run_dir=run_dir, policy=policy,
+        dataset_registry=dataset_registry, paired=paired,
+        paired_inputs=(
+            paired_provenance["inputs"]
+            if paired_provenance is not None else None
+        ),
+    )
     for cell in cells:
         cell["fingerprint"] = _cell_fingerprint(cell, provenance["fingerprint"])
     plan: dict[str, Any] = {
@@ -534,18 +1069,14 @@ def create_plan(
         "provenance": provenance,
         "cells": cells,
     }
-    plan["fingerprint"] = canonical_hash({
-        "schema_version": plan["schema_version"],
-        "stage": stage,
-        "ids": ids,
-        "policy": plan["policy"],
-        "provenance": provenance["fingerprint"],
-        "cells": [cell["fingerprint"] for cell in cells],
-    })
+    if paired is not None:
+        plan["paired"] = paired
+    plan["fingerprint"] = _plan_fingerprint(plan)
     return run_dir, plan
 
 
 def initialize_run(run_dir: Path, plan: Mapping[str, Any]) -> None:
+    validate_plan_integrity(plan)
     validate_plan_layout(plan)
     if run_dir.exists() and any(run_dir.iterdir()):
         raise FileExistsError(f"run directory already exists and is not empty: {run_dir}")
@@ -576,6 +1107,7 @@ def load_plan(run_dir: Path) -> dict[str, Any]:
     plan = read_json(Path(run_dir) / "plan.json")
     if plan.get("schema_version") != CONTROLLER_SCHEMA_VERSION:
         raise ValueError("unsupported or missing controller plan schema")
+    validate_plan_integrity(plan)
     validate_plan_layout(plan)
     return plan
 
@@ -591,7 +1123,15 @@ def validate_plan_layout(plan: Mapping[str, Any]) -> None:
             raise ValueError(f"cell directory escapes the run root: {cell_dir}")
         if cell["kind"] == "gate":
             continue
-        for name in ("result_json", "gff", "manifest"):
+        if cell["kind"] == "paired_release":
+            output_names = (
+                "result_json",
+                "candidate_gff", "reference_gff",
+                "candidate_manifest", "reference_manifest",
+            )
+        else:
+            output_names = ("result_json", "gff", "manifest")
+        for name in output_names:
             output = Path(cell["artifacts"][name]).resolve()
             if not output.is_relative_to(cell_dir):
                 raise ValueError(
@@ -601,12 +1141,17 @@ def validate_plan_layout(plan: Mapping[str, Any]) -> None:
 
 def collect_current_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
     inputs = plan["inputs"]
-    return collect_provenance(
+    provenance = collect_provenance(
         repo_root=Path(plan["repo_root"]),
         registry=Path(inputs["registry"]),
         dataset_registry=Path(inputs["dataset_registry"]),
         baseline=Path(inputs["baseline"]),
     )
+    if plan.get("paired") is not None:
+        provenance = _add_paired_provenance(
+            provenance, _current_paired_provenance(plan),
+        )
+    return provenance
 
 
 def assert_matching_provenance(plan: Mapping[str, Any]) -> None:
@@ -650,6 +1195,370 @@ def _write_status(cell: Mapping[str, Any], state: str, **fields: Any) -> None:
         **fields,
     }
     atomic_write_json(Path(cell["cell_dir"]) / "status.json", payload)
+
+
+def _read_proc_stat(pid: int, proc_root: Path = Path("/proc")) -> dict[str, int] | None:
+    """Return the process identity/accounting fields needed by the watchdog."""
+
+    try:
+        text = (Path(proc_root) / str(pid) / "stat").read_text(encoding="utf-8")
+        # ``comm`` is parenthesized and may itself contain spaces or ``)``.
+        fields = text[text.rfind(")") + 2:].split()
+        return {
+            "pgrp": int(fields[2]),
+            "session": int(fields[3]),
+            "utime": int(fields[11]),
+            "stime": int(fields[12]),
+            "start_ticks": int(fields[19]),
+        }
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _pid_identity_matches(pid: int, pgid: int, start_ticks: int | None,
+                          proc_root: Path = Path("/proc")) -> bool:
+    """Protect orphan cleanup from signalling a recycled PID/process group."""
+
+    if start_ticks is None:
+        return False
+    record = _read_proc_stat(pid, proc_root)
+    return bool(
+        record
+        and record["pgrp"] == pgid
+        and record["session"] == pgid
+        and record["start_ticks"] == start_ticks
+    )
+
+
+def _process_group_cpu_seconds(pgid: int, proc_root: Path = Path("/proc")) -> float | None:
+    """Best-effort live CPU usage for every member of a POSIX process group."""
+
+    try:
+        clock_ticks = float(os.sysconf("SC_CLK_TCK"))
+        total_ticks = 0
+        found = False
+        for entry in Path(proc_root).iterdir():
+            if not entry.name.isdigit():
+                continue
+            record = _read_proc_stat(int(entry.name), proc_root)
+            if record and record["pgrp"] == pgid:
+                total_ticks += record["utime"] + record["stime"]
+                found = True
+        return total_ticks / clock_ticks if found else None
+    except (OSError, ValueError):
+        return None
+
+
+def _progress_snapshot(cell_dir: Path) -> tuple[int, int, int]:
+    """Cheaply summarize output/log progress without reading large artifacts."""
+
+    newest_ns = 0
+    total_size = 0
+    files = 0
+    try:
+        for root, _dirs, names in os.walk(cell_dir):
+            for name in names:
+                if name in WATCHDOG_CONTROL_FILES or name.endswith(".watchdog.json"):
+                    continue
+                try:
+                    stat = (Path(root) / name).stat()
+                except OSError:
+                    continue
+                newest_ns = max(newest_ns, stat.st_mtime_ns)
+                total_size += stat.st_size
+                files += 1
+    except OSError:
+        pass
+    return newest_ns, total_size, files
+
+
+def _terminate_process_group(
+    *,
+    pid: int,
+    pgid: int,
+    start_ticks: int | None,
+    grace_seconds: float,
+    process: subprocess.Popen[Any] | None = None,
+) -> dict[str, Any]:
+    """Terminate a verified process group, escalating TERM to KILL if needed."""
+
+    cleanup = {
+        "identity_verified": False,
+        "term_sent": False,
+        "kill_sent": False,
+        "error": None,
+    }
+    owned_handle = process is not None
+    verified = _pid_identity_matches(pid, pgid, start_ticks)
+    # A live Popen handle is itself a safe identity token even if /proc is
+    # temporarily unavailable. Orphan cleanup, which has no handle, fails
+    # closed unless the persisted PID/start token still matches.
+    if not verified and not owned_handle:
+        cleanup["error"] = "process identity no longer matches; signal refused"
+        return cleanup
+    cleanup["identity_verified"] = True
+
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+        cleanup["term_sent"] = True
+    except ProcessLookupError:
+        return cleanup
+    except OSError as exc:
+        cleanup["error"] = f"SIGTERM failed: {exc}"
+        return cleanup
+
+    deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < deadline:
+        if process is not None:
+            process.poll()
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return cleanup
+        except PermissionError:
+            break
+        time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+        cleanup["kill_sent"] = True
+    except ProcessLookupError:
+        pass
+    except OSError as exc:
+        cleanup["error"] = f"SIGKILL failed: {exc}"
+    if process is not None:
+        try:
+            process.wait(timeout=max(1.0, grace_seconds))
+        except subprocess.TimeoutExpired:
+            cleanup["error"] = cleanup["error"] or "process remained after SIGKILL"
+    return cleanup
+
+
+def _hard_timeout_seconds(cell: Mapping[str, Any], policy: Policy) -> float:
+    if cell["kind"] == "paired_release":
+        panel = cell.get("panel")
+        if panel == "e2e":
+            base = policy.e2e_timeout_seconds
+        elif panel == "full":
+            base = policy.full_timeout_seconds
+        elif panel == "subset":
+            base = policy.subset_timeout_seconds
+        else:
+            raise ValueError(f"unknown paired panel: {panel!r}")
+        return 2.0 * base
+    if cell["kind"] == "end_to_end":
+        return policy.e2e_timeout_seconds
+    if cell["kind"] == "full_refresh":
+        return policy.full_timeout_seconds
+    return policy.subset_timeout_seconds
+
+
+class _SupervisorSignal(RuntimeError):
+    def __init__(self, signum: int):
+        self.signum = signum
+        super().__init__(f"worker received signal {signum}")
+
+
+def _run_supervised(
+    *,
+    plan: Mapping[str, Any],
+    cell: Mapping[str, Any],
+    attempt: int,
+    environment: Mapping[str, str],
+    stdout_path: Path,
+    stderr_path: Path,
+) -> dict[str, Any]:
+    """Run one cell in its own session with hard/stall watchdog enforcement."""
+
+    policy = Policy(**plan["policy"])
+    hard_timeout = _hard_timeout_seconds(cell, policy)
+    watchdog_path = Path(cell["cell_dir"]) / f"attempt-{attempt:02d}.watchdog.json"
+    started = time.monotonic()
+    launch_error: str | None = None
+    process: subprocess.Popen[Any] | None = None
+    pid: int | None = None
+    pgid: int | None = None
+    start_ticks: int | None = None
+    reason: str | None = None
+    cleanup: dict[str, Any] = {}
+    previous_handlers: dict[int, Any] = {}
+
+    def _signal_handler(signum: int, _frame: Any) -> None:
+        raise _SupervisorSignal(signum)
+
+    if threading.current_thread() is threading.main_thread():
+        for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, _signal_handler)
+
+    try:
+        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+            try:
+                process = subprocess.Popen(
+                    cell["command"], cwd=plan["repo_root"], env=dict(environment),
+                    stdout=stdout, stderr=stderr, start_new_session=True,
+                )
+            except OSError as exc:
+                launch_error = str(exc)
+                returncode = 127
+            else:
+                pid = process.pid
+                pgid = process.pid
+                record = None
+                for _ in range(5):
+                    record = _read_proc_stat(pid)
+                    if record is not None or process.poll() is not None:
+                        break
+                    time.sleep(0.01)
+                start_ticks = record["start_ticks"] if record else None
+                _write_status(
+                    cell, "running", attempts=attempt,
+                    command_pid=pid, command_pgid=pgid,
+                    command_start_ticks=start_ticks,
+                    hard_timeout_seconds=hard_timeout,
+                    stall_timeout_seconds=policy.stall_timeout_seconds,
+                )
+                last_snapshot = _progress_snapshot(Path(cell["cell_dir"]))
+                last_activity = time.monotonic()
+                last_sample = last_activity
+                last_cpu = _process_group_cpu_seconds(pgid)
+                cpu_observable = last_cpu is not None
+
+                while True:
+                    now = time.monotonic()
+                    remaining_hard = hard_timeout - (now - started)
+                    remaining_stall = policy.stall_timeout_seconds - (now - last_activity)
+                    wait_limits = [policy.watchdog_poll_seconds, remaining_hard]
+                    if cpu_observable:
+                        wait_limits.append(remaining_stall)
+                    wait_seconds = max(0.01, min(wait_limits))
+                    try:
+                        returncode = process.wait(timeout=wait_seconds)
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
+
+                    now = time.monotonic()
+                    snapshot = _progress_snapshot(Path(cell["cell_dir"]))
+                    current_cpu = _process_group_cpu_seconds(pgid)
+                    cpu_fraction = None
+                    if current_cpu is None:
+                        cpu_observable = False
+                    elif last_cpu is not None:
+                        interval = max(now - last_sample, 1e-9)
+                        cpu_fraction = max(0.0, current_cpu - last_cpu) / interval
+                    if snapshot != last_snapshot or (
+                        cpu_fraction is not None
+                        and cpu_fraction >= WATCHDOG_LOW_CPU_FRACTION
+                    ):
+                        last_activity = now
+                    last_snapshot = snapshot
+                    last_sample = now
+                    last_cpu = current_cpu
+                    atomic_write_json(watchdog_path, {
+                        "schema_version": CONTROLLER_SCHEMA_VERSION,
+                        "cell_id": cell["id"],
+                        "attempt": attempt,
+                        "pid": pid,
+                        "pgid": pgid,
+                        "process_start_ticks": start_ticks,
+                        "elapsed_seconds": now - started,
+                        "seconds_since_activity": now - last_activity,
+                        "group_cpu_seconds": current_cpu,
+                        "cpu_fraction": cpu_fraction,
+                        "cpu_observable": cpu_observable,
+                        "progress": {
+                            "newest_mtime_ns": snapshot[0],
+                            "total_size": snapshot[1],
+                            "file_count": snapshot[2],
+                        },
+                        "hard_timeout_seconds": hard_timeout,
+                        "stall_timeout_seconds": policy.stall_timeout_seconds,
+                        "updated_at": utc_now(),
+                    })
+                    if now - started >= hard_timeout:
+                        reason = "hard_timeout"
+                        cleanup = _terminate_process_group(
+                            pid=pid, pgid=pgid, start_ticks=start_ticks,
+                            grace_seconds=policy.terminate_grace_seconds,
+                            process=process,
+                        )
+                        returncode = process.wait()
+                        break
+                    if (
+                        cpu_observable
+                        and now - last_activity >= policy.stall_timeout_seconds
+                    ):
+                        reason = "stall_timeout"
+                        cleanup = _terminate_process_group(
+                            pid=pid, pgid=pgid, start_ticks=start_ticks,
+                            grace_seconds=policy.terminate_grace_seconds,
+                            process=process,
+                        )
+                        returncode = process.wait()
+                        break
+                if reason is None and pid is not None and pgid is not None:
+                    # A well-behaved cell command waits for its descendants.
+                    # Clean up any process that escaped that contract before
+                    # artifact validation can publish success.
+                    try:
+                        os.killpg(pgid, 0)
+                    except ProcessLookupError:
+                        pass
+                    else:
+                        cleanup = _terminate_process_group(
+                            pid=pid, pgid=pgid, start_ticks=start_ticks,
+                            grace_seconds=policy.terminate_grace_seconds,
+                            process=process,
+                        )
+    except _SupervisorSignal as exc:
+        reason = f"worker_signal_{signal.Signals(exc.signum).name.lower()}"
+        if process is not None and pid is not None and pgid is not None:
+            cleanup = _terminate_process_group(
+                pid=pid, pgid=pgid, start_ticks=start_ticks,
+                grace_seconds=policy.terminate_grace_seconds,
+                process=process,
+            )
+            returncode = process.wait()
+        else:
+            returncode = 128 + exc.signum
+    except BaseException:
+        if process is not None and pid is not None and pgid is not None:
+            _terminate_process_group(
+                pid=pid, pgid=pgid, start_ticks=start_ticks,
+                grace_seconds=policy.terminate_grace_seconds,
+                process=process,
+            )
+        raise
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+
+    elapsed = time.monotonic() - started
+    watchdog = {
+        "reason": reason,
+        "hard_timeout_seconds": hard_timeout,
+        "stall_timeout_seconds": policy.stall_timeout_seconds,
+        "elapsed_seconds": elapsed,
+        "pid": pid,
+        "pgid": pgid,
+        "process_start_ticks": start_ticks,
+        "cleanup": cleanup,
+    }
+    atomic_write_json(watchdog_path, {
+        "schema_version": CONTROLLER_SCHEMA_VERSION,
+        "cell_id": cell["id"],
+        "attempt": attempt,
+        **watchdog,
+        "finished_at": utc_now(),
+    })
+    return {
+        "returncode": returncode,
+        "elapsed_seconds": elapsed,
+        "launch_error": launch_error,
+        "watchdog": watchdog,
+        "watchdog_path": str(watchdog_path),
+    }
 
 
 def validate_gff3_structure(path: Path) -> list[str]:
@@ -705,8 +1614,424 @@ def _artifact_is_fresh(path: Path, started_ns: int) -> bool:
         return False
 
 
+def _success_artifact_record(
+    path: Path,
+    *,
+    sha256: str | None = None,
+) -> dict[str, Any]:
+    stat = Path(path).stat()
+    return {
+        "path": str(Path(path).resolve()),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "sha256": sha256 or sha256_file(Path(path)),
+    }
+
+
 def _number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _finite_number(
+    value: Any,
+    *,
+    positive: bool = False,
+    unit_interval: bool = False,
+) -> bool:
+    if not _number(value) or not math.isfinite(float(value)):
+        return False
+    if positive and float(value) <= 0:
+        return False
+    if unit_interval and not 0.0 <= float(value) <= 1.0:
+        return False
+    return True
+
+
+def _same_resolved_path(value: Any, expected: Any) -> bool:
+    if not isinstance(value, (str, os.PathLike)):
+        return False
+    try:
+        return Path(value).resolve() == Path(expected).resolve()
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def _sha256_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(re.fullmatch(r"[0-9a-f]{64}", value))
+
+
+def _validate_successful_profile(
+    profile: Any,
+    *,
+    label: str,
+) -> list[str]:
+    if not isinstance(profile, Mapping):
+        return [f"{label} is missing or not an object"]
+    errors = []
+    if profile.get("exit_code") != 0:
+        errors.append(f"{label}.exit_code is not 0")
+    for field_name in ("wall_clock_seconds", "peak_rss_mb"):
+        if not _finite_number(profile.get(field_name), positive=True):
+            errors.append(f"{label}.{field_name} is not finite and positive")
+    return errors
+
+
+def _validate_e2e_payload(payload: Mapping[str, Any], *, label: str) -> list[str]:
+    from benchmarks.compare import release_evaluation
+
+    try:
+        release_evaluation.validate_e2e_biology(payload)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        return [f"{label}: {exc}"]
+    return []
+
+
+def _validate_paired_source(
+    document: Any,
+    expected: Mapping[str, Any],
+    *,
+    label: str,
+    require_import: bool,
+) -> list[str]:
+    if not isinstance(document, Mapping):
+        return [f"{label} source provenance is missing or not an object"]
+    errors = []
+    if document.get("label") != label:
+        errors.append(f"{label} source label is inconsistent")
+    if not _same_resolved_path(document.get("root"), expected["root"]):
+        errors.append(f"{label} source root does not match the plan")
+    if document.get("sha") != expected["sha"]:
+        errors.append(f"{label} source SHA does not match the plan")
+    if not _same_resolved_path(
+        document.get("lifton_executable"), expected["lifton_executable"],
+    ):
+        errors.append(f"{label} LiftOn executable does not match the plan")
+    if require_import:
+        imported = document.get("imported_package")
+        if not isinstance(imported, str):
+            errors.append(f"{label} imported package provenance is missing")
+        else:
+            try:
+                within_root = Path(imported).resolve().is_relative_to(
+                    Path(expected["root"]).resolve()
+                )
+            except (OSError, TypeError, ValueError):
+                within_root = False
+            if not within_root:
+                errors.append(f"{label} imported package is outside its source root")
+    return errors
+
+
+def _validate_gff_fingerprint(document: Any, *, label: str) -> list[str]:
+    from benchmarks.compare import release_evaluation
+
+    if not isinstance(document, Mapping):
+        return [f"{label} GFF3 fingerprints are missing or not an object"]
+    errors = []
+    for field_name in ("byte_sha256", "semantic_sha256"):
+        if not _sha256_text(document.get(field_name)):
+            errors.append(f"{label} fingerprint {field_name} is not a SHA-256")
+    if document.get("semantic_algorithm") != (
+        release_evaluation.SEMANTIC_HASH_ALGORITHM
+    ):
+        errors.append(f"{label} fingerprint semantic_algorithm is unsupported")
+    feature_records = document.get("feature_records")
+    if (
+        not isinstance(feature_records, int)
+        or isinstance(feature_records, bool)
+        or feature_records <= 0
+    ):
+        errors.append(f"{label} fingerprint feature_records is not positive")
+    feature_counts = document.get("feature_counts")
+    if not isinstance(feature_counts, Mapping) or not feature_counts:
+        errors.append(f"{label} fingerprint feature_counts is empty or malformed")
+    else:
+        malformed = [
+            name for name, count in feature_counts.items()
+            if (
+                not isinstance(name, str)
+                or not name
+                or not isinstance(count, int)
+                or isinstance(count, bool)
+                or count < 0
+            )
+        ]
+        if malformed:
+            errors.append(f"{label} fingerprint feature_counts has invalid entries")
+        elif isinstance(feature_records, int) and sum(feature_counts.values()) != feature_records:
+            errors.append(f"{label} feature counts do not sum to feature_records")
+    return errors
+
+
+def _validate_evaluation_artifact(
+    cell: Mapping[str, Any],
+    version: Mapping[str, Any],
+    *,
+    label: str,
+) -> list[str]:
+    artifacts = version.get("evaluation_artifacts")
+    if not isinstance(artifacts, Mapping):
+        return [f"{label} evaluation_artifacts are missing or malformed"]
+    record = artifacts.get("transcripts_tsv")
+    if not isinstance(record, Mapping):
+        return [f"{label} transcripts_tsv evidence is missing or malformed"]
+    errors = []
+    expected = (
+        Path(cell["artifacts"]["result_json"]).parent
+        / "evaluation"
+        / f"{label}.transcripts.tsv"
+    ).resolve()
+    path_value = record.get("path")
+    try:
+        is_absolute = (
+            isinstance(path_value, (str, os.PathLike))
+            and Path(path_value).is_absolute()
+        )
+    except (OSError, TypeError, ValueError):
+        is_absolute = False
+    if not is_absolute:
+        errors.append(f"{label} transcripts_tsv path is not absolute")
+    if not _same_resolved_path(path_value, expected):
+        errors.append(
+            f"{label} transcripts_tsv path does not match the canonical cell path"
+        )
+    size = record.get("size")
+    if (
+        not isinstance(size, int)
+        or isinstance(size, bool)
+        or size <= 0
+    ):
+        errors.append(f"{label} transcripts_tsv size is not positive")
+    if not _sha256_text(record.get("sha256")):
+        errors.append(f"{label} transcripts_tsv sha256 is malformed")
+    summary = version.get("summary")
+    summary_path = (
+        summary.get("transcripts_tsv")
+        if isinstance(summary, Mapping) else None
+    )
+    if not _same_resolved_path(summary_path, path_value):
+        errors.append(
+            f"{label} evaluator summary transcripts_tsv path disagrees with "
+            "evaluation_artifacts"
+        )
+    return errors
+
+
+def _validate_paired_summary(
+    summary: Any,
+    *,
+    benchmark: str,
+    label: str,
+    profile: Mapping[str, Any],
+) -> list[str]:
+    if not isinstance(summary, Mapping) or not summary:
+        return [f"{label} evaluator summary is missing or empty"]
+    errors = []
+    if summary.get("benchmark") != benchmark:
+        errors.append(f"{label} evaluator benchmark does not match the cell")
+    if summary.get("tool") != label:
+        errors.append(f"{label} evaluator tool label is inconsistent")
+    total = summary.get("n_reference_total")
+    if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
+        errors.append(f"{label} evaluator has no reference records")
+    for field_name in ("completeness_all", "completeness_coding"):
+        value = summary.get(field_name)
+        if value is not None and not _finite_number(value, unit_interval=True):
+            errors.append(f"{label} evaluator {field_name} is not finite in [0, 1]")
+    identity = summary.get("protein_identity")
+    if not isinstance(identity, Mapping):
+        errors.append(f"{label} evaluator protein_identity is malformed")
+    else:
+        count = identity.get("n")
+        mean = identity.get("mean")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            errors.append(f"{label} evaluator protein_identity.n is invalid")
+        elif count > 0 and not _finite_number(mean, unit_interval=True):
+            errors.append(f"{label} evaluator protein identity is not finite in [0, 1]")
+    summary_profile = summary.get("profile")
+    if not isinstance(summary_profile, Mapping):
+        errors.append(f"{label} evaluator profile is missing")
+    else:
+        for field_name in ("wall_clock_seconds", "peak_rss_mb"):
+            if summary_profile.get(field_name) != profile.get(field_name):
+                errors.append(
+                    f"{label} evaluator profile {field_name} disagrees with the run profile"
+                )
+    return errors
+
+
+def _validate_paired_result(
+    cell: Mapping[str, Any],
+    raw: Any,
+) -> list[str]:
+    from benchmarks.compare import release_evaluation
+
+    if not isinstance(raw, Mapping):
+        return ["paired result JSON is not an object"]
+    errors: list[str] = []
+    configuration = cell["paired"]
+    panel = cell["panel"]
+    if raw.get("schema_version") != release_evaluation.SCHEMA_VERSION:
+        errors.append(
+            "paired result schema_version is not "
+            f"{release_evaluation.SCHEMA_VERSION}"
+        )
+    if raw.get("panel") != panel:
+        errors.append("paired result panel does not match the cell")
+    if raw.get("benchmark") != cell["benchmark"]:
+        errors.append("paired result benchmark does not match the cell")
+    if raw.get("repetition") != cell["repetition"]:
+        errors.append("paired result repetition does not match the cell")
+    if raw.get("order") != cell["expected_order"]:
+        errors.append("paired result AB/BA order does not match the plan")
+    if raw.get("threads") != cell["threads"]:
+        errors.append("paired result thread count does not match the plan")
+
+    expected_modes = {
+        label: (
+            configuration[label]["e2e_mode"] if panel == "e2e" else panel
+        )
+        for label in ("candidate", "reference")
+    }
+    if raw.get("modes") != expected_modes:
+        errors.append("paired result modes do not match the plan")
+    result_registries = raw.get("registries")
+    expected_registries = configuration["registries"]
+    if not isinstance(result_registries, Mapping) or any(
+        not _same_resolved_path(
+            result_registries.get(name), expected_registries[name],
+        )
+        for name in ("benchmark", "dataset")
+    ):
+        errors.append("paired result registries do not match the plan")
+
+    source_expectations = {
+        label: {
+            **configuration[label],
+            "lifton_executable": configuration["lifton_executable"],
+        }
+        for label in ("candidate", "reference")
+    }
+    provenance = raw.get("provenance")
+    if not isinstance(provenance, Mapping):
+        errors.append("paired result provenance is missing or not an object")
+    else:
+        for label in ("candidate", "reference"):
+            errors.extend(_validate_paired_source(
+                provenance.get(label), source_expectations[label],
+                label=label, require_import=True,
+            ))
+
+    expected_inputs = cell["input_fingerprints"]
+    inputs = raw.get("inputs")
+    if not isinstance(inputs, Mapping):
+        errors.append("paired result inputs are missing or not an object")
+    elif set(inputs) != set(expected_inputs):
+        errors.append("paired result input set does not match the plan")
+    else:
+        for name, expected in expected_inputs.items():
+            record = inputs.get(name)
+            if not isinstance(record, Mapping):
+                errors.append(f"paired input {name!r} is not an object")
+                continue
+            if not _same_resolved_path(record.get("path"), expected["path"]):
+                errors.append(f"paired input {name!r} path does not match the plan")
+            if record.get("size") != expected["size"]:
+                errors.append(f"paired input {name!r} size does not match the plan")
+            if (
+                not _sha256_text(record.get("sha256"))
+                or record.get("sha256") != expected["sha256"]
+            ):
+                errors.append(f"paired input {name!r} hash does not match the plan")
+
+    versions = raw.get("versions")
+    profiles: dict[str, Mapping[str, Any]] = {}
+    if not isinstance(versions, Mapping):
+        errors.append("paired result versions are missing or not an object")
+        versions = {}
+    for label in ("candidate", "reference"):
+        version = versions.get(label)
+        if not isinstance(version, Mapping):
+            errors.append(f"paired result lacks {label} version details")
+            continue
+        errors.extend(_validate_paired_source(
+            version.get("source"), source_expectations[label],
+            label=label, require_import=False,
+        ))
+        profile = version.get("profile")
+        errors.extend(_validate_successful_profile(
+            profile, label=f"{label} profile",
+        ))
+        if isinstance(profile, Mapping):
+            profiles[label] = profile
+        if panel == "e2e":
+            if version.get("e2e_mode") != configuration[label]["e2e_mode"]:
+                errors.append(f"{label} E2E mode does not match the plan")
+            errors.extend(_validate_successful_profile(
+                version.get("evaluation_profile"),
+                label=f"{label} evaluation profile",
+            ))
+            errors.extend(_validate_e2e_payload(version, label=f"{label} E2E biology"))
+            for field_name in ("lifton_flags", "evaluation_flags"):
+                if not isinstance(version.get(field_name), list):
+                    errors.append(f"{label} E2E {field_name} are missing")
+        elif not isinstance(version.get("argv"), list) or not version["argv"]:
+            errors.append(f"{label} paired argv is missing")
+        expected_gff = cell["artifacts"][f"{label}_gff"]
+        if not _same_resolved_path(version.get("output_gff"), expected_gff):
+            errors.append(f"{label} output GFF3 path does not match the cell")
+        expected_manifest = cell["artifacts"][f"{label}_manifest"]
+        if not _same_resolved_path(
+            version.get("release_manifest"), expected_manifest,
+        ):
+            errors.append(f"{label} release manifest path does not match the cell")
+        if not isinstance(version.get("native_manifests"), Mapping):
+            errors.append(f"{label} native-manifest evidence is missing")
+        errors.extend(_validate_gff_fingerprint(
+            version.get("fingerprints"), label=label,
+        ))
+        validation = version.get("validation")
+        if not isinstance(validation, Mapping):
+            errors.append(f"{label} GFF3 validation is missing")
+        else:
+            if validation.get("is_valid") is not True:
+                errors.append(f"{label} GFF3 validation is not valid")
+            if validation.get("n_errors") != 0:
+                errors.append(f"{label} GFF3 validation reports errors")
+        if isinstance(profile, Mapping):
+            errors.extend(_validate_paired_summary(
+                version.get("summary"),
+                benchmark=cell["benchmark"], label=label, profile=profile,
+            ))
+        errors.extend(_validate_evaluation_artifact(
+            cell, version, label=label,
+        ))
+
+    ratios = raw.get("ratios")
+    if not isinstance(ratios, Mapping):
+        errors.append("paired result ratios are missing or not an object")
+    else:
+        ratio_fields = {
+            "wall": "wall_clock_seconds",
+            "peak_rss": "peak_rss_mb",
+        }
+        for ratio_name, profile_field in ratio_fields.items():
+            value = ratios.get(ratio_name)
+            if not _finite_number(value, positive=True):
+                errors.append(f"paired ratio {ratio_name} is not finite and positive")
+                continue
+            if set(profiles) == {"candidate", "reference"}:
+                expected = (
+                    float(profiles["candidate"][profile_field])
+                    / float(profiles["reference"][profile_field])
+                )
+                if not math.isclose(
+                    float(value), expected, rel_tol=1e-12, abs_tol=1e-12,
+                ):
+                    errors.append(
+                        f"paired ratio {ratio_name} disagrees with the profiles"
+                    )
+    return errors
 
 
 def validate_result_schema(cell: Mapping[str, Any], path: Path) -> list[str]:
@@ -765,7 +2090,10 @@ def validate_result_schema(cell: Mapping[str, Any], path: Path) -> list[str]:
             errors.append("refresh result reports an invalid GFF3")
     elif kind == "end_to_end":
         rows = raw.get("rows") if isinstance(raw, dict) else None
-        matches = [row for row in (rows or []) if row.get("dataset") == benchmark]
+        matches = [
+            row for row in (rows or [])
+            if isinstance(row, Mapping) and row.get("dataset") == benchmark
+        ]
         if len(matches) != 1:
             return [f"expected exactly one result row for {benchmark!r}"]
         row = matches[0]
@@ -781,6 +2109,14 @@ def validate_result_schema(cell: Mapping[str, Any], path: Path) -> list[str]:
         eval_profile = row.get("eval_profile")
         if not isinstance(eval_profile, dict) or eval_profile.get("exit_code") != 0:
             errors.append("end-to-end evaluation profile does not have exit_code 0")
+        elif any(
+            not _finite_number(eval_profile.get(field_name), positive=True)
+            for field_name in ("wall_clock_seconds", "peak_rss_mb")
+        ):
+            errors.append("end-to-end evaluation profile metrics are not finite and positive")
+        errors.extend(_validate_e2e_payload(row, label="end-to-end biology"))
+    elif kind == "paired_release":
+        errors.extend(_validate_paired_result(cell, raw))
     elif kind != "gate":
         errors.append(f"unknown result kind {kind!r}")
     return errors
@@ -799,6 +2135,130 @@ def validate_manifest(path: Path) -> list[str]:
         errors.append(f"run manifest status is {run.get('status')!r}, not 'success'")
     if not run.get("finished_at"):
         errors.append("run manifest lacks finished_at")
+    return errors
+
+
+def validate_release_arm_manifest(
+    cell: Mapping[str, Any],
+    label: str,
+    path: Path,
+    *,
+    version: Mapping[str, Any],
+    observed_fingerprints: Mapping[str, Any],
+) -> list[str]:
+    """Cross-check one neutral arm manifest against plan and live artifacts."""
+
+    from benchmarks.compare import release_evaluation
+
+    try:
+        manifest = read_json(path)
+    except (OSError, TypeError, ValueError) as exc:
+        return [f"{label} release manifest is unreadable: {exc}"]
+    if not isinstance(manifest, Mapping):
+        return [f"{label} release manifest is not an object"]
+    errors = []
+    if manifest.get("schema_version") != release_evaluation.SCHEMA_VERSION:
+        errors.append(
+            f"{label} release manifest schema_version is not "
+            f"{release_evaluation.SCHEMA_VERSION}"
+        )
+    if manifest.get("kind") != "paired_release_arm":
+        errors.append(f"{label} release manifest kind is not paired_release_arm")
+    configuration = cell["paired"]
+    expected_source = {
+        **configuration[label],
+        "lifton_executable": configuration["lifton_executable"],
+    }
+    errors.extend(_validate_paired_source(
+        manifest.get("source"), expected_source,
+        label=label, require_import=False,
+    ))
+
+    protocol = manifest.get("protocol")
+    if not isinstance(protocol, Mapping):
+        errors.append(f"{label} release manifest protocol is missing")
+    else:
+        if protocol.get("kind") != cell["panel"]:
+            errors.append(f"{label} release manifest protocol kind is inconsistent")
+        if cell["panel"] == "e2e":
+            if protocol.get("mode") != configuration[label]["e2e_mode"]:
+                errors.append(f"{label} release manifest E2E mode is inconsistent")
+            for field_name in ("lifton_flags", "evaluation_flags"):
+                if protocol.get(field_name) != version.get(field_name):
+                    errors.append(
+                        f"{label} release manifest {field_name} "
+                        "disagrees with pair result"
+                    )
+        elif protocol.get("argv") != version.get("argv"):
+            errors.append(
+                f"{label} release manifest argv disagrees with pair result"
+            )
+
+    profile = manifest.get("profile")
+    errors.extend(_validate_successful_profile(
+        profile, label=f"{label} release manifest profile",
+    ))
+    if profile != version.get("profile"):
+        errors.append(f"{label} release manifest profile disagrees with pair result")
+
+    manifest_artifacts = manifest.get("artifacts")
+    if not isinstance(manifest_artifacts, Mapping):
+        errors.append(f"{label} release manifest artifacts are missing")
+        manifest_artifacts = {}
+    output = manifest_artifacts.get("output_gff")
+    expected_gff = Path(cell["artifacts"][f"{label}_gff"])
+    if not isinstance(output, Mapping):
+        errors.append(f"{label} release manifest output GFF3 is missing")
+    else:
+        if not _same_resolved_path(output.get("path"), expected_gff):
+            errors.append(f"{label} release manifest GFF3 path is inconsistent")
+        if output.get("size") != expected_gff.stat().st_size:
+            errors.append(f"{label} release manifest GFF3 size is inconsistent")
+        for manifest_key, fingerprint_key in (
+            ("byte_sha256", "byte_sha256"),
+            ("semantic_sha256", "semantic_sha256"),
+        ):
+            if output.get(manifest_key) != observed_fingerprints.get(fingerprint_key):
+                errors.append(
+                    f"{label} release manifest {manifest_key} is inconsistent"
+                )
+
+    validation = manifest.get("validation")
+    if validation != version.get("validation"):
+        errors.append(f"{label} release manifest validation disagrees with pair result")
+    if (
+        not isinstance(validation, Mapping)
+        or validation.get("is_valid") is not True
+        or validation.get("n_errors") != 0
+    ):
+        errors.append(f"{label} release manifest validation is not successful")
+
+    native = manifest_artifacts.get("native_manifests")
+    if native != version.get("native_manifests"):
+        errors.append(
+            f"{label} release manifest native evidence disagrees with pair result"
+        )
+    if not isinstance(native, Mapping):
+        errors.append(f"{label} release manifest native evidence is missing")
+    else:
+        for name, record in native.items():
+            if not isinstance(name, str) or not isinstance(record, Mapping):
+                errors.append(f"{label} native-manifest evidence is malformed")
+                continue
+            if not isinstance(record.get("path"), str):
+                errors.append(f"{label} native manifest {name!r} lacks a path")
+            if not isinstance(record.get("present"), bool):
+                errors.append(
+                    f"{label} native manifest {name!r} lacks a presence flag"
+                )
+            elif record["present"] and (
+                not isinstance(record.get("size"), int)
+                or record["size"] <= 0
+                or not _sha256_text(record.get("sha256"))
+            ):
+                errors.append(
+                    f"{label} native manifest {name!r} fingerprint is malformed"
+                )
     return errors
 
 
@@ -835,9 +2295,202 @@ def _run_gff_validator(cell: Mapping[str, Any], gff: Path) -> tuple[list[str], d
     return errors, report
 
 
+def _validate_paired_artifacts(
+    cell: Mapping[str, Any],
+    started_ns: int,
+) -> tuple[list[str], dict[str, Any]]:
+    from benchmarks.compare import release_evaluation
+
+    artifacts = cell["artifacts"]
+    required = {
+        name: Path(artifacts[name])
+        for name in (
+            "result_json",
+            "candidate_gff", "reference_gff",
+            "candidate_manifest", "reference_manifest",
+        )
+    }
+    errors = [
+        f"{name} is missing, empty, or stale: {path}"
+        for name, path in required.items()
+        if not _artifact_is_fresh(path, started_ns)
+    ]
+    if errors:
+        return errors, {
+            "artifacts": {name: str(path) for name, path in required.items()},
+        }
+
+    errors.extend(validate_result_schema(cell, required["result_json"]))
+    validation_reports: dict[str, Any] = {}
+    fingerprints: dict[str, Any] = {}
+    try:
+        raw = read_json(required["result_json"])
+    except (OSError, TypeError, ValueError):
+        raw = {}
+    versions = raw.get("versions", {}) if isinstance(raw, Mapping) else {}
+    evaluation_artifacts: dict[str, Any] = {}
+    evidence_paths = dict(required)
+    result_mtime_ns = required["result_json"].stat().st_mtime_ns
+    for label in ("candidate", "reference"):
+        manifest_errors = validate_manifest(required[f"{label}_manifest"])
+        errors.extend(f"{label} manifest: {error}" for error in manifest_errors)
+        structure_errors = validate_gff3_structure(required[f"{label}_gff"])
+        errors.extend(f"{label} GFF3: {error}" for error in structure_errors)
+
+        validator_cell = {
+            **cell,
+            "artifacts": {
+                "gff_validator": artifacts[f"{label}_gff_validator"],
+            },
+        }
+        validator_errors, validator_report = _run_gff_validator(
+            validator_cell, required[f"{label}_gff"],
+        )
+        validation_reports[label] = validator_report
+        errors.extend(f"{label} GFF3: {error}" for error in validator_errors)
+        validation_path = (
+            Path(cell["cell_dir"]) / f"{label}_gff_validation.json"
+        )
+        atomic_write_json(validation_path, validator_report)
+        evidence_paths[f"{label}_gff_validation"] = validation_path
+
+        try:
+            observed = release_evaluation.gff3_fingerprints(
+                required[f"{label}_gff"],
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            errors.append(f"{label} GFF3 fingerprinting failed: {exc}")
+            continue
+        fingerprints[label] = observed
+        version = versions.get(label) if isinstance(versions, Mapping) else None
+        recorded = (
+            version.get("fingerprints")
+            if isinstance(version, Mapping) else None
+        )
+        if recorded != observed:
+            errors.append(
+                f"{label} GFF3 fingerprints do not match pair_result.json"
+            )
+        if isinstance(version, Mapping):
+            errors.extend(validate_release_arm_manifest(
+                cell,
+                label,
+                required[f"{label}_manifest"],
+                version=version,
+                observed_fingerprints=observed,
+            ))
+            artifact_group = version.get("evaluation_artifacts")
+            record = (
+                artifact_group.get("transcripts_tsv")
+                if isinstance(artifact_group, Mapping) else None
+            )
+            expected_tsv = (
+                required["result_json"].parent
+                / "evaluation"
+                / f"{label}.transcripts.tsv"
+            ).resolve()
+            if not isinstance(record, Mapping):
+                errors.append(
+                    f"{label} evaluator TSV evidence is missing from pair result"
+                )
+            elif not _same_resolved_path(record.get("path"), expected_tsv):
+                errors.append(
+                    f"{label} evaluator TSV path is inconsistent with pair result"
+                )
+            elif not _artifact_is_fresh(expected_tsv, started_ns):
+                errors.append(
+                    f"{label} evaluator TSV is missing, empty, or stale: "
+                    f"{expected_tsv}"
+                )
+            else:
+                try:
+                    stat = expected_tsv.stat()
+                    observed_sha = sha256_file(expected_tsv)
+                except OSError as exc:
+                    errors.append(
+                        f"{label} evaluator TSV cannot be fingerprinted: {exc}"
+                    )
+                else:
+                    observed_record = {
+                        "path": str(expected_tsv),
+                        "size": stat.st_size,
+                        "sha256": observed_sha,
+                        "mtime_ns": stat.st_mtime_ns,
+                    }
+                    evaluation_artifacts[label] = {
+                        "transcripts_tsv": observed_record,
+                    }
+                    if record.get("size") != stat.st_size:
+                        errors.append(
+                            f"{label} evaluator TSV size disagrees with pair result"
+                        )
+                    if record.get("sha256") != observed_sha:
+                        errors.append(
+                            f"{label} evaluator TSV hash disagrees with pair result"
+                        )
+                    if stat.st_mtime_ns > result_mtime_ns:
+                        errors.append(
+                            f"{label} evaluator TSV changed after pair_result.json "
+                            "was published"
+                        )
+            native = version.get("native_manifests")
+            if isinstance(native, Mapping):
+                arm_root = required["result_json"].parent / label
+                for name, native_record in native.items():
+                    if (
+                        not isinstance(name, str)
+                        or not isinstance(native_record, Mapping)
+                        or native_record.get("present") is not True
+                    ):
+                        continue
+                    native_path = Path(str(native_record.get("path", ""))).resolve()
+                    evidence_name = (
+                        f"{label}_native_manifest_{safe_name(name, limit=40)}"
+                    )
+                    if not native_path.is_relative_to(arm_root.resolve()):
+                        errors.append(
+                            f"{label} native manifest {name!r} escapes its arm"
+                        )
+                        continue
+                    if not _artifact_is_fresh(native_path, started_ns):
+                        errors.append(
+                            f"{label} native manifest {name!r} is missing, "
+                            f"empty, or stale: {native_path}"
+                        )
+                        continue
+                    observed_native = _success_artifact_record(native_path)
+                    if (
+                        native_record.get("size") != observed_native["size"]
+                        or native_record.get("sha256")
+                        != observed_native["sha256"]
+                    ):
+                        errors.append(
+                            f"{label} native manifest {name!r} fingerprint "
+                            "disagrees with live evidence"
+                        )
+                    evidence_paths[evidence_name] = native_path
+
+    stats = {}
+    for name, path in evidence_paths.items():
+        known_sha = None
+        if name == "candidate_gff" and "candidate" in fingerprints:
+            known_sha = fingerprints["candidate"]["byte_sha256"]
+        elif name == "reference_gff" and "reference" in fingerprints:
+            known_sha = fingerprints["reference"]["byte_sha256"]
+        stats[name] = _success_artifact_record(path, sha256=known_sha)
+    return errors, {
+        "artifacts": stats,
+        "evaluation_artifacts": evaluation_artifacts,
+        "gff_validation": validation_reports,
+        "gff_fingerprints": fingerprints,
+    }
+
+
 def validate_artifacts(cell: Mapping[str, Any], started_ns: int) -> tuple[list[str], dict[str, Any]]:
     if cell["kind"] == "gate":
         return [], {"gate": "exit-code only"}
+    if cell["kind"] == "paired_release":
+        return _validate_paired_artifacts(cell, started_ns)
     artifacts = cell["artifacts"]
     required = {
         name: Path(artifacts[name]) for name in ("result_json", "gff", "manifest")
@@ -854,14 +2507,15 @@ def validate_artifacts(cell: Mapping[str, Any], started_ns: int) -> tuple[list[s
     errors.extend(validate_gff3_structure(required["gff"]))
     validator_errors, validator_report = _run_gff_validator(cell, required["gff"])
     errors.extend(validator_errors)
-    atomic_write_json(Path(cell["cell_dir"]) / "gff_validation.json", validator_report)
+    validation_path = Path(cell["cell_dir"]) / "gff_validation.json"
+    atomic_write_json(validation_path, validator_report)
+    evidence_paths = {
+        **required,
+        "gff_validation": validation_path,
+    }
     stats = {
-        name: {
-            "path": str(path),
-            "size": path.stat().st_size,
-            "mtime_ns": path.stat().st_mtime_ns,
-        }
-        for name, path in required.items()
+        name: _success_artifact_record(path)
+        for name, path in evidence_paths.items()
     }
     return errors, {"artifacts": stats, "gff_validation": validator_report}
 
@@ -938,6 +2592,90 @@ def _unlink_markers(cell_dir: Path) -> None:
             pass
 
 
+def _relocate_archived_value(value: Any, old_root: Path, new_root: Path) -> Any:
+    """Rewrite only absolute paths that moved with one archived pair tree."""
+
+    if isinstance(value, Mapping):
+        return {
+            key: _relocate_archived_value(item, old_root, new_root)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _relocate_archived_value(item, old_root, new_root)
+            for item in value
+        ]
+    if isinstance(value, str):
+        path = Path(value)
+        if path.is_absolute() and path.is_relative_to(old_root):
+            return str(new_root / path.relative_to(old_root))
+    return value
+
+
+def _relocate_archived_pair_evidence(
+    archive: Path,
+    *,
+    original_root: Path,
+) -> None:
+    """Make moved pair/arm evidence self-contained without touching GFF3 bytes."""
+
+    marker = archive / "relocation.json"
+    if marker.is_file():
+        return
+    evidence_paths = [
+        archive / "pair_result.json",
+        archive / "candidate" / "release_run_manifest.json",
+        archive / "reference" / "release_run_manifest.json",
+    ]
+    records = []
+    for path in evidence_paths:
+        if not path.is_file():
+            continue
+        before = sha256_file(path)
+        document = read_json(path)
+        relocated = _relocate_archived_value(
+            document, original_root, archive,
+        )
+        atomic_write_json(path, relocated)
+        records.append({
+            "path": str(path),
+            "original_sha256": before,
+            "relocated_sha256": sha256_file(path),
+        })
+    atomic_write_json(marker, {
+        "schema_version": CONTROLLER_SCHEMA_VERSION,
+        "original_root": str(original_root),
+        "archive_root": str(archive),
+        "relocated_at": utc_now(),
+        "documents": records,
+        "gff3_bytes_modified": False,
+    })
+
+
+def _prepare_attempt_workspace(cell: Mapping[str, Any], attempt: int) -> None:
+    """Archive a failed paired workspace so its immutable command can resume."""
+
+    if cell["kind"] != "paired_release" or attempt <= 1:
+        return
+    cell_dir = Path(cell["cell_dir"])
+    pair_dir = Path(cell["artifacts"]["result_json"]).parent
+    archive = cell_dir / f"attempt-{attempt - 1:02d}.pair"
+    if archive.exists():
+        if pair_dir.exists():
+            raise RuntimeError(
+                f"paired retry archive already exists while workspace remains: {archive}"
+            )
+        _relocate_archived_pair_evidence(
+            archive, original_root=pair_dir,
+        )
+        return
+    if pair_dir.exists():
+        pair_dir.rename(archive)
+        _relocate_archived_pair_evidence(
+            archive, original_root=pair_dir,
+        )
+
+
 def execute_cell(run_dir: Path, cell_id: str) -> int:
     plan = load_plan(run_dir)
     cell = _cell_for(plan, cell_id)
@@ -956,6 +2694,16 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
 
     old_status = _read_status(cell)
     attempt = int(old_status.get("attempts", 0)) + 1
+    try:
+        _prepare_attempt_workspace(cell, attempt)
+    except (OSError, RuntimeError) as exc:
+        _mark_failed(
+            cell,
+            [f"could not archive the prior paired attempt: {exc}"],
+            returncode=None,
+            attempt=attempt,
+        )
+        return 2
     started_ns = time.time_ns()
     started_at = utc_now()
     _unlink_markers(cell_dir)
@@ -973,20 +2721,13 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
     environment.update({str(key): str(value) for key, value in cell.get("environment", {}).items()})
     stdout_path = cell_dir / f"attempt-{attempt:02d}.stdout.log"
     stderr_path = cell_dir / f"attempt-{attempt:02d}.stderr.log"
-    started = time.monotonic()
-    returncode: int
-    launch_error: str | None = None
-    try:
-        with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
-            result = subprocess.run(
-                cell["command"], cwd=plan["repo_root"], env=environment,
-                stdout=stdout, stderr=stderr, check=False,
-            )
-        returncode = result.returncode
-    except OSError as exc:
-        returncode = 127
-        launch_error = str(exc)
-    elapsed = time.monotonic() - started
+    outcome = _run_supervised(
+        plan=plan, cell=cell, attempt=attempt, environment=environment,
+        stdout_path=stdout_path, stderr_path=stderr_path,
+    )
+    returncode = int(outcome["returncode"])
+    elapsed = float(outcome["elapsed_seconds"])
+    launch_error = outcome.get("launch_error")
     exit_document = {
         "schema_version": CONTROLLER_SCHEMA_VERSION,
         "cell_id": cell["id"],
@@ -1001,11 +2742,21 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
         "launch_error": launch_error,
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
+        "watchdog": outcome["watchdog"],
+        "watchdog_path": outcome["watchdog_path"],
     }
+    atomic_write_json(cell_dir / f"attempt-{attempt:02d}.exit.json", exit_document)
     atomic_write_json(cell_dir / "exit.json", exit_document)
 
     errors = []
     validation: dict[str, Any] = {}
+    watchdog_reason = outcome["watchdog"].get("reason")
+    if watchdog_reason:
+        errors.append(
+            f"watchdog stopped the command ({watchdog_reason}) after {elapsed:.1f}s"
+        )
+    if launch_error:
+        errors.append(f"could not launch command: {launch_error}")
     if returncode != 0:
         errors.append(f"command exited with status {returncode}")
     else:
@@ -1042,6 +2793,7 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
         _mark_failed(
             cell, errors, returncode=returncode, attempt=attempt,
             validation=validation, performance=regressions,
+            watchdog=outcome["watchdog"],
         )
         return 1
 
@@ -1066,7 +2818,8 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
 def _mark_failed(cell: Mapping[str, Any], errors: Sequence[str], *,
                  returncode: int | None, attempt: int,
                  validation: Mapping[str, Any] | None = None,
-                 performance: Sequence[Mapping[str, Any]] | None = None) -> None:
+                 performance: Sequence[Mapping[str, Any]] | None = None,
+                 watchdog: Mapping[str, Any] | None = None) -> None:
     document = {
         "schema_version": CONTROLLER_SCHEMA_VERSION,
         "cell_id": cell["id"],
@@ -1077,12 +2830,14 @@ def _mark_failed(cell: Mapping[str, Any], errors: Sequence[str], *,
         "errors": list(errors),
         "validation": dict(validation or {}),
         "performance": list(performance or []),
+        "watchdog": dict(watchdog or {}),
     }
     atomic_write_json(Path(cell["cell_dir"]) / ".failed.json", document)
     _write_status(
         cell, "failed", attempts=attempt, failed_at=document["failed_at"],
         errors=list(errors), returncode=returncode, isolated_retry=False,
         validation=document["validation"], performance=document["performance"],
+        watchdog=document["watchdog"],
     )
 
 
@@ -1107,6 +2862,10 @@ def launch_allowed(cell: Mapping[str, Any], active: Sequence[Mapping[str, Any]],
             f"MemAvailable {resources['available_gib']:.1f} GiB "
             f"< {policy.min_available_gib:.1f} GiB"
         )
+    if any(item.get("exclusive") for item in active):
+        return False, "an exclusive paired cell is active"
+    if cell.get("exclusive") and active:
+        return False, "paired cell must run exclusively"
     if len(active) >= policy.max_active:
         return False, "active-cell limit reached"
     if sum(int(item["threads"]) for item in active) + int(cell["threads"]) > policy.max_worker_threads:
@@ -1158,6 +2917,113 @@ class RunLogger:
             handle.flush()
 
 
+class ControllerIsolationError(RuntimeError):
+    pass
+
+
+def _foreign_active_cells(plan: Mapping[str, Any]) -> list[str]:
+    """Find live cell tmux sessions belonging to another run in this root."""
+
+    current = Path(plan["run_dir"]).resolve()
+    runs_root = current.parent
+    now_ns = time.time_ns()
+    active = []
+    for plan_path in runs_root.glob("*/plan.json"):
+        if plan_path.parent.resolve() == current:
+            continue
+        try:
+            other = load_plan(plan_path.parent)
+        except (OSError, TypeError, ValueError):
+            continue
+        for cell in other["cells"]:
+            status = _read_status(cell)
+            if status.get("state") not in ACTIVE_STATES:
+                continue
+            session_alive = tmux_has_session(cell_session_name(other, cell))
+            process_alive = False
+            try:
+                process_alive = _pid_identity_matches(
+                    int(status["command_pid"]),
+                    int(status["command_pgid"]),
+                    int(status["command_start_ticks"]),
+                )
+            except (KeyError, TypeError, ValueError):
+                pass
+            started_ns = int(status.get("started_ns", 0))
+            launch_is_recent = bool(
+                started_ns and now_ns - started_ns < int(5.0 * 1e9)
+            )
+            if session_alive or process_alive or launch_is_recent:
+                active.append(f"{other['run_id']}:{cell['id']}")
+    return active
+
+
+@contextlib.contextmanager
+def _controller_lease(plan: Mapping[str, Any]):
+    """Serialize schedulers and reject stale foreign workers in one runs root."""
+
+    if fcntl is None:
+        raise ControllerIsolationError("controller isolation requires POSIX fcntl.flock")
+    lock_path = Path(plan["run_dir"]).resolve().parent / ".controller.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        handle = lock_path.open("a+", encoding="utf-8")
+    except OSError as exc:
+        raise ControllerIsolationError(
+            f"could not open benchmark controller lock {lock_path}: {exc}"
+        ) from exc
+    acquired = False
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquired = True
+        except BlockingIOError as exc:
+            handle.seek(0)
+            owner = handle.read().strip() or "unknown owner"
+            raise ControllerIsolationError(
+                f"another benchmark controller holds {lock_path}: {owner}"
+            ) from exc
+        except OSError as exc:
+            raise ControllerIsolationError(
+                f"could not acquire benchmark controller lock {lock_path}: {exc}"
+            ) from exc
+
+        foreign = _foreign_active_cells(plan)
+        if foreign:
+            raise ControllerIsolationError(
+                "foreign benchmark cells are still active: " + ", ".join(foreign)
+            )
+        owner = {
+            "schema_version": CONTROLLER_SCHEMA_VERSION,
+            "state": "running",
+            "run_id": plan["run_id"],
+            "run_dir": plan["run_dir"],
+            "pid": os.getpid(),
+            "session": controller_session_name(plan),
+            "acquired_at": utc_now(),
+        }
+        handle.seek(0)
+        handle.truncate()
+        json.dump(owner, handle, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+        try:
+            yield
+        finally:
+            owner.update({"state": "released", "released_at": utc_now()})
+            handle.seek(0)
+            handle.truncate()
+            json.dump(owner, handle, sort_keys=True)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+    finally:
+        if acquired:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
 def _active_cells(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
     active = []
     for cell in plan["cells"]:
@@ -1168,6 +3034,7 @@ def _active_cells(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def _mark_orphans(plan: Mapping[str, Any], *, grace_seconds: float = 5.0) -> None:
+    policy = Policy(**plan["policy"])
     now_ns = time.time_ns()
     for cell in plan["cells"]:
         status = _read_status(cell)
@@ -1178,9 +3045,25 @@ def _mark_orphans(plan: Mapping[str, Any], *, grace_seconds: float = 5.0) -> Non
         updated_ns = int(status.get("started_ns", 0))
         if updated_ns and now_ns - updated_ns < int(grace_seconds * 1e9):
             continue
+        cleanup: dict[str, Any] = {}
+        errors = ["worker tmux session disappeared before a final status was written"]
+        try:
+            pid = int(status["command_pid"])
+            pgid = int(status["command_pgid"])
+            start_ticks = int(status["command_start_ticks"])
+        except (KeyError, TypeError, ValueError):
+            pass
+        else:
+            cleanup = _terminate_process_group(
+                pid=pid, pgid=pgid, start_ticks=start_ticks,
+                grace_seconds=policy.terminate_grace_seconds,
+            )
+            if cleanup.get("error"):
+                errors.append(f"orphan cleanup: {cleanup['error']}")
         _mark_failed(
-            cell, ["worker tmux session disappeared before a final status was written"],
+            cell, errors,
             returncode=None, attempt=int(status.get("attempts", 0)),
+            watchdog={"reason": "orphaned_worker", "cleanup": cleanup},
         )
 
 
@@ -1192,6 +3075,7 @@ def _launch_cell(plan: Mapping[str, Any], cell: Mapping[str, Any]) -> None:
         session=session, launch_requested_at=utc_now(),
         isolated_retry=bool(status.get("isolated_retry")),
         started_ns=time.time_ns(),
+        command_pid=None, command_pgid=None, command_start_ticks=None,
     )
     command = [
         sys.executable, str(Path(__file__).resolve()), "worker",
@@ -1209,8 +3093,37 @@ def _launch_cell(plan: Mapping[str, Any], cell: Mapping[str, Any]) -> None:
 
 def scheduler_loop(run_dir: Path, *, sleep=time.sleep) -> int:
     plan = load_plan(run_dir)
-    policy = Policy(**plan["policy"])
     log = RunLogger(Path(run_dir) / "controller.log")
+    try:
+        with _controller_lease(plan):
+            return _scheduler_loop_locked(run_dir, plan=plan, log=log, sleep=sleep)
+    except ControllerIsolationError as exc:
+        controller_path = Path(run_dir) / "controller.json"
+        try:
+            current = read_json(controller_path)
+        except (OSError, TypeError, ValueError):
+            current = {}
+        if current.get("state") != "running":
+            atomic_write_json(controller_path, {
+                "schema_version": CONTROLLER_SCHEMA_VERSION,
+                "run_id": plan["run_id"],
+                "fingerprint": plan["fingerprint"],
+                "state": "blocked",
+                "reason": str(exc),
+                "updated_at": utc_now(),
+            })
+        log(f"BLOCKED: {exc}")
+        return 2
+
+
+def _scheduler_loop_locked(
+    run_dir: Path,
+    *,
+    plan: Mapping[str, Any],
+    log: RunLogger,
+    sleep=time.sleep,
+) -> int:
+    policy = Policy(**plan["policy"])
     try:
         assert_matching_provenance(plan)
     except Exception as exc:
@@ -1294,12 +3207,45 @@ def summarize_run(plan: Mapping[str, Any]) -> dict[str, Any]:
             "session": cell_session_name(plan, cell),
         })
     counts = dict(Counter(row["state"] for row in rows))
+    try:
+        controller_state = read_json(
+            Path(plan["run_dir"]) / "controller.json"
+        ).get("state", "unknown")
+    except (OSError, TypeError, ValueError):
+        controller_state = "unknown"
     return {
         "schema_version": CONTROLLER_SCHEMA_VERSION,
         "run_id": plan["run_id"], "fingerprint": plan["fingerprint"],
         "stage": plan["stage"], "counts": counts, "cells": rows,
+        "controller_state": controller_state,
         "updated_at": utc_now(),
     }
+
+
+def status_exit_code(summary: Mapping[str, Any]) -> int:
+    """Return a stable code: 0 success, 1 failed, 2 invalid, 3 incomplete."""
+
+    if summary.get("provenance_error"):
+        return STATUS_EXIT_INVALID
+    counts = summary.get("counts")
+    if not isinstance(counts, Mapping):
+        return STATUS_EXIT_INVALID
+    if (
+        any(int(counts.get(state, 0)) > 0 for state in ("failed", "blocked"))
+        or summary.get("controller_state") in {"failed", "blocked"}
+    ):
+        return STATUS_EXIT_FAILED
+    total = sum(
+        int(count) for count in counts.values()
+        if isinstance(count, int) and not isinstance(count, bool)
+    )
+    if (
+        total > 0
+        and int(counts.get("success", 0)) == total
+        and summary.get("controller_state") == "success"
+    ):
+        return STATUS_EXIT_SUCCESS
+    return STATUS_EXIT_INCOMPLETE
 
 
 def start_controller_tmux(plan: Mapping[str, Any]) -> str:
@@ -1380,7 +3326,22 @@ def reconcile_run(run_dir: Path, *, deep: bool = False) -> dict[str, Any]:
         if success.get("fingerprint") != cell["fingerprint"]:
             errors.append("success marker fingerprint does not match the plan")
         recorded = success.get("validation", {}).get("artifacts", {})
-        for name, metadata in recorded.items():
+        evidence_records = {
+            str(name): metadata for name, metadata in recorded.items()
+        } if isinstance(recorded, Mapping) else {}
+        evaluation_records = success.get("validation", {}).get(
+            "evaluation_artifacts", {}
+        )
+        if isinstance(evaluation_records, Mapping):
+            for label, group in evaluation_records.items():
+                if not isinstance(group, Mapping):
+                    continue
+                for name, metadata in group.items():
+                    evidence_records[f"{label}_{name}"] = metadata
+        for name, metadata in evidence_records.items():
+            if not isinstance(metadata, Mapping):
+                errors.append(f"validated artifact evidence is malformed: {name}")
+                continue
             path = Path(metadata.get("path", ""))
             try:
                 stat = path.stat()
@@ -1389,6 +3350,16 @@ def reconcile_run(run_dir: Path, *, deep: bool = False) -> dict[str, Any]:
                 continue
             if stat.st_size != metadata.get("size") or stat.st_mtime_ns != metadata.get("mtime_ns"):
                 errors.append(f"validated artifact changed after success: {name}={path}")
+                continue
+            recorded_sha = metadata.get("sha256")
+            if not _sha256_text(recorded_sha):
+                errors.append(
+                    f"validated artifact lacks SHA-256 evidence: {name}={path}"
+                )
+            elif sha256_file(path) != recorded_sha:
+                errors.append(
+                    f"validated artifact hash changed after success: {name}={path}"
+                )
         if deep and not errors and cell["kind"] != "gate":
             started_ns = int(success.get("exit", {}).get("started_ns", 0))
             deep_errors, _ = validate_artifacts(cell, started_ns)
@@ -1510,9 +3481,10 @@ def _run_e2e(dataset: str, cell_dir: Path, registry_path: Path, threads: int) ->
     data_dir = HERE.parent / "data"
     results_dir = cell_dir / "artifacts"
     dataset_dir = data_dir / dataset
+    # LiftOn's candidate-side ``-E`` evaluation is self-contained.  A
+    # published target annotation is an optional comparison input and must not
+    # block an otherwise complete cached E2E cell.
     required_urls = [selected.reference_fa, selected.target_fa, selected.reference_gff]
-    if selected.target_gff:
-        required_urls.append(selected.target_gff)
     required_paths = [
         dataset_dir / run_benchmarks._filename_for(url) for url in required_urls
     ]
@@ -1552,6 +3524,12 @@ def _policy_from_args(args: argparse.Namespace) -> Policy:
         min_available_gib=args.min_available_gib,
         stagger_seconds=args.stagger_seconds,
         poll_seconds=args.poll_seconds,
+        subset_timeout_seconds=args.subset_timeout_seconds,
+        full_timeout_seconds=args.full_timeout_seconds,
+        e2e_timeout_seconds=args.e2e_timeout_seconds,
+        stall_timeout_seconds=args.stall_timeout_seconds,
+        watchdog_poll_seconds=args.watchdog_poll_seconds,
+        terminate_grace_seconds=args.terminate_grace_seconds,
     )
 
 
@@ -1580,14 +3558,37 @@ def build_parser() -> argparse.ArgumentParser:
     start = subparsers.add_parser("start", help="create/resume a run and start its controller")
     start.add_argument("--run-id")
     start.add_argument(
-        "--stage", choices=("gates", "subset-canary", "subset", "full-canary", "full",
-                            "e2e-canary", "e2e"), default=None,
+        "--stage",
+        choices=(
+            "gates", "subset-canary", "subset", "full-canary", "full",
+            "e2e-canary", "e2e", *PAIRED_STAGES,
+        ),
+        default=None,
     )
     start.add_argument("--ids", nargs="+")
     start.add_argument("--runs-root", default=str(DEFAULT_RUNS_ROOT))
-    start.add_argument("--registry", default=str(DEFAULT_REGISTRY))
-    start.add_argument("--dataset-registry", default=str(DEFAULT_DATASET_REGISTRY))
-    start.add_argument("--baseline", default=str(DEFAULT_BASELINE))
+    start.add_argument("--registry")
+    start.add_argument("--dataset-registry")
+    start.add_argument("--baseline")
+    start.add_argument("--candidate-root")
+    start.add_argument("--candidate-sha")
+    start.add_argument("--reference-root")
+    start.add_argument("--reference-sha")
+    start.add_argument(
+        "--paired-repetitions",
+        type=int,
+        help=(
+            "paired AB/BA repetitions (default: 4; non-canary stages require "
+            "an even count; canaries allow 1-5)"
+        ),
+    )
+    start.add_argument("--paired-lifton-executable")
+    start.add_argument(
+        "--candidate-e2e-mode", choices=PAIRED_E2E_MODES,
+    )
+    start.add_argument(
+        "--reference-e2e-mode", choices=PAIRED_E2E_MODES,
+    )
     start.add_argument("--dry-run", action="store_true")
     start.add_argument("--foreground", action="store_true")
     _add_policy_arguments(start)
@@ -1650,6 +3651,88 @@ def _add_policy_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--min-available-gib", type=float, default=256.0)
     parser.add_argument("--stagger-seconds", type=float, default=15.0)
     parser.add_argument("--poll-seconds", type=float, default=30.0)
+    parser.add_argument("--subset-timeout-seconds", type=float, default=3 * 60 * 60)
+    parser.add_argument("--full-timeout-seconds", type=float, default=8 * 60 * 60)
+    parser.add_argument("--e2e-timeout-seconds", type=float, default=24 * 60 * 60)
+    parser.add_argument("--stall-timeout-seconds", type=float, default=2 * 60 * 60)
+    parser.add_argument("--watchdog-poll-seconds", type=float, default=30.0)
+    parser.add_argument("--terminate-grace-seconds", type=float, default=30.0)
+
+
+def _paired_cli_supplied(args: argparse.Namespace) -> bool:
+    return any(
+        getattr(args, name, None) is not None
+        for name in (
+            "candidate_root", "candidate_sha",
+            "reference_root", "reference_sha",
+            "paired_repetitions", "paired_lifton_executable",
+            "candidate_e2e_mode", "reference_e2e_mode",
+        )
+    )
+
+
+def _paired_configuration_from_args(
+    args: argparse.Namespace,
+    stage: str,
+    *,
+    fallback: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    def selected(name: str, default: Any) -> Any:
+        value = getattr(args, name, None)
+        return default if value is None else value
+
+    candidate_fallback = fallback.get("candidate", {}) if fallback else {}
+    reference_fallback = fallback.get("reference", {}) if fallback else {}
+    registry_fallback = fallback.get("registries", {}) if fallback else {}
+    candidate_root = selected("candidate_root", candidate_fallback.get("root"))
+    candidate_sha = selected("candidate_sha", candidate_fallback.get("sha"))
+    reference_root = selected("reference_root", reference_fallback.get("root"))
+    reference_sha = selected("reference_sha", reference_fallback.get("sha"))
+    missing = [
+        flag for flag, value in (
+            ("--candidate-root", candidate_root),
+            ("--candidate-sha", candidate_sha),
+            ("--reference-root", reference_root),
+            ("--reference-sha", reference_sha),
+        )
+        if value is None
+    ]
+    if missing:
+        raise ValueError(
+            "paired stages require exact source inputs: " + ", ".join(missing)
+        )
+    executable_default = (
+        fallback.get("lifton_executable")
+        if fallback else Path(sys.executable).with_name("lifton")
+    )
+    repetitions_default = (
+        fallback.get("repetitions", DEFAULT_PAIRED_REPETITIONS)
+        if fallback else DEFAULT_PAIRED_REPETITIONS
+    )
+    return paired_configuration(
+        stage=stage,
+        candidate_root=Path(candidate_root),
+        candidate_sha=str(candidate_sha),
+        reference_root=Path(reference_root),
+        reference_sha=str(reference_sha),
+        repetitions=int(selected("paired_repetitions", repetitions_default)),
+        lifton_executable=Path(selected(
+            "paired_lifton_executable", executable_default,
+        )),
+        candidate_e2e_mode=str(selected(
+            "candidate_e2e_mode", candidate_fallback.get("e2e_mode", "fast"),
+        )),
+        reference_e2e_mode=str(selected(
+            "reference_e2e_mode", reference_fallback.get("e2e_mode", "fast"),
+        )),
+        benchmark_registry=Path(selected(
+            "registry", registry_fallback.get("benchmark", DEFAULT_REGISTRY),
+        )),
+        dataset_registry=Path(selected(
+            "dataset_registry",
+            registry_fallback.get("dataset", DEFAULT_DATASET_REGISTRY),
+        )),
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1657,6 +3740,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.action == "start":
         runs_root = Path(args.runs_root).resolve()
+        registry = Path(args.registry or DEFAULT_REGISTRY).resolve()
+        dataset_registry = Path(
+            args.dataset_registry or DEFAULT_DATASET_REGISTRY
+        ).resolve()
+        baseline = Path(args.baseline or DEFAULT_BASELINE).resolve()
         if args.run_id and (runs_root / safe_name(args.run_id, limit=100) / "plan.json").exists():
             run_dir = runs_root / safe_name(args.run_id, limit=100)
             plan = load_plan(run_dir)
@@ -1664,6 +3752,39 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parser.error(f"existing run stage is {plan['stage']!r}, not {args.stage!r}")
             if args.ids and list(args.ids) != plan["ids"]:
                 parser.error("existing run ids do not match the requested ids")
+            for option, supplied, requested_path, planned_path in (
+                ("--registry", args.registry, registry, plan["inputs"]["registry"]),
+                (
+                    "--dataset-registry", args.dataset_registry,
+                    dataset_registry, plan["inputs"]["dataset_registry"],
+                ),
+                ("--baseline", args.baseline, baseline, plan["inputs"]["baseline"]),
+            ):
+                if (
+                    supplied is not None
+                    and requested_path != Path(planned_path).resolve()
+                ):
+                    parser.error(
+                        f"existing run {option} does not match the requested path"
+                    )
+            if plan.get("paired") is not None:
+                if _paired_cli_supplied(args):
+                    try:
+                        requested_paired = _paired_configuration_from_args(
+                            args, plan["stage"], fallback=plan["paired"],
+                        )
+                    except ValueError as exc:
+                        parser.error(str(exc))
+                    if requested_paired != plan["paired"]:
+                        parser.error(
+                            "existing paired run source/mode configuration "
+                            "does not match the requested configuration"
+                        )
+            elif _paired_cli_supplied(args):
+                parser.error(
+                    "paired source options cannot be applied to an existing "
+                    "non-paired run"
+                )
             try:
                 assert_matching_provenance(plan)
             except RuntimeError as exc:
@@ -1671,15 +3792,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             stage = args.stage or "subset-canary"
             try:
+                paired = None
+                if _paired_panel(stage) is not None:
+                    paired = _paired_configuration_from_args(args, stage)
+                elif _paired_cli_supplied(args):
+                    raise ValueError(
+                        "paired source options require a paired-* stage"
+                    )
                 run_dir, plan = create_plan(
                     run_id=args.run_id, stage=stage, requested_ids=args.ids,
                     runs_root=runs_root, repo_root=REPO_ROOT,
-                    registry=Path(args.registry),
-                    dataset_registry=Path(args.dataset_registry),
-                    baseline=Path(args.baseline), policy=_policy_from_args(args),
+                    registry=registry,
+                    dataset_registry=dataset_registry,
+                    baseline=baseline, policy=_policy_from_args(args),
+                    paired=paired,
                 )
                 initialize_run(run_dir, plan)
-            except (OSError, ValueError) as exc:
+            except (OSError, RuntimeError, ValueError) as exc:
                 parser.error(str(exc))
         print(f"run directory: {run_dir}")
         print(f"plan fingerprint: {plan['fingerprint']}")
@@ -1705,7 +3834,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("provide run_id or --run-dir")
         run_dir = _run_dir_argument(args)
         if args.action == "status":
-            summary = summarize_run(load_plan(run_dir))
+            try:
+                summary = summarize_run(load_plan(run_dir))
+            except (OSError, RuntimeError, ValueError) as exc:
+                parser.error(str(exc))
         elif args.action == "retry":
             try:
                 reset = (
@@ -1725,16 +3857,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     parser.error(str(exc))
             return 0
         else:
-            summary = reconcile_run(run_dir, deep=args.deep)
+            try:
+                summary = reconcile_run(run_dir, deep=args.deep)
+            except (OSError, RuntimeError, ValueError) as exc:
+                parser.error(str(exc))
         if args.json:
             print(json.dumps(summary, indent=2, sort_keys=True))
         else:
             _print_summary(summary)
             if summary.get("provenance_error"):
                 print(f"provenance: MISMATCH ({summary['provenance_error']})")
-        if summary.get("provenance_error"):
-            return 2
-        return 0 if summary["counts"].get("failed", 0) == 0 else 1
+        return status_exit_code(summary)
 
     if args.action == "_run-refresh":
         return _run_refresh(args.benchmark, Path(args.result_dir), args.threads)
