@@ -37,6 +37,12 @@ from typing import Any, Mapping, Sequence
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
+# Detached tmux workers execute this file by absolute path. In that mode
+# Python puts ``benchmarks/compare`` (not the repository root) on ``sys.path``,
+# so late imports such as ``benchmarks.compare.fourway_compare`` would fail.
+# Make script-mode execution equivalent to the documented ``python -m`` form.
+if __package__ in (None, "") and str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 DEFAULT_RUNS_ROOT = HERE / "_runs"
 DEFAULT_REGISTRY = HERE / "benchmarks.json"
 DEFAULT_DATASET_REGISTRY = HERE.parent / "datasets.json"
