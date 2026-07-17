@@ -32,6 +32,7 @@ def test_print_report_writes_summary_txt(tmp_path):
     assert summary.exists()
     text = summary.read_text()
     assert "Total features in reference" in text
+    assert "Total features in reference\t\t: 0" in text
     assert "Completeness by feature type" in text
     assert text.rstrip().endswith("*********************************************")
 

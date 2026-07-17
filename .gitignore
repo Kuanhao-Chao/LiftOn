@@ -33,6 +33,9 @@ comparison/mouse_to_rat_results/lifton_output/
 dictionary/annotations/
 *.txt
 
+# Generated minimap2 indexes
+*.mmi
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

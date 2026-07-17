@@ -1,1 +1,0 @@
-test/chm13_chr22.fa.mmi filter=lfs diff=lfs merge=lfs -text

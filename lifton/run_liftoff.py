@@ -2,12 +2,12 @@ import subprocess
 import os, copy, sys
 import gffutils
 from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
-from lifton.exceptions import LiftOnInputError
+from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
 from intervaltree import Interval, IntervalTree
 
 
-def check_minimap2_installed():
+def check_minimap2_installed(minimap2_path="minimap2"):
     """Return True iff the ``minimap2`` binary is on PATH (GitHub issue #43).
 
     minimap2 is a hard runtime dependency of the (vendored Liftoff) DNA-lift on the
@@ -16,8 +16,13 @@ def check_minimap2_installed():
     FileNotFoundError mid-run. Mirrors run_miniprot.check_miniprot_installed; output
     is suppressed so the preflight does not print minimap2's version banner."""
     try:
-        subprocess.run(["minimap2", "--version"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        completed = subprocess.run(
+            [minimap2_path, "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if getattr(completed, "returncode", 0) != 0:
+            return False
         return True
     except (FileNotFoundError, PermissionError, NotADirectoryError,
             subprocess.SubprocessError):
@@ -82,6 +87,10 @@ def run_liftoff(output_dir, ref_db, args):
             )
         else:
             liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
+    except LiftOnAlignmentError as e:
+        logger.log_error(f"Liftoff alignment failed: {e}")
+        logger.log_error("LiftOn cannot proceed without a valid Liftoff baseline annotation.")
+        sys.exit(1)
     except Exception as e:
         import traceback
         logger.log_error(f"Liftoff encountered a fatal error during native execution: {e}")
@@ -109,7 +118,8 @@ def run_liftoff(output_dir, ref_db, args):
     return liftoff_annotation
 
 
-def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, with_exons=False):
+def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args,
+                           with_exons=False, state_journal=None):
     """
         This function initializes Lifton gene instance.
 
@@ -126,7 +136,12 @@ def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, wi
         ref_trans_id: reference transcript
     """
     ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, args, tmp=with_exons)
+    lifton_gene = lifton_class.Lifton_GENE(
+        ref_gene_id, copy.deepcopy(locus),
+        copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict,
+        ref_features_dict, args, tmp=with_exons,
+        state_journal=state_journal,
+    )
     return lifton_gene, ref_gene_id, ref_trans_id
 
 
@@ -435,7 +450,11 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
     return orf_done
 
 
-def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=False, _visited=None):
+def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
+                    ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
+                    tgt_fai, ref_proteins, ref_trans, ref_features_dict,
+                    fw_score, fw_chain, args, ENTRY_FEATURE=False,
+                    _visited=None, state_journal=None):
     """
         This function processes liftoff annotation.
 
@@ -478,7 +497,11 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
     exon_children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
     if lifton_gene is None and ENTRY_FEATURE:
         # Gene (1st) features
-        lifton_gene, ref_gene_id, ref_trans_id = initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, with_exons=len(exon_children)>0)
+        lifton_gene, ref_gene_id, ref_trans_id = initialize_lifton_gene(
+            locus, ref_db, tree_dict, ref_features_dict, args,
+            with_exons=len(exon_children) > 0,
+            state_journal=state_journal,
+        )
         if lifton_gene.ref_gene_id is None: return None
     if len(exon_children) == 0:
         parent_feature = None
@@ -488,7 +511,13 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
             parent_feature = lifton_gene.add_feature(copy.deepcopy(locus))
         features = l_feature_db.children(locus, level=1)
         for feature in list(features):
-            process_liftoff(parent_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, _visited=_visited)
+            process_liftoff(
+                parent_feature, feature, ref_db, l_feature_db,
+                ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai,
+                ref_proteins, ref_trans, ref_features_dict, fw_score,
+                fw_chain, args, _visited=_visited,
+                state_journal=state_journal,
+            )
     else:
         if ENTRY_FEATURE: # Gene (1st) features with direct exons
             ref_trans_id = ref_gene_id

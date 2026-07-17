@@ -51,3 +51,13 @@ def test_discontinuous_cds_shared_id_not_duplicate(tmp_path):
         "chr1\tLiftOn\tCDS\t600\t900\t.\t+\t2\tID=cds1;Parent=mrna1\n"
     )
     assert "duplicate_id" not in _error_checks(validate_gff3_file(str(fp)))
+
+
+def test_directive_only_file_is_invalid(tmp_path):
+    fp = tmp_path / "header_only.gff3"
+    fp.write_text("##gff-version 3\n")
+
+    result = validate_gff3_file(str(fp))
+
+    assert not result.is_valid
+    assert "features_present" in _error_checks(result)

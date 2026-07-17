@@ -1,12 +1,17 @@
-import pytest
 from lifton.lifton_class import LiftOn_FEATURE
 
-class DummyFeatureDB:
-    pass
 
 class DummyEntry:
     def __init__(self, id):
         self.id = id
+        self.seqid = "chr1"
+        self.source = "test"
+        self.featuretype = "region"
+        self.start = 1
+        self.end = 10
+        self.score = "."
+        self.strand = "+"
+        self.frame = "."
         self.attributes = {
             "ID": [id],
             "numerical_list": [1, 2.5, 3],
@@ -15,8 +20,7 @@ class DummyEntry:
         }
 
 def test_defensive_serialization(tmp_path):
-    # This test verifies that we explicitly stringify numerical parameters
-    # before they are exported to gffutils to avoid concatenation crashes.
+    # Numeric attributes must serialize safely without mutating the model.
     
     # Fake entry with numerical properties
     gff_entry = DummyEntry("test_id")
@@ -27,16 +31,16 @@ def test_defensive_serialization(tmp_path):
     # Create fake file
     out_file = tmp_path / "out.gff"
     
-    # Call the write method
-    # Since DummyEntry lacks a proper `__str__` for gffutils, we just care
-    # that the attributes were successfully mutated into strings before output strings were formulated.
     with open(out_file, "w") as fw:
-        # We manually inject a dummy `__str__` so `str(self.entry)` doesn't fail
-        gff_entry.__class__.__str__ = lambda self: "dummy_string"
-        feature.write_entry(fw)
-        
-    # Check that attributes are now all strings
+        assert feature.write_entry(fw) is True
+
+    text = out_file.read_text()
+    assert "numerical_list=1,2.5,3" in text
+    assert "mixed_list=text,4" in text
+    assert "single_int=42" in text
+
+    # Canonical serialization is non-destructive.
     attrs = feature.entry.attributes
-    assert attrs["numerical_list"] == ["1", "2.5", "3"]
-    assert attrs["mixed_list"] == ["text", "4"]
-    assert attrs["single_int"] == "42"
+    assert attrs["numerical_list"] == [1, 2.5, 3]
+    assert attrs["mixed_list"] == ["text", 4]
+    assert attrs["single_int"] == 42

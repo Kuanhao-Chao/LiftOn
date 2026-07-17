@@ -1,4 +1,7 @@
+import sys
+
 from Bio.Seq import Seq
+
 from lifton import logger
 from lifton.exceptions import LiftOnInputError
 
@@ -112,7 +115,7 @@ def extract_features(ref_db, features, ref_fai):
             counter += 1
             __inner_extract_feature(ref_db, locus, ref_fai, ref_trans,
                                     ref_proteins, warned=warned)
-    print(f"Extracted features for {counter} features")
+    print(f"Extracted features for {counter} features", file=sys.stderr)
     return ref_trans, ref_proteins
 
 
@@ -159,7 +162,10 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
                     continue
                 counter += 1
                 _stream_inner(ref_db, locus, ref_fai, ft, fp, warned=warned)
-    print(f"Extracted features (streaming) for {counter} features")
+    print(
+        f"Extracted features (streaming) for {counter} features",
+        file=sys.stderr,
+    )
     # V1.0.10: if features WERE iterated but a seqid-namespace mismatch made
     # EVERY extraction empty (both FASTAs 0 bytes), fail LOUDLY here instead of
     # handing an empty transcripts.fa downstream — Step 5+ would otherwise

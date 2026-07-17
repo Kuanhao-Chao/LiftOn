@@ -1,4 +1,5 @@
 from lifton.liftoff import write_new_gff, liftover_types, polish, align_features, lift_features
+from lifton.exceptions import LiftOnAlignmentError
 import argparse
 from pyfaidx import Fasta, Faidx
 
@@ -88,6 +89,14 @@ def _run_liftoff_pipeline(args, ref_db, *, polish_intermediate_write: bool):
     )
     write_unmapped_features_file(args.u, unmapped_features)
     map_extra_copies(args, lifted_feature_list, feature_hierarchy, feature_db, ref_parent_order)
+
+    if not lifted_feature_list or not any(lifted_feature_list.values()):
+        raise LiftOnAlignmentError(
+            "Liftoff completed all alignment and recovery passes but lifted zero features. "
+            "No header-only GFF3 was written. Verify that the target and reference assemblies "
+            "are compatible, chromosome mappings/sequence IDs are correct, the selected feature "
+            "types exist, and the -a/-s thresholds are appropriate."
+        )
 
     if args.cds and args.polish is False:
         check_cds(lifted_feature_list, feature_hierarchy, args)

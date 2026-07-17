@@ -1225,6 +1225,23 @@ class TestV5_7_DirectivePreservation:
         ])
         assert block.count("##gff-version 3\n") == 1
 
+    def test_target_output_directives_drop_reference_assembly_metadata(self):
+        from lifton.io import gff3_writer
+
+        directives = gff3_writer.target_output_directives([
+            "##gff-version 3",
+            "##sequence-region NC_000001.11 1 248956422",
+            "##species https://example.test/reference",
+            "#!genome-build GRCh38",
+            "#!annotation-source RefSeq",
+            "##feature-ontology http://purl.obolibrary.org/obo/so.obo",
+            "##FASTA",
+        ])
+        assert directives == [
+            "##gff-version 3",
+            "##feature-ontology http://purl.obolibrary.org/obo/so.obo",
+        ]
+
 
 # ===========================================================================
 # Phase 15b — RefSeqProvider via FASTA (lazy mmap, V3.1)

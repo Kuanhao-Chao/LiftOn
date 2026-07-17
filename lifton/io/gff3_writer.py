@@ -111,6 +111,28 @@ def format_directives(directives) -> str:
     return "\n".join(out) + "\n"
 
 
+def target_output_directives(directives):
+    """Return only directives that remain true after assembly lift-over.
+
+    Coordinate ranges, species/build pragmas, annotation provenance, and a
+    reference ``##FASTA`` marker describe the *input* assembly. Re-emitting
+    them on target coordinates produces a misleading output header. Ontology
+    declarations are assembly-independent and are therefore retained.
+    """
+    allowed_prefixes = (
+        "##gff-version",
+        "##feature-ontology",
+        "##attribute-ontology",
+        "##source-ontology",
+    )
+    return [
+        str(raw).rstrip("\r\n")
+        for raw in directives or ()
+        if raw is not None
+        and str(raw).rstrip("\r\n").startswith(allowed_prefixes)
+    ]
+
+
 def format_attributes(attributes: Mapping[str, Any]) -> str:
     """Serialise an attribute dict into the column-9 string for a
     GFF3 row. Order and encoding follow NCBI canonical rules."""

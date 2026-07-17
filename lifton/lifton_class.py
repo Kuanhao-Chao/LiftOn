@@ -80,7 +80,9 @@ class Lifton_feature:
 
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, args, tmp = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs,
+                 tree_dict, ref_features_dict, args, tmp=False,
+                 state_journal=None):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -90,7 +92,15 @@ class Lifton_GENE:
         self.is_non_coding = False
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
-        self.copy_num = self.__get_gene_copy(ref_features_dict)
+        if state_journal is None:
+            self.copy_num = self.__get_gene_copy(ref_features_dict)
+        else:
+            # Parallel Step 7 assigns copy IDs through a short ordered gate.
+            # The worker records, but does not apply, the corresponding global
+            # counter/tree mutations; ordered ``consume`` commits them later.
+            self.copy_num = state_journal.allocate_gene_copy(
+                ref_gene_id, self.entry, ref_features_dict,
+            )
         self.tmp = tmp
         self.entry.attributes = ref_gene_attrs
         # Bug fix #1 (Phase 5): build the ID as a list-of-str per the
@@ -101,7 +111,8 @@ class Lifton_GENE:
         self.entry.attributes["ID"] = [gene_id]
         if self.copy_num > 0:
             self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
-        self.__update_gene_copy(ref_features_dict)
+        if state_journal is None:
+            self.__update_gene_copy(ref_features_dict)
         self.entry.id = gene_id
         # V2.8: route via _make_interval so single-base genes don't crash.
         # Only `gene`-type loci join the interval tree that gates miniprot
@@ -111,7 +122,7 @@ class Lifton_GENE:
         # adding them here would let them suppress a miniprot coding-gene rescue
         # just by overlapping it — so they are deliberately kept OUT. On a
         # gene-only ref this is a no-op (byte-identical, 24-cell green).
-        if self.entry.featuretype == "gene":
+        if self.entry.featuretype == "gene" and state_journal is None:
             from lifton.intervals import _make_interval
             gene_interval = _make_interval(
                 self.entry.start, self.entry.end, self.entry.id,
@@ -222,7 +233,7 @@ class Lifton_GENE:
         # No-op on well-formed genes -> byte-identical default.
         self.normalize_containment()
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_gene(self, fw, transcripts_stats_dict)
+        return feature_serializer.write_gene(self, fw, transcripts_stats_dict)
 
     def update_boundaries(self):
         for key, trans in self.transcripts.items():
@@ -303,7 +314,7 @@ class LiftOn_FEATURE:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_feature(self, fw)
+        return feature_serializer.write_feature(self, fw)
 
     def print_feature(self):
         print(self.entry)
@@ -870,7 +881,7 @@ class Lifton_TRANS:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_trans(self, fw)
+        return feature_serializer.write_trans(self, fw)
 
     def update_boundaries(self):
         self.entry.start = self.exons[0].entry.start
@@ -979,7 +990,7 @@ class Lifton_EXON:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_exon(self, fw)
+        return feature_serializer.write_exon(self, fw)
 
     def print_exon(self):
         print(f"\t\t{self.entry}")
@@ -1001,7 +1012,7 @@ class Lifton_CDS:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_cds(self, fw)
+        return feature_serializer.write_cds(self, fw)
 
     def print_cds(self):
         print(f"\t\t{self.entry}")

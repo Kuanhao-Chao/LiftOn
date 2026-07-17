@@ -30,10 +30,18 @@ import pickle
 import sys
 import tempfile
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Iterable, Iterator, Optional, Tuple
 
-from lifton.locus_pipeline import LocusResult, StepContext, consume, process_locus
+from lifton.locus_pipeline import (
+    LocusResult,
+    Step7StateCoordinator,
+    StepContext,
+    consume,
+    make_worker_context,
+    process_locus,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -51,15 +59,18 @@ class _OrderedWriter:
     order regardless of how many entries spilled.
     """
 
-    def __init__(self, *, spill_dir: str, max_pending: int,
+    def __init__(self, *, spill_dir: str, max_pending: Optional[int],
                  consume_fn, fw, stats: dict,
-                 progress_every: int = 0):
+                 progress_every: int = 0, progress_stream=None):
         self.spill_dir = spill_dir
-        self.max_pending = max(1, int(max_pending))
+        self.max_pending = (max(1, int(max_pending))
+                            if max_pending is not None else None)
         self.consume_fn = consume_fn
         self.fw = fw
         self.stats = stats
         self.progress_every = progress_every
+        self.progress_stream = (sys.stdout if progress_stream is None
+                                else progress_stream)
         self.pending: list = []           # min-heap of (idx, LocusResult)
         self.spilled: dict[int, str] = {} # idx -> pickle path
         self.next_to_emit = 0
@@ -114,7 +125,7 @@ class _OrderedWriter:
         self.next_to_emit += 1
         if self.progress_every and \
                 self.next_to_emit % self.progress_every == 0:
-            sys.stdout.write(
+            self.progress_stream.write(
                 f"\r>> LiftOn processed: {self.next_to_emit} features."
             )
 
@@ -123,7 +134,8 @@ class _OrderedWriter:
         # Drain any prefix that just became contiguous.
         self._drain_ready()
         # Bound heap depth.
-        while len(self.pending) > self.max_pending:
+        while (self.max_pending is not None and
+               len(self.pending) > self.max_pending):
             self._spill_one()
 
     def _drain_ready(self) -> None:
@@ -229,6 +241,70 @@ def _backend_supports_threads(*dbs, native: bool = False) -> bool:
     return True
 
 
+def _step7_inflight_limit(args, threads: int) -> int:
+    """Return the maximum number of submitted-but-not-emitted loci.
+
+    The ordered commit boundary, not merely future completion, drives this
+    limit.  Consequently a slow early locus cannot let later completed results
+    accumulate without bound.  ``LIFTON_STEP7_MAX_INFLIGHT`` is primarily an
+    operational escape hatch; embedders may set ``args.step7_max_inflight``
+    directly without requiring a CLI-only option.
+    """
+    for raw in (getattr(args, "step7_max_inflight", None),
+                os.environ.get("LIFTON_STEP7_MAX_INFLIGHT")):
+        if not isinstance(raw, (int, str)) or isinstance(raw, bool):
+            continue
+        try:
+            configured = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if configured > 0:
+            return configured
+    return max(1, 2 * int(threads))
+
+
+def _iter_bounded_ordered(executor, items, submit_fn,
+                          max_inflight: int):
+    """Yield executor results in input order with bounded queued work.
+
+    This is used by the non-fused prefetch path.  Both unfinished futures and
+    completed results waiting for an earlier item count against the same
+    window, so memory remains proportional to ``max_inflight``.
+    """
+    source = iter(items)
+    futures = {}
+    buffered = {}
+    submitted = 0
+    next_to_yield = 0
+    exhausted = False
+
+    def fill_window():
+        nonlocal submitted, exhausted
+        while not exhausted and len(futures) + len(buffered) < max_inflight:
+            try:
+                item = next(source)
+            except StopIteration:
+                exhausted = True
+                break
+            future = submit_fn(executor, item)
+            futures[future] = submitted
+            submitted += 1
+
+    fill_window()
+    while futures or buffered:
+        while next_to_yield in buffered:
+            result = buffered.pop(next_to_yield)
+            next_to_yield += 1
+            yield result
+            fill_window()
+        if not futures:
+            continue
+        done, _ = wait(tuple(futures), return_when=FIRST_COMPLETED)
+        for future in done:
+            ordinal = futures.pop(future)
+            buffered[ordinal] = future.result()
+
+
 def parallel_step7(
     features: Iterable[str],
     l_feature_db,
@@ -270,6 +346,18 @@ def parallel_step7(
     """
     submission = enumerate(_iter_loci(features, l_feature_db))
     processed = 0
+    progress_stream = (sys.stderr
+                       if getattr(ctx.args, "output", None) == "stdout"
+                       else sys.stdout)
+    state_coordinator = Step7StateCoordinator(
+        ctx.ref_features_dict, ctx.tree_dict,
+    )
+
+    def _consume_ordered(result, output_handle, stats):
+        return consume(
+            result, output_handle, stats, ctx=ctx,
+            state_coordinator=state_coordinator,
+        )
 
     # Thread-safety guard. Iteration 8: workers never issue reads
     # against the shared FeatureDB connection — they go through the
@@ -304,11 +392,12 @@ def parallel_step7(
         # lifton.py (the new path goes through `consume` instead of an
         # inline `if/write_entry`, but the resulting bytes are equal).
         for idx, (_feature, locus) in submission:
-            result = process_locus(idx, locus, ctx=ctx)
-            consume(result, fw, transcripts_stats_dict)
+            worker_ctx = make_worker_context(ctx, idx, state_coordinator)
+            result = process_locus(idx, locus, ctx=worker_ctx)
+            _consume_ordered(result, fw, transcripts_stats_dict)
             processed = idx + 1
-            if processed % progress_every == 0:
-                sys.stdout.write(
+            if progress_every and processed % progress_every == 0:
+                progress_stream.write(
                     f"\r>> LiftOn processed: {processed} features."
                 )
         return processed
@@ -318,8 +407,16 @@ def parallel_step7(
     # worker starts. Both backend iterators (gffutils SQLite cursors,
     # gffbase DuckDB result sets) are not safe to keep open while
     # worker threads issue concurrent reads on the same connection.
-    materialised = list(submission)
+    # A backend cursor must be exhausted before worker-side DB reads begin.
+    # Keep only these lightweight root features here; the deque releases each
+    # entry as it is dispatched, and full MaterialisedLocus payloads stay
+    # bounded by the in-flight window below.
+    materialised = deque(submission)
     processed = len(materialised)
+
+    def _take_materialised():
+        while materialised:
+            yield materialised.popleft()
 
     # Iteration 10: parallel Step 7 FUSES materialise + process into one
     # pipelined pool. Each worker materialises ITS OWN locus (reads from a
@@ -352,7 +449,8 @@ def parallel_step7(
     )
     factory = _ThreadLocalCtxFactory(ctx)
     _fuse_enabled = os.environ.get("LIFTON_FUSE_STEP7", "1") != "0"
-    fused = _fuse_enabled and factory.viable and len(materialised) > 0
+    fused = _fuse_enabled and factory.viable and processed > 0
+    inflight_limit = _step7_inflight_limit(ctx.args, int(threads))
 
     _mat_sema = None
     if fused:
@@ -364,14 +462,13 @@ def parallel_step7(
                 _mat_sema = None
 
     if fused:
-        payloads = None  # workers materialise on their own thread
-
         def _mat_and_process(idx, locus):
             # Materialise + process on ONE worker thread. Wrap the
             # materialise half so a failure becomes a per-locus error
             # LocusResult (mirrors process_locus_native) instead of
             # crashing the pool; Exception (not BaseException) so
             # KeyboardInterrupt/SystemExit still propagate.
+            worker_ctx = make_worker_context(ctx, idx, state_coordinator)
             try:
                 if _mat_sema is not None:
                     with _mat_sema:
@@ -388,105 +485,124 @@ def parallel_step7(
                     lifton_gene=None,
                     error=exc,
                     error_tb=_tb.format_exc(),
+                    delta=worker_ctx.state_journal.finish(),
                 )
-            return process_locus_native(payload, ctx)
+            except BaseException:
+                # Preserve KeyboardInterrupt/SystemExit propagation without
+                # leaving later workers blocked at the ordered copy gate.
+                worker_ctx.state_journal.finish()
+                raise
+            return process_locus_native(payload, worker_ctx)
 
-        def _submit(ex):
-            return {
-                ex.submit(_mat_and_process, idx, locus): idx
-                for idx, (_feature, locus) in materialised
-            }
+        task_items = _take_materialised()
+
+        def _submit_one(executor, item):
+            idx, (_feature, locus) = item
+            return executor.submit(_mat_and_process, idx, locus)
     else:
-        # Non-fused: build payloads up front, then the worker pool processes
-        # them. Viable-but-fuse-disabled (LIFTON_FUSE_STEP7=0) rebuilds the
-        # pre-Iteration-10 prefetcher pool (the A/B `two_phase` baseline);
-        # non-viable (in-memory/blob) uses the serial parent-thread loop.
-        if factory.viable and len(materialised) > 0:
+        # Non-fused: materialisation remains a distinct stage, but it now
+        # feeds the processing executor through a bounded iterator instead of
+        # retaining one full payload and one future per locus.  The on-disk
+        # path still uses a separate prefetch pool (the two-pool A/B contract);
+        # in-memory/blob backends materialise on the parent thread.
+        if factory.viable and processed > 0:
             # Phase 17c parallel prefetcher pool. Cap at 4 prefetchers
             # since the marginal gain plateaus (~50-60 % reduction at
             # N=4 per the Phase 17 exploration sizing); larger pool
             # increases SQLite contention without commensurate speedup.
             prefetch_workers = min(4, int(threads),
-                                   max(1, len(materialised)))
-            payloads = [None] * len(materialised)
-            with ThreadPoolExecutor(
-                    max_workers=prefetch_workers,
-                    thread_name_prefix="lifton-prefetch") as _pf_pool:
-                _pf_futures = {
-                    _pf_pool.submit(
+                                   max(1, processed))
+
+            def _payload_items():
+                def _submit_prefetch(executor, item):
+                    idx, (_feature, locus) = item
+                    return executor.submit(
                         materialise_locus_with_factory,
                         idx, locus, factory,
-                    ): idx
-                    for idx, (_feature, locus) in materialised
-                }
-                for _fut in as_completed(_pf_futures):
-                    _p = _fut.result()
-                    payloads[_p.submission_index] = _p
-        else:
-            # In-memory backends or non-extractable dbfn — serial
-            # parent-thread materialise loop (correct, no prefetch speedup).
-            payloads = [
-                materialise_locus(idx, locus, ctx)
-                for idx, (_feature, locus) in materialised
-            ]
-
-        def _submit(ex):
-            return {
-                ex.submit(process_locus_native, p, ctx): p.submission_index
-                for p in payloads
-            }
-
-    # Phase 15d: bounded ordered-writer with on-disk spill, opt-in via
-    # ctx.args.writer_max_pending (default = unbounded ⇒ legacy heap
-    # path is byte-identical). When set, the writer caps in-RAM
-    # pending entries and spills the rest to a temp directory.
-    max_pending = int(getattr(ctx.args, "writer_max_pending", 0) or 0)
-    if max_pending > 0:
-        spill_dir = tempfile.mkdtemp(prefix="lifton_writer_spill_")
-        writer = _OrderedWriter(
-            spill_dir=spill_dir,
-            max_pending=max_pending,
-            consume_fn=consume,
-            fw=fw,
-            stats=transcripts_stats_dict,
-            progress_every=progress_every,
-        )
-        with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-            futures = _submit(ex)
-            for fut in as_completed(futures):
-                writer.offer(fut.result())
-        writer.drain()
-        try:
-            os.rmdir(spill_dir)
-        except OSError:
-            pass
-        return processed
-
-    # Legacy unbounded heap path — byte-identical to Phase 9 behaviour.
-    next_to_emit = 0
-    pending: list = []  # min-heap keyed by submission index
-
-    with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-        futures = _submit(ex)
-
-        for fut in as_completed(futures):
-            result: LocusResult = fut.result()
-            heapq.heappush(pending, (result.index, result))
-            # Drain prefix that is now contiguous from `next_to_emit`.
-            while pending and pending[0][0] == next_to_emit:
-                _, drained = heapq.heappop(pending)
-                consume(drained, fw, transcripts_stats_dict)
-                next_to_emit += 1
-                if next_to_emit % progress_every == 0:
-                    sys.stdout.write(
-                        f"\r>> LiftOn processed: {next_to_emit} features."
                     )
 
-    # Defensive: drain anything left (should be empty by construction
-    # because `as_completed` enumerates every future).
-    while pending:
-        _, drained = heapq.heappop(pending)
-        consume(drained, fw, transcripts_stats_dict)
-        next_to_emit += 1
+                with ThreadPoolExecutor(
+                        max_workers=prefetch_workers,
+                        thread_name_prefix="lifton-prefetch") as pool:
+                    yield from _iter_bounded_ordered(
+                        pool, _take_materialised(), _submit_prefetch,
+                        inflight_limit,
+                    )
+        else:
+            # In-memory backends or non-extractable dbfn — serial
+            # parent-thread materialise loop (correct, no prefetch speedup),
+            # also lazy so only the dispatch window owns full payloads.
+            def _payload_items():
+                for idx, (_feature, locus) in _take_materialised():
+                    yield materialise_locus(idx, locus, ctx)
+
+        task_items = _payload_items()
+
+        def _submit_one(executor, payload):
+            return executor.submit(
+                process_locus_native, payload,
+                make_worker_context(
+                    ctx, payload.submission_index, state_coordinator,
+                ),
+            )
+
+    # Every submitted-but-not-emitted locus counts against the window.  This
+    # is stronger than limiting executor futures alone: if locus 0 is slow,
+    # completed loci 1..N cannot trigger unlimited replenishment.
+    raw_max_pending = getattr(ctx.args, "writer_max_pending", 0)
+    if not isinstance(raw_max_pending, (int, str)) or \
+            isinstance(raw_max_pending, bool):
+        raw_max_pending = 0
+    try:
+        max_pending = max(0, int(raw_max_pending))
+    except (TypeError, ValueError):
+        max_pending = 0
+
+    spill_tmp = (tempfile.TemporaryDirectory(
+        prefix="lifton_writer_spill_") if max_pending > 0 else None)
+    writer = _OrderedWriter(
+        spill_dir=(spill_tmp.name if spill_tmp is not None else ""),
+        max_pending=(max_pending if max_pending > 0 else None),
+        consume_fn=_consume_ordered,
+        fw=fw,
+        stats=transcripts_stats_dict,
+        progress_every=progress_every,
+        progress_stream=progress_stream,
+    )
+    task_source = iter(task_items)
+    futures = {}
+    submitted = 0
+    exhausted = False
+
+    def _fill_window(executor):
+        nonlocal submitted, exhausted
+        while (not exhausted and
+               submitted - writer.next_to_emit < inflight_limit):
+            try:
+                item = next(task_source)
+            except StopIteration:
+                exhausted = True
+                break
+            future = _submit_one(executor, item)
+            futures[future] = submitted
+            submitted += 1
+
+    try:
+        with ThreadPoolExecutor(max_workers=int(threads)) as executor:
+            _fill_window(executor)
+            while futures:
+                done, _ = wait(tuple(futures),
+                               return_when=FIRST_COMPLETED)
+                for future in done:
+                    futures.pop(future)
+                    writer.offer(future.result())
+                _fill_window(executor)
+        writer.drain()
+    finally:
+        close_source = getattr(task_source, "close", None)
+        if close_source is not None:
+            close_source()
+        if spill_tmp is not None:
+            spill_tmp.cleanup()
 
     return processed

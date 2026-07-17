@@ -132,7 +132,10 @@ def print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extr
         sys.stderr = _Tee(_prev_stderr, _summary_fh)
 
     print("\n\n*********************************************", file=sys.stderr)
-    print(f"* Total features in reference\t\t: {len(ref_features_dict.keys())-1}", file=sys.stderr)
+    reference_feature_count = sum(
+        1 for feature_id in ref_features_dict if feature_id != "LiftOn-gene"
+    )
+    print(f"* Total features in reference\t\t: {reference_feature_count}", file=sys.stderr)
     print(f"* Lifted feature\t\t\t: {LIFTED_FEATURES} ({LIFTED_SINGLE_CODING_FEATURES + LIFTED_EXTRA_CODING_FEATURES} + {LIFTED_SINGLE_NONCODING_FEATURES + LIFTED_EXTRA_NONCODING_FEATURES} + {LIFTED_SINGLE_OTHER_FEATURES + LIFTED_EXTRA_OTHER_FEATURES})", file=sys.stderr)
     print(f"\t* Protein-coding feature\t: {LIFTED_SINGLE_CODING_FEATURES + LIFTED_EXTRA_CODING_FEATURES}", file=sys.stderr)
     print(f"\t* Non-coding feature\t\t: {LIFTED_SINGLE_NONCODING_FEATURES + LIFTED_EXTRA_NONCODING_FEATURES}", file=sys.stderr)
@@ -154,11 +157,9 @@ def print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extr
         b = by_type[ftype]
         pct = (100.0 * b["lifted"] / b["reference"]) if b["reference"] else 0.0
         print(f"\t* {ftype}\t: {b['lifted']}/{b['reference']} ({pct:.1f}%)", file=sys.stderr)
-    print(f"*********************************************")
+    print("*********************************************", file=sys.stderr)
 
-    # GH #50: restore stderr and finalise summary.txt (add the trailing rule, which
-    # the line above prints to stdout, so the file is self-contained).
+    # GH #50: restore stderr and finalise summary.txt.
     sys.stderr = _prev_stderr
     if _summary_fh is not None:
-        _summary_fh.write("*********************************************\n")
         _summary_fh.close()

@@ -140,7 +140,9 @@ class TestChainingAlgorithm:
         l_aln = self._make_aln([])
         m_aln = self._make_aln([(100, 200)])
         cds_list, chains = pm.chaining_algorithm(l_aln, m_aln, None, False)
-        assert cds_list == []
+        # Protein evidence is the only usable structure, so retain it. The
+        # canonical suite separately pins the legacy opt-out behavior.
+        assert len(cds_list) == 1
 
     # ── Edge-case 4: Single CDS on both sides ──────────────────────────────
     def test_single_cds_both(self):
