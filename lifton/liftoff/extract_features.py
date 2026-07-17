@@ -8,6 +8,7 @@ from lifton.annotation_validator import (
     print_db_build_success,
 )
 import os
+import sqlite3
 import sys
 import numpy as np
 import ujson as json
@@ -261,10 +262,46 @@ def find_problem_line(gff_file):
 # function only ever consumes relations.parent/child + features.id, but the legacy
 # queries do `SELECT *` over the relations x features x features join (~60 unused
 # columns per relation) and over all features. The default fast path selects ONLY
-# those columns. Byte-IDENTICAL because every consumer goes through np.setdiff1d /
-# set (which sort + dedupe), so the row ORDER is irrelevant. Set
-# LIFTON_LEGACY_HIERARCHY=1 to restore the SELECT * path (A/B baseline / escape).
+# those columns. Feature and relation ordinals are retained downstream so
+# batching cannot reorder the reference FASTA or a parent's children. Set
+# LIFTON_LEGACY_HIERARCHY=1 to restore the SELECT * projection (A/B baseline /
+# escape).
 _LEGACY_HIERARCHY = os.environ.get("LIFTON_LEGACY_HIERARCHY") == "1"
+
+# SQLite limits the number of bound variables in one statement. Python 3.11+
+# exposes the connection's effective limit; at most 900 is safe for older
+# Python/SQLite combinations whose historical default was 999.
+_SQLITE_IN_MAX_BATCH_SIZE = 900
+
+
+def _select_in_batches(cursor, query_template, ids):
+    """Yield database-ordered rows without exceeding SQLite's bind limit.
+
+    Callers provide IDs in database order and include the matching ``ORDER BY``
+    ordinal in ``query_template``. Each batch therefore covers a later ordinal
+    range than the previous batch, making concatenated results independent of
+    the runtime variable limit.
+    """
+    # A single SQL IN clause ignores duplicate values. Preserve that behaviour
+    # across batches so an ID repeated on opposite sides of a boundary cannot
+    # emit the same feature twice.
+    ids = list(dict.fromkeys(ids))
+    batch_size = _SQLITE_IN_MAX_BATCH_SIZE
+    getlimit = getattr(cursor.connection, "getlimit", None)
+    if getlimit is not None:
+        try:
+            variable_limit = getlimit(
+                getattr(sqlite3, "SQLITE_LIMIT_VARIABLE_NUMBER", 9))
+            if variable_limit > 0:
+                batch_size = min(batch_size, variable_limit)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    for start in range(0, len(ids), batch_size):
+        batch = ids[start:start + batch_size]
+        placeholders = ', '.join('?' for _ in batch)
+        query = query_template.format(placeholders)
+        yield from cursor.execute(query, batch)
 
 
 def seperate_parents_and_children(feature_db, parent_types_to_lift):
@@ -273,16 +310,33 @@ def seperate_parents_and_children(feature_db, parent_types_to_lift):
         relations = [list(feature) for feature in c.execute('''SELECT * FROM relations join features as a on
         a.id = relations.parent join features as b on b.id = relations.child''') if
                      feature[0] != feature[1]]
-        all_ids = [list(feature)[0] for feature in c.execute('''SELECT * FROM features''')]
+        all_ids = [
+            list(feature)[0]
+            for feature in c.execute('''SELECT * FROM features ORDER BY rowid''')
+        ]
     else:
         relations = [feature for feature in c.execute('''SELECT relations.parent, relations.child FROM relations join features as a on a.id = relations.parent join features as b on b.id = relations.child''') if
                      feature[0] != feature[1]]
-        all_ids = [feature[0] for feature in c.execute('''SELECT id FROM features''')]
+        all_ids = [
+            feature[0]
+            for feature in c.execute('''SELECT id FROM features ORDER BY rowid''')
+        ]
     all_children_ids = [relation[1] for relation in relations ]
     all_parent_ids = [relation[0] for relation in relations]
-    lowest_children = np.setdiff1d(all_ids,  all_parent_ids )
-    highest_parents = np.setdiff1d(all_ids, all_children_ids)
-    intermediates = set(all_children_ids).intersection(set( all_parent_ids ))
+    all_children_set = set(all_children_ids)
+    all_parent_set = set(all_parent_ids)
+    lowest_children = [
+        feature_id for feature_id in all_ids
+        if feature_id not in all_parent_set
+    ]
+    highest_parents = [
+        feature_id for feature_id in all_ids
+        if feature_id not in all_children_set
+    ]
+    intermediates = [
+        feature_id for feature_id in all_ids
+        if feature_id in all_children_set and feature_id in all_parent_set
+    ]
     parent_dict, child_dict, intermediate_dict = {}, {}, {}
     add_parents(parent_dict, child_dict, highest_parents, parent_types_to_lift, feature_db)
     add_children(parent_dict, child_dict, lowest_children, feature_db)
@@ -300,9 +354,8 @@ def add_parents(parent_dict, child_dict, highest_parents, parent_types_to_lift, 
     # double-quoted-string-literal misfeature accepted it -> "works on one machine,
     # not another"; GitHub issue #35). Parameters also handle special chars in IDs.
     parent_ids = [str(w) for w in highest_parents]   # str(): highest_parents is a numpy array
-    placeholders = ', '.join('?' for _ in parent_ids)
-    query = "SELECT * FROM features WHERE id IN ({})".format(placeholders)
-    for result in c.execute(query, parent_ids):
+    query = "SELECT * FROM features WHERE id IN ({}) ORDER BY features.rowid"
+    for result in _select_in_batches(c, query, parent_ids):
         feature_tup = tuple(result)
         parent = new_feature.new_feature(feature_tup[0], feature_tup[3], feature_tup[1], feature_tup[2],feature_tup[7],
                                           feature_tup[4], feature_tup[5], feature_tup[8], json.loads(feature_tup[9]))
@@ -313,17 +366,19 @@ def add_parents(parent_dict, child_dict, highest_parents, parent_types_to_lift, 
 
 def add_children(parent_dict, child_dict, lowest_children, feature_db):
     c = feature_db.conn.cursor()
-    # Parameter-bind IDs, not double-quoted identifiers (GitHub issue #35; see add_parents).
-    child_ids = [str(w) for w in lowest_children]    # str(): lowest_children is a numpy array
-    placeholders = ', '.join('?' for _ in child_ids)
-    query = "select * from relations join features on features.id  = relations.child where relations.child IN ({})".format(placeholders)
-    c.execute(query, child_ids)
-    results = c.fetchall()
-    added_children_ids = []
-    for result in results:
+    # Leaf IDs can exceed even modern SQLite's bind-variable limit. Stream the
+    # relation table in its original order and filter through an in-memory set;
+    # this also avoids materializing every joined child row at once.
+    child_ids = {str(child_id) for child_id in lowest_children}
+    query = """select relations.*, features.*
+               from features NOT INDEXED join relations
+               on features.id = relations.child
+               ORDER BY features.rowid"""
+    added_children_ids = set()
+    for result in c.execute(query):
         feature_tup = tuple(result)
         parent = feature_tup[0]
-        if parent in parent_dict:
+        if feature_tup[1] in child_ids and parent in parent_dict:
             child = new_feature.new_feature(feature_tup[3], feature_tup[6], feature_tup[4], feature_tup[5],
                                             feature_tup[10],
                                           feature_tup[7], feature_tup[8], feature_tup[11], json.loads(feature_tup[12]))
@@ -331,8 +386,11 @@ def add_children(parent_dict, child_dict, lowest_children, feature_db):
                 if "Parent" not in child.attributes:
                     add_parent_tag(child, feature_db)
                 child_dict[parent].append(child)
-                added_children_ids.append(child.id)
-    single_level_features = np.setdiff1d(lowest_children, added_children_ids)
+                added_children_ids.add(child.id)
+    single_level_features = [
+        feature_id for feature_id in lowest_children
+        if feature_id not in added_children_ids
+    ]
     for feature in single_level_features:
         if feature in parent_dict:
             child_dict[feature] = [parent_dict[feature]]
@@ -357,9 +415,8 @@ def add_intermediates(intermediate_ids, intermediate_dict, feature_db):
     c = feature_db.conn.cursor()
     # Parameter-bind IDs, not double-quoted identifiers (GitHub issue #35; see add_parents).
     ids = [str(w) for w in intermediate_ids]
-    placeholders = ', '.join('?' for _ in ids)
-    query = "select * from features where id IN ({})".format(placeholders)
-    for result in c.execute(query, ids):
+    query = "select * from features where id IN ({}) ORDER BY features.rowid"
+    for result in _select_in_batches(c, query, ids):
         feature_tup = tuple(result)
         intermediate_feature = new_feature.new_feature(feature_tup[0], feature_tup[3], feature_tup[1], feature_tup[2],
                                            feature_tup[7],
