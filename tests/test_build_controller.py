@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -103,6 +104,30 @@ def test_subset_cell_reads_via_runner_but_writes_all_artifacts_in_cell(tmp_path)
     for name in ("result_json", "gff", "manifest"):
         assert Path(cell["artifacts"][name]).is_relative_to(cell_dir)
     assert not Path(cell["artifacts"]["gff"]).is_relative_to(controller.HERE / "work")
+
+
+def test_direct_script_worker_bootstraps_repository_imports(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(controller.__file__).resolve()),
+            "_run-subset",
+            "--benchmark",
+            "definitely-not-a-benchmark",
+            "--cell-dir",
+            str(tmp_path / "cell"),
+            "--threads",
+            "1",
+        ],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "No module named 'benchmarks'" not in result.stderr
+    assert "unknown benchmark id" in result.stderr
 
 
 def test_plan_layout_rejects_any_output_outside_its_cell(tmp_path):
