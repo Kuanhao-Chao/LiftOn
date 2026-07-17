@@ -55,7 +55,13 @@ setuptools.setup(
 	'mappy'],
 	# pytest/hypothesis/coverage are test-only; not pulled by a plain install.
 	extras_require={
-		'test': ['pytest>=7.0.0', 'hypothesis>=6.0', 'coverage>=6.0'],
+		'test': [
+			'pytest>=7.0.0',
+			'hypothesis>=6.0',
+			'coverage>=6.0',
+			'flake8>=6.0',
+			'packaging>=21',
+		],
 	},
 	include_package_data=True,
 	package_data={
@@ -67,13 +73,23 @@ setuptools.setup(
 		'lifton.gffbase._rust': ['Cargo.toml', 'Cargo.lock'],
 		'lifton.gffbase._rust.src': ['*.rs'],
 	},
+	# MANIFEST.in keeps the vendored Liftoff tests in the source distribution,
+	# but they are not runtime code and their large fixtures do not ship in the
+	# wheel. Prevent include_package_data from re-adding the test modules as
+	# data files after package discovery excludes their package.
+	exclude_package_data={
+		'lifton.liftoff': ['tests/*', 'tests/**/*'],
+	},
 	# Realistic floor (was '>=3.6'): a runtime dependency, networkx>=3.3,
 	# requires Python>=3.10, so 3.10 is the true minimum (and 3.9 reached EOL in
 	# 2025-10). The code itself uses PEP-585 builtin generics (list[...]/dict[...])
 	# and PEP-604 X|None annotations guarded by `from __future__ import
 	# annotations`. The dev env and CI run 3.11 (lifton.yml).
 	python_requires='>=3.10',
-	packages=setuptools.find_namespace_packages(include=['lifton', 'lifton.*']),
+	packages=setuptools.find_namespace_packages(
+		include=['lifton', 'lifton.*'],
+		exclude=['lifton.liftoff.tests', 'lifton.liftoff.tests.*'],
+	),
 	entry_points={'console_scripts': [
             'lifton = lifton.lifton:main',
             'gff3-validate = lifton.gff3_validator:_main',
