@@ -64,6 +64,33 @@ def test_default_policy_is_the_approved_shared_host_envelope():
     assert policy.poll_seconds == 30.0
 
 
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "expected"),
+    (
+        ("tool 1.2.3\n", "warning: random cache /tmp/cache-123\n", "tool 1.2.3"),
+        ("", "tool 4.5.6\n", "tool 4.5.6"),
+    ),
+)
+def test_tool_probe_prefers_stdout_but_supports_stderr_only_versions(
+        monkeypatch, stdout, stderr, expected):
+    monkeypatch.setattr(
+        controller, "_resolve_executable", lambda _candidate: sys.executable,
+    )
+    monkeypatch.setattr(
+        controller,
+        "_run_capture",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[sys.executable, "--version"], returncode=0,
+            stdout=stdout, stderr=stderr,
+        ),
+    )
+
+    record = controller.probe_tool("example", "example")
+
+    assert record["version"] == expected
+    assert record["version_exit_code"] == 0
+
+
 def test_canonical_matrix_has_34_subsets_and_17_refreshes():
     subsets = controller.select_ids(
         "subset", baseline=controller.DEFAULT_BASELINE,

@@ -211,7 +211,14 @@ def probe_tool(name: str, candidate: str) -> dict[str, Any]:
         record["stat_error"] = str(exc)
     try:
         result = _run_capture([resolved, "--version"], timeout=10.0)
-        text = ((result.stdout or "") + (result.stderr or "")).strip()
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        # Successful version commands commonly emit the version on stdout and
+        # environment warnings on stderr (for example a random Matplotlib cache
+        # path). Prefer stdout so those nondeterministic warnings cannot change
+        # an otherwise immutable run fingerprint. Retain stderr-only tools such
+        # as tmux by falling back when stdout is empty.
+        text = stdout or stderr
         record["version"] = text[:1000]
         record["version_exit_code"] = result.returncode
     except (OSError, subprocess.TimeoutExpired) as exc:
