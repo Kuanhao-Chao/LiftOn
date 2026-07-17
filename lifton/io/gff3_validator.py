@@ -16,7 +16,6 @@ as a list; callers decide whether to log, fail, or filter.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -45,19 +44,21 @@ class ValidationFinding:
         return f"[GFF3:{self.severity}] {loc}: {self.rule} — {self.message}"
 
 
-# A pre-compiled regex for percent-encoded sequences in attribute values.
-_PCT_RE = re.compile(r"%[0-9A-Fa-f]{2}")
+_OFFICIAL_ATTRS_LOWER = frozenset(attribute.lower() for attribute in OFFICIAL_ATTRS)
+_RESERVED_WITHOUT_COMMA = RESERVED_CHARS.difference({","})
 
 
-def _has_unencoded_reserved(value: str) -> bool:
+def _has_unencoded_reserved(value: str, *, allow_comma: bool = False) -> bool:
     """Return True iff the attribute value contains a reserved character
     that is NOT percent-encoded.
 
-    We strip valid %XX sequences first, then scan for any reserved char
-    in the remainder.
+    Percent escapes contain ``%`` plus hexadecimal digits, none of which are
+    reserved, so a set-disjointness check is equivalent to stripping every
+    escape first and keeps this per-attribute hot path in C. Commas are legal
+    separators only for official multi-value attributes.
     """
-    stripped = _PCT_RE.sub("", value)
-    return any(ch in RESERVED_CHARS for ch in stripped)
+    reserved = _RESERVED_WITHOUT_COMMA if allow_comma else RESERVED_CHARS
+    return not reserved.isdisjoint(value)
 
 
 class GFF3Validator:
@@ -72,12 +73,17 @@ class GFF3Validator:
     strict:
         Affects only the caller — the validator always returns the full
         finding list. Callers use `has_errors()` + `strict` to decide.
+    track_references:
+        Keep file-wide ID/Parent state for dangling-parent checks. Consolidated
+        annotation scans already maintain that state and disable this duplicate
+        bookkeeping while reusing all per-line checks.
     """
 
     def __init__(self, *, target_seqids: set[str] | None = None,
-                 strict: bool = False) -> None:
+                 strict: bool = False, track_references: bool = True) -> None:
         self.target_seqids = target_seqids
         self.strict = strict
+        self.track_references = track_references
         self._findings: list[ValidationFinding] = []
         self._declared_ids: set[str] = set()
         self._referenced_parents: list[tuple[int, str]] = []
@@ -226,16 +232,25 @@ class GFF3Validator:
                           f"Attribute {piece!r} is not 'key=value'.")
                 continue
             key, _, value = piece.partition("=")
-            attr_dict[key] = value
+            if self.track_references and key in ("ID", "Parent"):
+                attr_dict[key] = value
+            if key == "ID" and not value.strip():
+                self._add("error", line_no, "empty_id",
+                          "ID must contain a non-empty feature identifier.")
+            if key == "Parent" and any(
+                    not parent_id.strip() for parent_id in value.split(",")):
+                self._add("error", line_no, "empty_parent",
+                          "Parent must contain only non-empty feature IDs.")
             # Capitalisation: official attrs start with an uppercase
             # letter; misspellings (e.g. 'parent' instead of 'Parent')
             # are case-sensitive errors per the spec.
             if key not in OFFICIAL_ATTRS and key[:1].isupper() and \
-                    key.lower() in {a.lower() for a in OFFICIAL_ATTRS}:
+                    key.lower() in _OFFICIAL_ATTRS_LOWER:
                 self._add("warning", line_no, "miscapitalised_attribute",
                           f"Attribute {key!r} likely a miscapitalised "
                           f"official attribute.")
-            if _has_unencoded_reserved(value):
+            if _has_unencoded_reserved(
+                    value, allow_comma=key in MULTI_VALUE_ATTRS):
                 self._add("error", line_no, "unencoded_reserved_char",
                           f"Attribute {key!r} value contains an "
                           "unencoded reserved character (NCBI § "
@@ -243,9 +258,9 @@ class GFF3Validator:
                           "must be percent-encoded.")
 
         # Track ID for parent-resolution check.
-        if "ID" in attr_dict:
+        if self.track_references and "ID" in attr_dict:
             self._declared_ids.add(attr_dict["ID"])
-        if "Parent" in attr_dict:
+        if self.track_references and "Parent" in attr_dict:
             for parent_id in attr_dict["Parent"].split(","):
                 parent_id = parent_id.strip()
                 if parent_id:
