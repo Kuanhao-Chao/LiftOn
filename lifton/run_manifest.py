@@ -25,12 +25,14 @@ Typical integration::
 from __future__ import annotations
 
 import copy
+import concurrent.futures
 import hashlib
 import importlib.metadata
 import json
 import os
 import platform
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -176,8 +178,29 @@ def collect_environment(environ: Mapping[str, str] | None = None) -> dict[str, s
     return result
 
 
+def _stat_signature(value: os.stat_result) -> tuple[int, int, int, int, int]:
+    """Return the file identity and mutation-sensitive metadata."""
+    return (
+        int(value.st_dev),
+        int(value.st_ino),
+        int(value.st_size),
+        int(value.st_mtime_ns),
+        int(value.st_ctime_ns),
+    )
+
+
+def _stat_evidence(value: os.stat_result) -> dict[str, int]:
+    return {
+        "device": int(value.st_dev),
+        "inode": int(value.st_ino),
+        "size_bytes": int(value.st_size),
+        "mtime_ns": int(value.st_mtime_ns),
+        "ctime_ns": int(value.st_ctime_ns),
+    }
+
+
 def fingerprint_input(path: str | os.PathLike[str] | None, block_size: int = 1024 * 1024) -> dict[str, Any]:
-    """Return a SHA-256 file fingerprint, recording errors instead of raising."""
+    """Return a stable SHA-256 fingerprint, recording errors instead of raising."""
     display_path = None if path is None else sanitize_text(os.fspath(path))
     result: dict[str, Any] = {
         "path": display_path,
@@ -186,34 +209,106 @@ def fingerprint_input(path: str | os.PathLike[str] | None, block_size: int = 102
         "size_bytes": None,
         "mtime_ns": None,
         "sha256": None,
+        "bytes_read": 0,
+        "changed_during_hash": False,
+        "fingerprint_status": "pending",
     }
     if path is None:
         result["error"] = "no path supplied"
+        result["fingerprint_status"] = "unavailable"
         return result
 
+    initial_path_stat = None
     try:
         file_path = Path(path)
-        stat = file_path.stat()
+        initial_path_stat = file_path.stat()
         result.update(
             exists=True,
-            is_file=file_path.is_file(),
-            size_bytes=stat.st_size,
-            mtime_ns=stat.st_mtime_ns,
+            is_file=stat.S_ISREG(initial_path_stat.st_mode),
+            size_bytes=initial_path_stat.st_size,
+            mtime_ns=initial_path_stat.st_mtime_ns,
+            identity={
+                "device": int(initial_path_stat.st_dev),
+                "inode": int(initial_path_stat.st_ino),
+            },
         )
         if not result["is_file"]:
             result["error"] = "path is not a regular file"
+            result["fingerprint_status"] = "unavailable"
             return result
 
         digest = hashlib.sha256()
         with file_path.open("rb") as handle:
+            opened_stat = os.fstat(handle.fileno())
             while True:
                 block = handle.read(block_size)
                 if not block:
                     break
                 digest.update(block)
+                result["bytes_read"] += len(block)
+            final_handle_stat = os.fstat(handle.fileno())
+        try:
+            final_path_stat = file_path.stat()
+        except OSError as exc:
+            result.update(
+                changed_during_hash=True,
+                fingerprint_status="changed",
+                error=(
+                    "input path changed while computing SHA-256: "
+                    f"{type(exc).__name__}: {sanitize_text(exc)}"
+                ),
+            )
+            return result
+        signatures = {
+            _stat_signature(initial_path_stat),
+            _stat_signature(opened_stat),
+            _stat_signature(final_handle_stat),
+            _stat_signature(final_path_stat),
+        }
+        if len(signatures) != 1:
+            result.update(
+                changed_during_hash=True,
+                fingerprint_status="changed",
+                stat_after=_stat_evidence(final_path_stat),
+                error="input changed while computing SHA-256",
+            )
+            return result
         result["sha256"] = digest.hexdigest()
-    except (OSError, ValueError, TypeError) as exc:
+        result["fingerprint_status"] = "complete"
+    except OSError as exc:
+        if initial_path_stat is not None:
+            try:
+                error_path_stat = file_path.stat()
+            except OSError:
+                error_path_stat = None
+            changed = (
+                error_path_stat is None
+                or _stat_signature(error_path_stat)
+                != _stat_signature(initial_path_stat)
+            )
+            if changed:
+                result.update(
+                    changed_during_hash=True,
+                    fingerprint_status="changed",
+                    error=(
+                        "input path changed or became unreadable while "
+                        f"computing SHA-256: {type(exc).__name__}: "
+                        f"{sanitize_text(exc)}"
+                    ),
+                )
+                if error_path_stat is not None:
+                    result["stat_after"] = _stat_evidence(error_path_stat)
+            else:
+                result["error"] = (
+                    f"{type(exc).__name__}: {sanitize_text(exc)}"
+                )
+                result["fingerprint_status"] = "unavailable"
+        else:
+            result["error"] = f"{type(exc).__name__}: {sanitize_text(exc)}"
+            result["fingerprint_status"] = "unavailable"
+    except (ValueError, TypeError) as exc:
         result["error"] = f"{type(exc).__name__}: {sanitize_text(exc)}"
+        result["fingerprint_status"] = "unavailable"
     return result
 
 
@@ -222,6 +317,66 @@ def fingerprint_inputs(inputs: Mapping[str, str | os.PathLike[str] | None] | Non
     if not inputs:
         return {}
     return {str(name): fingerprint_input(inputs[name]) for name in sorted(inputs, key=str)}
+
+
+def _pending_fingerprints(
+    inputs: Mapping[str, str | os.PathLike[str] | None],
+) -> dict[str, dict[str, Any]]:
+    pending = {}
+    for name in sorted(inputs, key=str):
+        path = inputs[name]
+        pending[str(name)] = {
+            "path": None if path is None else sanitize_text(os.fspath(path)),
+            "exists": None,
+            "is_file": None,
+            "size_bytes": None,
+            "mtime_ns": None,
+            "sha256": None,
+            "bytes_read": 0,
+            "changed_during_hash": False,
+            "fingerprint_status": "pending",
+        }
+    return pending
+
+
+def _fingerprint_inputs_task(
+    inputs: Mapping[str, str | os.PathLike[str] | None],
+) -> dict[str, Any]:
+    started_at = _utc_now()
+    started = time.perf_counter()
+    fingerprints = fingerprint_inputs(inputs)
+    duration = time.perf_counter() - started
+    changed_names = sorted(
+        name for name, value in fingerprints.items()
+        if value.get("changed_during_hash")
+    )
+    metrics = {
+        "input_count": len(fingerprints),
+        "regular_files": sum(
+            1 for value in fingerprints.values() if value.get("is_file")
+        ),
+        "hashed_files": sum(
+            1 for value in fingerprints.values()
+            if value.get("fingerprint_status") == "complete"
+        ),
+        "bytes_hashed": sum(
+            int(value.get("bytes_read") or 0)
+            for value in fingerprints.values()
+        ),
+        "unavailable_inputs": sum(
+            1 for value in fingerprints.values()
+            if value.get("fingerprint_status") == "unavailable"
+        ),
+        "changed_inputs": len(changed_names),
+        "changed_input_names": changed_names,
+    }
+    return {
+        "inputs": fingerprints,
+        "started_at": started_at,
+        "finished_at": _utc_now(),
+        "duration_seconds": duration,
+        "metrics": metrics,
+    }
 
 
 def collect_dependency_versions(names: Sequence[str] = DEFAULT_DEPENDENCIES) -> dict[str, str | None]:
@@ -420,8 +575,41 @@ class RunManifest:
         self._run_started = time.perf_counter()
         self._phase_starts: dict[str, float] = {}
         self._finished = False
+        self._fingerprints_complete = False
+        self._fingerprint_executor: concurrent.futures.ThreadPoolExecutor | None = None
+        self._fingerprint_future: concurrent.futures.Future[dict[str, Any]] | None = None
+
+        normalized_inputs = {
+            str(name): inputs[name] for name in sorted(inputs or {}, key=str)
+        }
+        fingerprint_queued_at = None
+        if normalized_inputs:
+            fingerprint_queued_at = _utc_now()
+            self._fingerprint_executor = concurrent.futures.ThreadPoolExecutor(
+                max_workers=1,
+                thread_name_prefix="lifton-input-fingerprint",
+            )
+            self._fingerprint_future = self._fingerprint_executor.submit(
+                _fingerprint_inputs_task, normalized_inputs,
+            )
+        else:
+            self._fingerprints_complete = True
 
         git = collect_git_metadata(git_cwd) if collect_git else None
+        phases = {}
+        if normalized_inputs:
+            phases["fingerprint_inputs"] = {
+                "started_at": fingerprint_queued_at,
+                "finished_at": None,
+                "duration_seconds": None,
+                "status": "running",
+                "details": {
+                    "algorithm": "sha256",
+                    "execution": "background-thread",
+                    "block_size_bytes": 1024 * 1024,
+                },
+                "metrics": {},
+            }
         self._document: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "run": {
@@ -451,13 +639,83 @@ class RunManifest:
                 "dependencies": collect_dependency_versions(dependency_names),
                 "tools": collect_tool_versions(tool_commands),
             },
-            "inputs": fingerprint_inputs(inputs),
-            "phases": {},
+            "inputs": _pending_fingerprints(normalized_inputs),
+            "phases": phases,
             "counts": {},
             "failures": [],
             "validation": {},
             "resources": {"start": process_rss(), "end": None, "last_write": None},
         }
+
+    def _complete_input_fingerprints(self) -> None:
+        """Join the background hash worker and publish only stable evidence."""
+        if self._fingerprints_complete:
+            return
+
+        future = self._fingerprint_future
+        executor = self._fingerprint_executor
+        join_started = time.perf_counter()
+        try:
+            if future is None:
+                raise RuntimeError("input fingerprint worker was not started")
+            result = future.result()
+            join_wait = time.perf_counter() - join_started
+            self._document["inputs"] = result["inputs"]
+            metrics = dict(result["metrics"])
+            metrics["join_wait_seconds"] = join_wait
+            phase = self._document["phases"]["fingerprint_inputs"]
+            phase.update(
+                started_at=result["started_at"],
+                finished_at=result["finished_at"],
+                duration_seconds=result["duration_seconds"],
+                status=(
+                    "failed" if metrics["changed_inputs"] else "success"
+                ),
+                metrics=metrics,
+            )
+            if metrics["changed_inputs"]:
+                self.record_failure(
+                    "fingerprint_inputs",
+                    "input changed while computing SHA-256",
+                    details={
+                        "inputs": metrics["changed_input_names"],
+                    },
+                )
+        except Exception as exc:
+            error = (
+                "input fingerprint worker failed: "
+                f"{type(exc).__name__}: {sanitize_text(exc)}"
+            )
+            for fingerprint in self._document["inputs"].values():
+                if fingerprint.get("fingerprint_status") == "pending":
+                    fingerprint.update(
+                        fingerprint_status="unavailable",
+                        error=error,
+                    )
+            join_wait = time.perf_counter() - join_started
+            phase = self._document["phases"]["fingerprint_inputs"]
+            phase.update(
+                finished_at=_utc_now(),
+                duration_seconds=join_wait,
+                status="failed",
+                metrics={
+                    "input_count": len(self._document["inputs"]),
+                    "regular_files": 0,
+                    "hashed_files": 0,
+                    "bytes_hashed": 0,
+                    "unavailable_inputs": len(self._document["inputs"]),
+                    "changed_inputs": 0,
+                    "changed_input_names": [],
+                    "join_wait_seconds": join_wait,
+                },
+            )
+            self.record_failure("fingerprint_inputs", exc)
+        finally:
+            if executor is not None:
+                executor.shutdown(wait=True)
+            self._fingerprint_future = None
+            self._fingerprint_executor = None
+            self._fingerprints_complete = True
 
     def set_backend_choice(self, name: str, value: Any) -> None:
         sanitized = sanitize_data({str(name): value})
@@ -570,6 +828,7 @@ class RunManifest:
             return
         for phase_name in list(self._phase_starts):
             self.end_phase(phase_name, status="incomplete")
+        self._complete_input_fingerprints()
         self._document["run"].update(
             finished_at=_utc_now(),
             duration_seconds=time.perf_counter() - self._run_started,
@@ -584,5 +843,6 @@ class RunManifest:
 
     def write(self, path: str | os.PathLike[str]) -> None:
         """Atomically write the current snapshot without implicitly finalizing it."""
+        self._complete_input_fingerprints()
         self._document["resources"]["last_write"] = process_rss()
         atomic_write_json(path, self._document)
