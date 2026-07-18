@@ -1413,6 +1413,31 @@ def test_artifact_gate_requires_result_manifest_and_full_validator(tmp_path, mon
         len(record["sha256"]) == 64
         for record in validation["artifacts"].values()
     )
+    validation_path = cell_dir / "gff_validation.json"
+    sealed_bytes = validation_path.read_bytes()
+    sealed_mtime_ns = validation_path.stat().st_mtime_ns
+    monkeypatch.setattr(
+        controller,
+        "_run_gff_validator",
+        lambda _cell, _gff: (
+            [],
+            {
+                "exit_code": 0,
+                "result": {"is_valid": True},
+                "checked_at": "later",
+            },
+        ),
+    )
+
+    errors, _ = controller.validate_artifacts(
+        cell,
+        0,
+        persist_validator_reports=False,
+    )
+
+    assert errors == []
+    assert validation_path.read_bytes() == sealed_bytes
+    assert validation_path.stat().st_mtime_ns == sealed_mtime_ns
 
     manifest.unlink()
     errors, _ = controller.validate_artifacts(cell, 0)
@@ -1557,6 +1582,38 @@ def test_paired_artifact_gate_validates_both_fresh_independent_outputs(
     assert (
         Path(cell["cell_dir"]) / "reference_gff_validation.json"
     ).is_file()
+    validation_paths = [
+        Path(cell["cell_dir"]) / f"{label}_gff_validation.json"
+        for label in ("candidate", "reference")
+    ]
+    sealed_reports = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in validation_paths
+    }
+    monkeypatch.setattr(
+        controller,
+        "_run_gff_validator",
+        lambda _cell, _gff: (
+            [],
+            {
+                "exit_code": 0,
+                "result": {"is_valid": True},
+                "checked_at": "later",
+            },
+        ),
+    )
+
+    errors, _ = controller.validate_artifacts(
+        cell,
+        0,
+        persist_validator_reports=False,
+    )
+
+    assert errors == []
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in validation_paths
+    } == sealed_reports
 
     candidate_manifest = Path(cell["artifacts"]["candidate_manifest"])
     manifest_document = json.loads(candidate_manifest.read_text())
@@ -1593,6 +1650,115 @@ def test_paired_artifact_gate_validates_both_fresh_independent_outputs(
     Path(cell["artifacts"]["reference_manifest"]).unlink()
     errors, _ = controller.validate_artifacts(cell, 0)
     assert any("reference_manifest is missing" in error for error in errors)
+
+
+def test_deep_reconcile_preserves_sealed_paired_validator_reports(
+        tmp_path, monkeypatch):
+    cell, _raw = _paired_result_fixture(tmp_path)
+    run_dir = tmp_path / "run"
+    plan = {
+        "schema_version": controller.CONTROLLER_SCHEMA_VERSION,
+        "run_id": "paired-deep-reconcile",
+        "created_at": controller.utc_now(),
+        "repo_root": str(tmp_path),
+        "run_dir": str(run_dir),
+        "stage": "paired-subset",
+        "ids": ["demo"],
+        "policy": controller.asdict(controller.Policy()),
+        "inputs": {},
+        "paired": cell["paired"],
+        "provenance": {
+            "source": "unit-test",
+            "paired": {
+                "configuration": cell["paired"],
+                "sources": {},
+                "inputs": {"demo": cell["input_fingerprints"]},
+            },
+        },
+        "cells": [cell],
+    }
+    # The paired fixture has already materialized worker artifacts under the
+    # run root, so seed the immutable controller metadata in place.
+    _seal_plan(plan)
+    controller.atomic_write_json(run_dir / "plan.json", plan)
+    controller.atomic_write_json(
+        Path(cell["cell_dir"]) / "cell.json", cell,
+    )
+    controller._write_status(cell, "pending", attempts=0)
+    controller.atomic_write_json(run_dir / "controller.json", {
+        "schema_version": controller.CONTROLLER_SCHEMA_VERSION,
+        "run_id": plan["run_id"],
+        "fingerprint": plan["fingerprint"],
+        "state": "planned",
+        "created_at": controller.utc_now(),
+    })
+    validator_calls = []
+
+    def fake_validator(_cell, gff):
+        validator_calls.append(Path(gff))
+        return [], {
+            "exit_code": 0,
+            "result": {"is_valid": True},
+            "checked_at": f"call-{len(validator_calls)}",
+        }
+
+    monkeypatch.setattr(controller, "_run_gff_validator", fake_validator)
+    errors, validation = controller.validate_artifacts(cell, 0)
+    assert errors == []
+    controller.atomic_write_json(Path(cell["cell_dir"]) / ".success", {
+        "schema_version": controller.CONTROLLER_SCHEMA_VERSION,
+        "cell_id": cell["id"],
+        "fingerprint": cell["fingerprint"],
+        "exit": {"started_ns": 0},
+        "validation": validation,
+    })
+    controller._write_status(cell, "success", attempts=1)
+    validation_paths = [
+        Path(cell["cell_dir"]) / f"{label}_gff_validation.json"
+        for label in ("candidate", "reference")
+    ]
+    sealed_reports = {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in validation_paths
+    }
+    monkeypatch.setattr(
+        controller,
+        "assert_matching_provenance",
+        lambda _plan: None,
+    )
+
+    first = controller.reconcile_run(run_dir, deep=True)
+    second = controller.reconcile_run(run_dir, deep=True)
+
+    assert first["counts"] == {"success": 1}
+    assert second["counts"] == {"success": 1}
+    assert first["provenance_error"] is None
+    assert second["provenance_error"] is None
+    assert len(validator_calls) == 6
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in validation_paths
+    } == sealed_reports
+
+    monkeypatch.setattr(
+        controller,
+        "_run_gff_validator",
+        lambda _cell, _gff: (
+            ["full GFF3 validator exited 1"],
+            {
+                "exit_code": 1,
+                "result": {"is_valid": False},
+                "checked_at": "failed-audit",
+            },
+        ),
+    )
+    failed = controller.reconcile_run(run_dir, deep=True)
+
+    assert failed["counts"] == {"failed": 1}
+    assert {
+        path: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in validation_paths
+    } == sealed_reports
 
 
 def test_e2e_release_manifest_protocol_must_match_pair_result(tmp_path):
