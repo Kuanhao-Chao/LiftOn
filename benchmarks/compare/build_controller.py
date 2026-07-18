@@ -2298,6 +2298,8 @@ def _run_gff_validator(cell: Mapping[str, Any], gff: Path) -> tuple[list[str], d
 def _validate_paired_artifacts(
     cell: Mapping[str, Any],
     started_ns: int,
+    *,
+    persist_validator_reports: bool = True,
 ) -> tuple[list[str], dict[str, Any]]:
     from benchmarks.compare import release_evaluation
 
@@ -2351,8 +2353,14 @@ def _validate_paired_artifacts(
         validation_path = (
             Path(cell["cell_dir"]) / f"{label}_gff_validation.json"
         )
-        atomic_write_json(validation_path, validator_report)
-        evidence_paths[f"{label}_gff_validation"] = validation_path
+        if persist_validator_reports:
+            atomic_write_json(validation_path, validator_report)
+        if validation_path.is_file():
+            evidence_paths[f"{label}_gff_validation"] = validation_path
+        else:
+            errors.append(
+                f"{label} GFF3 validation report is missing: {validation_path}"
+            )
 
         try:
             observed = release_evaluation.gff3_fingerprints(
@@ -2486,11 +2494,27 @@ def _validate_paired_artifacts(
     }
 
 
-def validate_artifacts(cell: Mapping[str, Any], started_ns: int) -> tuple[list[str], dict[str, Any]]:
+def validate_artifacts(
+    cell: Mapping[str, Any],
+    started_ns: int,
+    *,
+    persist_validator_reports: bool = True,
+) -> tuple[list[str], dict[str, Any]]:
+    """Validate a cell, optionally keeping validator reruns in memory only.
+
+    Non-persisting mode is for auditing already sealed artifacts. Its returned
+    validator details describe the live rerun, while artifact records continue
+    to describe the existing sealed reports.
+    """
+
     if cell["kind"] == "gate":
         return [], {"gate": "exit-code only"}
     if cell["kind"] == "paired_release":
-        return _validate_paired_artifacts(cell, started_ns)
+        return _validate_paired_artifacts(
+            cell,
+            started_ns,
+            persist_validator_reports=persist_validator_reports,
+        )
     artifacts = cell["artifacts"]
     required = {
         name: Path(artifacts[name]) for name in ("result_json", "gff", "manifest")
@@ -2508,11 +2532,15 @@ def validate_artifacts(cell: Mapping[str, Any], started_ns: int) -> tuple[list[s
     validator_errors, validator_report = _run_gff_validator(cell, required["gff"])
     errors.extend(validator_errors)
     validation_path = Path(cell["cell_dir"]) / "gff_validation.json"
-    atomic_write_json(validation_path, validator_report)
+    if persist_validator_reports:
+        atomic_write_json(validation_path, validator_report)
     evidence_paths = {
         **required,
-        "gff_validation": validation_path,
     }
+    if validation_path.is_file():
+        evidence_paths["gff_validation"] = validation_path
+    else:
+        errors.append(f"GFF3 validation report is missing: {validation_path}")
     stats = {
         name: _success_artifact_record(path)
         for name, path in evidence_paths.items()
@@ -3362,7 +3390,11 @@ def reconcile_run(run_dir: Path, *, deep: bool = False) -> dict[str, Any]:
                 )
         if deep and not errors and cell["kind"] != "gate":
             started_ns = int(success.get("exit", {}).get("started_ns", 0))
-            deep_errors, _ = validate_artifacts(cell, started_ns)
+            deep_errors, _ = validate_artifacts(
+                cell,
+                started_ns,
+                persist_validator_reports=False,
+            )
             errors.extend(deep_errors)
         if errors:
             _mark_failed(
