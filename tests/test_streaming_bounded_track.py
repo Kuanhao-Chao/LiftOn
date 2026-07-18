@@ -294,6 +294,35 @@ def test_full_feature_batches_match_scalar_hierarchy():
         ]
 
 
+def test_hierarchy_order_by_start_preserves_file_order_for_ties():
+    text = (
+        "##gff-version 3\n"
+        "chr1\tmp\tmRNA\t1\t100\t.\t-\t.\tID=MP1\n"
+        "chr1\tmp\tCDS\t10\t30\t.\t-\t2\tID=cds;Parent=MP1\n"
+        "chr1\tmp\tstop_codon\t10\t12\t.\t-\t0\t"
+        "ID=stop;Parent=MP1\n"
+        "chr1\tmp\tCDS\t20\t40\t.\t-\t0\tID=later;Parent=MP1\n"
+    )
+    db = create_db(
+        text, ":memory:", from_string=True, force=True, build_rtree=False,
+    )
+
+    ascending = list(db.children(
+        "MP1", featuretype=("CDS", "stop_codon"), order_by="start",
+    ))
+    descending = list(db.children(
+        "MP1", featuretype=("CDS", "stop_codon"), order_by="start",
+        reverse=True,
+    ))
+    batched = db.children_batched_features(
+        ["MP1"], featuretype=("CDS", "stop_codon"), order_by="start",
+    )["MP1"]
+
+    assert [feature.id for feature in ascending] == ["cds", "stop", "later"]
+    assert [feature.id for feature in descending] == ["later", "cds", "stop"]
+    assert [feature.id for feature in batched] == ["cds", "stop", "later"]
+
+
 def test_gffbase_root_scan_survives_interleaved_child_queries(monkeypatch):
     monkeypatch.setattr(gffbase_interface, "_SCAN_BATCH_SIZE", 2)
     text = "##gff-version 3\n" + "".join(

@@ -30,7 +30,7 @@ from lifton.io.ncbi_gff3_spec import RESERVED_CHARS
 _PCT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
 
 
-def _encode_reserved(value: str) -> str:
+def encode_attribute_value(value: str) -> str:
     """Percent-encode reserved characters per NCBI GFF3 spec.
 
     The encoding is unambiguous: every literal `%` becomes `%25` so a
@@ -54,6 +54,11 @@ def _encode_reserved(value: str) -> str:
     return "".join(out_chars)
 
 
+# Backward-compatible private name retained for focused tests and in-tree
+# callers written before the encoder became shared with vendored Liftoff.
+_encode_reserved = encode_attribute_value
+
+
 def _attr_value_str(values: Any) -> str:
     """Render an attribute's value(s) into the GFF3 wire format.
 
@@ -62,9 +67,9 @@ def _attr_value_str(values: Any) -> str:
     `&`, tab, or newline doesn't break the line structure.
     """
     if isinstance(values, (list, tuple)):
-        encoded = [_encode_reserved(str(v)) for v in values]
+        encoded = [encode_attribute_value(str(v)) for v in values]
         return ",".join(encoded)
-    return _encode_reserved(str(values))
+    return encode_attribute_value(str(values))
 
 
 def _canonical_attr_order(keys):

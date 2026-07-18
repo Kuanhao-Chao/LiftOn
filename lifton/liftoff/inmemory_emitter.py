@@ -64,7 +64,10 @@ def lifted_features_to_gff3_bytes(lifted_features, args, feature_db,
     _write_header_to(buf, out_type, sys_argv=sys_argv)
 
     parents = liftoff_utils.get_parent_list(lifted_features)
-    parents.sort(key=lambda x: x.id)
+    # Keep this identical to write_new_gff.write_new_gff.  Sorting only by ID
+    # retained alignment-encounter order for duplicate IDs and made the
+    # in-memory path emit sibling loci in a different order on real genomes.
+    parents.sort(key=lambda x: (x.seqid, x.start, x.end, x.id))
     final_parent_list = write_new_gff.finalize_parent_features(parents, args)
     final_parent_list.sort(key=lambda x: (x.seqid, x.start))
 

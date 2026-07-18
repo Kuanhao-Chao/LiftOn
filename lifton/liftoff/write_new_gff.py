@@ -1,5 +1,6 @@
 from lifton.liftoff  import liftoff_utils
 from lifton import __version__
+from lifton.io.gff3_writer import encode_attribute_value
 import sys
 
 
@@ -109,13 +110,18 @@ def make_gff_line(attr_dict, feature):
     # GFF3 spec allows CDS features to have IDs, and CDS from the same mRNA should have the same ID
     attributes_str = ""
     if "ID" in attr_dict and len(attr_dict["ID"]) > 0:
-        attributes_str = "ID=" + attr_dict["ID"][0] + ";"
+        attributes_str = "ID=" + encode_attribute_value(attr_dict["ID"][0]) + ";"
     
     for attr in attr_dict:
         if attr != "copy_id":
             value_str = ""
             for value in attr_dict[attr]:
-                value_str += value + ","
+                # Encode each logical value before joining the official
+                # multi-value list.  Writing a literal comma from a product or
+                # Note value makes the intermediate GFF3 ambiguous: the
+                # on-disk and in-memory database adapters can then reconstruct
+                # different value boundaries and emit different final bytes.
+                value_str += encode_attribute_value(value) + ","
             if attr != "ID":
                 attributes_str += (attr + "=" + value_str[:-1] + ";")
     return feature.seqid + "\t" + feature.source + "\t" + feature.featuretype + "\t" + str(feature.start) + \
