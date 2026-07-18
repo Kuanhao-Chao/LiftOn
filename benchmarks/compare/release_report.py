@@ -24,6 +24,8 @@ from .release_evaluation import (
     DEFAULT_BOOTSTRAP_REPLICATES,
     DEFAULT_BOOTSTRAP_SEED,
     SCHEMA_VERSION,
+    STABLE_ID_FEATURE_TYPES,
+    STABLE_ID_METHOD,
     _percentile,
     bootstrap_geomean_ratio,
     gff3_fingerprints,
@@ -475,6 +477,110 @@ def _validate_feature_completeness(
     return normalized, float(overall["pct_recovered"])
 
 
+def _validate_stable_id_preservation(
+    value: Any,
+    *,
+    path: Path,
+    label: str,
+) -> dict[str, dict[str, Any]]:
+    """Validate identifier-continuity evidence independently of completeness."""
+
+    if (
+        not isinstance(value, Mapping)
+        or value.get("method") != STABLE_ID_METHOD
+        or not isinstance(value.get("by_type"), Mapping)
+    ):
+        raise ValueError(
+            f"{path}: {label} stable_id_preservation is missing or malformed"
+        )
+    by_type = value["by_type"]
+    if set(by_type) != set(STABLE_ID_FEATURE_TYPES):
+        raise ValueError(
+            f"{path}: {label} stable_id_preservation must contain exactly "
+            f"{list(STABLE_ID_FEATURE_TYPES)}"
+        )
+    normalized = {}
+    for feature_type in STABLE_ID_FEATURE_TYPES:
+        row = by_type[feature_type]
+        if not isinstance(row, Mapping):
+            raise ValueError(
+                f"{path}: {label} stable ID evidence for {feature_type} "
+                "is malformed"
+            )
+        n_records = row.get("n_reference_records")
+        n_records_with_id = row.get("n_reference_records_with_id")
+        n_reference = row.get("n_reference_ids")
+        n_preserved = row.get("n_preserved_ids")
+        n_output_records = row.get("n_output_records")
+        n_output_records_with_id = row.get("n_output_records_with_id")
+        n_output = row.get("n_output_ids")
+        counts_valid = (
+            _integer(n_records)
+            and n_records >= 0
+            and _integer(n_records_with_id)
+            and 0 <= n_records_with_id <= n_records
+            and _integer(n_reference)
+            and 0 <= n_reference <= n_records_with_id
+            and (n_records_with_id == 0) == (n_reference == 0)
+            and _integer(n_preserved)
+            and 0 <= n_preserved <= n_reference
+            and _integer(n_output_records)
+            and n_output_records >= 0
+            and _integer(n_output_records_with_id)
+            and 0 <= n_output_records_with_id <= n_output_records
+            and _integer(n_output)
+            and 0 <= n_output <= n_output_records_with_id
+            and (n_output_records_with_id == 0) == (n_output == 0)
+            and n_preserved <= n_output
+        )
+        if not counts_valid:
+            raise ValueError(
+                f"{path}: {label} stable ID counts for {feature_type} "
+                "are invalid"
+            )
+        applicable = row.get("applicable")
+        expected_applicable = n_reference > 0
+        if not isinstance(applicable, bool) or applicable != expected_applicable:
+            raise ValueError(
+                f"{path}: {label} stable ID applicability for {feature_type} "
+                "disagrees with its denominator"
+            )
+        rate = row.get("preservation_rate")
+        reason = row.get("reason")
+        if applicable:
+            parsed_rate = _required_unit_metric(
+                rate,
+                path=path,
+                label=label,
+                field=(
+                    f"stable_id_preservation.{feature_type}."
+                    "preservation_rate"
+                ),
+            )
+            if reason is not None or not math.isclose(
+                parsed_rate,
+                n_preserved / n_reference,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    f"{path}: {label} stable ID rate for {feature_type} "
+                    "disagrees with its counts"
+                )
+        else:
+            expected_reason = (
+                "reference_feature_type_absent"
+                if n_records == 0 else "no_declared_reference_ids"
+            )
+            if rate is not None or reason != expected_reason:
+                raise ValueError(
+                    f"{path}: {label} non-applicable stable ID evidence for "
+                    f"{feature_type} is inconsistent"
+                )
+        normalized[feature_type] = dict(row)
+    return normalized
+
+
 def _version_quality(
     pair_path: Path,
     pair: Mapping[str, Any],
@@ -517,6 +623,11 @@ def _version_quality(
     )
     feature_types, expected_feature_total = _validate_feature_completeness(
         summary.get("completeness_by_type"),
+        path=pair_path,
+        label=label,
+    )
+    stable_ids = _validate_stable_id_preservation(
+        summary.get("stable_id_preservation"),
         path=pair_path,
         label=label,
     )
@@ -580,6 +691,7 @@ def _version_quality(
         "mean_pi": identity.get("mean"),
         "median_pi": identity.get("median"),
         "feature_types": feature_types,
+        "stable_id_preservation": stable_ids,
         **transcript,
     }
 
@@ -2050,6 +2162,74 @@ def _aggregate_common_pi(
     return result
 
 
+def _paired_stable_id_preservation(
+    candidate: Mapping[str, Any],
+    reference: Mapping[str, Any],
+    *,
+    source: Path,
+) -> dict[str, dict[str, Any]]:
+    result = {}
+    candidate_types = candidate["stable_id_preservation"]
+    reference_types = reference["stable_id_preservation"]
+    denominator_fields = (
+        "n_reference_records",
+        "n_reference_records_with_id",
+        "n_reference_ids",
+        "applicable",
+        "reason",
+    )
+    for feature_type in STABLE_ID_FEATURE_TYPES:
+        candidate_row = candidate_types[feature_type]
+        reference_row = reference_types[feature_type]
+        mismatched = [
+            field for field in denominator_fields
+            if candidate_row.get(field) != reference_row.get(field)
+        ]
+        if mismatched:
+            raise ValueError(
+                f"{source}: candidate/reference stable ID denominators for "
+                f"{feature_type} disagree: {mismatched}"
+            )
+        applicable = candidate_row["applicable"]
+        result[feature_type] = {
+            "applicable": applicable,
+            "reason": candidate_row["reason"],
+            "n_reference_records": candidate_row["n_reference_records"],
+            "n_reference_records_with_id": (
+                candidate_row["n_reference_records_with_id"]
+            ),
+            "n_reference_ids": candidate_row["n_reference_ids"],
+            "candidate_n_preserved_ids": candidate_row["n_preserved_ids"],
+            "candidate_n_output_records": (
+                candidate_row["n_output_records"]
+            ),
+            "candidate_n_output_records_with_id": (
+                candidate_row["n_output_records_with_id"]
+            ),
+            "candidate_n_output_ids": candidate_row["n_output_ids"],
+            "candidate_preservation_rate": (
+                candidate_row["preservation_rate"]
+            ),
+            "reference_n_preserved_ids": reference_row["n_preserved_ids"],
+            "reference_n_output_records": (
+                reference_row["n_output_records"]
+            ),
+            "reference_n_output_records_with_id": (
+                reference_row["n_output_records_with_id"]
+            ),
+            "reference_n_output_ids": reference_row["n_output_ids"],
+            "reference_preservation_rate": (
+                reference_row["preservation_rate"]
+            ),
+            "rate_delta": (
+                candidate_row["preservation_rate"]
+                - reference_row["preservation_rate"]
+                if applicable else None
+            ),
+        }
+    return result
+
+
 def aggregate_pairs(
     pairs: Sequence[tuple[Path, Mapping[str, Any]]],
     *,
@@ -2152,6 +2332,11 @@ def aggregate_pairs(
         )
         reference_quality_deterministic = _quality_is_deterministic(
             repetition_quality["reference"],
+            source=first_path,
+        )
+        stable_id_preservation = _paired_stable_id_preservation(
+            candidate,
+            reference,
             source=first_path,
         )
         deltas = {
@@ -2304,6 +2489,7 @@ def aggregate_pairs(
             "reference": reference,
             "quality_deltas": deltas,
             "common_pi": common_pi,
+            "stable_id_preservation": stable_id_preservation,
             "common_pi_deterministic": common_pi_deterministic,
             "e2e_biology": e2e_biology,
             "candidate_quality_deterministic": candidate_quality_deterministic,
@@ -2362,6 +2548,40 @@ def aggregate_pairs(
                 seed=seed + sum(ord(char) for char in f"{panel}:{metric}"),
                 replicates=replicates,
             )
+        stable_ids = {}
+        for feature_type in STABLE_ID_FEATURE_TYPES:
+            applicable = [
+                cell["stable_id_preservation"][feature_type]
+                for cell in selected
+                if cell["stable_id_preservation"][feature_type]["applicable"]
+            ]
+            denominator = sum(
+                row["n_reference_ids"] for row in applicable
+            )
+            candidate_preserved = sum(
+                row["candidate_n_preserved_ids"] for row in applicable
+            )
+            reference_preserved = sum(
+                row["reference_n_preserved_ids"] for row in applicable
+            )
+            stable_ids[feature_type] = {
+                "n_applicable_cells": len(applicable),
+                "n_reference_ids": denominator,
+                "candidate_n_preserved_ids": candidate_preserved,
+                "reference_n_preserved_ids": reference_preserved,
+                "candidate_preservation_rate": (
+                    candidate_preserved / denominator
+                    if denominator else None
+                ),
+                "reference_preservation_rate": (
+                    reference_preserved / denominator
+                    if denominator else None
+                ),
+                "rate_delta": (
+                    (candidate_preserved - reference_preserved) / denominator
+                    if denominator else None
+                ),
+            }
         panels[panel] = {
             "n_cells": len(selected),
             "wall_ratio": bootstrap_geomean_ratio(
@@ -2391,6 +2611,7 @@ def aggregate_pairs(
             "candidate_concurrent_memory_contributors": memory_contributors,
             "modes": dict(selected[0]["modes"]),
             "quality": quality,
+            "stable_id_preservation": stable_ids,
         }
     release_evidence_valid = (
         publication_mode == "release"
@@ -2663,6 +2884,25 @@ def evaluate_verdict(metrics: Mapping[str, Any]) -> dict[str, Any]:
                     summary.get("mean_protein_identity"),
                     E2E_MEAN_PI_FLOOR,
                 )
+        for feature_type, result in (
+            cell.get("stable_id_preservation") or {}
+        ).items():
+            if result.get("applicable") is not True:
+                continue
+            add(
+                f"{cell['panel']}.{cell['benchmark']}."
+                f"stable_id_preservation.{feature_type}.no_regression",
+                _integer(result.get("candidate_n_preserved_ids"))
+                and _integer(result.get("reference_n_preserved_ids"))
+                and result["candidate_n_preserved_ids"]
+                >= result["reference_n_preserved_ids"],
+                {
+                    "candidate": result.get("candidate_n_preserved_ids"),
+                    "reference": result.get("reference_n_preserved_ids"),
+                    "n_reference_ids": result.get("n_reference_ids"),
+                },
+                "candidate preserved-ID count >= reference preserved-ID count",
+            )
         for metric, delta in cell.get("quality_deltas", {}).items():
             if _number(delta):
                 add(
@@ -2709,6 +2949,12 @@ def _format_ratio(value: Any) -> str:
 
 def _format_gib(value: Any) -> str:
     return f"{float(value):.2f} GiB" if _number(value) else "n/a"
+
+
+def _format_preserved(count: Any, total: Any, rate: Any) -> str:
+    if not _integer(count) or not _integer(total) or not _number(rate):
+        return "n/a"
+    return f"{count}/{total} ({float(rate):.5f})"
 
 
 def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> str:
@@ -2785,6 +3031,31 @@ def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
             lines.append(
                 f"| {panel} | {metric} | {interval['estimate']:+.5f} "
                 f"[{interval['low']:+.5f}, {interval['high']:+.5f}] |"
+            )
+    lines.extend([
+        "",
+        "## Stable feature-ID preservation",
+        "",
+        "This measures continuity of explicit GFF3 `ID` values for CDS and "
+        "exon features. It is copy-suffix-aware and is not a measure of "
+        "biological completeness, coordinate accuracy, or sequence identity.",
+        "",
+        "| Panel | Feature type | Applicable cells | Candidate preserved | "
+        "Reference preserved | Rate delta |",
+        "|---|---|---:|---:|---:|---:|",
+    ])
+    for panel, summary in sorted(metrics["panels"].items()):
+        stable_ids = summary.get("stable_id_preservation") or {}
+        for feature_type in STABLE_ID_FEATURE_TYPES:
+            row = stable_ids.get(feature_type) or {}
+            delta = row.get("rate_delta")
+            delta_text = f"{float(delta):+.5f}" if _number(delta) else "n/a"
+            lines.append(
+                f"| {panel} | {feature_type} | "
+                f"{row.get('n_applicable_cells', 0)} | "
+                f"{_format_preserved(row.get('candidate_n_preserved_ids'), row.get('n_reference_ids'), row.get('candidate_preservation_rate'))} | "
+                f"{_format_preserved(row.get('reference_n_preserved_ids'), row.get('n_reference_ids'), row.get('reference_preservation_rate'))} | "
+                f"{delta_text} |"
             )
     e2e_cells = [
         cell for cell in metrics.get("cells", [])
