@@ -21,6 +21,7 @@ Three test layers:
 
 from __future__ import annotations
 
+import copy
 import io
 import os
 import sys
@@ -163,6 +164,65 @@ class TestEmitterRoundTrip:
         assert ram_bytes == disk_bytes, (
             "In-memory emitter diverged from disk write_new_gff."
         )
+
+    def test_reserved_comma_is_encoded_before_database_ingest(self):
+        from lifton.liftoff.inmemory_emitter import lifted_features_to_gff3_bytes
+
+        lifted, _parent, child = _make_synthetic_lifted_features()
+        child.id = "tx;one"
+        child.attributes["ID"] = ["tx;one"]
+        child.attributes["product"] = ["subunit beta, mitochondrial"]
+        text = lifted_features_to_gff3_bytes(
+            lifted,
+            _fake_args(),
+            _fake_feature_db("gff3"),
+            sys_argv=["lifton", "demo"],
+        ).decode("utf-8")
+
+        child_line = next(
+            line for line in text.splitlines()
+            if "\tmRNA\t" in line
+        )
+        assert "ID=tx%3Bone" in child_line
+        assert "product=subunit beta%2C mitochondrial" in child_line
+        assert "product=subunit beta, mitochondrial" not in child_line
+
+    def test_parent_order_matches_disk_genomic_tiebreakers(self, tmp_path):
+        from lifton.liftoff import write_new_gff
+        from lifton.liftoff.inmemory_emitter import lifted_features_to_gff3_bytes
+
+        lifted_a, parent_a, _child_a = _make_synthetic_lifted_features()
+        lifted_b, parent_b, child_b = _make_synthetic_lifted_features()
+        parent_a.id = "shared"
+        parent_a.attributes["ID"] = ["shared"]
+        parent_a.attributes["copy_id"] = ["copy-a"]
+        parent_a.attributes["copy_num_ID"] = ["shared_0"]
+        parent_a.start = 300
+        parent_a.end = 400
+        parent_b.id = "shared"
+        parent_b.attributes["ID"] = ["shared"]
+        parent_b.attributes["copy_id"] = ["copy-b"]
+        parent_b.attributes["copy_num_ID"] = ["shared_1"]
+        parent_b.start = 100
+        parent_b.end = 200
+        child_b.attributes["Parent"] = ["shared"]
+        lifted = {
+            "copy-a": lifted_a[next(iter(lifted_a))],
+            "copy-b": lifted_b[next(iter(lifted_b))],
+        }
+        # Intentionally insert the later locus first.
+        lifted = {"copy-a": lifted["copy-a"], "copy-b": lifted["copy-b"]}
+        args = _fake_args()
+        feature_db = _fake_feature_db("gff3")
+        disk_path = tmp_path / "ordered.gff3"
+        disk_args = SimpleNamespace(**vars(args), output=str(disk_path))
+
+        write_new_gff.write_new_gff(copy.deepcopy(lifted), disk_args, feature_db)
+        memory = lifted_features_to_gff3_bytes(
+            copy.deepcopy(lifted), args, feature_db, sys_argv=sys.argv,
+        )
+
+        assert memory == disk_path.read_bytes()
 
 
 # ---------------------------------------------------------------------------

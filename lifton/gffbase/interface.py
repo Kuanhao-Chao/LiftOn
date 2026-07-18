@@ -377,7 +377,14 @@ class FeatureDB:
             # Unknown / multi-field — accept as a literal for power users.
             col = order_by
         direction = "DESC" if reverse else "ASC"
-        return f"{col} {direction}"
+        clause = f"{col} {direction}"
+        # gffutils preserves input order when the requested key ties.  Make
+        # that compatibility behavior explicit instead of relying on
+        # DuckDB's unspecified join order (notably for a CDS and stop_codon
+        # that share a start coordinate).
+        if order_by is not None and order_by != "file_order":
+            clause += ", file_order ASC"
+        return clause
 
     # ------------------------------------------------------------------
     # region() — smart R-tree vs B-tree dispatch
@@ -1278,7 +1285,10 @@ class FeatureDB:
         else:
             col = order_by
         direction = "DESC" if reverse else "ASC"
-        return f"{col} {direction}"
+        clause = f"{col} {direction}"
+        if order_by is not None and order_by != "file_order":
+            clause += f", {qualifier}.file_order ASC"
+        return clause
 
     # ------------------------------------------------------------------
     # Mutation
