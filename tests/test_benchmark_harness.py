@@ -31,6 +31,12 @@ Command exited with non-zero status 1
 \tElapsed (wall clock) time (h:mm:ss or m:ss): 2:19.75
 \tAverage shared text size (kbytes): 0
 \tMaximum resident set size (kbytes): 5472328
+\tMajor (requiring I/O) page faults: 12
+\tMinor (reclaiming a frame) page faults: 3456
+\tVoluntary context switches: 789
+\tInvoluntary context switches: 10
+\tFile system inputs: 2048
+\tFile system outputs: 4096
 \tExit status: 1
 """
 
@@ -52,6 +58,15 @@ class TestParseGnuTime:
     def test_extracts_max_rss_kb(self):
         parsed = harness._parse_gnu_time(GNU_TIME_SAMPLE)
         assert parsed["max_rss_kb"] == "5472328"
+
+    def test_extracts_io_and_scheduler_counters(self):
+        parsed = harness._parse_gnu_time(GNU_TIME_SAMPLE)
+        assert parsed["filesystem_inputs"] == "2048"
+        assert parsed["filesystem_outputs"] == "4096"
+        assert parsed["major_page_faults"] == "12"
+        assert parsed["minor_page_faults"] == "3456"
+        assert parsed["voluntary_context_switches"] == "789"
+        assert parsed["involuntary_context_switches"] == "10"
 
     def test_real_fixture_from_bee_run(self):
         # The bee/logs/lift.time.log on disk is a *runtime artefact* that
@@ -111,3 +126,14 @@ class TestSafeFloat:
 
     def test_passes_through_real_float(self):
         assert harness._safe_float(3.14, 0.0) == 3.14
+
+
+class TestOptionalInt:
+    def test_preserves_unavailable_counter(self):
+        assert harness._optional_int(None) is None
+
+    def test_parses_counter(self):
+        assert harness._optional_int("2048") == 2048
+
+    def test_rejects_malformed_counter(self):
+        assert harness._optional_int("unknown") is None

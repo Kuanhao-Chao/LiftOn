@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "profile_id": "canonical-v3-backlog",
+  "promotion_requirements": [
+    "immutable source identities and byte hashes",
+    "independent or exact synthetic truth",
+    "declared resource budget and expected runtime",
+    "pre-registered correctness and performance gates"
+  ],
+  "items": [
+    {
+      "id": "polyploid-homeologs",
+      "priority": "P1",
+      "dimension": "genome-topology",
+      "description": "Polyploid transfer with homeolog-aware truth and copy-number scoring."
+    },
+    {
+      "id": "alternate-haplotype-pangenome",
+      "priority": "P1",
+      "dimension": "genome-topology",
+      "description": "Primary-to-alternate-haplotype or graph-derived assembly transfer."
+    },
+    {
+      "id": "segmental-duplication-paralogy",
+      "priority": "P1",
+      "dimension": "difficult-biology",
+      "description": "Segmental duplications, recent paralogs, and explicit copy truth."
+    },
+    {
+      "id": "gene-rearrangement-truth",
+      "priority": "P1",
+      "dimension": "difficult-biology",
+      "description": "Controlled translocations, fusion, splitting, inversion, and pseudogene cases."
+    },
+    {
+      "id": "noncoding-and-partial-annotations",
+      "priority": "P2",
+      "dimension": "annotation-content",
+      "description": "Noncoding-only, partial, missing-parent, and mixed gene-model inputs."
+    },
+    {
+      "id": "organelle-and-circular-sequences",
+      "priority": "P2",
+      "dimension": "genome-topology",
+      "description": "Mitochondrial, chloroplast, and circular-coordinate annotations."
+    },
+    {
+      "id": "compressed-streaming-malformed-inputs",
+      "priority": "P2",
+      "dimension": "input-robustness",
+      "description": "Compressed, reordered, very large-attribute, and intentionally malformed inputs."
+    },
+    {
+      "id": "cold-warm-storage-protocol",
+      "priority": "P2",
+      "dimension": "performance-protocol",
+      "description": "Cold and warm cache measurements across local storage classes."
+    },
+    {
+      "id": "runtime-compatibility-matrix",
+      "priority": "P3",
+      "dimension": "software-compatibility",
+      "description": "Pinned Python, DuckDB, spatial-extension, and native-backend combinations."
+    },
+    {
+      "id": "external-tool-baselines",
+      "priority": "P3",
+      "dimension": "comparative-methods",
+      "description": "Reproducible comparisons with actively maintained annotation-transfer tools."
+    }
+  ]
+}

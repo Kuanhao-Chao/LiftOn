@@ -264,12 +264,24 @@ def test_e2e_input_resolution_uses_the_requested_dataset_registry(
             "target_fa": "https://example/target.fa",
             "reference_gff": "https://example/ref.gff3",
             "target_gff": "https://example/published.gff3",
+            "cross_species": True,
+            "annotation_database": "Ensembl",
+            "truth_gff": "https://example/independent-truth.gff3",
+            "ortholog_map": "https://example/ortholog-map.json",
+            "truth_id_policy": "ortholog-map",
         }],
     }))
     data_root = tmp_path / "data"
     dataset_dir = data_root / "custom"
     dataset_dir.mkdir(parents=True)
-    for name in ("ref.fa", "target.fa", "ref.gff3", "published.gff3"):
+    for name in (
+        "ref.fa",
+        "target.fa",
+        "ref.gff3",
+        "published.gff3",
+        "independent-truth.gff3",
+        "ortholog-map.json",
+    ):
         (dataset_dir / name).write_text(name + "\n")
     monkeypatch.setattr(release.run_benchmarks, "DEFAULT_DATA_DIR", data_root)
 
@@ -280,9 +292,63 @@ def test_e2e_input_resolution_uses_the_requested_dataset_registry(
     assert inputs.species == "Custom species"
     assert inputs.ref_fa == dataset_dir / "ref.fa"
     assert inputs.tgt_fa == dataset_dir / "target.fa"
-    assert inputs.truth_gff is None
+    assert inputs.cross_species is True
+    assert inputs.annotation_database == "Ensembl"
+    assert inputs.truth_gff == dataset_dir / "independent-truth.gff3"
+    assert inputs.ortholog_map == dataset_dir / "ortholog-map.json"
+    assert inputs.truth_id_policy == "ortholog-map"
     assert set(release.input_fingerprints(inputs)) == {
         "ref_fa", "ref_gff", "tgt_fa",
+    }
+    assert set(release.evaluation_input_fingerprints(inputs)) == {
+        "truth_gff", "ortholog_map",
+    }
+
+
+def test_e2e_input_resolution_uses_canonical_file_uri_overlay(
+        tmp_path, monkeypatch):
+    dataset_dir = tmp_path / "canonical cache" / "runtime" / "datasets" / "demo"
+    dataset_dir.mkdir(parents=True)
+    assets = {
+        "reference_fa": dataset_dir / "reference.fa",
+        "target_fa": dataset_dir / "target.fa",
+        "reference_gff": dataset_dir / "reference.gff3",
+        "truth_gff": dataset_dir / "truth.gff3",
+        "ortholog_map": dataset_dir / "ortholog-map.json",
+    }
+    for name, path in assets.items():
+        path.write_text(name + "\n", encoding="utf-8")
+    registry = tmp_path / "canonical-datasets.json"
+    registry.write_text(json.dumps({
+        "datasets": [{
+            "id": "demo",
+            "species": "Canonical species",
+            **{name: path.resolve().as_uri() for name, path in assets.items()},
+            "truth_id_policy": "ortholog-map",
+        }],
+    }), encoding="utf-8")
+    legacy_data_root = tmp_path / "legacy-data-must-not-be-used"
+    monkeypatch.setattr(
+        release.run_benchmarks, "DEFAULT_DATA_DIR", legacy_data_root,
+    )
+
+    inputs = release.resolve_panel_inputs(
+        "e2e", "demo", dataset_registry=registry,
+    )
+
+    assert inputs.ref_fa == assets["reference_fa"].resolve()
+    assert inputs.tgt_fa == assets["target_fa"].resolve()
+    assert inputs.ref_gff == assets["reference_gff"].resolve()
+    assert inputs.truth_gff == assets["truth_gff"].resolve()
+    assert inputs.ortholog_map == assets["ortholog_map"].resolve()
+    assert not legacy_data_root.exists()
+    assert {
+        name: record["path"]
+        for name, record in release.input_fingerprints(inputs).items()
+    } == {
+        "ref_fa": str(assets["reference_fa"].resolve()),
+        "ref_gff": str(assets["reference_gff"].resolve()),
+        "tgt_fa": str(assets["target_fa"].resolve()),
     }
 
 
@@ -321,12 +387,14 @@ def test_e2e_arm_does_not_stage_optional_published_truth(tmp_path, monkeypatch):
     monkeypatch.setattr(
         release,
         "_validation_document",
-        lambda _path: {"is_valid": True, "n_errors": 0},
+        lambda _path, *_args: {"is_valid": True, "n_errors": 0},
     )
     captured = {}
 
     def fake_run_dataset(selected, *, data_dir, results_dir, **_kwargs):
         captured["target_gff"] = selected.target_gff
+        captured["truth_gff"] = selected.truth_gff
+        captured["ortholog_map"] = selected.ortholog_map
         captured["data_dir"] = data_dir
         output = results_dir / selected.id / "lifton.gff3"
         output.parent.mkdir(parents=True)
@@ -363,10 +431,38 @@ def test_e2e_arm_does_not_stage_optional_published_truth(tmp_path, monkeypatch):
     )
 
     assert captured["target_gff"] is None
+    assert captured["truth_gff"] is None
+    assert captured["ortholog_map"] is None
     assert not (
         captured["data_dir"] / "demo" / "published.gff3"
     ).exists()
     assert truth.read_text(encoding="utf-8") == "unused truth\n"
+
+
+def test_e2e_independent_truth_requires_materialized_ortholog_map(
+        tmp_path, monkeypatch):
+    registry = tmp_path / "datasets.json"
+    registry.write_text(json.dumps({
+        "datasets": [{
+            "id": "missing-map",
+            "species": "Cross-species pair",
+            "reference_fa": "https://example/ref.fa",
+            "target_fa": "https://example/target.fa",
+            "reference_gff": "https://example/ref.gff3",
+            "truth_gff": "https://example/truth.gff3",
+        }],
+    }))
+    data_root = tmp_path / "data"
+    dataset_dir = data_root / "missing-map"
+    dataset_dir.mkdir(parents=True)
+    for name in ("ref.fa", "target.fa", "ref.gff3", "truth.gff3"):
+        (dataset_dir / name).write_text(name + "\n")
+    monkeypatch.setattr(release.run_benchmarks, "DEFAULT_DATA_DIR", data_root)
+
+    with pytest.raises(ValueError, match="requires a non-empty ortholog_map"):
+        release.resolve_panel_inputs(
+            "e2e", "missing-map", dataset_registry=registry,
+        )
 
 
 def test_full_input_resolution_uses_the_requested_benchmark_registry(
@@ -822,7 +918,7 @@ def test_run_pair_cli_rejects_nonpositive_threads(tmp_path, threads):
     assert error.value.code == 2
 
 
-@pytest.mark.parametrize("repetition", ("0", "6", "999"))
+@pytest.mark.parametrize("repetition", ("0", "11", "999"))
 def test_run_pair_cli_rejects_out_of_range_repetition(tmp_path, repetition):
     arguments = [
         "run-pair",
@@ -845,11 +941,11 @@ def test_run_pair_cli_rejects_out_of_range_repetition(tmp_path, repetition):
 def test_run_paired_cell_rejects_direct_out_of_range_protocol_values(tmp_path):
     source = _source(tmp_path)
 
-    with pytest.raises(ValueError, match="repetition must be between 1 and 5"):
+    with pytest.raises(ValueError, match="repetition must be between 1 and 10"):
         release.run_paired_cell(
             panel="subset",
             benchmark="demo",
-            repetition=6,
+            repetition=11,
             candidate=source,
             reference=source,
             cell_dir=tmp_path / "repetition",

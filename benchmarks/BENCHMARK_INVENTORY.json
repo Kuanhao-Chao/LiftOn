@@ -1,0 +1,2934 @@
+{
+  "canonical_v2_dataset_summary": {
+    "path": "benchmarks/manifests/canonical_v2_datasets.json",
+    "remote_source_count": 15,
+    "scenario_count": 12,
+    "scenarios": [
+      {
+        "id": "v2_truth_human_grch38_chm13",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_dialect_ensembl116_gtf",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_dialect_flybase_dmel_dere",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "cross_e2e",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_dialect_wormbase_celegans_cbriggsae",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "cross_e2e",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_truth_soybean_w82_lee",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_deep_zebrafish_xenopus",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_deep_tomato_rice",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "full",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_truth_rat_mouse_e2e",
+        "kind": "biological",
+        "panels": [
+          "subset",
+          "cross_e2e",
+          "truth"
+        ]
+      },
+      {
+        "id": "v2_synth_chr22_fragmented",
+        "kind": "synthetic",
+        "panels": [
+          "synthetic"
+        ]
+      },
+      {
+        "id": "v2_synth_chr22_sv",
+        "kind": "synthetic",
+        "panels": [
+          "synthetic"
+        ]
+      },
+      {
+        "id": "v2_protocol_thread_scaling_bee",
+        "kind": "protocol",
+        "panels": [
+          "protocol"
+        ]
+      },
+      {
+        "id": "v2_protocol_io_modes_arabidopsis",
+        "kind": "protocol",
+        "panels": [
+          "protocol"
+        ]
+      }
+    ],
+    "sha256": "7c5e789860b17e116d7a0004b25a787fd74c7ac0e4554f760f584263e69e0e94",
+    "source_count": 18
+  },
+  "determinism": {
+    "digest": "sha256",
+    "local_run_contents_omitted": true,
+    "ordering": "UTF-8 repository-relative path",
+    "timestamps_omitted": true
+  },
+  "families": [
+    {
+      "aggregate_sha256": "06527e72544b9e086a9465e3d1fbe28640ce808e5a4a937f026b67acdb1b9e6c",
+      "bytes": 3629337,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "description": "Frozen four-way result set and its directly derived report and figures.",
+      "file_count": 12,
+      "id": "canonical_release_baseline",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "726da0782a36411330addf7866437dcdabd9de22e2e5a70908fc37134eb51c69",
+      "bytes": 46149,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "description": "Benchmark, E2E, tier, and subset registries used to construct canonical cells.",
+      "file_count": 5,
+      "id": "canonical_registries",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "d8eacd3aaf6ac6262a6fc340af828f69bf295085b10a71b27bd39219aebc04a4",
+      "bytes": 608888,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "description": "Current deterministic comparison, evaluation, controller, and publication tooling.",
+      "file_count": 17,
+      "id": "canonical_release_tooling",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "336c2381d9d2353f84035b6d7e006c0570f5be2ff9a52e0befe3820a75714186",
+      "bytes": 476366,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "description": "Deterministic curated-artifact inventory and canonical-v2 dataset acquisition specification.",
+      "file_count": 16,
+      "id": "canonical_v2_provenance",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "395e50763a777afb3a27d75ba5f173a1532d192fddba938e0c485dd04639dce9",
+      "bytes": 417772,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "description": "Completed tier-expansion full-genome result records retained in the frozen v1 profile.",
+      "file_count": 11,
+      "id": "canonical_tier_full_results",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "fce754556333992dcdd7da5171965cca4019c47e9dfe9163707ef04cdf259e3f",
+      "bytes": 212542,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
+      "file_count": 21,
+      "id": "diagnostic_headroom",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "528391dea0a833f86ec63cd8b24a65c133085957ba63bda288750391f800a723",
+      "bytes": 320408,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "description": "Completed exploratory performance and accuracy A/B families; preserved but never pooled into canonical-v2.",
+      "file_count": 70,
+      "id": "historical_ab_experiments",
+      "superseded_by": "canonical_release_baseline"
+    },
+    {
+      "aggregate_sha256": "0eb948b49313bb90e1c34918589ccc36cb45ccd33245a8517a788e0a4fddbea1",
+      "bytes": 6529181,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "description": "Reports, refresh records, external comparisons, and figures supporting earlier technical reviews.",
+      "file_count": 62,
+      "id": "historical_v1_review",
+      "superseded_by": "canonical_release_baseline"
+    },
+    {
+      "aggregate_sha256": "6e29ccae2ff8fdcb0da1a711685db77214c7417883be427fb223be17ff774006",
+      "bytes": 70430,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "description": "Ad-hoc phase, fetch, validity, and shell runners replaced by guarded campaign tooling.",
+      "file_count": 17,
+      "id": "obsolete_legacy_runners",
+      "superseded_by": "canonical_release_tooling"
+    },
+    {
+      "aggregate_sha256": "d120cd172abe06ab6c5fcfb4d7668833253e0a9f6d6c7d4a32bf8339fe332b9e",
+      "bytes": 921,
+      "claim_eligible": false,
+      "classification": "ineligible",
+      "completion_state": "incomplete",
+      "description": "Empty standalone soybean full result produced after the historical Liftoff failure.",
+      "file_count": 1,
+      "id": "ineligible_incomplete_soybean",
+      "superseded_by": null
+    }
+  ],
+  "files": [
+    {
+      "bytes": 8122,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/README.md",
+      "sha256": "e757293e5bbec6e4c3ac6a6c9429ea793334f745e605687eb6340cead1280aa2"
+    },
+    {
+      "bytes": 5142,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/REPRODUCE.md",
+      "sha256": "994c59477648d3b1bc0b36fd098ff44dee34d84bebbf29326bd0d45693e3cd2b"
+    },
+    {
+      "bytes": 87409,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/canonical_v2_acquisition.py",
+      "sha256": "5b5cbb28671fe5500927f30dfc3a51067c5d1f3a8b7d487c6555efb6856f9a69"
+    },
+    {
+      "bytes": 16517,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/IMPROVEMENT_AUDIT.md",
+      "sha256": "8749781fd1cb5b413bbc46a7b3aa3506a40877caec45fe9507f5c43a54bc8540"
+    },
+    {
+      "bytes": 4256,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/KNOWN_ISSUES.md",
+      "sha256": "eaf28c3b1c359a5a84df8cd3a7d41f7fc934402bc984c2d723ee6e8c0d762870"
+    },
+    {
+      "bytes": 27291,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/MASTER_COMPARISON_REPORT.md",
+      "sha256": "307add0799adbc7f2d5197d715515f7ad656077785d0c6c1886e1a372769f746"
+    },
+    {
+      "bytes": 12907,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/MASTER_EXTCOMPARE_REPORT.md",
+      "sha256": "092e5ce9d78ea1d2689ae56acd74b7c039c80d832fb353885cc6b79271cf4387"
+    },
+    {
+      "bytes": 356,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/__init__.py",
+      "sha256": "25181e91835885d23e41a065d9cd91b2ab850fe7103028e323c29a72c910d0af"
+    },
+    {
+      "bytes": 14785,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "45c228eca8fae29dd9c2d25c40bea79788c1ed16b08f97416b2f7587da230ddd",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t1_maize_b73_to_mo17.json",
+      "sha256": "19cef18b5eee5140e8d1ed8f73e8a336cd15e12dda0218558bbd9c04ef5ecfeb"
+    },
+    {
+      "bytes": 921,
+      "claim_eligible": false,
+      "classification": "ineligible",
+      "completion_state": "incomplete",
+      "family": "ineligible_incomplete_soybean",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "81cb1b51bc4ca652e1e1db218809fa4a83baea994db58257bcc0df7bf6feeacd",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t1_soybean_w82_to_lee.json",
+      "sha256": "4d23bce472805e53c70df5e9f8c29946b76edf2604dfeaaa73280ea10a43ed7a"
+    },
+    {
+      "bytes": 12493,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "54b8af325a3a2317c6f15f1c93608d334e35e297e582e9eb46938ddaba805180",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t1_tomato_microtom_to_heinz.json",
+      "sha256": "237ad708c13aaa7a38dac393a2409e44ff46d84901d52c1d0f4f29bd9c84e824"
+    },
+    {
+      "bytes": 59273,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "42a2b297f6a1af08420d6c769fd807fbdd59e1892627bfc83a3f5a719af2545c",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t2_human_to_gorilla.json",
+      "sha256": "4e5f44440daee218a9c5531ba11ba9e9460ed07a9e6a206b372bc1e4ef5e6950"
+    },
+    {
+      "bytes": 42506,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "f713c5e083c58e645ab5817214b4ce81053024c98d6bfcab721556f387d9ae31",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t2_mouse_to_caroli.json",
+      "sha256": "3c52e8fee8cfc43376441cb229ece148552c423bb87e167c1c02c2603d8a4e2d"
+    },
+    {
+      "bytes": 12477,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "595c3557454c58d8537b1c483e1638eb1c11623cea895f63a5a1cf0a287d31a9",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t2_tomato_to_potato.json",
+      "sha256": "5a0fed71d7c924f77bd3ec5d8737658bac217bacd62acaff4e411072d67494bd"
+    },
+    {
+      "bytes": 20927,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "3bd350ffdcfae64798d333d5ca807a294f2859ef11ef532831445061a19df6a9",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t3_dog_to_cat.json",
+      "sha256": "c605ee5b02e17419b2fdeebe1ef00ad5f57d2aefba19dfbc2f7f9f70b9a955c6"
+    },
+    {
+      "bytes": 59279,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "733435eeb05189c1255f44bc30726392d04a4f28b0a7ca30ba1ada4504868e19",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t3_human_to_macaque.json",
+      "sha256": "0c1b4e49862d46ad64276f484f904a16d4ccfb99d7af330fe811267087d5b752"
+    },
+    {
+      "bytes": 59292,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "e70a7ac709c2ec1ff1ed7ed0ea293c072afabd18d45ab1bf13f565aa574f1a1e",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t3_human_to_marmoset.json",
+      "sha256": "cf7e8e92646bfca02c810b015f50ba84eb8e0f8e6a985dc6d99a4850004810ba"
+    },
+    {
+      "bytes": 18512,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "aeb091258d2d809eae44268d4f42cdfcc2460d0858cc80eff65baae6b06033c4",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t4_drosophila_to_bee.json",
+      "sha256": "6ca48763e4b21a61316ebeffb702f39cda037327ccc86816e715d7c6e252289a"
+    },
+    {
+      "bytes": 59138,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "df7c1322f7b69e8e7440b56b469e5ed8472badb46f91e2c9041fdf086e651ebb",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t4_human_to_chicken.json",
+      "sha256": "dc225002fd9e5756bf9e339b2cd3e0b810099c15ed92d8121a7ffa863813ab23"
+    },
+    {
+      "bytes": 59090,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_tier_full_results",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "8bec228f17b33176b8c47598f97a1a3b5650ab19e09ec539a32f146a9689ddf4",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/_full_runs/t4_human_to_xenopus.json",
+      "sha256": "4f1829befa07f6fc399ea3d89cf805b7580d3e723d6f88ea5e22c162e32ece34"
+    },
+    {
+      "bytes": 3866,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "558fd3122f6da4cc6ab3d77b2cf938c2a8915a8a22aa59b0ff44890562760c28",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/adaptive_floor_ab.json",
+      "sha256": "bb8a4bd4fe35460df36484a15ccb17054b9d11f26226d0fcf54ec8e46a964f50"
+    },
+    {
+      "bytes": 3333,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/adaptive_floor_ab.md",
+      "sha256": "83949ce0f45bb389868c5753b260889f9027f59a73ac6834aaa511f19980aa2a"
+    },
+    {
+      "bytes": 11065,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/adaptive_floor_ab.py",
+      "sha256": "f862af1884b7f131544ca96c7f8ac3fe36286dbe9a2416ec8de862e33f620b5a"
+    },
+    {
+      "bytes": 1265,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "e64ada2dbec1560c1e8f02063f4a5c11729338bdd339eae6f3e096727651bec6",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/align_window_ab.json",
+      "sha256": "03d58331452fa89c6728e960705c807fb8f5d78707eceb2c76b6837266f56e53"
+    },
+    {
+      "bytes": 561,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/align_window_ab.md",
+      "sha256": "1ebc77f7c0a35a27e9a286c646a0d684595154470a23b430babd7a473b15a8dc"
+    },
+    {
+      "bytes": 10593,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/align_window_ab.py",
+      "sha256": "b9f93d04b3c8293e7ea41efc3d90049ba6ea36744a546cabe3876738df4a6718"
+    },
+    {
+      "bytes": 15229,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/apply_devel_refresh.py",
+      "sha256": "7c9d7b11ae9424b75f2ab583d3975f9237543dc62f7df9cc03b853f9c6313de0"
+    },
+    {
+      "bytes": 174,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_registries",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "25658ffe5581f3ceef2596f4400fc6babd021081ccf53b37a22321755363ed1a",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/baseline/human_mane.baseline.json",
+      "sha256": "b427d325b03db0b8e41145378bd4c6749d57450684d495d9c0e7bc888906069b"
+    },
+    {
+      "bytes": 28284,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_registries",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "3482a333d66522498f7252535bad2ae0063e8d43ad382eaf42e5264dcbe1419b",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/benchmarks.json",
+      "sha256": "1864f7bab1692dd729601e70ee01072ec3e6a63b8f40a6a0e1e97c8af2a12c4f"
+    },
+    {
+      "bytes": 25043,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/blog_figures.py",
+      "sha256": "11101da3317e5d4d88805397f54d57d9f4a00ff6a4a7213576c95e8b89e96419"
+    },
+    {
+      "bytes": 170566,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/build_controller.py",
+      "sha256": "684d37895bf53af49f9e07a41f2272d7009585e96c438ccdae4cf6ea52804737"
+    },
+    {
+      "bytes": 3366,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/build_inputs.py",
+      "sha256": "882f2c9bb80a7e52141185bb6857a59b310b767e743710e6d200a9bd83011462"
+    },
+    {
+      "bytes": 71510,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/campaign_orchestrator.py",
+      "sha256": "76a3ba1bcc6f4300c145f477dbbc50c866c4d322168505e3f455ef588e6bc270"
+    },
+    {
+      "bytes": 11593,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "115a728eea04b50a3de30662a1cb5a13066831df7df939f21dfaa52ee5159e09",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/campaign_profiles.json",
+      "sha256": "677b95d6618a666f4927e5cc24c343cbd622dd8ce38fba20b7536568c540db09"
+    },
+    {
+      "bytes": 15318,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/campaign_profiles.py",
+      "sha256": "4fef8479bdcd6e04976d94ede8959c8e4dd1ad14abb51944e0e5889dda65ad08"
+    },
+    {
+      "bytes": 10409,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "ec4ae905c6948ad7428f2b90c3d49e4dddd9345ea83a8f1a6cd368dba3f593cd",
+        "top_level_count": 10
+      },
+      "path": "benchmarks/compare/canonical_v2_coverage.json",
+      "sha256": "ae22b75157f345dda2218fc2f1fca3ed37ce85be66e5edaed441dc8f7a824323"
+    },
+    {
+      "bytes": 3196,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/canonical_v2_coverage.md",
+      "sha256": "9e8e722b07092038eb92dc9da0b39a67b567a48ac53d3d5a2562ba6f4577e82d"
+    },
+    {
+      "bytes": 7941,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/canonical_v2_coverage.py",
+      "sha256": "ccbfce97340872d908395cfd3dfc6d33dcd859e1916e709564907293570fa02a"
+    },
+    {
+      "bytes": 2479,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "ab8b122ba2fbab081eed4f77c64e64421bef85f120725a0f40b0ac3bc3b2564f",
+        "top_level_count": 4
+      },
+      "path": "benchmarks/compare/canonical_v3_backlog.json",
+      "sha256": "114e16569991bb4b87d27d6120496d1d07c37c07b8a528d474bcb71fe933263f"
+    },
+    {
+      "bytes": 1782,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "56105a22641181c814c203900a9b81fa8da8ccc25630c63358938cbb620cd380",
+        "top_level_count": 9
+      },
+      "path": "benchmarks/compare/chain_sync_feasibility.drosophila.json",
+      "sha256": "afb36d733b5775c886ccc741acd7736b3771559fa4bf3d4db3cd0cedebc4c540"
+    },
+    {
+      "bytes": 1779,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "56105a22641181c814c203900a9b81fa8da8ccc25630c63358938cbb620cd380",
+        "top_level_count": 9
+      },
+      "path": "benchmarks/compare/chain_sync_feasibility.mouse_to_rat.json",
+      "sha256": "6c556e25745179d3cb919242682cf0b32202b0d00c1dcb3f0250f67ee98cba13"
+    },
+    {
+      "bytes": 9113,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/chain_sync_feasibility.py",
+      "sha256": "a51b84ea3c13a049b4d12d128a32ded630ca756ac54af8bfb7c9e33b5abd675d"
+    },
+    {
+      "bytes": 2579,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "7e460499d6aa21502dd38d9a0879004606320215a0e51218805332fdee7266a0",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/chaining_headroom.json",
+      "sha256": "e1ac0a60b3d2c43530454757e793bb258567134c1fb43b3e7cf13a22c5a0f811"
+    },
+    {
+      "bytes": 789,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/chaining_headroom.md",
+      "sha256": "b46d3e5c3375ac7fbc44ef2edf8f7c77cd3224aaafd115ed0cf601efbf89f76b"
+    },
+    {
+      "bytes": 9233,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/chaining_headroom.py",
+      "sha256": "491e8dc1e63a6972542432de87432fc7978df47f4d18b30345bde9a6f1a47a7f"
+    },
+    {
+      "bytes": 1721,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/coverage_matrix.md",
+      "sha256": "ad81abb1861ede8a14514c481479be62550ae0ce729b4f5316364234afff65e0"
+    },
+    {
+      "bytes": 4666,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/coverage_matrix.py",
+      "sha256": "41e63724690e9813d12ee3f3e143f7c223947203df2d42d23a582a6aa026087f"
+    },
+    {
+      "bytes": 2715,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "158848a61630447ef186a2826fe3b6cf18353d6599e9a10913f115e763d83ce2",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/dbbuild_concurrent_ab.json",
+      "sha256": "b1d6973d82d380c2ca4b1c6b9f691f4a6af6acd524386a24cd0f677368b7ba7d"
+    },
+    {
+      "bytes": 1643,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/dbbuild_concurrent_ab.md",
+      "sha256": "91bdbe5a3cfb75d6c2bbae7ab9a92fd93bf5d6aaef99ca0fb044a4a4e333c5b8"
+    },
+    {
+      "bytes": 11744,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/dbbuild_concurrent_ab.py",
+      "sha256": "559ef88c1f9f4e87484f92f7924a8df11df97d541e868020a869ce6f31d41658"
+    },
+    {
+      "bytes": 6068,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/devel_refresh.py",
+      "sha256": "7931ddaf3725dc4cc784e1d156d2499660b0f104d217f5376113c5b02be31fec"
+    },
+    {
+      "bytes": 5847,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "1af00e31454139d5f246d105f5f442c962a3e9c6971b31e6434d991c5812f6eb",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/arabidopsis.json",
+      "sha256": "b9200cec1208e51687101e76de0d1c2ce39deb826085230514f52faec1899cdd"
+    },
+    {
+      "bytes": 5873,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "1af00e31454139d5f246d105f5f442c962a3e9c6971b31e6434d991c5812f6eb",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/arabidopsis_to_rice.json",
+      "sha256": "1676426c460a68426746d4f038c66bd6aeb571765e8ee4ae96b2d4cd20db60a2"
+    },
+    {
+      "bytes": 4898,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "1c341629674b0d7a064b190ec52f6c7e2e7afc60bdc13cb183c86a5de03d0e35",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/bee.json",
+      "sha256": "1dbe9afc83e79c2f4c031d34e31773a4a4aa8614a749f85788151e52bdfba445"
+    },
+    {
+      "bytes": 5484,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "9dcfb059da0333a9cfc25e2e5d1ce2a5184572d50b439196ea9dd60f4fedad46",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/drosophila.json",
+      "sha256": "5fccda451ac8f6a480b092cb57f0dfe3de61634e8a541e7ab6658625fbfc237b"
+    },
+    {
+      "bytes": 14909,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/human_to_zebrafish.json",
+      "sha256": "c26217d77190f52d9d5805af2f6fe09033c749022445c60b5e3cc22ddad08607"
+    },
+    {
+      "bytes": 4909,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "a6f0b73236bc266d8db691e3f39fc6f532a07e354be3c1459451b09a5ed4358f",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/rice.json",
+      "sha256": "16d6e688ce50122c3e061980b52aec14e80edee5a08cf0eb10a279dff766af68"
+    },
+    {
+      "bytes": 5744,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "3534bf5b0510b744bbd6612f5b26a6bea022ef6290d5754709e7af553af4745f",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t1_maize_b73_to_mo17.json",
+      "sha256": "0aeb05cff43f1303150d1c33e1370313808825efe2dfa2a75b154e84480ff951"
+    },
+    {
+      "bytes": 5080,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "110343e85031b4b535bd3bbbc16c5b860bb0ffa0ceb41e01aacf9454b04f30b6",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t1_tomato_microtom_to_heinz.json",
+      "sha256": "dd2ba6f36ee833ff2d5eee34015dcdc2e6bdc74510ef7717c2fdb612eabead42"
+    },
+    {
+      "bytes": 14990,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t2_human_to_gorilla.json",
+      "sha256": "c35156ecdb779af89dd50927f2b86f2f57cb86a2da93db263828b018a4e21c09"
+    },
+    {
+      "bytes": 11083,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "9e1169b972909f7ad9bf646fb946098d8e18b094d65e5971b5862b0ee6c6834a",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t2_mouse_to_caroli.json",
+      "sha256": "d3b986e981df0e7280830a6e1066cf45a59b3cbb8b7b92d8decb42a031c5c5a9"
+    },
+    {
+      "bytes": 5043,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "110343e85031b4b535bd3bbbc16c5b860bb0ffa0ceb41e01aacf9454b04f30b6",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t2_tomato_to_potato.json",
+      "sha256": "aad8dbeecb20e4c924cae47e032fbc104c9ef09dd18211075edb3f724fe7fcbd"
+    },
+    {
+      "bytes": 6061,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "253815733eb5b6f7f4625cbb2db82e37e3fefc52d9cc49aee78ce56d6e254aa6",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t3_dog_to_cat.json",
+      "sha256": "72ff58fa9a05d8c57c1e2a3c1b656838f906fa564b2171c0f0813cc4e2dbc791"
+    },
+    {
+      "bytes": 15006,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t3_human_to_macaque.json",
+      "sha256": "7e8a1b368d6c6c2a53b879c4a457a3b76a3c8b467f633a5956fdb7530ae7eb2c"
+    },
+    {
+      "bytes": 15023,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t3_human_to_marmoset.json",
+      "sha256": "075f0dd3cc0218c1ea1d97c58f80b6f292e6a0020a431010cea3ddbcb764fe0e"
+    },
+    {
+      "bytes": 5499,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "9dcfb059da0333a9cfc25e2e5d1ce2a5184572d50b439196ea9dd60f4fedad46",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t4_drosophila_to_bee.json",
+      "sha256": "9f3a78f8f81e86b78fc6a9ce0447f549704ed1bdd3b1bffa78f79bfe3e085293"
+    },
+    {
+      "bytes": 14941,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t4_human_to_chicken.json",
+      "sha256": "518a9ad1c30bab9d2fcc9139189eab8938e9efcf66df739d787d9da50ab3993d"
+    },
+    {
+      "bytes": 14926,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/devel_refresh/t4_human_to_xenopus.json",
+      "sha256": "d82032a8c8df3e27a441bc70d0a7869ffb6976b727904203cae2a910f011d49d"
+    },
+    {
+      "bytes": 2891,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/enrich_joint_metrics.py",
+      "sha256": "f0f601487b2eb0d0b5ffc4e76bc3cbb1c59247f594e5eeda04401ca08704b0cf"
+    },
+    {
+      "bytes": 28971,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/evaluator.py",
+      "sha256": "8bbf845db6cfd84ea0c0fb74b59060a989352ea438ac59238bae0bf3803f47cf"
+    },
+    {
+      "bytes": 4224,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/expand_distant_pairs.sh",
+      "sha256": "4c414d553e081940691a4cc0a7a9de98286e64b1d9b6116a779b37b82c5e5f58"
+    },
+    {
+      "bytes": 8239,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/extcompare.py",
+      "sha256": "7665a0806b75f0f1bfa3f8887881b7eff725e072eeb89bc43351bce6c6f46104"
+    },
+    {
+      "bytes": 7710,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/extcompare_figures.py",
+      "sha256": "18776eb4a571dbd308f2c1223f8a906e2efea3d5b841cff81bb75cf16e242fce"
+    },
+    {
+      "bytes": 6989,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/extcompare_report_section.mdx",
+      "sha256": "0a84132a31e589f0a4e62686bc520113a42ffdc4945525fc83cef38d47cae044"
+    },
+    {
+      "bytes": 4368,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "7994cf7d35bfd0fec36242f87844bbcb533a83ece06e3eb1f30e56da4dd309d0",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/extcompare_results.json",
+      "sha256": "5d6d198bd5a8590c4c6a65d32e8018acd13c2471c43e3884e7221e7d6eed0cfa"
+    },
+    {
+      "bytes": 1758,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "e1aa933acbc37e7d4b80483c389bcf559d015f6df4994eb8fe05d0fc009c94aa",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/extract_query_collapse_ab.json",
+      "sha256": "7dcee91f59390b89c562868b72014f714d137fd5cf287fab69b3cd8ad57060b5"
+    },
+    {
+      "bytes": 1839,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/extract_query_collapse_ab.md",
+      "sha256": "c0e86f865c78888647f678260a416524e92529be071ec4c67838da7ea6537e7d"
+    },
+    {
+      "bytes": 12970,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/extract_query_collapse_ab.py",
+      "sha256": "354eb7ce6ca5ac9acabb07e3f1a0044904d4cc1a1d9f1a17b0ed96c6eff7469b"
+    },
+    {
+      "bytes": 3200,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "6baa6b73b6340946404a9ce781c67ca0e49ad2dc383a8c0010ff02a5c5488319",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/fast_align_ab.json",
+      "sha256": "dbad1ae610adf1311ef83dacd1962e0987bb2dc2cc9d9fe9fbdeb2c8bbb6d00c"
+    },
+    {
+      "bytes": 747,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/fast_align_ab.md",
+      "sha256": "a5b3239a3c4f0ff864d42a86190dbcfd2ac98ae3efb91b1f74f0264743e41831"
+    },
+    {
+      "bytes": 8696,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/fast_align_ab.py",
+      "sha256": "535f5b0d7bb2d6e7ccc8f69b60c1641b4df787f9fdf98a5e2bd8687f48219bcb"
+    },
+    {
+      "bytes": 2816,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/feature_types.py",
+      "sha256": "cc6a351b585045460e2929701b8886bdfbbb8ab3f085d0cc88816dbd452e5738"
+    },
+    {
+      "bytes": 6290,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/fetch_new_pairs.py",
+      "sha256": "d921c7476b40a81d73f35f99a7b5e07eccef80cc77cc4f399c45ca22b1e984cf"
+    },
+    {
+      "bytes": 296898,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig1_accuracy.png",
+      "sha256": "8fa925010f91ad5183d0925d48db0f4d63fb8c10880ccbd8d84ca0181e1796b2"
+    },
+    {
+      "bytes": 85493,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig2_completeness.png",
+      "sha256": "b7a2e001d087b0f536a3b6a48ccc69ba4faf91dafe8e88ea7a4cc0f8620dcdc9"
+    },
+    {
+      "bytes": 79015,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig3_performance.png",
+      "sha256": "6151fc282dc65dda27a5adc458d39a7707be3bea81c1e21edccb12f0ed680183"
+    },
+    {
+      "bytes": 181913,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig4_fourway_pi.png",
+      "sha256": "807896cda873cd7b8a83f1bf29f6bd0a2b1e63e89b5b6db99adf8f72928d6f9e"
+    },
+    {
+      "bytes": 175262,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig5_validity.png",
+      "sha256": "9d2c2574d3c589935a96b8e163339d183f4d214181a65e6507e8fb30d06d4045"
+    },
+    {
+      "bytes": 237811,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig6_completeness_bytool.png",
+      "sha256": "02609f3dde4b23304669568729a9901702d1fb283737ad94d90a9f1c0200d6ae"
+    },
+    {
+      "bytes": 181503,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig_full_accuracy.png",
+      "sha256": "3f51084bda5a3fd5fbcd8439994b8ae77703d7242f7f3fceb87a391d4070138d"
+    },
+    {
+      "bytes": 99360,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/blog/fig_full_validity.png",
+      "sha256": "1a91114ac2599e369071db0a768f613d1f2edd7e423f801ee088b08c3b8c8f61"
+    },
+    {
+      "bytes": 245607,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/extcompare/rfig_extcompare.png",
+      "sha256": "b9645121f0db11f1bb815922a4da2f5fbcc3e67f7b5a185c5eff607a5617d310"
+    },
+    {
+      "bytes": 172497,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f1_mean_pi_by_tool.png",
+      "sha256": "0972323170041a0c3c374658db31b5facefef523c6db584fce0778c604b5ca2e"
+    },
+    {
+      "bytes": 147991,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f2_devel_vs_best_baseline.png",
+      "sha256": "f9626a8c1f010fc84ce180884af751c6ef7fb29a3b392b69e12ea62a30f7de93"
+    },
+    {
+      "bytes": 136684,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f3_devel_vs_stable.png",
+      "sha256": "42126c0de9bce1434cfbb8f3b894062ebf004a2116179d7e89f01b5d2a118093"
+    },
+    {
+      "bytes": 166721,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f4_completeness_by_tool.png",
+      "sha256": "b5a8c2a2c68ff6cdacce3a43a4d361007cd48ef50c25651346045d9848265478"
+    },
+    {
+      "bytes": 97323,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f5_full_genome_recovery.png",
+      "sha256": "2783a021aec0366d10a299d1901a01f8ffa5e53754b284ae264923a89a48bdd9"
+    },
+    {
+      "bytes": 37662,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f6_wall_clock.png",
+      "sha256": "c25287cfd46e74f36a8f301dce4645be4bd1fda18d7d1ff573b470d65c066966"
+    },
+    {
+      "bytes": 35926,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f7_peak_rss.png",
+      "sha256": "d7f490d8353fc163022ab4f99f67e29e2a38e98e1fb6d69792bdb8b16b7f0abf"
+    },
+    {
+      "bytes": 106886,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f8_validity_errors.png",
+      "sha256": "11f203251544de154c5efe913e71dde49fdd10c5f5f342d4db328a22fa3e2901"
+    },
+    {
+      "bytes": 91251,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/f9_divergence_ladder.png",
+      "sha256": "060fb46d9ded50d17a5522df200daa11cae52507ee41189030c13d2580d429be"
+    },
+    {
+      "bytes": 416721,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_accuracy_fourway.png",
+      "sha256": "abad146a6e72435507e6f514527959dd0c7ca37c423d8b9571f9766d2603fb00"
+    },
+    {
+      "bytes": 458162,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_completeness.png",
+      "sha256": "5755b8252fafa2977bc3e85dcb95ca72e7e62668142fc1f82b705e72c198d83d"
+    },
+    {
+      "bytes": 459791,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_devel_vs_field.png",
+      "sha256": "8bf6b21e606333857ceaba1ab3cd33076afcc3a6689ad18c9ecfaea1e2e1be6d"
+    },
+    {
+      "bytes": 224533,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_divergence_ladder.png",
+      "sha256": "1268b6202f5ea50d1fcb372dd01bf08e2c1e7ed76a3c5c45d06bc27d6e7e4078"
+    },
+    {
+      "bytes": 373467,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_full_accuracy.png",
+      "sha256": "75a48ea6ba7e89207520ade11bc80ffc4307768198ee73017e693a07d49fcf68"
+    },
+    {
+      "bytes": 383698,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_full_apples_to_apples.png",
+      "sha256": "8ac08dc09f93bd257bd6274acc490cc69a7e30188cf92ccb4d850c29450687e5"
+    },
+    {
+      "bytes": 238786,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_full_completeness.png",
+      "sha256": "d56378a1610f9282fafc7e0888d2c1dfd3fc16d54e4034b1115410464f81a18f"
+    },
+    {
+      "bytes": 231176,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_full_validity.png",
+      "sha256": "2dc3f3246af18187ef3899caa4bc7a5c023233c96b0c0d6341cd90282a7e4496"
+    },
+    {
+      "bytes": 587665,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_perf_fourway.png",
+      "sha256": "dee695404c4498e6e08b73e7a293ff3e862fe7fd93d87e6c7da4325ef96c46b4"
+    },
+    {
+      "bytes": 281616,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_perf_improvement.png",
+      "sha256": "3abd6cb383f6b8975bfe70cc12838888ca9f06e3df5804da17ad4881eb4c2be4"
+    },
+    {
+      "bytes": 259251,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_robustness.png",
+      "sha256": "9d68d3964295e079ba11aa760afefb0acd0f0446d99f30449f0ba4eb7f4dab8f"
+    },
+    {
+      "bytes": 395867,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/figures/report/rfig_validity.png",
+      "sha256": "12de88f05b507e0615a6f43fc8b6ee0a4306b3773a0605c308da79e8e0beb1eb"
+    },
+    {
+      "bytes": 14965,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/fourway_compare.py",
+      "sha256": "19212f6564427da0903997830fe5a9d818bb8c3588dd072c8be3234c98a848e8"
+    },
+    {
+      "bytes": 1284262,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "e290f2c41b1f990b0641268f0f8a34ab1551831130595c96941e855b5ac68ad9",
+        "top_level_count": 51
+      },
+      "path": "benchmarks/compare/fourway_report.json",
+      "sha256": "eb3fc403a748251a81b52370c6a3547efab17d4dd36f2092c3aa080079e4dd42"
+    },
+    {
+      "bytes": 67929,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": null,
+      "path": "benchmarks/compare/fourway_report.md",
+      "sha256": "07cd7c78cc95c9c3e35582e260592b94f254da479961d0f36d890cebff57dfb0"
+    },
+    {
+      "bytes": 7813,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/fourway_report.py",
+      "sha256": "a04f282f0d6edae1be8f95f79d44aca0da574142742a0e8fac214f886662f620"
+    },
+    {
+      "bytes": 1284205,
+      "claim_eligible": true,
+      "classification": "canonical",
+      "completion_state": "complete",
+      "family": "canonical_release_baseline",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "16966c459ad7197ca78b85fb551a9cf33bce918d7aaf119f0a100bd036dbba2e",
+        "top_level_count": 51
+      },
+      "path": "benchmarks/compare/fourway_results.json",
+      "sha256": "17144b5c6a55a6336d9266b7757ca9c1b3f9dd4fdb9a55a4dc80cfd991764331"
+    },
+    {
+      "bytes": 844,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "907a91eb6236b59036d2d0aef2df3c5f5a53f94c538d305e86556d33f92c3af8",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/frame_gate_ab.json",
+      "sha256": "2a11a7f7f8ca09854d59cbf14d069ae55eec4f0015873d966f24c3a271245efc"
+    },
+    {
+      "bytes": 694,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/frame_gate_ab.md",
+      "sha256": "fd508b46b04cd701440d212e57f70639def3714d23e7374f983ec522bdf17c4f"
+    },
+    {
+      "bytes": 9240,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/frame_gate_ab.py",
+      "sha256": "8f803d7ecd273cc32a33d26ec2c19ba5e01a0f84dab784020f0f9f6c5565723e"
+    },
+    {
+      "bytes": 1100,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "07a01039c479d5b371b7bde10eb9406e57577c820a4c45af66150ed9ba0655a8",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/frame_gate_xspecies.json",
+      "sha256": "a74a2a01bbe8f52b1f4376986ff55711b31e40df55344e48db31965749fb1fc5"
+    },
+    {
+      "bytes": 870,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/frame_gate_xspecies.md",
+      "sha256": "8eae4f27cec1bc51024fa2af7003605632ee5db19e648720e95163a284efa38e"
+    },
+    {
+      "bytes": 10575,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/frame_gate_xspecies.py",
+      "sha256": "019e7711ce36debd9fbc33cf4c92a2598637f2eda5bcc1bd439fcdcd3fba243e"
+    },
+    {
+      "bytes": 3240,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "e494cba98f733fb5f6693b187ce13a75126f1b2a95c406f2bc309680a08475a9",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/fresh_parallel_step7_ab.json",
+      "sha256": "1607c2973bf06f037abcefc14d7a07ade0e78bf98f3f24108e4a93b8bec8632f"
+    },
+    {
+      "bytes": 1438,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/fresh_parallel_step7_ab.md",
+      "sha256": "8d1014abcfb79fe354b87dea48ff6c5e89d70f526ad0c862dd64b75d917569c8"
+    },
+    {
+      "bytes": 11117,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/fresh_parallel_step7_ab.py",
+      "sha256": "ed02e96a41e19d059b63f9deacbbf6ea081246813428946cac39be981da1fcff"
+    },
+    {
+      "bytes": 2755,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "0f89e3c1fbf2e2a69ff47861e4842cf092e42ceb38fe887040129b578f573058",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/fuse_step7_ab.json",
+      "sha256": "9b1c2ca1f3f02d74ac14e72f5b36ab57170e5f5bbfd18470a1f9495fc0f38d53"
+    },
+    {
+      "bytes": 1502,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/fuse_step7_ab.md",
+      "sha256": "85073d6095d182891b4d507e05e85276ca7e91d3b2b779b6c5a44fc4dfb512b1"
+    },
+    {
+      "bytes": 11066,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/fuse_step7_ab.py",
+      "sha256": "5711e6ddd3d4e8c1c6537e866dc45e0e53c24832f3d3751e5028a8f6cbcaa265"
+    },
+    {
+      "bytes": 3118,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/id_mapping.py",
+      "sha256": "b4c8d017ac060e8e5d3caa79181595d3e393a7e1322cb9f5cc23f80c54dc68a3"
+    },
+    {
+      "bytes": 114301,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "37367ba2f8483d398c1c9c67a3e3dffb9528e292a35f784ca7f2f94833d0d4f0",
+        "top_level_count": 1
+      },
+      "path": "benchmarks/compare/improvement_headroom.json",
+      "sha256": "e0ce3c2024a9481c86ec9b9b00e7d3af0fb6734e2a7d0fca3090413db6d7359d"
+    },
+    {
+      "bytes": 5630,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/improvement_headroom.md",
+      "sha256": "3ccd8cf1e2fc05bcf1b21f77794e01c77a4e328472e29f511cdbf84df89d3e93"
+    },
+    {
+      "bytes": 18480,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/improvement_headroom.py",
+      "sha256": "be76b9367a3be0a6ac39b6dae7ed42d3a016c8c238956ce6787c93c4ddf57761"
+    },
+    {
+      "bytes": 8847,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/joint_metrics.py",
+      "sha256": "6fb0e8fe840c5618c40d24315e56badcb5c2581698a118996aac066c39d05f07"
+    },
+    {
+      "bytes": 1267,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "f01be1fcac69685576fa6756af614f73e01eba0f468d9450febe43ab7628a753",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/legacy_merge_ab.json",
+      "sha256": "467a47e7fa4eda7e3cc5971d880668724600a7a345cca23bb7d11bf4d2361dc4"
+    },
+    {
+      "bytes": 864,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/legacy_merge_ab.md",
+      "sha256": "23d3fe552b888ad6915bfc79c42717ed2f2663cd13c9dbe527ae1a403c77262b"
+    },
+    {
+      "bytes": 10212,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/legacy_merge_ab.py",
+      "sha256": "afa004fc3b10c4bccf7cc2440e832509a33431e9893b3a99294fcf073bc2a4a2"
+    },
+    {
+      "bytes": 3884,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "6cceccaa11a061b8960104b8fe5de04ba04cdc511972bf6713d27353060a6e73",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/lift_gene_like_ab.json",
+      "sha256": "89e4d081dd418600fbb85817785a1433823fc8c38663ddf992cff5f70c75a8a6"
+    },
+    {
+      "bytes": 989,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/lift_gene_like_ab.md",
+      "sha256": "2ee690679438f2a216a208ae2b212edba6de2ea2611a084a3183d7f0cb1bf66c"
+    },
+    {
+      "bytes": 10930,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/lift_gene_like_ab.py",
+      "sha256": "052657b08dd9d04cb04965ff07bbdf5436271ee62ef2344e81d7813b2d926639"
+    },
+    {
+      "bytes": 4057,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/liftofftools_wrap.py",
+      "sha256": "5a870a904c712b8da0314d36b3d67284124c0332a5eddec74b52c5c47a4caccc"
+    },
+    {
+      "bytes": 43133,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/master_report.py",
+      "sha256": "83fe5543dc8a100548bbdec855c8c9aa5ad79745557578db6ceaf3059bfde329"
+    },
+    {
+      "bytes": 2557,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/merge_full_runs.py",
+      "sha256": "dd336efb96be49c639406fe92adbb45596a13c14193862c2fc4c83c4ca56bb7d"
+    },
+    {
+      "bytes": 389,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "d412794723d8186d8a06cc72d7fb7532ef6c194cba4c917215b880a570544676",
+        "top_level_count": 14
+      },
+      "path": "benchmarks/compare/miniprot_candidate_ab.json",
+      "sha256": "face6e6468fa3a9684fac4221af0161be302d42680388e1245efa21cb72aa90a"
+    },
+    {
+      "bytes": 7030,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_candidate_ab.py",
+      "sha256": "149849ffaa9745c362740d9a7c92f4e19c0c21f3d2bebd4f5bcbcbf17cb28d25"
+    },
+    {
+      "bytes": 3982,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "f86de26b16b1ae8d51f70281ca175580ca8756f0a7a3b37cf4d8a7ed04af5210",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/miniprot_candidate_ladder_ab.json",
+      "sha256": "15a2be507c02ea9c7b3dab9c7a09ad01e052e29a23572c97d7dd45abd14a0148"
+    },
+    {
+      "bytes": 1941,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_candidate_ladder_ab.md",
+      "sha256": "5ec7c4126cf4eb1e70f5b291849275d8e4cf02e2ee8ef72d525bbb3e1932fc2f"
+    },
+    {
+      "bytes": 12609,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_candidate_ladder_ab.py",
+      "sha256": "8b729c379130eb6dd4a36542896b09f09c9cf6a6f003abb147abf7c65f1fb3a0"
+    },
+    {
+      "bytes": 637,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "97eb9098bc4e51d383080f6c9efeab022fd9b4d400e4e508be57710258bc4d92",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/miniprot_only_headroom.json",
+      "sha256": "16792309ae935db9e0e724d2dc678b275756d8d6842e5ef1c2b0bded44475148"
+    },
+    {
+      "bytes": 1021,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_only_headroom.md",
+      "sha256": "3334eba1b246fa0d08a8cceebc6b460ae68a48408e2dc60ac653716a70b6da3e"
+    },
+    {
+      "bytes": 10085,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_only_headroom.py",
+      "sha256": "00d5a9c2f7d1ed8cf784a36887383386f0f2cc2e0510710e5605808a745321bb"
+    },
+    {
+      "bytes": 1342,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "1494fd46d8cfab3682ed2b55d0b957e3c861f8c2f3cbd0c8e9367d340ed5fb33",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/miniprot_only_rescue_ab.json",
+      "sha256": "7c8868702e3746b4eb0be5da2cb56ea5b197537ca94b898cdc71a475b99041ba"
+    },
+    {
+      "bytes": 893,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_only_rescue_ab.md",
+      "sha256": "25cfdfc7e7bfe58f5645f279537dd39cc32164cd791f2feeb97144e9c56a6056"
+    },
+    {
+      "bytes": 11522,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_only_rescue_ab.py",
+      "sha256": "9b2557e82fad8ef2dc58094231869662a52ac1d4da1b262664ff6d91e0466b64"
+    },
+    {
+      "bytes": 1060,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "141ca0416c0b6279f866087cc766d217ae9ac73c14ccc87411ea86fe956def6c",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/miniprot_only_rescue_headroom.json",
+      "sha256": "68f1865d29f781e4ba938cba36b2f1accaf4f9f35bcf7877b2e3365e172ed99b"
+    },
+    {
+      "bytes": 1019,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_only_rescue_headroom.md",
+      "sha256": "ad972795e1ad396e4ad5fc56c681d63eec9e8fd9ed1c38d9ebbc9cb38aa7c2f0"
+    },
+    {
+      "bytes": 11631,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_only_rescue_headroom.py",
+      "sha256": "b63a518b22b2a427efbb106bbbcf73d90988f035b9d8183f98c51b796836f601"
+    },
+    {
+      "bytes": 4528,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "8cc9859d33eaa55646a1ab5320c568113685250c72a3fa7e6b5eb1104bf33221",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/miniprot_rescue_ab.json",
+      "sha256": "80d4f96dcd174dec07d211445efc66f18c4756b7f03227a7050fc5196fe6a1f8"
+    },
+    {
+      "bytes": 1465,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_rescue_ab.md",
+      "sha256": "948fae1ec4d48ac812c221de8b9561cdfd105e6f55bd4095088548eccfa4d354"
+    },
+    {
+      "bytes": 12243,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_rescue_ab.py",
+      "sha256": "4cac42de71b2c5a6907896ee00c7300e807f82e25f128c07a8d3fc0dfa90c49e"
+    },
+    {
+      "bytes": 5324,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "6f31bbf68c236476689f031c81659460809b153fff138ecdbd90bf52e6d8baf5",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/miniprot_threads_ab.json",
+      "sha256": "071f2258c0471f4580823fe1c0b4a9610d765c48951ef48884295d9d49c7149b"
+    },
+    {
+      "bytes": 1813,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_threads_ab.md",
+      "sha256": "20c9ce30954328db1aa2bd6689a55a7dfbb24661382703ed2e05669a524d933f"
+    },
+    {
+      "bytes": 13337,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/miniprot_threads_ab.py",
+      "sha256": "1973d1525bede59e34424ebe99f6e0f6fdc17615e2927df9e1e477e9a991988d"
+    },
+    {
+      "bytes": 1743,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "b4b51e2b945c78cf28c72343c95eeec7ac587a3d775fbd964d4cd43061c7cd7b",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/native_liftoff_ab.json",
+      "sha256": "8b56a18402427815c42f9a1cb9b3118227901d2f567941c75b41bfc14f07035a"
+    },
+    {
+      "bytes": 1059,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/native_liftoff_ab.md",
+      "sha256": "4537387ce68f9e9cc2fb861007af976bb50c420ba8fa95f33fdd31338ad4189d"
+    },
+    {
+      "bytes": 7432,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/native_liftoff_ab.py",
+      "sha256": "e991a62ab126c58e608ae8aa8ee30eac80dd8b25175ddc0af15dedbaf1bd13c2"
+    },
+    {
+      "bytes": 2041,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "2707c86e57a2b8e319eb290f0bf0266f723b9bb60248ba3450f09cf6b0b7615d",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/orf_best_match_ab.json",
+      "sha256": "33e125a1fadd6021e06fef229c64632e9d6b922c8e30582ebe2b5e18ffe3841d"
+    },
+    {
+      "bytes": 748,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/orf_best_match_ab.md",
+      "sha256": "5cc4d603c5df4baa09f3c1c95a7f2565dd6186fe278eb8d77755e88f279b1789"
+    },
+    {
+      "bytes": 10254,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/orf_best_match_ab.py",
+      "sha256": "0fe0d33615954e0d4925d6f83ca0a6c62329e7e4a8970cad813ea62f5e4c9cce"
+    },
+    {
+      "bytes": 717,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "0d417d84ea103bf3b2cec44fdadc810d990376e950dff8474481b4fdf72a3836",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/orf_best_match_headroom.json",
+      "sha256": "846843189f4ea7740b285559710df6fdf3cd5abe1aceae72bb80908cc1e65c6a"
+    },
+    {
+      "bytes": 942,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/orf_best_match_headroom.md",
+      "sha256": "c58bc71dba8fb3420d068b102b1e9ca55c22dc380017c90d36a497da42b0fb45"
+    },
+    {
+      "bytes": 8957,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/orf_best_match_headroom.py",
+      "sha256": "9d3246efb77a9fb72767f776117537b2dd844d2b8df437544b735e7f875e3d3e"
+    },
+    {
+      "bytes": 80996,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/ortholog_scope.py",
+      "sha256": "ab0cfbeb5d300709103f3b7b47a24a6525113184db578bd12e2459a62793ffa7"
+    },
+    {
+      "bytes": 2641,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "7d5852322eda6da36231cfdf73e4bc1a50f57aa6cd0a8daee1f90c0940a853a4",
+        "top_level_count": 3
+      },
+      "path": "benchmarks/compare/parallel_aligners_ab.json",
+      "sha256": "1424a961f926483dbe5b61302f2f42b29f79c9995b20888d988b6adabed7365c"
+    },
+    {
+      "bytes": 1628,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/parallel_aligners_ab.md",
+      "sha256": "b76effe5288c100ff0f26434fcf06bfdd1a7a07a3a7bf9bddf3c416d96f8c770"
+    },
+    {
+      "bytes": 11224,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/parallel_aligners_ab.py",
+      "sha256": "bb39481b6af42118559035711562eab66fbbf7fc05abd80a2cfccb2ce410c63c"
+    },
+    {
+      "bytes": 738,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/profiling.py",
+      "sha256": "46159daa17f928b3dd7ee2863a5e39a42a327d929630e37dc5c4ab8e29bad953"
+    },
+    {
+      "bytes": 8880,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/protocol_analysis.py",
+      "sha256": "9a44e2f4b7ef7dfcc5c98c28752238eec119db51b4f718337f8734e78f2479a2"
+    },
+    {
+      "bytes": 57342,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/release_evaluation.py",
+      "sha256": "ab8dcc706582983cf14890ba3c51a707df729d7b5c180946bdbc5216c7c77359"
+    },
+    {
+      "bytes": 155098,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/release_report.py",
+      "sha256": "39067e4633bb4a5619c9d4ebe28716efa58a0c4c7716f06e0bb3a924f32ce8ae"
+    },
+    {
+      "bytes": 38770,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/report_figures.py",
+      "sha256": "fd72173798c43f1391bc788dffe5b42bd3c983021e2b398ac45bffb6802bdcf3"
+    },
+    {
+      "bytes": 30423,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/reporter.py",
+      "sha256": "54626384926949e7aca554a7ef6aff59482e96b64b9d1017a4694b278a705e9e"
+    },
+    {
+      "bytes": 9124,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/run_compare.py",
+      "sha256": "b6b60d128eb3c945fb4b5df1f1ce2c5710fba54d5dba063b5a9aff95ace65448"
+    },
+    {
+      "bytes": 1348,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/run_validity_parallel.sh",
+      "sha256": "7acf56439d41e86b8c2350d55848a0b5f7b5ecaba5a7f8798a276cf13869d437"
+    },
+    {
+      "bytes": 828,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/run_validity_relift.sh",
+      "sha256": "a0280947da9f3927649a178c21fa97a5a928999cda6ad63184ee16c72fe567e4"
+    },
+    {
+      "bytes": 609,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/run_validity_single.sh",
+      "sha256": "0192e6a14a6cd48efa4dea37cf3548f3c0c0ab2b2bb81ffe251300168d5af907"
+    },
+    {
+      "bytes": 1034,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "b303de0fd7a166414ccc5cfe4ccda2efd172f546db2f773257ebd78fdad094cf",
+        "top_level_count": 4
+      },
+      "path": "benchmarks/compare/speed_ab.json",
+      "sha256": "066445da54f77c108225aa98c86894ca5872629bf94d105f8f5025beb509c50f"
+    },
+    {
+      "bytes": 729,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/speed_ab.md",
+      "sha256": "69755cce648c2e2bdf20c537934b0c59b6cff0b4a073275eeecdd31e05058b69"
+    },
+    {
+      "bytes": 5642,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/speed_ab.py",
+      "sha256": "bd8ba8a4de58348222c411573a7f8d100984fe86c37f0acb0d09067972ca7b86"
+    },
+    {
+      "bytes": 1035,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "2068ffeee1bf00d11ba5ead27a279271460090aa765cc12dc7e99e1cc848f117",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/step8_rescue_ab.json",
+      "sha256": "9274f0a760804524aabd6b34198629e0d2aa8c4789ad2f49f7e126dc362da9b1"
+    },
+    {
+      "bytes": 800,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/step8_rescue_ab.md",
+      "sha256": "d54dd44fe9e7e69e28bbb504bf3f6af3315c0667539ba9e4008c654754efdce0"
+    },
+    {
+      "bytes": 9249,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/step8_rescue_ab.py",
+      "sha256": "d6da96122ea6b539de18186d4b502311c861f2823b10b2f453da6378f0dc8e0e"
+    },
+    {
+      "bytes": 1451,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "c08f5a675df7e13b0ad1142ef0123f2e33b5c4bff16c7097242b9e2fb726217d",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/step8_rescue_headroom.json",
+      "sha256": "3ebe525d3b2436cb02e7f5a51e6cfedbf218392109a8e69f0a9120c0a22880e5"
+    },
+    {
+      "bytes": 789,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/step8_rescue_headroom.md",
+      "sha256": "700bd8a78cb7aba3946b0b34adec09d82f5dcab67ff764727ed0b71dd78987a9"
+    },
+    {
+      "bytes": 9884,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/step8_rescue_headroom.py",
+      "sha256": "91984a6814c4a1f28b89cf7499cb970d8f3fef150a2a5a7eebbf8aa0dd4c0610"
+    },
+    {
+      "bytes": 1313,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "3fc2f3121c732872e7ea6eebe58a878ef703ee2b8f375f1322c70cba6826df3b",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/strategy_b_feasibility.json",
+      "sha256": "c2967d68e39c0a7b8eb0207589f6087e1bb795b5bcf5152ccb47014edd8319a0"
+    },
+    {
+      "bytes": 3755,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/strategy_b_feasibility.md",
+      "sha256": "ed9c541a5e753d483e33131ce937487ba3ad03858d61686dfd40d7db5320ac72"
+    },
+    {
+      "bytes": 8269,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/strategy_b_feasibility.py",
+      "sha256": "489243fe4239d62759d2e68b0a7f6a2d5dc6d5da21777492d758343355693ec5"
+    },
+    {
+      "bytes": 7410,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/structural_rescore.py",
+      "sha256": "33e4ba67ab55e61fa6c382e3dd9c501c0b101bef610b479d19cf5d74b81268a3"
+    },
+    {
+      "bytes": 2034,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "070e941c66ff175d89b6f858d65d2ef999a28dc4ba485bf43c8c9d0b80a2f769",
+        "top_level_count": 4
+      },
+      "path": "benchmarks/compare/structural_rescore_adaptive.json",
+      "sha256": "809b7f68d8a81ff926c66b1b5a207991fe1b6b8701ce64e7380f9387ba0aac4b"
+    },
+    {
+      "bytes": 1007,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/structural_rescore_adaptive.md",
+      "sha256": "e72f29061524430e6bd981045be724b40304c9a02c5d56a8e406791ce15cd647"
+    },
+    {
+      "bytes": 2025,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "681c02f1edad74f3893f6a0518c61552ee1e525e4ad30c71f9de2fe1704d32c1",
+        "top_level_count": 4
+      },
+      "path": "benchmarks/compare/structural_rescore_cand3.json",
+      "sha256": "c33b62c075257951489fbd70cf4959f86a3c7bcbde8928fac67f554be1f4d0ad"
+    },
+    {
+      "bytes": 999,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/structural_rescore_cand3.md",
+      "sha256": "dad144764feac64ba313966c404260f004fd235ef772088bb739afd30da7bbad"
+    },
+    {
+      "bytes": 34934,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/subset_builder.py",
+      "sha256": "9101be0ece15f011f4fd22bc626f9974d59faeef4afaed1897f0fe1e1950fe41"
+    },
+    {
+      "bytes": 28389,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/synthetic_truth.py",
+      "sha256": "d50bf8a0a36f54761452eb69721f7e621059c55040798bf8c49a04a5cd2a0b63"
+    },
+    {
+      "bytes": 46639,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/compare/target_truth.py",
+      "sha256": "1ca06ebd79cc94e385d8382b8b364ab71a89738c98e2eccbef678dc49daca610"
+    },
+    {
+      "bytes": 28136,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/tool_runners.py",
+      "sha256": "f7e3cb2177bcf08439d621049efde19d3f6792c04fdd9bd96496d2fc4f855d98"
+    },
+    {
+      "bytes": 97780,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "7678536f22bef7db1477cd8a1da53b38f9548f7683d8ce4a23a4c29688690f0a",
+        "top_level_count": 10
+      },
+      "path": "benchmarks/compare/v1_0_8_vs_devel_report.json",
+      "sha256": "578b7bdcb1d069175a8d0ce9637aaa20f621f953ad9cd4d19b37414d12a8ec12"
+    },
+    {
+      "bytes": 10484,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/v1_0_8_vs_devel_report.md",
+      "sha256": "0c67075b4dfe45ab296f7336617b85863bdf7035f27c05feef16e55be75ea139"
+    },
+    {
+      "bytes": 10313,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/compare/validity_relift.py",
+      "sha256": "f5acee5331060801318ad874a1a350da903c96aab9204d1da5c8f977be94ee38"
+    },
+    {
+      "bytes": 21559,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/version_compare.py",
+      "sha256": "566b9abf60271ba471c89cdc784fe4ba54f7a029bdb0ca7073d10f4c9e8d139e"
+    },
+    {
+      "bytes": 97863,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "607173c25c8b48e19505435f1f2beaffc730e271b8e8117da03dfbcf7d5ca6a6",
+        "top_level_count": 10
+      },
+      "path": "benchmarks/compare/version_compare.results.json",
+      "sha256": "80e0a6e90548b5b0fd299f9421b5cd576cb06ef9bbc54447710fcdfdc0050cc2"
+    },
+    {
+      "bytes": 11445,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/compare/version_report.py",
+      "sha256": "fe626ae4f491a74c77e9bee03081c7d2ff8567c1e72d8f8f4713d970ff442ce4"
+    },
+    {
+      "bytes": 4494,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_registries",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "c28c8ade8f622f55cc72e329c84b96d7578631263104266bd7fcca9fa6c0d585",
+        "top_level_count": 4
+      },
+      "path": "benchmarks/datasets.json",
+      "sha256": "7168386fcb0b95b981b09dfe2b5418d8d63021f2fb2e30b8d5abbae65917b2a0"
+    },
+    {
+      "bytes": 7715,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/fetch_tiered.py",
+      "sha256": "83ef777ec87a67a4a3622f2db15e1c4b93339eb47c1c0d78f76e180b5db934ec"
+    },
+    {
+      "bytes": 44,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_registries",
+      "json_schema": null,
+      "path": "benchmarks/human_subset.chroms",
+      "sha256": "82569fbae7015e3e1dded3dbbfe9fb53c27d61c4ff4b73f22f3960eea72e15d1"
+    },
+    {
+      "bytes": 21211,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/inventory.py",
+      "sha256": "6ebd107ac0ded7dba4a1eab44431b0e15737a8c6a5c77c4bd400a65449086a1f"
+    },
+    {
+      "bytes": 10104,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "a89c364405134bc668ea65711deae5067d4265b375546bb08799510dede1d238",
+        "top_level_count": 7
+      },
+      "path": "benchmarks/inventory_rules.json",
+      "sha256": "aa8b4698dff178aa56453514af8c6996d8b551972ed78aad2c38eb878cc21d31"
+    },
+    {
+      "bytes": 34428,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": null,
+      "path": "benchmarks/manifest_tools.py",
+      "sha256": "14e40c6ce79097a95eaf96bd2f7d97537bbc43eafced2400c3584578b744ded0"
+    },
+    {
+      "bytes": 35864,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_v2_provenance",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "159e1e49487696d58312a5be2a81ef6bb6706322fc090761c9c8890f9db3a1db",
+        "top_level_count": 7
+      },
+      "path": "benchmarks/manifests/canonical_v2_datasets.json",
+      "sha256": "7c5e789860b17e116d7a0004b25a787fd74c7ac0e4554f760f584263e69e0e94"
+    },
+    {
+      "bytes": 4846,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/phase16_rerun_bee.sh",
+      "sha256": "8de015a85f82cd18b7ea3dba469c333b814fa0383313c50aec1454364ae98251"
+    },
+    {
+      "bytes": 5174,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/phase17_human_subset.sh",
+      "sha256": "773c0c6f44b6d6b06d217fce77fc76923f03b029fc1caafe2798891f9fe2e97a"
+    },
+    {
+      "bytes": 5431,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/phase17_rerun.sh",
+      "sha256": "9b88a6930624fe7425f9578a81f17199e28f7ba82d531a90681d925791681585"
+    },
+    {
+      "bytes": 3658,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/register_tiers.py",
+      "sha256": "641cf7ccc117b38088d6aee31708f5648a17157b4ce36ba8be5cc25337a1289c"
+    },
+    {
+      "bytes": 50122,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/run_benchmarks.py",
+      "sha256": "7ca1705e1f4a6f3ecbc2d3990e593b63d8b275ff93533af83d990e49b142e1d9"
+    },
+    {
+      "bytes": 1154,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/run_benchmarks.sh",
+      "sha256": "7c23f5dd76df11197d4b754437a684221af00e9c5ff2532fb2fa35ae44044c15"
+    },
+    {
+      "bytes": 780,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/run_maize_salvage.sh",
+      "sha256": "b22c12f01af12893190b17aa2729529b8d64bd99700e3d654fc9cb77a6ef5fe0"
+    },
+    {
+      "bytes": 4435,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/run_tiers_4way.sh",
+      "sha256": "bf7321396c1299c953e356efc7244c63ac96e74c5c17ff18765c0d0c78d95d55"
+    },
+    {
+      "bytes": 3500,
+      "claim_eligible": false,
+      "classification": "obsolete",
+      "completion_state": "retired",
+      "family": "obsolete_legacy_runners",
+      "json_schema": null,
+      "path": "benchmarks/run_tiers_full.sh",
+      "sha256": "7888f2e5789b1fd741ee66d62cf67387eeb7152ead195a43e381487a5d83e46e"
+    },
+    {
+      "bytes": 7741,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": null,
+      "path": "benchmarks/tier_expansion.md",
+      "sha256": "48cefb2bb1aede274b9a08af777ca436885897eef4b29bf09be3bdfe2880ddfd"
+    },
+    {
+      "bytes": 13153,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_registries",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "0faeea9829271456787d646af8ffc21e498b72b6e39241dd1fd93097176dfb24",
+        "top_level_count": 4
+      },
+      "path": "benchmarks/tiers.json",
+      "sha256": "27871940c34e49f875ab0fbcf581f5ecbaac697c03bc46454957a7fe15408477"
+    }
+  ],
+  "frozen_artifacts": [
+    {
+      "path": "benchmarks/compare/fourway_results.json",
+      "sha256": "17144b5c6a55a6336d9266b7757ca9c1b3f9dd4fdb9a55a4dc80cfd991764331",
+      "verified": true
+    }
+  ],
+  "generated_outputs_excluded_from_self_hash": [
+    "benchmarks/BENCHMARK_INVENTORY.json",
+    "benchmarks/BENCHMARK_INVENTORY.md"
+  ],
+  "ineligible_local_patterns": [
+    "benchmarks/compare/_rerun_fulls/**",
+    "benchmarks/compare/_rescore_fulls/**",
+    "benchmarks/compare/_runs/**",
+    "benchmarks/compare/figure4_outliers/**",
+    "benchmarks/compare/figures/*_rerun/**",
+    "benchmarks/compare/work/**",
+    "benchmarks/logs/**",
+    "benchmarks/results_rerun/**",
+    "benchmarks/compare/*.run.log"
+  ],
+  "inventory_sha256": "07d1ada2519bccf9b2cc61beffcd6e067a76ff0d323341c59644cd2cbe278832",
+  "registry_summary": {
+    "duplicate_ids": [],
+    "entry_count": 35,
+    "ids": [
+      "human_mane",
+      "bee",
+      "mouse",
+      "human_to_chimp",
+      "mouse_to_rat",
+      "rice",
+      "arabidopsis",
+      "drosophila",
+      "human_to_mouse",
+      "fly_mel_to_pseudoobscura",
+      "yeast_cerevisiae_to_paradoxus",
+      "candida_albicans_to_dubliniensis",
+      "celegans_to_briggsae",
+      "chicken_to_quail",
+      "human_ensembl_gtf",
+      "human_pseudogene_stress",
+      "arabidopsis_to_lyrata",
+      "rice_to_sorghum",
+      "arabidopsis_to_rice",
+      "zebrafish_to_medaka",
+      "human_to_zebrafish",
+      "drosophila_to_anopheles",
+      "cerevisiae_to_pombe",
+      "t1_maize_b73_to_mo17",
+      "t1_soybean_w82_to_lee",
+      "t1_tomato_microtom_to_heinz",
+      "t2_human_to_gorilla",
+      "t2_mouse_to_caroli",
+      "t2_tomato_to_potato",
+      "t3_human_to_macaque",
+      "t3_dog_to_cat",
+      "t3_human_to_marmoset",
+      "t4_human_to_chicken",
+      "t4_human_to_xenopus",
+      "t4_drosophila_to_bee"
+    ],
+    "path": "benchmarks/compare/benchmarks.json",
+    "schema_incomplete_ids": []
+  },
+  "rules_sha256": "6c198a5b32daba1dcd7f479b44a01f258df9109e67e435baf942f7dfd36efbe5",
+  "schema_version": 1,
+  "scope": "git-tracked benchmark artifacts plus declared managed paths",
+  "source_summary": {
+    "aggregate_sha256": "f40a2a758c1c9c028d4dfd89a684bf2f301b0333019928246db5d2bd634d3693",
+    "bytes": 12311994,
+    "classification_counts": {
+      "canonical": 61,
+      "diagnostic": 21,
+      "historical": 132,
+      "ineligible": 1,
+      "obsolete": 17
+    },
+    "file_count": 232
+  }
+}

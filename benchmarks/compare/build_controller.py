@@ -57,7 +57,8 @@ DEFAULT_RUNS_ROOT = HERE / "_runs"
 DEFAULT_REGISTRY = HERE / "benchmarks.json"
 DEFAULT_DATASET_REGISTRY = HERE.parent / "datasets.json"
 DEFAULT_BASELINE = HERE / "fourway_results.json"
-CONTROLLER_SCHEMA_VERSION = 2
+DEFAULT_PROFILE_REGISTRY = HERE / "campaign_profiles.json"
+CONTROLLER_SCHEMA_VERSION = 3
 DEFAULT_PAIRED_REPETITIONS = 4
 STATUS_EXIT_SUCCESS = 0
 STATUS_EXIT_FAILED = 1
@@ -366,14 +367,20 @@ def collect_provenance(
     registry: Path = DEFAULT_REGISTRY,
     dataset_registry: Path = DEFAULT_DATASET_REGISTRY,
     baseline: Path = DEFAULT_BASELINE,
+    profile_registry: Path | None = None,
 ) -> dict[str, Any]:
     files: dict[str, Any] = {}
-    for label, path in (
+    required_files = [
         ("benchmark_registry", registry),
         ("dataset_registry", dataset_registry),
         ("baseline", baseline),
         *sorted(PROVENANCE_TOOLING_FILES.items()),
-    ):
+    ]
+    if profile_registry is not None:
+        required_files.append(
+            ("campaign_profile_registry", Path(profile_registry))
+        )
+    for label, path in required_files:
         path = Path(path).resolve()
         if not path.is_file():
             raise FileNotFoundError(f"required {label} does not exist: {path}")
@@ -412,6 +419,15 @@ def _dataset_ids(path: Path) -> list[str]:
     ]
 
 
+def _benchmark_ids(path: Path) -> list[str]:
+    raw = read_json(path)
+    entries = raw.get("benchmarks", []) if isinstance(raw, dict) else []
+    return [
+        str(item["id"]) for item in entries
+        if isinstance(item, dict) and item.get("id")
+    ]
+
+
 def _base_stage(stage: str) -> str:
     return stage[len(PAIRED_STAGE_PREFIX):] if stage.startswith(PAIRED_STAGE_PREFIX) else stage
 
@@ -424,7 +440,8 @@ def _paired_panel(stage: str) -> str | None:
 
 
 def select_ids(stage: str, *, baseline: Path, dataset_registry: Path,
-               requested: Sequence[str] | None = None) -> list[str]:
+               requested: Sequence[str] | None = None,
+               benchmark_registry: Path | None = None) -> list[str]:
     stage = _base_stage(stage)
     if requested:
         selected = list(dict.fromkeys(requested))
@@ -446,9 +463,17 @@ def select_ids(stage: str, *, baseline: Path, dataset_registry: Path,
         raise ValueError(f"unsupported stage: {stage}")
 
     if stage.startswith("subset"):
-        available = set(_baseline_keys(baseline, "subset"))
+        available = set(
+            _benchmark_ids(benchmark_registry)
+            if requested and benchmark_registry is not None
+            else _baseline_keys(baseline, "subset")
+        )
     elif stage.startswith("full"):
-        available = set(_baseline_keys(baseline, "full"))
+        available = set(
+            _benchmark_ids(benchmark_registry)
+            if requested and benchmark_registry is not None
+            else _baseline_keys(baseline, "full")
+        )
     elif stage.startswith("e2e"):
         available = set(_dataset_ids(dataset_registry))
     else:
@@ -486,8 +511,8 @@ def paired_configuration(
     panel = _paired_panel(stage)
     if panel not in {"subset", "full", "e2e"}:
         raise ValueError(f"stage {stage!r} is not a paired benchmark stage")
-    if not 1 <= repetitions <= 5:
-        raise ValueError("paired repetitions must be between 1 and 5")
+    if not 1 <= repetitions <= 10:
+        raise ValueError("paired repetitions must be between 1 and 10")
     if not _base_stage(stage).endswith("-canary") and repetitions % 2:
         raise ValueError(
             "non-canary paired stages require an even repetition count for "
@@ -553,26 +578,35 @@ def _prepare_paired_provenance(
         for label, spec in _paired_source_specs(configuration).items()
     }
     inputs: dict[str, Any] = {}
+    evaluation_inputs: dict[str, Any] = {}
     for benchmark in benchmark_ids:
         resolved = release_evaluation.resolve_panel_inputs(
             str(configuration["panel"]), benchmark,
             benchmark_registry=Path(configuration["registries"]["benchmark"]),
             dataset_registry=Path(configuration["registries"]["dataset"]),
         )
-        records = release_evaluation.input_fingerprints(resolved)
-        for record in records.values():
-            stat = Path(record["path"]).stat()
-            record.update({
-                "mtime_ns": stat.st_mtime_ns,
-                "ctime_ns": stat.st_ctime_ns,
-                "st_dev": stat.st_dev,
-                "st_ino": stat.st_ino,
-            })
-        inputs[benchmark] = records
+        record_groups = {
+            "inputs": release_evaluation.input_fingerprints(resolved),
+            "evaluation_inputs": (
+                release_evaluation.evaluation_input_fingerprints(resolved)
+            ),
+        }
+        for records in record_groups.values():
+            for record in records.values():
+                stat = Path(record["path"]).stat()
+                record.update({
+                    "mtime_ns": stat.st_mtime_ns,
+                    "ctime_ns": stat.st_ctime_ns,
+                    "st_dev": stat.st_dev,
+                    "st_ino": stat.st_ino,
+                })
+        inputs[benchmark] = record_groups["inputs"]
+        evaluation_inputs[benchmark] = record_groups["evaluation_inputs"]
     return {
         "configuration": dict(configuration),
         "sources": sources,
         "inputs": inputs,
+        "evaluation_inputs": evaluation_inputs,
     }
 
 
@@ -586,44 +620,46 @@ def _current_paired_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
         label: release_evaluation.verify_source(spec)
         for label, spec in _paired_source_specs(configuration).items()
     }
-    expected_inputs = plan["provenance"]["paired"]["inputs"]
-    inputs: dict[str, Any] = {}
-    for benchmark, expected_records in expected_inputs.items():
-        current_records: dict[str, Any] = {}
-        for name, expected in expected_records.items():
-            path = Path(expected["path"])
-            try:
-                stat = path.stat()
-            except OSError as exc:
-                current_records[name] = {
-                    "path": str(path), "error": str(exc),
+    frozen = plan["provenance"]["paired"]
+    current_groups: dict[str, Any] = {}
+    for group_name in ("inputs", "evaluation_inputs"):
+        expected_group = frozen[group_name]
+        current_group: dict[str, Any] = {}
+        for benchmark, expected_records in expected_group.items():
+            current_records: dict[str, Any] = {}
+            for name, expected in expected_records.items():
+                path = Path(expected["path"])
+                try:
+                    stat = path.stat()
+                except OSError as exc:
+                    current_records[name] = {
+                        "path": str(path), "error": str(exc),
+                    }
+                    continue
+                record = {
+                    "path": str(path.resolve()),
+                    "size": stat.st_size,
+                    "mtime_ns": stat.st_mtime_ns,
+                    "ctime_ns": stat.st_ctime_ns,
+                    "st_dev": stat.st_dev,
+                    "st_ino": stat.st_ino,
                 }
-                continue
-            record = {
-                "path": str(path.resolve()),
-                "size": stat.st_size,
-                "mtime_ns": stat.st_mtime_ns,
-                "ctime_ns": stat.st_ctime_ns,
-                "st_dev": stat.st_dev,
-                "st_ino": stat.st_ino,
-            }
-            if (
-                all(
+                if all(
                     record[field_name] == expected.get(field_name)
                     for field_name in (
                         "size", "mtime_ns", "ctime_ns", "st_dev", "st_ino",
                     )
-                )
-            ):
-                record["sha256"] = expected.get("sha256")
-            else:
-                record["sha256"] = release_evaluation.sha256_file(path)
-            current_records[name] = record
-        inputs[benchmark] = current_records
+                ):
+                    record["sha256"] = expected.get("sha256")
+                else:
+                    record["sha256"] = release_evaluation.sha256_file(path)
+                current_records[name] = record
+            current_group[benchmark] = current_records
+        current_groups[group_name] = current_group
     return {
         "configuration": dict(configuration),
         "sources": sources,
-        "inputs": inputs,
+        **current_groups,
     }
 
 
@@ -761,6 +797,7 @@ def _paired_cell(
     configuration: Mapping[str, Any],
     repetition: int,
     input_fingerprints: Mapping[str, Any],
+    evaluation_input_fingerprints: Mapping[str, Any],
 ) -> dict[str, Any]:
     panel = str(configuration["panel"])
     pair_root = cell_dir / "pair"
@@ -813,6 +850,9 @@ def _paired_cell(
         "environment": {},
         "paired": dict(configuration),
         "input_fingerprints": dict(input_fingerprints),
+        "evaluation_input_fingerprints": dict(
+            evaluation_input_fingerprints
+        ),
         "artifacts": {
             "result_json": str(pair_root / "pair_result.json"),
             "result_key": f"paired:{panel}:{benchmark}:repetition-{repetition:02d}",
@@ -830,11 +870,17 @@ def _paired_cell(
 def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
                 policy: Policy, dataset_registry: Path,
                 paired: Mapping[str, Any] | None = None,
-                paired_inputs: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+                paired_inputs: Mapping[str, Any] | None = None,
+                paired_evaluation_inputs: Mapping[str, Any] | None = None,
+                ) -> list[dict[str, Any]]:
     cells: list[dict[str, Any]] = []
     panel = _paired_panel(stage)
     if panel is not None:
-        if paired is None or paired_inputs is None:
+        if (
+            paired is None
+            or paired_inputs is None
+            or paired_evaluation_inputs is None
+        ):
             raise ValueError("paired stages require immutable source and input configuration")
         for item in ids:
             for repetition in range(1, int(paired["repetitions"]) + 1):
@@ -849,6 +895,9 @@ def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
                     configuration=paired,
                     repetition=repetition,
                     input_fingerprints=paired_inputs[item],
+                    evaluation_input_fingerprints=(
+                        paired_evaluation_inputs[item]
+                    ),
                 ))
         return cells
     for item in ids:
@@ -930,8 +979,13 @@ def validate_plan_integrity(plan: Mapping[str, Any]) -> None:
                 "plan paired configuration disagrees with frozen provenance"
             )
         frozen_inputs = frozen_paired.get("inputs")
+        frozen_evaluation_inputs = frozen_paired.get("evaluation_inputs")
         if not isinstance(frozen_inputs, Mapping):
             raise ValueError("paired plan lacks frozen input fingerprints")
+        if not isinstance(frozen_evaluation_inputs, Mapping):
+            raise ValueError(
+                "paired plan lacks frozen evaluation-input fingerprints"
+            )
         for cell in cells:
             if cell.get("kind") != "paired_release":
                 raise ValueError("paired plan contains a non-paired cell")
@@ -945,6 +999,14 @@ def validate_plan_integrity(plan: Mapping[str, Any]) -> None:
                 raise ValueError(
                     f"cell input fingerprints disagree with frozen provenance: "
                     f"{cell['id']}"
+                )
+            if (
+                cell.get("evaluation_input_fingerprints")
+                != frozen_evaluation_inputs.get(cell.get("benchmark"))
+            ):
+                raise ValueError(
+                    "cell evaluation-input fingerprints disagree with frozen "
+                    f"provenance: {cell['id']}"
                 )
             repetition = cell.get("repetition")
             if (
@@ -964,6 +1026,35 @@ def validate_plan_integrity(plan: Mapping[str, Any]) -> None:
             if cell.get("panel") != paired.get("panel"):
                 raise ValueError(f"cell panel is inconsistent: {cell['id']}")
 
+    campaign_case = plan.get("campaign_case")
+    frozen_campaign_case = provenance.get("campaign_case")
+    if campaign_case is None:
+        if frozen_campaign_case is not None:
+            raise ValueError(
+                "unprofiled plan unexpectedly contains campaign-case provenance"
+            )
+    else:
+        if not isinstance(campaign_case, Mapping):
+            raise ValueError("plan campaign_case is malformed")
+        if frozen_campaign_case != campaign_case:
+            raise ValueError(
+                "plan campaign_case disagrees with frozen provenance"
+            )
+        case = campaign_case.get("case")
+        if not isinstance(case, Mapping):
+            raise ValueError("plan campaign_case definition is malformed")
+        if plan.get("stage") != case.get("stage"):
+            raise ValueError("plan stage disagrees with campaign_case")
+        if plan.get("ids") != case.get("ids"):
+            raise ValueError("plan ids disagree with campaign_case")
+        if plan.get("policy", {}).get("threads_per_cell") != case.get("threads"):
+            raise ValueError("plan thread policy disagrees with campaign_case")
+        for cell in cells:
+            if cell.get("campaign_case") != campaign_case:
+                raise ValueError(
+                    f"cell campaign_case disagrees with plan: {cell['id']}"
+                )
+
     expected_plan = _plan_fingerprint(plan)
     if plan.get("fingerprint") != expected_plan:
         raise ValueError("plan fingerprint does not match immutable content")
@@ -981,6 +1072,8 @@ def create_plan(
     baseline: Path,
     policy: Policy,
     paired: Mapping[str, Any] | None = None,
+    campaign_case: Mapping[str, Any] | None = None,
+    profile_registry: Path | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     policy.validate()
     panel = _paired_panel(stage)
@@ -1028,11 +1121,31 @@ def create_plan(
     ids = select_ids(
         stage, baseline=baseline, dataset_registry=dataset_registry,
         requested=requested_ids,
+        benchmark_registry=registry if campaign_case is not None else None,
     )
     provenance = collect_provenance(
         repo_root=repo_root, registry=registry,
         dataset_registry=dataset_registry, baseline=baseline,
+        profile_registry=profile_registry,
     )
+    if campaign_case is not None:
+        campaign_case = json.loads(json.dumps(campaign_case))
+        case = campaign_case.get("case")
+        if not isinstance(case, Mapping):
+            raise ValueError("campaign_case must contain a normalized case")
+        if (
+            case.get("stage") != stage
+            or case.get("ids") != ids
+            or case.get("threads") != policy.threads_per_cell
+        ):
+            raise ValueError(
+                "campaign_case stage, ids, or threads disagree with the plan"
+            )
+        provenance["campaign_case"] = campaign_case
+        provenance["fingerprint"] = canonical_hash({
+            key: value for key, value in provenance.items()
+            if key != "fingerprint"
+        })
     paired_provenance = None
     if paired is not None:
         paired_provenance = _prepare_paired_provenance(paired, ids)
@@ -1049,8 +1162,14 @@ def create_plan(
             paired_provenance["inputs"]
             if paired_provenance is not None else None
         ),
+        paired_evaluation_inputs=(
+            paired_provenance["evaluation_inputs"]
+            if paired_provenance is not None else None
+        ),
     )
     for cell in cells:
+        if campaign_case is not None:
+            cell["campaign_case"] = campaign_case
         cell["fingerprint"] = _cell_fingerprint(cell, provenance["fingerprint"])
     plan: dict[str, Any] = {
         "schema_version": CONTROLLER_SCHEMA_VERSION,
@@ -1071,6 +1190,11 @@ def create_plan(
     }
     if paired is not None:
         plan["paired"] = paired
+    if campaign_case is not None:
+        plan["campaign_case"] = campaign_case
+        plan["inputs"]["profile_registry"] = str(
+            Path(profile_registry or DEFAULT_PROFILE_REGISTRY).resolve()
+        )
     plan["fingerprint"] = _plan_fingerprint(plan)
     return run_dir, plan
 
@@ -1146,7 +1270,17 @@ def collect_current_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
         registry=Path(inputs["registry"]),
         dataset_registry=Path(inputs["dataset_registry"]),
         baseline=Path(inputs["baseline"]),
+        profile_registry=(
+            Path(inputs["profile_registry"])
+            if inputs.get("profile_registry") else None
+        ),
     )
+    if plan.get("campaign_case") is not None:
+        provenance["campaign_case"] = plan["campaign_case"]
+        provenance["fingerprint"] = canonical_hash({
+            key: value for key, value in provenance.items()
+            if key != "fingerprint"
+        })
     if plan.get("paired") is not None:
         provenance = _add_paired_provenance(
             provenance, _current_paired_provenance(plan),
@@ -1814,6 +1948,37 @@ def _validate_evaluation_artifact(
             f"{label} evaluator summary transcripts_tsv path disagrees with "
             "evaluation_artifacts"
         )
+    truth_summary = (
+        summary.get("target_truth")
+        if isinstance(summary, Mapping) else None
+    )
+    truth_record = artifacts.get("target_truth")
+    if truth_summary is not None or truth_record is not None:
+        expected_truth = (
+            Path(cell["artifacts"]["result_json"]).parent
+            / "evaluation"
+            / f"{label}.target_truth.json"
+        ).resolve()
+        if not isinstance(truth_summary, Mapping):
+            errors.append(f"{label} target-truth summary is malformed")
+        if not isinstance(truth_record, Mapping):
+            errors.append(f"{label} target-truth artifact evidence is missing")
+        else:
+            if not _same_resolved_path(
+                truth_record.get("path"), expected_truth,
+            ):
+                errors.append(
+                    f"{label} target-truth path does not match the canonical "
+                    "cell path"
+                )
+            if (
+                not isinstance(truth_record.get("size"), int)
+                or isinstance(truth_record.get("size"), bool)
+                or truth_record["size"] <= 0
+            ):
+                errors.append(f"{label} target-truth size is not positive")
+            if not _sha256_text(truth_record.get("sha256")):
+                errors.append(f"{label} target-truth sha256 is malformed")
     return errors
 
 
@@ -1943,6 +2108,43 @@ def _validate_paired_result(
                 or record.get("sha256") != expected["sha256"]
             ):
                 errors.append(f"paired input {name!r} hash does not match the plan")
+
+    expected_evaluation_inputs = cell["evaluation_input_fingerprints"]
+    evaluation_inputs = raw.get("evaluation_inputs")
+    if not isinstance(evaluation_inputs, Mapping):
+        errors.append(
+            "paired result evaluation_inputs are missing or not an object"
+        )
+    elif set(evaluation_inputs) != set(expected_evaluation_inputs):
+        errors.append(
+            "paired result evaluation-input set does not match the plan"
+        )
+    else:
+        for name, expected in expected_evaluation_inputs.items():
+            record = evaluation_inputs.get(name)
+            if not isinstance(record, Mapping):
+                errors.append(
+                    f"paired evaluation input {name!r} is not an object"
+                )
+                continue
+            if not _same_resolved_path(record.get("path"), expected["path"]):
+                errors.append(
+                    f"paired evaluation input {name!r} path does not match "
+                    "the plan"
+                )
+            if record.get("size") != expected["size"]:
+                errors.append(
+                    f"paired evaluation input {name!r} size does not match "
+                    "the plan"
+                )
+            if (
+                not _sha256_text(record.get("sha256"))
+                or record.get("sha256") != expected["sha256"]
+            ):
+                errors.append(
+                    f"paired evaluation input {name!r} hash does not match "
+                    "the plan"
+                )
 
     versions = raw.get("versions")
     profiles: dict[str, Mapping[str, Any]] = {}
@@ -2441,6 +2643,74 @@ def _validate_paired_artifacts(
                             f"{label} evaluator TSV changed after pair_result.json "
                             "was published"
                         )
+            truth_summary = (
+                version.get("summary", {}).get("target_truth")
+                if isinstance(version.get("summary"), Mapping) else None
+            )
+            truth_record = (
+                artifact_group.get("target_truth")
+                if isinstance(artifact_group, Mapping) else None
+            )
+            if truth_summary is not None or truth_record is not None:
+                expected_truth = (
+                    required["result_json"].parent
+                    / "evaluation"
+                    / f"{label}.target_truth.json"
+                ).resolve()
+                if not isinstance(truth_summary, Mapping):
+                    errors.append(f"{label} target-truth summary is malformed")
+                if not isinstance(truth_record, Mapping):
+                    errors.append(
+                        f"{label} target-truth artifact evidence is missing"
+                    )
+                elif not _same_resolved_path(
+                    truth_record.get("path"), expected_truth,
+                ):
+                    errors.append(
+                        f"{label} target-truth artifact path is inconsistent"
+                    )
+                elif not _artifact_is_fresh(expected_truth, started_ns):
+                    errors.append(
+                        f"{label} target-truth artifact is missing, empty, "
+                        f"or stale: {expected_truth}"
+                    )
+                else:
+                    try:
+                        truth_stat = expected_truth.stat()
+                        truth_sha = sha256_file(expected_truth)
+                        truth_document = read_json(expected_truth)
+                    except (OSError, TypeError, ValueError) as exc:
+                        errors.append(
+                            f"{label} target-truth artifact cannot be "
+                            f"validated: {exc}"
+                        )
+                    else:
+                        evaluation_artifacts.setdefault(label, {})[
+                            "target_truth"
+                        ] = {
+                            "path": str(expected_truth),
+                            "size": truth_stat.st_size,
+                            "sha256": truth_sha,
+                            "mtime_ns": truth_stat.st_mtime_ns,
+                        }
+                        if (
+                            truth_record.get("size") != truth_stat.st_size
+                            or truth_record.get("sha256") != truth_sha
+                        ):
+                            errors.append(
+                                f"{label} target-truth fingerprint disagrees "
+                                "with live evidence"
+                            )
+                        if truth_document != truth_summary:
+                            errors.append(
+                                f"{label} target-truth summary disagrees with "
+                                "its artifact"
+                            )
+                        if truth_stat.st_mtime_ns > result_mtime_ns:
+                            errors.append(
+                                f"{label} target-truth artifact changed after "
+                                "pair_result.json was published"
+                            )
             native = version.get("native_manifests")
             if isinstance(native, Mapping):
                 arm_root = required["result_json"].parent / label
@@ -2742,6 +3012,7 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
     )
     environment = os.environ.copy()
     environment.update({
+        "PYTHONDONTWRITEBYTECODE": "1",
         "PYTHONNOUSERSITE": "1",
         "PYTHONHASHSEED": "0",
         "LIFTON_BENCH_THREADS": str(cell["threads"]),
@@ -2932,6 +3203,19 @@ def _tmux_new_session(name: str, command: Sequence[str]) -> None:
         raise RuntimeError(f"tmux could not create {name!r}: {result.stderr.strip()}")
 
 
+def _python_worker_command(*arguments: str) -> list[str]:
+    """Launch repository workers without importing bytecode into snapshots."""
+
+    return [
+        "/usr/bin/env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONNOUSERSITE=1",
+        sys.executable,
+        "-B",
+        *arguments,
+    ]
+
+
 class RunLogger:
     def __init__(self, path: Path):
         self.path = path
@@ -3105,10 +3389,10 @@ def _launch_cell(plan: Mapping[str, Any], cell: Mapping[str, Any]) -> None:
         started_ns=time.time_ns(),
         command_pid=None, command_pgid=None, command_start_ticks=None,
     )
-    command = [
-        sys.executable, str(Path(__file__).resolve()), "worker",
+    command = _python_worker_command(
+        str(Path(__file__).resolve()), "worker",
         "--run-dir", plan["run_dir"], "--cell", cell["id"],
-    ]
+    )
     try:
         _tmux_new_session(session, command)
     except Exception as exc:
@@ -3280,10 +3564,10 @@ def start_controller_tmux(plan: Mapping[str, Any]) -> str:
     session = controller_session_name(plan)
     if tmux_has_session(session):
         return session
-    command = [
-        sys.executable, str(Path(__file__).resolve()), "worker",
+    command = _python_worker_command(
+        str(Path(__file__).resolve()), "worker",
         "--run-dir", plan["run_dir"],
-    ]
+    )
     _tmux_new_session(session, command)
     return session
 
@@ -3547,21 +3831,27 @@ def _run_e2e(dataset: str, cell_dir: Path, registry_path: Path, threads: int) ->
 
 
 def _policy_from_args(args: argparse.Namespace) -> Policy:
+    defaults = Policy()
+
+    def selected(name: str) -> Any:
+        value = getattr(args, name, None)
+        return getattr(defaults, name) if value is None else value
+
     return Policy(
-        threads_per_cell=args.threads_per_cell,
-        max_active=args.max_active,
-        max_full=args.max_full,
-        max_worker_threads=args.max_worker_threads,
-        load1_limit=args.load1_limit,
-        min_available_gib=args.min_available_gib,
-        stagger_seconds=args.stagger_seconds,
-        poll_seconds=args.poll_seconds,
-        subset_timeout_seconds=args.subset_timeout_seconds,
-        full_timeout_seconds=args.full_timeout_seconds,
-        e2e_timeout_seconds=args.e2e_timeout_seconds,
-        stall_timeout_seconds=args.stall_timeout_seconds,
-        watchdog_poll_seconds=args.watchdog_poll_seconds,
-        terminate_grace_seconds=args.terminate_grace_seconds,
+        threads_per_cell=selected("threads_per_cell"),
+        max_active=selected("max_active"),
+        max_full=selected("max_full"),
+        max_worker_threads=selected("max_worker_threads"),
+        load1_limit=selected("load1_limit"),
+        min_available_gib=selected("min_available_gib"),
+        stagger_seconds=selected("stagger_seconds"),
+        poll_seconds=selected("poll_seconds"),
+        subset_timeout_seconds=selected("subset_timeout_seconds"),
+        full_timeout_seconds=selected("full_timeout_seconds"),
+        e2e_timeout_seconds=selected("e2e_timeout_seconds"),
+        stall_timeout_seconds=selected("stall_timeout_seconds"),
+        watchdog_poll_seconds=selected("watchdog_poll_seconds"),
+        terminate_grace_seconds=selected("terminate_grace_seconds"),
     )
 
 
@@ -3602,6 +3892,9 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--registry")
     start.add_argument("--dataset-registry")
     start.add_argument("--baseline")
+    start.add_argument("--campaign-profile")
+    start.add_argument("--campaign-id")
+    start.add_argument("--profile-registry")
     start.add_argument("--candidate-root")
     start.add_argument("--candidate-sha")
     start.add_argument("--reference-root")
@@ -3675,20 +3968,92 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _add_policy_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--threads-per-cell", type=int, default=8)
-    parser.add_argument("--max-active", type=int, default=4)
-    parser.add_argument("--max-full", type=int, default=2)
-    parser.add_argument("--max-worker-threads", type=int, default=32)
-    parser.add_argument("--load1-limit", type=float, default=32.0)
-    parser.add_argument("--min-available-gib", type=float, default=256.0)
-    parser.add_argument("--stagger-seconds", type=float, default=15.0)
-    parser.add_argument("--poll-seconds", type=float, default=30.0)
-    parser.add_argument("--subset-timeout-seconds", type=float, default=3 * 60 * 60)
-    parser.add_argument("--full-timeout-seconds", type=float, default=8 * 60 * 60)
-    parser.add_argument("--e2e-timeout-seconds", type=float, default=24 * 60 * 60)
-    parser.add_argument("--stall-timeout-seconds", type=float, default=2 * 60 * 60)
-    parser.add_argument("--watchdog-poll-seconds", type=float, default=30.0)
-    parser.add_argument("--terminate-grace-seconds", type=float, default=30.0)
+    parser.add_argument("--threads-per-cell", type=int)
+    parser.add_argument("--max-active", type=int)
+    parser.add_argument("--max-full", type=int)
+    parser.add_argument("--max-worker-threads", type=int)
+    parser.add_argument("--load1-limit", type=float)
+    parser.add_argument("--min-available-gib", type=float)
+    parser.add_argument("--stagger-seconds", type=float)
+    parser.add_argument("--poll-seconds", type=float)
+    parser.add_argument("--subset-timeout-seconds", type=float)
+    parser.add_argument("--full-timeout-seconds", type=float)
+    parser.add_argument("--e2e-timeout-seconds", type=float)
+    parser.add_argument("--stall-timeout-seconds", type=float)
+    parser.add_argument("--watchdog-poll-seconds", type=float)
+    parser.add_argument("--terminate-grace-seconds", type=float)
+
+
+def _campaign_case_from_args(
+    args: argparse.Namespace,
+) -> dict[str, Any] | None:
+    supplied = {
+        "--campaign-profile": getattr(args, "campaign_profile", None),
+        "--campaign-id": getattr(args, "campaign_id", None),
+    }
+    if not any(supplied.values()):
+        if getattr(args, "profile_registry", None) is not None:
+            raise ValueError(
+                "--profile-registry requires --campaign-profile and --campaign-id"
+            )
+        return None
+    missing = [flag for flag, value in supplied.items() if value is None]
+    if missing:
+        raise ValueError(
+            "profile selection requires both --campaign-profile and "
+            f"--campaign-id; missing={missing}"
+        )
+    from benchmarks.compare import campaign_profiles
+
+    registry = Path(
+        args.profile_registry or DEFAULT_PROFILE_REGISTRY
+    ).resolve()
+    profile, case = campaign_profiles.select_profile_case(
+        args.campaign_profile,
+        args.campaign_id,
+        registry=registry,
+    )
+    if case["stage"] in campaign_profiles.PROTOCOL_STAGES:
+        raise ValueError(
+            f"campaign {case['id']!r} is a single-source protocol schedule; "
+            "run it through campaign_orchestrator"
+        )
+    conflicts = []
+    for option, current, expected in (
+        ("--stage", args.stage, case["stage"]),
+        ("--ids", args.ids, case["ids"]),
+        (
+            "--paired-repetitions",
+            args.paired_repetitions,
+            case["repetitions"],
+        ),
+        ("--threads-per-cell", args.threads_per_cell, case["threads"]),
+        (
+            "--candidate-e2e-mode",
+            args.candidate_e2e_mode,
+            case["candidate_mode"],
+        ),
+        (
+            "--reference-e2e-mode",
+            args.reference_e2e_mode,
+            case["reference_mode"],
+        ),
+    ):
+        if current is not None and current != expected:
+            conflicts.append(f"{option}={current!r} (profile={expected!r})")
+    if conflicts:
+        raise ValueError(
+            "explicit options conflict with the selected campaign profile: "
+            + "; ".join(conflicts)
+        )
+    args.stage = case["stage"]
+    args.ids = list(case["ids"])
+    args.threads_per_cell = case["threads"]
+    if case["stage"].startswith(PAIRED_STAGE_PREFIX):
+        args.paired_repetitions = case["repetitions"]
+        args.candidate_e2e_mode = case["candidate_mode"]
+        args.reference_e2e_mode = case["reference_mode"]
+    return campaign_profiles.case_identity(profile, case)
 
 
 def _paired_cli_supplied(args: argparse.Namespace) -> bool:
@@ -3771,6 +4136,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.action == "start":
+        try:
+            campaign_case = _campaign_case_from_args(args)
+        except (OSError, ValueError) as exc:
+            parser.error(str(exc))
         runs_root = Path(args.runs_root).resolve()
         registry = Path(args.registry or DEFAULT_REGISTRY).resolve()
         dataset_registry = Path(
@@ -3780,6 +4149,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.run_id and (runs_root / safe_name(args.run_id, limit=100) / "plan.json").exists():
             run_dir = runs_root / safe_name(args.run_id, limit=100)
             plan = load_plan(run_dir)
+            if (
+                campaign_case is not None
+                and campaign_case != plan.get("campaign_case")
+            ):
+                parser.error(
+                    "existing run campaign profile/case does not match the "
+                    "requested selection"
+                )
+            if (
+                campaign_case is None
+                and (
+                    args.campaign_profile is not None
+                    or args.campaign_id is not None
+                )
+            ):
+                parser.error("existing run has no matching campaign profile")
             if args.stage and args.stage != plan["stage"]:
                 parser.error(f"existing run stage is {plan['stage']!r}, not {args.stage!r}")
             if args.ids and list(args.ids) != plan["ids"]:
@@ -3838,6 +4223,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     dataset_registry=dataset_registry,
                     baseline=baseline, policy=_policy_from_args(args),
                     paired=paired,
+                    campaign_case=campaign_case,
+                    profile_registry=(
+                        Path(args.profile_registry or DEFAULT_PROFILE_REGISTRY)
+                        if campaign_case is not None else None
+                    ),
                 )
                 initialize_run(run_dir, plan)
             except (OSError, RuntimeError, ValueError) as exc:

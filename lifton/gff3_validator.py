@@ -26,6 +26,7 @@ from __future__ import annotations
 import sys
 import re
 import os
+import gzip
 from dataclasses import dataclass, field
 from collections import defaultdict
 from typing import List, Dict, Optional, Tuple, Set
@@ -174,6 +175,8 @@ class ValidationResult:
     comment_lines: int = 0
     issues: List[GFF3Issue] = field(default_factory=list)
     stats: Dict[str, int] = field(default_factory=dict)
+    issue_totals: Dict[str, int] = field(default_factory=dict)
+    severity_totals: Dict[str, int] = field(default_factory=dict)
 
     @property
     def errors(self) -> List[GFF3Issue]:
@@ -185,7 +188,15 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        return len(self.errors) == 0
+        # Some streaming validators cap the number of materialized issue
+        # objects while retaining uncapped severity totals.  In particular,
+        # ``max_issues_per_check=0`` is a useful "counts only" mode and must
+        # not turn a real error into a valid result merely because no detail
+        # object was retained.
+        return (
+            self.severity_totals.get(Severity.ERROR, 0) == 0
+            and len(self.errors) == 0
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +215,400 @@ def _discontinuous_cds_signature(record: GFF3Record) -> tuple | None:
         record.strand,
         record.parent_ids,
     )
+
+
+def _header_before_fasta_offset(handle, offset: int) -> tuple[int, bytes] | None:
+    """Return the header line ending at a FAI sequence offset.
+
+    FAI offsets point to the first base immediately after a FASTA header.  The
+    backward scan is block-bounded in memory and normally examines one short
+    header line.
+    """
+
+    if offset <= 0:
+        return None
+    handle.seek(offset - 1)
+    if handle.read(1) != b"\n":
+        return None
+    search_end = offset - 1
+    cursor = search_end
+    header_start = 0
+    while cursor > 0:
+        block_start = max(0, cursor - 65536)
+        handle.seek(block_start)
+        block = handle.read(cursor - block_start)
+        newline = block.rfind(b"\n")
+        if newline >= 0:
+            header_start = block_start + newline + 1
+            break
+        cursor = block_start
+    handle.seek(header_start)
+    header = handle.read(offset - header_start).rstrip(b"\r\n")
+    if not header.startswith(b">"):
+        return None
+    return header_start, header
+
+
+def _fai_sequence_lengths(path: str) -> Dict[str, int] | None:
+    """Return FAI lengths only when the index agrees with the FASTA layout.
+
+    Modification times alone cannot establish that a sidecar belongs to a
+    FASTA: copied or replaced indexes can be newer than unrelated sequence
+    content.  Validate names, offsets, line geometry, and record boundaries
+    against the actual plain-text FASTA before accepting the fast path.  A
+    rejected sidecar is harmless; :func:`fasta_sequence_lengths` regenerates
+    lengths by streaming the sequence without modifying user files.
+    """
+
+    fasta_path = os.path.realpath(path)
+    index_path = os.fspath(path) + ".fai"
+    # Standard gzip streams do not expose the uncompressed byte offsets stored
+    # by faidx.  Streaming fallback is the only backend-neutral verification.
+    if os.fspath(path).lower().endswith(".gz"):
+        return None
+    try:
+        fasta_stat = os.stat(fasta_path)
+        index_stat = os.stat(index_path)
+    except OSError:
+        return None
+    if index_stat.st_size <= 0 or fasta_stat.st_size <= 0:
+        return None
+    lengths: Dict[str, int] = {}
+    entries: List[Tuple[str, int, int, int, int]] = []
+    try:
+        with open(index_path, "r", encoding="utf-8", errors="strict") as handle:
+            for lineno, raw in enumerate(handle, start=1):
+                columns = raw.rstrip("\r\n").split("\t")
+                if len(columns) < 5:
+                    raise ValueError(
+                        f"FASTA index line {lineno} has fewer than five columns"
+                    )
+                identifier = columns[0]
+                length = int(columns[1])
+                offset = int(columns[2])
+                line_bases = int(columns[3])
+                line_width = int(columns[4])
+                if (
+                    not identifier
+                    or identifier in lengths
+                    or length <= 0
+                    or offset <= 0
+                    or line_bases <= 0
+                    or line_bases > length
+                    or line_width < line_bases
+                    or line_width - line_bases not in (0, 1, 2)
+                ):
+                    raise ValueError(
+                        f"FASTA index line {lineno} has an ambiguous record"
+                    )
+                lengths[identifier] = length
+                entries.append((
+                    identifier, length, offset, line_bases, line_width,
+                ))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    if not entries:
+        return None
+
+    try:
+        with open(fasta_path, "rb") as handle:
+            headers = []
+            for identifier, _length, offset, _bases, _width in entries:
+                header_record = _header_before_fasta_offset(handle, offset)
+                if header_record is None:
+                    return None
+                header_start, header = header_record
+                try:
+                    header_id = header[1:].split(None, 1)[0].decode("utf-8")
+                except (IndexError, UnicodeError):
+                    return None
+                if header_id != identifier:
+                    return None
+                headers.append(header_start)
+
+            if headers != sorted(headers) or len(set(headers)) != len(headers):
+                return None
+            if headers[0] != 0:
+                # The streaming parser permits leading blank lines, but a FAI
+                # with non-record content before its first indexed header is
+                # not a sufficiently strong provenance shortcut.
+                return None
+
+            for index, (_identifier, length, offset,
+                        line_bases, line_width) in enumerate(entries):
+                quotient, remainder = divmod(length, line_bases)
+                if remainder:
+                    final_line_start = offset + quotient * line_width
+                    final_line_bases = remainder
+                else:
+                    final_line_start = offset + (quotient - 1) * line_width
+                    final_line_bases = line_bases
+                sequence_end = final_line_start + final_line_bases
+                record_end = (
+                    headers[index + 1]
+                    if index + 1 < len(headers)
+                    else fasta_stat.st_size
+                )
+                if sequence_end > record_end or record_end - sequence_end > 2:
+                    return None
+                handle.seek(sequence_end)
+                if handle.read(record_end - sequence_end) not in (
+                    b"", b"\n", b"\r\n",
+                ):
+                    return None
+
+                # Verify both ends of the declared fixed-width sequence layout.
+                # This catches indexes copied from similarly sized FASTAs whose
+                # record boundaries happen to align but line geometry does not.
+                handle.seek(offset)
+                first_line = handle.readline()
+                first_sequence = first_line.rstrip(b"\r\n")
+                expected_first = min(length, line_bases)
+                if len(first_sequence) != expected_first:
+                    return None
+                if any(byte in b" \t\r\n" for byte in first_sequence):
+                    return None
+                if length > line_bases and len(first_line) != line_width:
+                    return None
+
+                handle.seek(final_line_start)
+                final_line = handle.readline()
+                final_sequence = final_line.rstrip(b"\r\n")
+                if len(final_sequence) != final_line_bases:
+                    return None
+                if any(byte in b" \t\r\n" for byte in final_sequence):
+                    return None
+    except OSError:
+        return None
+    return lengths
+
+
+def fasta_sequence_lengths(path: str) -> Dict[str, int]:
+    """Return first-token FASTA sequence lengths without materializing bases.
+
+    A structurally verified ``.fai`` sidecar is used when available; otherwise
+    plain-text or gzip-compressed FASTA is streamed. Duplicate or empty
+    identifiers are rejected because either makes target-bound validation
+    ambiguous.
+    """
+
+    indexed = _fai_sequence_lengths(path)
+    if indexed is not None:
+        return indexed
+    opener = gzip.open if os.fspath(path).lower().endswith(".gz") else open
+    lengths: Dict[str, int] = {}
+    current: Optional[str] = None
+    with opener(path, "rt", encoding="utf-8", errors="strict", newline="") as handle:
+        for lineno, raw in enumerate(handle, start=1):
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                identifier = line[1:].split(None, 1)[0] if line[1:].strip() else ""
+                if not identifier:
+                    raise ValueError(f"FASTA line {lineno} has an empty identifier")
+                if identifier in lengths:
+                    raise ValueError(
+                        f"FASTA identifier {identifier!r} is declared more than once"
+                    )
+                lengths[identifier] = 0
+                current = identifier
+                continue
+            if current is None:
+                raise ValueError(
+                    f"FASTA line {lineno} contains sequence before the first header"
+                )
+            lengths[current] += sum(not character.isspace() for character in raw)
+    if not lengths:
+        raise ValueError("FASTA contains no sequence records")
+    empty = [identifier for identifier, length in lengths.items() if length == 0]
+    if empty:
+        raise ValueError(f"FASTA record {empty[0]!r} has no sequence")
+    return lengths
+
+
+def validate_gff3_target_bounds(
+    path: str,
+    target_fasta: str,
+    *,
+    max_issues_per_check: int = 50,
+    strict_sequence_regions: bool = False,
+) -> ValidationResult:
+    """Stream-check GFF3 seqids and coordinates against the target FASTA.
+
+    This independent benchmark gate is intentionally separate from the full
+    hierarchy validator. It keeps only FASTA lengths and declared
+    ``##sequence-region`` intervals in memory, so annotation size does not
+    determine peak memory. Features outside an advisory sequence-region are
+    warnings by default because historical LiftOn output copied source-assembly
+    directives; ``strict_sequence_regions=True`` promotes them to errors.
+    """
+
+    result = ValidationResult(file_path=os.fspath(path))
+    issue_counts: Dict[str, int] = defaultdict(int)
+    feature_counts: Dict[str, int] = defaultdict(int)
+    regions: Dict[str, Tuple[int, int, int]] = {}
+    seqids_with_features: Set[str] = set()
+
+    def add_issue(
+        check: str,
+        lineno: int,
+        message: str,
+        *,
+        feature_id: str = "",
+        severity: str = Severity.ERROR,
+    ) -> None:
+        issue_counts[check] += 1
+        result.issue_totals[check] = issue_counts[check]
+        result.severity_totals[severity] = (
+            result.severity_totals.get(severity, 0) + 1
+        )
+        if issue_counts[check] <= max_issues_per_check:
+            result.issues.append(GFF3Issue(
+                severity, lineno, feature_id, check, message,
+            ))
+
+    try:
+        lengths = fasta_sequence_lengths(target_fasta)
+    except (OSError, UnicodeError, ValueError) as exc:
+        add_issue(
+            "target_fasta_readable",
+            0,
+            f"Cannot derive unambiguous target sequence lengths from "
+            f"{target_fasta}: {exc}",
+        )
+        return result
+
+    try:
+        gff_opener = gzip.open if os.fspath(path).lower().endswith(".gz") else open
+        handle = gff_opener(
+            path, "rt", encoding="utf-8", errors="replace", newline="",
+        )
+    except OSError as exc:
+        add_issue("file_readable", 0, f"Cannot read {path}: {exc}")
+        return result
+
+    with handle:
+        for lineno, raw in enumerate(handle, start=1):
+            result.total_lines += 1
+            line = raw.rstrip("\r\n")
+            if not line.strip():
+                result.comment_lines += 1
+                continue
+            if line.startswith("##sequence-region"):
+                result.comment_lines += 1
+                fields = line.split()
+                if len(fields) != 4:
+                    add_issue(
+                        "sequence_region_format",
+                        lineno,
+                        "Expected '##sequence-region seqid start end'.",
+                    )
+                    continue
+                _directive, seqid, start_text, end_text = fields
+                try:
+                    start = int(start_text)
+                    end = int(end_text)
+                except ValueError:
+                    add_issue(
+                        "sequence_region_coordinate",
+                        lineno,
+                        f"Sequence-region bounds must be integers, got "
+                        f"{start_text!r} and {end_text!r}.",
+                    )
+                    continue
+                if seqid in seqids_with_features:
+                    add_issue(
+                        "sequence_region_order",
+                        lineno,
+                        f"Sequence-region for {seqid!r} appears after a feature "
+                        "on that seqid.",
+                    )
+                if start < 1 or end < start:
+                    add_issue(
+                        "sequence_region_coordinate",
+                        lineno,
+                        f"Sequence-region must satisfy 1 <= start <= end, got "
+                        f"{start}..{end}.",
+                    )
+                target_length = lengths.get(seqid)
+                if target_length is None:
+                    add_issue(
+                        "target_seqid_unknown",
+                        lineno,
+                        f"Sequence-region seqid {seqid!r} is absent from the "
+                        "target FASTA.",
+                    )
+                elif end > target_length:
+                    add_issue(
+                        "sequence_region_out_of_bounds",
+                        lineno,
+                        f"Sequence-region {seqid}:{start}-{end} exceeds target "
+                        f"length {target_length}.",
+                    )
+                previous = regions.get(seqid)
+                if previous is not None and previous[:2] != (start, end):
+                    add_issue(
+                        "sequence_region_conflict",
+                        lineno,
+                        f"Sequence-region {seqid!r} conflicts with line "
+                        f"{previous[2]} ({previous[0]}..{previous[1]}).",
+                    )
+                else:
+                    regions[seqid] = (start, end, lineno)
+                continue
+            if line.startswith("#"):
+                result.comment_lines += 1
+                continue
+
+            columns = line.split("\t")
+            if len(columns) != 9:
+                # The structural/full validators own column-format findings.
+                continue
+            result.data_lines += 1
+            seqid, _source, ftype, start_text, end_text = columns[:5]
+            feature_counts[ftype] += 1
+            seqids_with_features.add(seqid)
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError:
+                continue
+            if start < 1 or start > end:
+                continue
+            target_length = lengths.get(seqid)
+            if target_length is None:
+                add_issue(
+                    "target_seqid_unknown",
+                    lineno,
+                    f"Feature seqid {seqid!r} is absent from the target FASTA.",
+                )
+                continue
+            if end > target_length:
+                add_issue(
+                    "target_coordinate_out_of_bounds",
+                    lineno,
+                    f"Feature {seqid}:{start}-{end} exceeds target length "
+                    f"{target_length}.",
+                )
+            region = regions.get(seqid)
+            if region is not None and not (
+                region[0] <= start <= end <= region[1]
+            ):
+                add_issue(
+                    "sequence_region_containment",
+                    lineno,
+                    f"Feature {seqid}:{start}-{end} is outside declared region "
+                    f"{region[0]}..{region[1]}.",
+                    severity=(
+                        Severity.ERROR
+                        if strict_sequence_regions
+                        else Severity.WARNING
+                    ),
+                )
+
+    result.stats = dict(feature_counts)
+    return result
 
 
 def validate_gff3_structure(

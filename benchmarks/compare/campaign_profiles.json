@@ -1,0 +1,391 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "id": "canonical-v1",
+      "description": "Frozen LiftOn release matrix: 34 subset, 17 full, and 5 same-species E2E datasets.",
+      "campaigns": [
+        {
+          "id": "subset",
+          "stage": "paired-subset",
+          "ids": [
+            "mouse_to_rat",
+            "human_mane",
+            "bee",
+            "mouse",
+            "human_to_chimp",
+            "rice",
+            "arabidopsis",
+            "drosophila",
+            "human_to_mouse",
+            "fly_mel_to_pseudoobscura",
+            "yeast_cerevisiae_to_paradoxus",
+            "candida_albicans_to_dubliniensis",
+            "celegans_to_briggsae",
+            "chicken_to_quail",
+            "human_pseudogene_stress",
+            "human_ensembl_gtf",
+            "arabidopsis_to_lyrata",
+            "rice_to_sorghum",
+            "arabidopsis_to_rice",
+            "zebrafish_to_medaka",
+            "human_to_zebrafish",
+            "drosophila_to_anopheles",
+            "cerevisiae_to_pombe",
+            "t1_tomato_microtom_to_heinz",
+            "t2_tomato_to_potato",
+            "t2_human_to_gorilla",
+            "t2_mouse_to_caroli",
+            "t3_human_to_macaque",
+            "t3_dog_to_cat",
+            "t3_human_to_marmoset",
+            "t4_human_to_chicken",
+            "t4_human_to_xenopus",
+            "t4_drosophila_to_bee",
+            "t1_maize_b73_to_mo17"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "none"
+        },
+        {
+          "id": "full",
+          "stage": "paired-full",
+          "ids": [
+            "bee",
+            "rice",
+            "arabidopsis",
+            "drosophila",
+            "arabidopsis_to_rice",
+            "human_to_zebrafish",
+            "t1_maize_b73_to_mo17",
+            "t1_tomato_microtom_to_heinz",
+            "t2_human_to_gorilla",
+            "t2_mouse_to_caroli",
+            "t2_tomato_to_potato",
+            "t3_dog_to_cat",
+            "t3_human_to_macaque",
+            "t3_human_to_marmoset",
+            "t4_drosophila_to_bee",
+            "t4_human_to_chicken",
+            "t4_human_to_xenopus"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "none"
+        },
+        {
+          "id": "e2e",
+          "stage": "paired-e2e",
+          "ids": [
+            "bee",
+            "human",
+            "arabidopsis",
+            "rice",
+            "mouse"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "none"
+        }
+      ]
+    },
+    {
+      "id": "canonical-v2",
+      "description": "Expanded v1.0.10.1 release, independent-truth, synthetic, scaling, and I/O-mode campaign.",
+      "campaigns": [
+        {
+          "id": "preflight-gates",
+          "stage": "gates",
+          "ids": [
+            "python-suite",
+            "fast-gate",
+            "benchmark-gate"
+          ],
+          "repetitions": 1,
+          "threads": 1,
+          "candidate_mode": null,
+          "reference_mode": null,
+          "baseline_policy": "not_applicable",
+          "truth_policy": "not_applicable"
+        },
+        {
+          "id": "subset-canary",
+          "stage": "paired-subset-canary",
+          "ids": [
+            "human_mane",
+            "human_to_zebrafish"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "diagnostic",
+          "truth_policy": "where_available"
+        },
+        {
+          "id": "subset-legacy",
+          "stage": "paired-subset",
+          "ids": [
+            "mouse_to_rat",
+            "human_mane",
+            "bee",
+            "mouse",
+            "human_to_chimp",
+            "rice",
+            "arabidopsis",
+            "drosophila",
+            "human_to_mouse",
+            "fly_mel_to_pseudoobscura",
+            "yeast_cerevisiae_to_paradoxus",
+            "candida_albicans_to_dubliniensis",
+            "celegans_to_briggsae",
+            "chicken_to_quail",
+            "human_pseudogene_stress",
+            "human_ensembl_gtf",
+            "arabidopsis_to_lyrata",
+            "rice_to_sorghum",
+            "arabidopsis_to_rice",
+            "zebrafish_to_medaka",
+            "human_to_zebrafish",
+            "drosophila_to_anopheles",
+            "cerevisiae_to_pombe",
+            "t1_tomato_microtom_to_heinz",
+            "t2_tomato_to_potato",
+            "t2_human_to_gorilla",
+            "t2_mouse_to_caroli",
+            "t3_human_to_macaque",
+            "t3_dog_to_cat",
+            "t3_human_to_marmoset",
+            "t4_human_to_chicken",
+            "t4_human_to_xenopus",
+            "t4_drosophila_to_bee",
+            "t1_maize_b73_to_mo17"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "none"
+        },
+        {
+          "id": "subset-truth",
+          "stage": "paired-subset",
+          "ids": [
+            "v2_truth_human_grch38_chm13",
+            "v2_dialect_ensembl116_gtf",
+            "v2_dialect_flybase_dmel_dere",
+            "v2_dialect_wormbase_celegans_cbriggsae",
+            "v2_truth_soybean_w82_lee",
+            "v2_truth_rat_mouse_e2e"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "target_truth_required"
+        },
+        {
+          "id": "subset-deep-diagnostic",
+          "stage": "paired-subset",
+          "ids": [
+            "v2_deep_zebrafish_xenopus",
+            "v2_deep_tomato_rice"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "diagnostic",
+          "truth_policy": "target_truth_required"
+        },
+        {
+          "id": "full-canary",
+          "stage": "paired-full-canary",
+          "ids": [
+            "arabidopsis",
+            "human_to_zebrafish"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "diagnostic",
+          "truth_policy": "where_available"
+        },
+        {
+          "id": "full-legacy",
+          "stage": "paired-full",
+          "ids": [
+            "bee",
+            "rice",
+            "arabidopsis",
+            "drosophila",
+            "arabidopsis_to_rice",
+            "human_to_zebrafish",
+            "t1_maize_b73_to_mo17",
+            "t1_tomato_microtom_to_heinz",
+            "t2_human_to_gorilla",
+            "t2_mouse_to_caroli",
+            "t2_tomato_to_potato",
+            "t3_dog_to_cat",
+            "t3_human_to_macaque",
+            "t3_human_to_marmoset",
+            "t4_drosophila_to_bee",
+            "t4_human_to_chicken",
+            "t4_human_to_xenopus"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "none"
+        },
+        {
+          "id": "full-truth",
+          "stage": "paired-full",
+          "ids": [
+            "v2_truth_human_grch38_chm13",
+            "v2_dialect_ensembl116_gtf",
+            "v2_dialect_flybase_dmel_dere",
+            "v2_dialect_wormbase_celegans_cbriggsae",
+            "v2_truth_soybean_w82_lee"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "target_truth_required"
+        },
+        {
+          "id": "full-deep-diagnostic",
+          "stage": "paired-full",
+          "ids": [
+            "v2_deep_zebrafish_xenopus",
+            "v2_deep_tomato_rice"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "diagnostic",
+          "truth_policy": "target_truth_required"
+        },
+        {
+          "id": "e2e-canary",
+          "stage": "paired-e2e-canary",
+          "ids": [
+            "bee",
+            "human"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "diagnostic",
+          "truth_policy": "where_available"
+        },
+        {
+          "id": "e2e-same-species",
+          "stage": "paired-e2e",
+          "ids": [
+            "bee",
+            "human",
+            "arabidopsis",
+            "rice",
+            "mouse"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "where_available"
+        },
+        {
+          "id": "e2e-cross-existing",
+          "stage": "paired-e2e",
+          "ids": [
+            "human_to_chimp",
+            "drosophila",
+            "mouse_to_rat"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "where_available"
+        },
+        {
+          "id": "e2e-cross-truth",
+          "stage": "paired-e2e",
+          "ids": [
+            "v2_dialect_flybase_dmel_dere",
+            "v2_dialect_wormbase_celegans_cbriggsae",
+            "v2_truth_rat_mouse_e2e"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "target_truth_required"
+        },
+        {
+          "id": "synthetic-truth",
+          "stage": "paired-subset",
+          "ids": [
+            "v2_synth_chr22_fragmented",
+            "v2_synth_chr22_sv"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "synthetic_exact_required"
+        },
+        {
+          "id": "v2_protocol_thread_scaling_bee",
+          "stage": "protocol-thread-scaling",
+          "ids": [
+            "bee"
+          ],
+          "repetitions": 6,
+          "threads": 32,
+          "candidate_mode": "fast",
+          "reference_mode": null,
+          "baseline_policy": "diagnostic",
+          "truth_policy": "equivalence_required"
+        },
+        {
+          "id": "v2_protocol_io_modes_arabidopsis",
+          "stage": "protocol-io-modes",
+          "ids": [
+            "arabidopsis"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": null,
+          "baseline_policy": "diagnostic",
+          "truth_policy": "equivalence_required"
+        }
+      ]
+    }
+  ]
+}

@@ -1110,9 +1110,9 @@ class _ThreadLocalCtxFactory:
 
     The factory only constructs a non-trivial path when the DBs in the
     parent ``ctx`` advertise an on-disk ``dbfn``. For in-memory DBs
-    (gffbase blob path) or DBs without a path, it returns ``None``
-    (caller falls back to the legacy parent-thread materialise loop —
-    correctness preserved, just no parallelism speedup).
+    (gffbase blob path) or DBs without a path the factory is not viable:
+    callers keep materialisation on the owning parent thread, then may
+    safely fan fully detached payloads out to processing workers.
 
     All non-DB ``StepContext`` fields (``ref_features_dict``,
     ``ref_id_2_m_id_trans_dict``, ``tree_dict``, ``tgt_fai``,

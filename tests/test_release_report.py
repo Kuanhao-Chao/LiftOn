@@ -169,6 +169,7 @@ def _write_pair(
                 "size": 1,
             }
         },
+        "evaluation_inputs": {},
         "versions": {
             "candidate": {
                 "profile": {
@@ -277,6 +278,93 @@ def _write_pair(
     return path
 
 
+def _target_truth_document(
+    pair_path: Path,
+    label: str,
+    *,
+    mapping_sha: str,
+) -> dict:
+    level_scope = {
+        "groups": 1,
+        "predicted_scored": 1,
+        "expected_scored": 1,
+        "prediction_models_total": 1,
+        "truth_models_total": 1,
+        "prediction_models_ignored": 0,
+        "truth_models_ignored": 0,
+    }
+    score = {"precision": 1.0, "recall": 1.0, "f1": 1.0}
+    cell = pair_path.parent.resolve()
+    return {
+        "schema_version": 1,
+        "method": "ortholog-scoped-target-coordinate-v1",
+        "inputs": {
+            "prediction_gff": str(cell / label / f"{label}.gff3"),
+            "truth_gff": str(cell / "score-inputs" / "truth.gff3"),
+            "source_gff": str(cell / "score-inputs" / "source.gff3"),
+            "mapping": {
+                "kind": "ortholog-map",
+                "path": str(cell / "score-inputs" / "ortholog-map.json"),
+                "entries": 1,
+                "sha256": mapping_sha,
+            },
+        },
+        "parameters": {
+            "minimum_reciprocal_overlap": 0.5,
+            "id_policy": "ortholog-map",
+            "mapping_required": True,
+            "mapping_requirement_satisfied": True,
+            "mapping_source_scope_validated": True,
+        },
+        "scope": {
+            "gene_groups": 1,
+            "transcript_groups": 1,
+            "mapping_entries": 1,
+            "mapping_status_counts": {"retained": 1},
+            "gene": dict(level_scope),
+            "transcript": dict(level_scope),
+        },
+        "gene": {
+            name: dict(score) for name in ("locus", "strand", "copy")
+        },
+        "transcript": {
+            name: dict(score) for name in ("locus", "strand", "copy")
+        },
+        "structure": {
+            name: dict(score)
+            for name in ("intron_chain", "intron", "exon", "CDS")
+        },
+    }
+
+
+def _attach_target_truth_evidence(
+    pair_path: Path,
+    *,
+    candidate_mapping_sha: str,
+    reference_mapping_sha: str,
+) -> None:
+    payload = json.loads(pair_path.read_text())
+    mapping_shas = {
+        "candidate": candidate_mapping_sha,
+        "reference": reference_mapping_sha,
+    }
+    for label in ("candidate", "reference"):
+        document = _target_truth_document(
+            pair_path, label, mapping_sha=mapping_shas[label],
+        )
+        artifact = (
+            pair_path.parent / "evaluation" / f"{label}.target_truth.json"
+        ).resolve()
+        artifact.write_text(json.dumps(document, sort_keys=True))
+        payload["versions"][label]["summary"]["target_truth"] = document
+        payload["versions"][label]["evaluation_artifacts"]["target_truth"] = {
+            "path": str(artifact),
+            "size": artifact.stat().st_size,
+            "sha256": release_report.sha256_file(artifact),
+        }
+    pair_path.write_text(json.dumps(payload))
+
+
 def _campaign_spec(repetitions: int = 2) -> dict:
     return release_report.canonical_campaign_spec(repetitions)
 
@@ -331,6 +419,7 @@ def _write_controller_run(
     cells = []
     pending_success = []
     frozen_inputs = {}
+    frozen_evaluation_inputs = {}
     for benchmark in benchmarks:
         for repetition in range(1, repetitions + 1):
             result_path = _write_pair(
@@ -408,6 +497,7 @@ def _write_controller_run(
                 "paired": json.loads(json.dumps(paired)),
                 "cell_dir": str(cell_dir),
                 "input_fingerprints": raw["inputs"],
+                "evaluation_input_fingerprints": raw["evaluation_inputs"],
                 "artifacts": {
                     name: value
                     for name, value in artifacts.items()
@@ -416,6 +506,7 @@ def _write_controller_run(
             }
             cells.append(cell)
             frozen_inputs[benchmark] = raw["inputs"]
+            frozen_evaluation_inputs[benchmark] = raw["evaluation_inputs"]
             pending_success.append(
                 (cell, artifacts, observed, evaluation_artifacts)
             )
@@ -461,6 +552,9 @@ def _write_controller_run(
             "configuration": json.loads(json.dumps(paired)),
             "sources": json.loads(json.dumps(source_records)),
             "inputs": json.loads(json.dumps(frozen_inputs)),
+            "evaluation_inputs": json.loads(json.dumps(
+                frozen_evaluation_inputs
+            )),
         },
     }
     provenance["fingerprint"] = build_controller.canonical_hash(provenance)
@@ -1556,7 +1650,7 @@ def test_load_pairs_rejects_legacy_release_schema_2(tmp_path):
     raw["schema_version"] = 2
     path.write_text(json.dumps(raw))
 
-    assert release_report.SCHEMA_VERSION == 3
+    assert release_report.SCHEMA_VERSION == 4
     with pytest.raises(ValueError, match="unsupported paired schema"):
         release_report.load_pairs([runs])
 
@@ -1596,6 +1690,51 @@ def test_quality_aggregates_and_gates_drift_across_repetitions(tmp_path):
     assert cell["candidate_quality_deterministic"] is False
     assert cell["common_pi_deterministic"] is False
     assert metrics["verdict"]["diagnostic_passed"] is False
+
+
+def test_target_truth_determinism_ignores_paths_but_retains_mapping_hashes(
+        tmp_path):
+    runs = tmp_path / "runs"
+    mapping_sha = _sha256("shared-ortholog-map")
+    paths = [
+        _write_pair(
+            runs, repetition=repetition,
+            candidate_wall=8.0, reference_wall=10.0,
+        )
+        for repetition in (1, 2)
+    ]
+    for path in paths:
+        _attach_target_truth_evidence(
+            path,
+            candidate_mapping_sha=mapping_sha,
+            reference_mapping_sha=mapping_sha,
+        )
+
+    metrics = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), replicates=10,
+    )
+
+    truth = metrics["cells"][0]["target_truth"]
+    assert truth["candidate"]["deterministic"] is True
+    assert truth["reference"]["deterministic"] is True
+    assert (
+        truth["candidate"]["summary"]["inputs"]["prediction_gff"]
+        != json.loads(paths[1].read_text())["versions"]["candidate"][
+            "summary"
+        ]["target_truth"]["inputs"]["prediction_gff"]
+    )
+
+    _attach_target_truth_evidence(
+        paths[1],
+        candidate_mapping_sha=_sha256("changed-ortholog-map"),
+        reference_mapping_sha=mapping_sha,
+    )
+    changed = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), replicates=10,
+    )["cells"][0]["target_truth"]
+
+    assert changed["candidate"]["deterministic"] is False
+    assert changed["reference"]["deterministic"] is True
 
 
 def test_bootstrap_replicates_must_be_positive(tmp_path):
