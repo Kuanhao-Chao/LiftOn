@@ -107,11 +107,13 @@ jobs:
       # ====================================================================
       # The 24-cell matrix + the parallelism/promotion gates + the
       # unit/integration suite + the 3 hypothesis-backed property/vulnerability
-      # files (hypothesis installed above) — the FULL suite, 729 tests, 0
-      # --ignore. pytest comes from the [test] extra (installed with lifton
-      # above); the hermetic fixtures monkeypatch minimap2/miniprot so the suite
-      # needs neither. perf tests under tests/perf/ are marker-gated
-      # (registered in conftest; they don't run here).
+      # files (hypothesis installed above) — the complete collected suite with
+      # no ignored test paths. Do not pin a test count here: focused regression
+      # coverage is intentionally added over time. pytest comes from the [test]
+      # extra (installed with lifton above); hermetic fixtures monkeypatch
+      # minimap2/miniprot, so the suite needs neither. Perf tests under
+      # tests/perf/ are marker-gated (registered in conftest; they do not run
+      # here).
       run: |
         pytest tests/ -q
     - name: Test using example from test dir

@@ -56,6 +56,13 @@ ABSOLUTE_BASELINE_TOLERANCES = {
 }
 E2E_FEATURE_COMPLETENESS_FLOOR = 0.50
 E2E_MEAN_PI_FLOOR = 0.50
+TARGET_TRUTH_LOCUS_F1_FLOOR = 0.50
+TARGET_TRUTH_DELTA_FLOOR = -0.01
+TARGET_TRUTH_MIN_GROUPS = {
+    "subset": 10,
+    "full": 100,
+    "e2e": 100,
+}
 PANEL_RATIO_LIMIT = 1.10
 CELL_RATIO_LIMIT = 1.25
 MEMORY_ENVELOPE_GIB = 192.0
@@ -800,6 +807,191 @@ def _verify_transcript_artifact(
     return expected
 
 
+def _target_truth_summary(
+    pair_path: Path,
+    pair: Mapping[str, Any],
+    label: str,
+    controller_record: Any = None,
+) -> dict[str, Any] | None:
+    """Verify and normalize optional independent target-truth evidence."""
+
+    version = (pair.get("versions") or {}).get(label)
+    summary = (
+        version.get("summary")
+        if isinstance(version, Mapping) else None
+    )
+    metrics = (
+        summary.get("target_truth")
+        if isinstance(summary, Mapping) else None
+    )
+    artifacts = (
+        version.get("evaluation_artifacts")
+        if isinstance(version, Mapping) else None
+    )
+    record = (
+        artifacts.get("target_truth")
+        if isinstance(artifacts, Mapping) else None
+    )
+    if metrics is None and record is None and controller_record is None:
+        return None
+    if not isinstance(metrics, Mapping) or not isinstance(record, Mapping):
+        raise ValueError(
+            f"{pair_path}: {label} target-truth summary/artifact is incomplete"
+        )
+    expected = (
+        pair_path.parent / "evaluation" / f"{label}.target_truth.json"
+    ).resolve()
+    raw_path = record.get("path")
+    size = record.get("size")
+    digest = record.get("sha256")
+    if (
+        not isinstance(raw_path, str)
+        or not Path(raw_path).is_absolute()
+        or Path(raw_path).resolve() != expected
+        or not _integer(size)
+        or size <= 0
+        or not isinstance(digest, str)
+        or _SHA256_RE.fullmatch(digest) is None
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} target-truth artifact evidence is malformed"
+        )
+    if controller_record is not None:
+        if (
+            not isinstance(controller_record, Mapping)
+            or controller_record.get("path") != str(expected)
+            or controller_record.get("size") != size
+            or controller_record.get("sha256") != digest
+            or not _integer(controller_record.get("mtime_ns"))
+        ):
+            raise ValueError(
+                f"{pair_path}: {label} controller and pair target-truth "
+                "evidence disagree"
+            )
+    try:
+        stat = expected.stat()
+        observed_digest = sha256_file(expected)
+        observed = json.loads(expected.read_text())
+    except (OSError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{pair_path}: {label} target-truth artifact is unavailable: {exc}"
+        ) from exc
+    if (
+        not expected.is_file()
+        or stat.st_size != size
+        or observed_digest != digest
+        or (
+            controller_record is not None
+            and stat.st_mtime_ns != controller_record["mtime_ns"]
+        )
+        or observed != metrics
+    ):
+        raise ValueError(
+            f"{pair_path}: live {label} target-truth artifact no longer "
+            "matches sealed evidence"
+        )
+    if metrics.get("schema_version") != 1:
+        raise ValueError(
+            f"{pair_path}: {label} target-truth schema is unsupported"
+        )
+    if metrics.get("method") != "ortholog-scoped-target-coordinate-v1":
+        raise ValueError(
+            f"{pair_path}: {label} target-truth method is unsupported"
+        )
+    parameters = metrics.get("parameters")
+    if not isinstance(parameters, Mapping):
+        raise ValueError(
+            f"{pair_path}: {label} target-truth parameters are malformed"
+        )
+    id_policy = parameters.get("id_policy")
+    mapping_required = parameters.get("mapping_required")
+    mapping_satisfied = parameters.get("mapping_requirement_satisfied")
+    if (
+        id_policy not in {"ortholog-map", "exact-id"}
+        or mapping_required is not (id_policy == "ortholog-map")
+        or mapping_satisfied is not True
+    ):
+        raise ValueError(
+            f"{pair_path}: {label} target-truth mapping policy is unsafe"
+        )
+    scope = metrics.get("scope")
+    if not isinstance(scope, Mapping):
+        raise ValueError(f"{pair_path}: {label} target-truth scope is malformed")
+    for field in ("gene_groups", "transcript_groups", "mapping_entries"):
+        value = scope.get(field)
+        if not _integer(value) or value < 0:
+            raise ValueError(
+                f"{pair_path}: {label} target-truth scope {field} is invalid"
+            )
+    if mapping_required and scope["mapping_entries"] <= 0:
+        raise ValueError(
+            f"{pair_path}: {label} target-truth mapping scope is empty"
+        )
+    for level, group_field in (
+        ("gene", "gene_groups"),
+        ("transcript", "transcript_groups"),
+    ):
+        level_scope = scope.get(level)
+        required_scope_fields = {
+            "groups",
+            "predicted_scored",
+            "expected_scored",
+            "prediction_models_total",
+            "truth_models_total",
+            "prediction_models_ignored",
+            "truth_models_ignored",
+        }
+        if (
+            not isinstance(level_scope, Mapping)
+            or set(level_scope) != required_scope_fields
+            or any(
+                not _integer(level_scope[field]) or level_scope[field] < 0
+                for field in required_scope_fields
+            )
+            or level_scope["groups"] != scope[group_field]
+            or (
+                level_scope["predicted_scored"]
+                + level_scope["prediction_models_ignored"]
+                != level_scope["prediction_models_total"]
+            )
+            or (
+                level_scope["expected_scored"]
+                + level_scope["truth_models_ignored"]
+                != level_scope["truth_models_total"]
+            )
+        ):
+            raise ValueError(
+                f"{pair_path}: {label} target-truth {level} scope is malformed"
+            )
+    for group, names in (
+        ("gene", ("locus", "strand", "copy")),
+        ("transcript", ("locus", "strand", "copy")),
+        ("structure", ("intron_chain", "intron", "exon", "CDS")),
+    ):
+        rows = metrics.get(group)
+        if not isinstance(rows, Mapping):
+            raise ValueError(
+                f"{pair_path}: {label} target-truth {group} is malformed"
+            )
+        for name in names:
+            row = rows.get(name)
+            if not isinstance(row, Mapping):
+                raise ValueError(
+                    f"{pair_path}: {label} target-truth {group}.{name} "
+                    "is malformed"
+                )
+            for metric_name in ("precision", "recall", "f1"):
+                value = row.get(metric_name)
+                if value is not None and (
+                    not _number(value) or not 0.0 <= float(value) <= 1.0
+                ):
+                    raise ValueError(
+                        f"{pair_path}: {label} target-truth "
+                        f"{group}.{name}.{metric_name} is invalid"
+                    )
+    return dict(metrics)
+
+
 def _paired_common_pi(pair_path: Path) -> dict[str, Any] | None:
     paths = {
         label: pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
@@ -1104,6 +1296,21 @@ def _controller_pair_paths(
                     label,
                     transcript_record,
                 )
+                truth_record = (
+                    label_evaluation.get("target_truth")
+                    if isinstance(label_evaluation, Mapping) else None
+                )
+                truth_metrics = (
+                    (version.get("summary") or {}).get("target_truth")
+                    if isinstance(version.get("summary"), Mapping) else None
+                )
+                if truth_record is not None or truth_metrics is not None:
+                    _target_truth_summary(
+                        result_path,
+                        pair,
+                        label,
+                        truth_record,
+                    )
                 if (
                     transcript_path.stat().st_mtime_ns
                     > result_path.stat().st_mtime_ns
@@ -1139,32 +1346,51 @@ def load_pairs(roots: Iterable[Path]) -> list[tuple[Path, dict[str, Any]]]:
     return pairs
 
 
-def _canonical_release_ids() -> dict[str, tuple[str, ...]]:
-    """Derive the complete release panels without honoring partial ``--ids``."""
+def _canonical_release_ids(
+    profile_id: str = "canonical-v1",
+    *,
+    profile_registry: Path | None = None,
+) -> dict[str, tuple[str, ...]]:
+    """Load explicit release panels without honoring partial ``--ids``."""
 
-    from . import build_controller
+    from . import build_controller, campaign_profiles
 
+    profile = campaign_profiles.load_profile(
+        profile_id,
+        registry=Path(
+            profile_registry or campaign_profiles.DEFAULT_PROFILE_REGISTRY
+        ),
+    )
+    specification = campaign_profiles.campaign_spec(
+        profile,
+        legacy_v1=profile_id == campaign_profiles.LEGACY_PROFILE_ID,
+    )
     selected = {
-        panel: tuple(build_controller.select_ids(
-            f"paired-{panel}",
-            baseline=build_controller.DEFAULT_BASELINE,
-            dataset_registry=build_controller.DEFAULT_DATASET_REGISTRY,
-        ))
+        panel: tuple(specification["panels"][panel]["ids"])
         for panel in RELEASE_PANELS
     }
-    malformed = {
-        panel: len(ids)
-        for panel, ids in selected.items()
-        if (
-            len(ids) != CANONICAL_PANEL_COUNTS[panel]
-            or len(ids) != len(set(ids))
-        )
-    }
-    if malformed:
-        raise RuntimeError(
-            "repository canonical release panels have unexpected counts or "
-            f"duplicate IDs: {malformed}"
-        )
+    if profile_id == campaign_profiles.LEGACY_PROFILE_ID:
+        malformed = {
+            panel: len(ids)
+            for panel, ids in selected.items()
+            if (
+                len(ids) != CANONICAL_PANEL_COUNTS[panel]
+                or len(ids) != len(set(ids))
+            )
+        }
+        baseline_selected = {
+            panel: tuple(build_controller.select_ids(
+                f"paired-{panel}",
+                baseline=build_controller.DEFAULT_BASELINE,
+                dataset_registry=build_controller.DEFAULT_DATASET_REGISTRY,
+            ))
+            for panel in RELEASE_PANELS
+        }
+        if malformed or selected != baseline_selected:
+            raise RuntimeError(
+                "frozen canonical-v1 profile disagrees with repository "
+                f"baseline panels: malformed={malformed}"
+            )
     return selected
 
 
@@ -1232,32 +1458,114 @@ def _canonical_quality_baselines() -> tuple[dict[str, Any], dict[str, Any]]:
 
 def canonical_campaign_spec(
     repetitions: int = DEFAULT_RELEASE_REPETITIONS,
+    *,
+    profile_id: str = "canonical-v1",
+    profile_registry: Path | None = None,
 ) -> dict[str, Any]:
     """Return a reviewable template for the complete canonical campaign."""
 
-    if (
-        not _integer(repetitions)
-        or repetitions <= 0
-        or repetitions % 2
-    ):
+    from . import campaign_profiles
+
+    profile = campaign_profiles.load_profile(
+        profile_id,
+        registry=Path(
+            profile_registry or campaign_profiles.DEFAULT_PROFILE_REGISTRY
+        ),
+    )
+    return campaign_profiles.campaign_spec(
+        profile,
+        repetitions=repetitions,
+        legacy_v1=profile_id == campaign_profiles.LEGACY_PROFILE_ID,
+    )
+
+
+def _normalize_profile_campaign_spec(document: Mapping[str, Any]) -> dict[str, Any]:
+    from . import campaign_profiles
+
+    required = {
+        "schema_version",
+        "profile_id",
+        "profile_digest",
+        "profile_registry_sha256",
+        "matrix",
+        "panels",
+    }
+    if set(document) != required:
         raise ValueError(
-            "release repetitions must be a positive even integer"
+            "profile campaign specification fields are invalid; "
+            f"missing={sorted(required - set(document))}, "
+            f"unknown={sorted(set(document) - required)}"
+        )
+    for name in ("profile_digest", "profile_registry_sha256"):
+        value = document[name]
+        if not isinstance(value, str) or _SHA256_RE.fullmatch(value) is None:
+            raise ValueError(f"profile campaign {name} must be a SHA-256 digest")
+    if not isinstance(document["profile_id"], str) or not document["profile_id"]:
+        raise ValueError("profile campaign profile_id must be non-empty")
+    matrix = document["matrix"]
+    if not isinstance(matrix, list) or not matrix:
+        raise ValueError("profile campaign matrix must be non-empty")
+    normalized_matrix = []
+    matrix_panels: dict[str, dict[str, Any]] = {}
+    for raw in matrix:
+        if not isinstance(raw, Mapping):
+            raise ValueError("profile campaign matrix rows must be objects")
+        expected_fields = campaign_profiles.CASE_FIELDS | {"panel"}
+        if set(raw) != expected_fields:
+            raise ValueError("profile campaign matrix row fields are invalid")
+        case = campaign_profiles._normalize_case(
+            {key: raw[key] for key in campaign_profiles.CASE_FIELDS},
+            profile_id=document["profile_id"],
+        )
+        panel = raw["panel"]
+        if (
+            panel not in RELEASE_PANELS
+            or case["stage"] != f"paired-{panel}"
+            or case["baseline_policy"] != "paired_required"
+        ):
+            raise ValueError(
+                f"profile campaign matrix case {case['id']!r} is not publishable"
+            )
+        row = matrix_panels.setdefault(panel, {
+            "ids": [],
+            "repetitions": case["repetitions"],
+        })
+        if row["repetitions"] != case["repetitions"]:
+            raise ValueError(
+                f"profile campaign panel {panel!r} mixes repetition counts"
+            )
+        duplicated = set(row["ids"]) & set(case["ids"])
+        if duplicated:
+            raise ValueError(
+                f"profile campaign panel {panel!r} duplicates ids "
+                f"{sorted(duplicated)}"
+            )
+        row["ids"].extend(case["ids"])
+        normalized_matrix.append({**case, "panel": panel})
+    if set(matrix_panels) != set(RELEASE_PANELS):
+        raise ValueError(
+            "profile campaign matrix must cover subset, full, and e2e"
+        )
+    panels = document["panels"]
+    if not isinstance(panels, Mapping) or dict(panels) != matrix_panels:
+        raise ValueError(
+            "profile campaign panels do not match the ordered campaign matrix"
         )
     return {
-        "schema_version": CAMPAIGN_SCHEMA_VERSION,
-        "panels": {
-            panel: {
-                "ids": list(ids),
-                "repetitions": repetitions,
-            }
-            for panel, ids in _canonical_release_ids().items()
-        },
+        "schema_version": campaign_profiles.CAMPAIGN_SPEC_SCHEMA_VERSION,
+        "profile_id": document["profile_id"],
+        "profile_digest": document["profile_digest"],
+        "profile_registry_sha256": document["profile_registry_sha256"],
+        "matrix": normalized_matrix,
+        "panels": matrix_panels,
     }
 
 
 def _normalize_campaign_spec(document: Any) -> dict[str, Any]:
     if not isinstance(document, Mapping):
         raise ValueError("campaign specification must be a JSON object")
+    if document.get("schema_version") == 2:
+        return _normalize_profile_campaign_spec(document)
     if document.get("schema_version") != CAMPAIGN_SCHEMA_VERSION:
         raise ValueError(
             f"campaign specification schema_version must be "
@@ -1421,16 +1729,23 @@ def _controller_publication_evidence(
     candidate_sha: str,
     reference_sha: str,
 ) -> tuple[list[Path], dict[str, Any]]:
-    """Require one complete, non-canary controller run for every panel."""
+    """Require complete controller roots for every declared release case."""
 
     from . import build_controller
 
-    if len(roots) != len(RELEASE_PANELS):
+    profile_matrix = campaign.get("matrix")
+    expected_root_count = (
+        len(profile_matrix)
+        if isinstance(profile_matrix, list)
+        else len(RELEASE_PANELS)
+    )
+    if len(roots) != expected_root_count:
         raise ValueError(
-            "release publication requires exactly one controller root for "
-            "each of subset, full, and e2e"
+            f"release publication requires exactly {expected_root_count} "
+            "controller roots for the declared campaign"
         )
     by_panel: dict[str, dict[str, Any]] = {}
+    by_case: dict[str, dict[str, Any]] = {}
     pair_paths: list[Path] = []
     compatibility_signature: str | None = None
     compatibility_sha256: str | None = None
@@ -1493,9 +1808,53 @@ def _controller_publication_evidence(
             )
         _validate_resource_policy(policy, plan_path)
         panel = stage.removeprefix("paired-")
-        if panel in by_panel:
-            raise ValueError(f"duplicate controller root for panel {panel!r}")
-        expected = campaign["panels"][panel]
+        expected_case = None
+        if isinstance(profile_matrix, list):
+            identity = plan.get("campaign_case")
+            case = identity.get("case") if isinstance(identity, Mapping) else None
+            if (
+                not isinstance(identity, Mapping)
+                or identity.get("profile_id") != campaign.get("profile_id")
+                or identity.get("profile_digest") != campaign.get(
+                    "profile_digest"
+                )
+                or not isinstance(identity.get("registry"), Mapping)
+                or identity["registry"].get("sha256")
+                != campaign.get("profile_registry_sha256")
+                or not isinstance(case, Mapping)
+            ):
+                raise ValueError(
+                    f"{plan_path}: controller campaign profile identity "
+                    "does not match the report"
+                )
+            matches = [
+                row for row in profile_matrix
+                if row.get("id") == case.get("id")
+            ]
+            if len(matches) != 1 or case != {
+                key: matches[0][key]
+                for key in matches[0] if key != "panel"
+            }:
+                raise ValueError(
+                    f"{plan_path}: controller campaign case does not match "
+                    "the release matrix"
+                )
+            expected_case = matches[0]
+            if expected_case["id"] in by_case:
+                raise ValueError(
+                    f"duplicate controller root for campaign case "
+                    f"{expected_case['id']!r}"
+                )
+            expected = {
+                "ids": expected_case["ids"],
+                "repetitions": expected_case["repetitions"],
+            }
+        else:
+            if panel in by_panel:
+                raise ValueError(
+                    f"duplicate controller root for panel {panel!r}"
+                )
+            expected = campaign["panels"][panel]
         if plan.get("ids") != expected["ids"]:
             raise ValueError(
                 f"{plan_path}: controller ids do not match the expected "
@@ -1544,12 +1903,23 @@ def _controller_publication_evidence(
             raise ValueError(
                 f"{plan_path}: release panel contains non-paired cells"
             )
-        if any(
-            cell.get("threads") != APPROVED_RESOURCE_POLICY["threads_per_cell"]
-            for cell in cells
-        ):
+        expected_threads = (
+            expected_case["threads"]
+            if expected_case is not None
+            else APPROVED_RESOURCE_POLICY["threads_per_cell"]
+        )
+        if any(cell.get("threads") != expected_threads for cell in cells):
             raise ValueError(
                 f"{plan_path}: a paired cell violates the approved thread policy"
+            )
+        if expected_case is not None and (
+            paired["candidate"].get("e2e_mode")
+            != expected_case["candidate_mode"]
+            or paired["reference"].get("e2e_mode")
+            != expected_case["reference_mode"]
+        ):
+            raise ValueError(
+                f"{plan_path}: paired modes do not match the campaign case"
             )
         observed_keys = {
             (panel, cell.get("benchmark"), cell.get("repetition"))
@@ -1656,7 +2026,7 @@ def _controller_publication_evidence(
                 f"{plan_path}: controller toolchain, registry, source, or "
                 "thread provenance differs across release roots"
             )
-        by_panel[panel] = {
+        root_record = {
             "root": str(root),
             "plan": _live_artifact_record(plan_path),
             "stage": stage,
@@ -1664,6 +2034,27 @@ def _controller_publication_evidence(
             "repetitions": paired["repetitions"],
             "resource_policy": {
                 name: policy[name] for name in APPROVED_RESOURCE_POLICY
+            },
+        }
+        if expected_case is not None:
+            root_record["campaign_id"] = expected_case["id"]
+            by_case[expected_case["id"]] = root_record
+        else:
+            by_panel[panel] = root_record
+    if isinstance(profile_matrix, list):
+        expected_cases = [row["id"] for row in profile_matrix]
+        if set(by_case) != set(expected_cases):
+            raise ValueError(
+                "release controller roots do not cover every campaign case"
+            )
+        return pair_paths, {
+            "validated": True,
+            "compatibility_sha256": compatibility_sha256,
+            "profile_id": campaign["profile_id"],
+            "profile_digest": campaign["profile_digest"],
+            "campaigns": {
+                case_id: by_case[case_id]
+                for case_id in expected_cases
             },
         }
     if set(by_panel) != set(RELEASE_PANELS):
@@ -1738,13 +2129,15 @@ def _controller_artifact_evidence(
             }
             evaluator_artifacts = {
                 label: {
-                    "transcripts_tsv": _verify_artifact_record(
-                        evidence["transcripts_tsv"],
+                    name: _verify_artifact_record(
+                        record,
                         source=success_path,
-                        label=f"{label} evaluator TSV",
+                        label=f"{label} evaluator artifact {name!r}",
                     )
+                    for name, record in sorted(evidence.items())
                 }
                 for label, evidence in sorted(evaluations.items())
+                if isinstance(evidence, Mapping)
             }
             cells.append({
                 "panel": cell["panel"],
@@ -2230,6 +2623,61 @@ def _paired_stable_id_preservation(
     return result
 
 
+def _campaign_policy_map(
+    campaign: Mapping[str, Any],
+) -> dict[tuple[str, str], dict[str, str]]:
+    specification = campaign.get("expected_campaign")
+    if not isinstance(specification, Mapping) or not isinstance(
+        specification.get("matrix"), list,
+    ):
+        return {}
+    result = {}
+    for case in specification["matrix"]:
+        for benchmark in case["ids"]:
+            key = (case["panel"], benchmark)
+            if key in result:
+                raise ValueError(
+                    f"campaign policy matrix duplicates {key[0]}/{key[1]}"
+                )
+            result[key] = {
+                "campaign_id": case["id"],
+                "baseline_policy": case["baseline_policy"],
+                "truth_policy": case["truth_policy"],
+            }
+    return result
+
+
+def _truth_f1(
+    metrics: Mapping[str, Any] | None,
+    level: str,
+) -> float | None:
+    rows = metrics.get(level) if isinstance(metrics, Mapping) else None
+    locus = rows.get("locus") if isinstance(rows, Mapping) else None
+    value = locus.get("f1") if isinstance(locus, Mapping) else None
+    return float(value) if _number(value) else None
+
+
+def _target_truth_determinism_projection(
+    metrics: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Retain target-truth semantics while omitting cell-local input paths."""
+
+    projected = dict(metrics)
+    inputs = metrics.get("inputs")
+    if not isinstance(inputs, Mapping):
+        return projected
+    projected_inputs = dict(inputs)
+    for field in ("prediction_gff", "truth_gff", "source_gff"):
+        projected_inputs.pop(field, None)
+    mapping = inputs.get("mapping")
+    if isinstance(mapping, Mapping):
+        projected_mapping = dict(mapping)
+        projected_mapping.pop("path", None)
+        projected_inputs["mapping"] = projected_mapping
+    projected["inputs"] = projected_inputs
+    return projected
+
+
 def aggregate_pairs(
     pairs: Sequence[tuple[Path, Mapping[str, Any]]],
     *,
@@ -2265,6 +2713,7 @@ def aggregate_pairs(
     quality_baselines, quality_baseline_artifact = (
         _canonical_quality_baselines()
     )
+    policy_map = _campaign_policy_map(campaign)
     grouped = _group_cells(pairs)
     cells = []
     warning_totals = {
@@ -2381,6 +2830,45 @@ def aggregate_pairs(
             )
             for value in common_pi_repetitions
         }) == 1
+        target_truth_results = {}
+        for label in ("candidate", "reference"):
+            repetition_truth = [
+                _target_truth_summary(path, pair, label)
+                for path, pair in rows
+            ]
+            present = [value for value in repetition_truth if value is not None]
+            if present and len(present) != len(repetition_truth):
+                raise ValueError(
+                    f"{panel}/{benchmark}: {label} target-truth evidence is "
+                    "missing from some repetitions"
+                )
+            signatures = {
+                _canonical_json(
+                    _target_truth_determinism_projection(value),
+                    source=first_path,
+                    field=f"{label} target-truth metrics",
+                )
+                for value in present
+            }
+            target_truth_results[label] = {
+                "available": bool(present),
+                "deterministic": bool(present) and len(signatures) == 1,
+                "summary": dict(present[0]) if present else None,
+            }
+        candidate_truth = target_truth_results["candidate"]["summary"]
+        reference_truth = target_truth_results["reference"]["summary"]
+        target_truth_results["locus_f1_delta"] = {
+            level: (
+                _truth_f1(candidate_truth, level)
+                - _truth_f1(reference_truth, level)
+                if (
+                    _truth_f1(candidate_truth, level) is not None
+                    and _truth_f1(reference_truth, level) is not None
+                )
+                else None
+            )
+            for level in ("gene", "transcript")
+        }
         e2e_biology = None
         if panel == "e2e":
             e2e_biology = {}
@@ -2507,6 +2995,15 @@ def aggregate_pairs(
                 for _, pair in rows
             ),
             "absolute_quality": absolute_quality,
+            "campaign_policy": policy_map.get(
+                (panel, benchmark),
+                {
+                    "campaign_id": None,
+                    "baseline_policy": "paired_required",
+                    "truth_policy": "none",
+                },
+            ),
+            "target_truth": target_truth_results,
         }
         cells.append(cell)
 
@@ -2795,6 +3292,77 @@ def evaluate_verdict(metrics: Mapping[str, Any]) -> dict[str, Any]:
     for cell in cells:
         absolute = cell.get("absolute_quality") or {}
         baseline = absolute.get("baseline")
+        truth_policy = (
+            cell.get("campaign_policy", {}).get("truth_policy", "none")
+        )
+        truth = cell.get("target_truth") or {}
+        truth_required = truth_policy == "target_truth_required"
+        truth_present = any(
+            (truth.get(label) or {}).get("available") is True
+            for label in ("candidate", "reference")
+        )
+        if truth_required or truth_present:
+            for label in ("candidate", "reference"):
+                result = truth.get(label) or {}
+                add(
+                    f"{cell['panel']}.{cell['benchmark']}.{label}."
+                    "target_truth_available",
+                    result.get("available") is True,
+                    result.get("available"),
+                    True,
+                )
+                add(
+                    f"{cell['panel']}.{cell['benchmark']}.{label}."
+                    "target_truth_deterministic",
+                    result.get("deterministic") is True,
+                    result.get("deterministic"),
+                    True,
+                )
+            candidate_truth = (
+                truth.get("candidate", {}).get("summary")
+                if isinstance(truth.get("candidate"), Mapping) else None
+            )
+            for level in ("gene", "transcript"):
+                truth_scope = (
+                    candidate_truth.get("scope")
+                    if isinstance(candidate_truth, Mapping) else None
+                )
+                scope_groups = (
+                    truth_scope.get(f"{level}_groups")
+                    if isinstance(truth_scope, Mapping) else None
+                )
+                minimum_groups = TARGET_TRUTH_MIN_GROUPS.get(
+                    cell["panel"], 1,
+                )
+                add(
+                    f"{cell['panel']}.{cell['benchmark']}.candidate."
+                    f"target_truth_{level}_scope_groups",
+                    _integer(scope_groups)
+                    and scope_groups >= minimum_groups,
+                    scope_groups,
+                    minimum_groups,
+                )
+                candidate_f1 = _truth_f1(candidate_truth, level)
+                delta = (
+                    truth.get("locus_f1_delta", {}).get(level)
+                    if isinstance(truth.get("locus_f1_delta"), Mapping)
+                    else None
+                )
+                add(
+                    f"{cell['panel']}.{cell['benchmark']}.candidate."
+                    f"target_truth_{level}_locus_f1",
+                    _number(candidate_f1)
+                    and candidate_f1 >= TARGET_TRUTH_LOCUS_F1_FLOOR,
+                    candidate_f1,
+                    TARGET_TRUTH_LOCUS_F1_FLOOR,
+                )
+                add(
+                    f"{cell['panel']}.{cell['benchmark']}."
+                    f"target_truth_{level}_locus_f1_delta",
+                    _number(delta) and delta >= TARGET_TRUTH_DELTA_FLOOR,
+                    delta,
+                    TARGET_TRUTH_DELTA_FLOOR,
+                )
         for label in ("candidate", "reference"):
             observed = absolute.get(label) or {}
             add(
@@ -3473,6 +4041,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--campaign-profile",
+        help=(
+            "load an exact release matrix from campaign_profiles.json; "
+            "mutually exclusive with --campaign-spec"
+        ),
+    )
+    parser.add_argument(
+        "--profile-registry",
+        help="alternate strict campaign profile registry",
+    )
+    parser.add_argument(
         "--diagnostic",
         action="store_true",
         help="allow partial/ad-hoc roots but never emit a release PASS",
@@ -3489,14 +4068,32 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not args.diagnostic and not args.campaign_spec:
-        parser.error("--campaign-spec is required unless --diagnostic is used")
-    if args.diagnostic and args.campaign_spec:
-        parser.error("--campaign-spec cannot be combined with --diagnostic")
-    campaign = (
-        json.loads(Path(args.campaign_spec).read_text())
-        if args.campaign_spec else None
+    campaign_inputs = int(bool(args.campaign_spec)) + int(
+        bool(args.campaign_profile)
     )
+    if not args.diagnostic and campaign_inputs != 1:
+        parser.error(
+            "provide exactly one of --campaign-spec or --campaign-profile "
+            "unless --diagnostic is used"
+        )
+    if args.diagnostic and campaign_inputs:
+        parser.error(
+            "campaign specifications cannot be combined with --diagnostic"
+        )
+    if args.profile_registry and not args.campaign_profile:
+        parser.error("--profile-registry requires --campaign-profile")
+    if args.campaign_spec:
+        campaign = json.loads(Path(args.campaign_spec).read_text())
+    elif args.campaign_profile:
+        campaign = canonical_campaign_spec(
+            profile_id=args.campaign_profile,
+            profile_registry=(
+                Path(args.profile_registry)
+                if args.profile_registry else None
+            ),
+        )
+    else:
+        campaign = None
     result = write_report(
         [Path(root) for root in args.runs_root],
         Path(args.output_dir),

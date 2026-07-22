@@ -12,6 +12,18 @@ import pytest
 from benchmarks.compare import build_controller as controller
 
 
+def test_python_worker_command_disables_repository_bytecode():
+    command = controller._python_worker_command("-m", "example.worker")
+
+    assert command[:3] == [
+        "/usr/bin/env",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "PYTHONNOUSERSITE=1",
+    ]
+    assert command[3:5] == [sys.executable, "-B"]
+    assert command[5:] == ["-m", "example.worker"]
+
+
 def _write_json(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value), encoding="utf-8")
@@ -100,6 +112,7 @@ def _paired_result_fixture(tmp_path: Path, *, panel: str = "subset"):
         configuration=configuration,
         repetition=1,
         input_fingerprints={"ref_gff": input_record},
+        evaluation_input_fingerprints={},
     )
     profiles = {
         "candidate": {
@@ -254,6 +267,7 @@ def _paired_result_fixture(tmp_path: Path, *, panel: str = "subset"):
                 if key != "mtime_ns"
             },
         },
+        "evaluation_inputs": {},
         "versions": versions,
         "ratios": {"wall": 0.5, "peak_rss": 0.5},
     }
@@ -615,14 +629,14 @@ def test_paired_configuration_requires_exact_sources_and_supports_diagnostic_mod
         reference_e2e_mode="safe",
     )
     assert diagnostic["repetitions"] == 3
-    with pytest.raises(ValueError, match="between 1 and 5"):
+    with pytest.raises(ValueError, match="between 1 and 10"):
         controller.paired_configuration(
             stage="paired-e2e",
             candidate_root=tmp_path,
             candidate_sha="a" * 40,
             reference_root=tmp_path,
             reference_sha="b" * 40,
-            repetitions=6,
+            repetitions=11,
             lifton_executable=Path(sys.executable),
             candidate_e2e_mode="fast",
             reference_e2e_mode="safe",
@@ -704,6 +718,9 @@ def test_paired_plan_is_immutable_resumable_and_one_cell_per_repetition(
             }
             for benchmark in benchmark_ids
         },
+        "evaluation_inputs": {
+            benchmark: {} for benchmark in benchmark_ids
+        },
     }
     monkeypatch.setattr(
         controller,
@@ -776,6 +793,9 @@ def test_paired_cell_fingerprint_covers_every_release_execution_contract(
         lambda item: item["command"].append("--different"),
         lambda item: item["paired"]["candidate"].update({"sha": "c" * 40}),
         lambda item: item["input_fingerprints"]["ref_gff"].update({"size": 999}),
+        lambda item: item["evaluation_input_fingerprints"].update({
+            "truth_gff": {"path": "/different", "size": 1, "sha256": "e" * 64},
+        }),
         lambda item: item.update({"expected_order": ["candidate", "reference"]}),
         lambda item: item.update({"panel": "full"}),
         lambda item: item.update({"repetition": 2}),
@@ -808,6 +828,9 @@ def test_plan_integrity_cross_checks_paired_config_inputs_and_order(tmp_path):
                 "configuration": cell["paired"],
                 "sources": {},
                 "inputs": {"demo": cell["input_fingerprints"]},
+                "evaluation_inputs": {
+                    "demo": cell["evaluation_input_fingerprints"],
+                },
             },
         },
         "cells": [cell],
@@ -825,6 +848,16 @@ def test_plan_integrity_cross_checks_paired_config_inputs_and_order(tmp_path):
     changed["cells"][0]["input_fingerprints"]["ref_gff"]["size"] += 1
     _seal_plan(changed)
     with pytest.raises(ValueError, match="input fingerprints"):
+        controller.validate_plan_integrity(changed)
+
+    changed = json.loads(json.dumps(plan))
+    changed["cells"][0]["evaluation_input_fingerprints"]["truth_gff"] = {
+        "path": "/tampered",
+        "size": 1,
+        "sha256": "e" * 64,
+    }
+    _seal_plan(changed)
+    with pytest.raises(ValueError, match="evaluation-input fingerprints"):
         controller.validate_plan_integrity(changed)
 
     changed = json.loads(json.dumps(plan))
@@ -925,6 +958,7 @@ def test_paired_resume_rechecks_source_and_input_provenance(tmp_path, monkeypatc
                 },
             },
         },
+        "evaluation_inputs": {"human_mane": {}},
     }
     expected = controller._add_paired_provenance(base, paired)
     plan = {
@@ -1025,7 +1059,10 @@ def test_paired_input_sha_is_reused_only_when_full_stat_identity_matches(
     plan = {
         "paired": configuration,
         "provenance": {
-            "paired": {"inputs": {"demo": {"ref_gff": record}}},
+            "paired": {
+                "inputs": {"demo": {"ref_gff": record}},
+                "evaluation_inputs": {"demo": {}},
+            },
         },
     }
     monkeypatch.setattr(
@@ -1493,6 +1530,44 @@ def test_paired_result_schema_checks_sources_inputs_profiles_and_outputs(tmp_pat
         assert any(message in error for error in errors), errors
 
 
+def test_paired_result_rejects_tampered_evaluation_input_fingerprint(tmp_path):
+    cell, raw = _paired_result_fixture(tmp_path)
+    truth = tmp_path / "independent.truth.gff3"
+    truth.write_text(
+        "##gff-version 3\n"
+        "chr1\tTruth\tgene\t1\t12\t.\t+\t.\tID=truth\n",
+        encoding="utf-8",
+    )
+    stat = truth.stat()
+    frozen = {
+        "path": str(truth.resolve()),
+        "size": stat.st_size,
+        "sha256": controller.sha256_file(truth),
+        "mtime_ns": stat.st_mtime_ns,
+        "ctime_ns": stat.st_ctime_ns,
+        "st_dev": stat.st_dev,
+        "st_ino": stat.st_ino,
+    }
+    cell["evaluation_input_fingerprints"] = {"truth_gff": frozen}
+    raw["evaluation_inputs"] = {
+        "truth_gff": {
+            key: value for key, value in frozen.items()
+            if key in {"path", "size", "sha256"}
+        },
+    }
+    result = Path(cell["artifacts"]["result_json"])
+    _write_json(result, raw)
+    assert controller.validate_result_schema(cell, result) == []
+
+    raw["evaluation_inputs"]["truth_gff"]["sha256"] = "d" * 64
+    _write_json(result, raw)
+    errors = controller.validate_result_schema(cell, result)
+    assert any(
+        "evaluation input 'truth_gff' hash does not match the plan" in error
+        for error in errors
+    )
+
+
 def test_schema_one_paired_result_and_arm_manifest_are_rejected(tmp_path):
     from benchmarks.compare import release_evaluation
 
@@ -1673,6 +1748,9 @@ def test_deep_reconcile_preserves_sealed_paired_validator_reports(
                 "configuration": cell["paired"],
                 "sources": {},
                 "inputs": {"demo": cell["input_fingerprints"]},
+                "evaluation_inputs": {
+                    "demo": cell["evaluation_input_fingerprints"],
+                },
             },
         },
         "cells": [cell],

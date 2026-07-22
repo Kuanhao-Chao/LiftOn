@@ -89,6 +89,11 @@ class Dataset:
     reference_gff: str
     target_gff: Optional[str] = None
     approx_size_gb: float = 0.0
+    cross_species: bool = False
+    annotation_database: str = "RefSeq"
+    truth_gff: Optional[str] = None
+    ortholog_map: Optional[str] = None
+    truth_id_policy: str = "ortholog-map"
 
 
 @dataclass
@@ -173,6 +178,12 @@ class ProfileResult:
     stdout_path: str
     stderr_path: str
     time_log_path: Optional[str]
+    filesystem_inputs: Optional[int] = None
+    filesystem_outputs: Optional[int] = None
+    major_page_faults: Optional[int] = None
+    minor_page_faults: Optional[int] = None
+    voluntary_context_switches: Optional[int] = None
+    involuntary_context_switches: Optional[int] = None
 
 
 def _platform_time_argv() -> tuple[Optional[list[str]], str]:
@@ -200,6 +211,12 @@ _GNU_KEYS = {
     "User time (seconds)": "user_cpu_seconds",
     "System time (seconds)": "sys_cpu_seconds",
     "Elapsed (wall clock) time (h:mm:ss or m:ss)": "wall_clock_str",
+    "File system inputs": "filesystem_inputs",
+    "File system outputs": "filesystem_outputs",
+    "Major (requiring I/O) page faults": "major_page_faults",
+    "Minor (reclaiming a frame) page faults": "minor_page_faults",
+    "Voluntary context switches": "voluntary_context_switches",
+    "Involuntary context switches": "involuntary_context_switches",
 }
 
 
@@ -230,6 +247,22 @@ def _safe_float(x: Any, default: float) -> float:
         return float(x)
     except (TypeError, ValueError):
         return default
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    """Parse an optional integer emitted by ``time``.
+
+    Resource counters are absent on unsupported platforms and in historical
+    result JSON.  Returning ``None`` preserves that distinction instead of
+    incorrectly reporting an unavailable counter as zero.
+    """
+
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_bsd_time(log: str) -> dict:
@@ -351,6 +384,16 @@ def run_profiled(argv: list[str], *, label: str, log_dir: Path,
         stdout_path=str(out_path),
         stderr_path=str(err_path),
         time_log_path=str(time_path) if time_path else None,
+        filesystem_inputs=_optional_int(parsed.get("filesystem_inputs")),
+        filesystem_outputs=_optional_int(parsed.get("filesystem_outputs")),
+        major_page_faults=_optional_int(parsed.get("major_page_faults")),
+        minor_page_faults=_optional_int(parsed.get("minor_page_faults")),
+        voluntary_context_switches=_optional_int(
+            parsed.get("voluntary_context_switches")
+        ),
+        involuntary_context_switches=_optional_int(
+            parsed.get("involuntary_context_switches")
+        ),
     )
 
 

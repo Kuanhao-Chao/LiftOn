@@ -9,8 +9,8 @@ abstract: >-
   protein-maximization algorithm (chaining + ORF search) plus a miniprot-only
   rescue pass for genes the DNA lift misses entirely.
 type: software
-version: 1.0.9
-date-released: "2026-06-21"
+version: 1.0.10.1
+date-released: "2026-07-22"
 license: GPL-3.0-or-later
 repository-code: "https://github.com/Kuanhao-Chao/LiftOn"
 url: "https://ccb.jhu.edu/lifton/"

@@ -16,6 +16,7 @@ output shape end-to-end.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -91,6 +92,163 @@ class TestNativeUnlocksParallelism:
                         stream=True, inmem=True, threads=threads,
                         native=True, suffix=f"native_t{threads}")
         assert result == baseline
+
+    def test_inmemory_parallel_manifest_reports_parent_materialisation(
+            self, integration_workspace, hermetic_pipeline, monkeypatch):
+        from lifton import lifton_utils
+
+        # The fixture normally supplies -L as a path, which intentionally
+        # bypasses Liftoff's in-memory emitter. Feed the equivalent bytes here
+        # so this regression exercises a genuinely non-reopenable gffbase DB.
+        liftoff_bytes = integration_workspace["liftoff"].read_bytes()
+        monkeypatch.setattr(
+            lifton_utils,
+            "exec_liftoff",
+            lambda _outdir, _ref_db, _args: liftoff_bytes,
+        )
+        _drive(
+            integration_workspace,
+            stream=True,
+            inmem=True,
+            threads=4,
+            native=True,
+            suffix="inmemory_manifest",
+        )
+        manifest = json.loads(
+            (
+                integration_workspace["out"]
+                / "lifton_output"
+                / "run_manifest.json"
+            ).read_text()
+        )
+        backend = manifest["run"]["backend"]
+        assert backend["step7_dispatch"] == (
+            "parallel_parent_materialise_worker_process"
+        )
+        assert "non-reopenable" in backend[
+            "step7_materialisation_constraint"
+        ]
+        assert "step7_parallel_fallback" not in backend
+
+    def test_genuine_fast_path_sources_match_file_backed_baseline(
+            self, integration_workspace, hermetic_pipeline, monkeypatch):
+        """Exercise real blob/direct-DB inputs, not merely their CLI flags.
+
+        The broad matrix supplies ``-L`` and ``-M`` paths so the external-tool
+        short circuit intentionally wins before either fast-path producer can
+        run.  Here the mocked producer boundary returns the same fixture bytes
+        as a Liftoff blob and a gffbase database as streamed miniprot would.
+        This reaches annotation ingestion plus both serial and parallel Step 7
+        while keeping the test hermetic and biologically input-identical.
+        """
+        from lifton import lifton_utils
+        from lifton.gffbase import create_db
+
+        stream_db_path = (
+            integration_workspace["out"] / "miniprot-stream-fixture.duckdb"
+        )
+        stream_db = create_db(
+            str(integration_workspace["miniprot"]),
+            dbfn=str(stream_db_path),
+            force=True,
+            disable_infer_genes=True,
+            disable_infer_transcripts=True,
+            build_rtree=False,
+        )
+        stream_db.conn.execute("CHECKPOINT")
+        stream_db.conn.close()
+
+        liftoff_bytes = integration_workspace["liftoff"].read_bytes()
+        observed_sources = []
+
+        def liftoff_source(_outdir, _ref_db, args):
+            in_memory = bool(args.inmemory_liftoff)
+            observed_sources.append(("liftoff", in_memory))
+            return (
+                liftoff_bytes
+                if in_memory
+                else str(integration_workspace["liftoff"])
+            )
+
+        def miniprot_source(_outdir, args, _target, _proteins):
+            streaming = bool(args.stream)
+            observed_sources.append(("miniprot", streaming))
+            return (
+                str(stream_db_path)
+                if streaming
+                else str(integration_workspace["miniprot"])
+            )
+
+        monkeypatch.setattr(lifton_utils, "exec_liftoff", liftoff_source)
+        monkeypatch.setattr(lifton_utils, "exec_miniprot", miniprot_source)
+
+        baseline = _drive(
+            integration_workspace,
+            stream=False,
+            inmem=False,
+            threads=1,
+            native=False,
+            suffix="genuine_file_baseline",
+        )
+
+        cases = [
+            # Liftoff blob: serial DB semantics and the changed parent-
+            # materialise/worker-process path, with and without native mode.
+            (False, True, 1, False, "inmemory_serial"),
+            (False, True, 4, False, "inmemory_parallel"),
+            (False, True, 4, True, "inmemory_native_parallel"),
+            # Streamed miniprot's production return shape is a direct DuckDB.
+            (True, False, 1, False, "stream_serial"),
+            (True, False, 4, True, "stream_native_parallel"),
+            # Exercise the combined fast path on both dispatch strategies.
+            (True, True, 1, True, "combined_native_serial"),
+            (True, True, 4, True, "combined_native_parallel"),
+        ]
+        for stream, inmem, threads, native, suffix in cases:
+            result = _drive(
+                integration_workspace,
+                stream=stream,
+                inmem=inmem,
+                threads=threads,
+                native=native,
+                suffix=f"genuine_{suffix}",
+            )
+            assert result == baseline, suffix
+
+            manifest = json.loads(
+                (
+                    integration_workspace["out"]
+                    / "lifton_output"
+                    / "run_manifest.json"
+                ).read_text()
+            )
+            backend = manifest["run"]["backend"]
+            assert backend["liftoff_annotation"] == (
+                "gffbase" if inmem else "gffutils"
+            )
+            assert backend["miniprot_annotation"] == (
+                "gffbase" if stream else "gffutils"
+            )
+            if threads == 1:
+                assert backend["step7_dispatch"] == "serial"
+            elif inmem:
+                assert backend["step7_dispatch"] == (
+                    "parallel_parent_materialise_worker_process"
+                )
+                assert "non-reopenable" in backend[
+                    "step7_materialisation_constraint"
+                ]
+            else:
+                assert backend["step7_dispatch"] == (
+                    "parallel_fused_worker_materialise"
+                )
+
+        assert set(observed_sources) == {
+            ("liftoff", False),
+            ("liftoff", True),
+            ("miniprot", False),
+            ("miniprot", True),
+        }
 
 
 # ---------------------------------------------------------------------------

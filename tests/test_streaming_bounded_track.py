@@ -117,8 +117,14 @@ def test_step7_root_scan_is_lazy_and_window_bounded(monkeypatch):
     assert ctx.args._step7_max_inflight_observed == 4
 
 
-def test_nonreopenable_database_uses_true_serial_fallback(monkeypatch):
-    loci = [SimpleNamespace(id=f"g{i}") for i in range(5)]
+def test_nonreopenable_database_parent_materialises_then_fans_out(
+        monkeypatch):
+    loci = [SimpleNamespace(id=f"g{i}") for i in range(20)]
+    main_thread = threading.current_thread().ident
+    first_locus_gate = threading.Event()
+    lock = threading.Lock()
+    observed = {}
+    worker_threads = set()
 
     class Connection:
         def close(self):
@@ -129,32 +135,115 @@ def test_nonreopenable_database_uses_true_serial_fallback(monkeypatch):
         conn = Connection()
 
         def features_of_type(self, _kind):
-            yield from loci
+            raise AssertionError("unsafe root scan used on shared connection")
+
+        def features_of_type_stream_safe(self, _kind):
+            for locus in loci:
+                with lock:
+                    observed["roots"] = observed.get("roots", 0) + 1
+                yield locus
 
     db = DB()
     ctx = _ctx(db)
-    monkeypatch.setattr(
-        parallel, "ThreadPoolExecutor",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("serial fallback created an executor")
-        ),
-    )
-    monkeypatch.setattr(
-        parallel, "process_locus",
-        lambda index, locus, *, ctx: LocusResult(
-            index, locus.id, _Gene(index),
-        ),
-    )
+    ctx.args.step7_max_inflight = 4
+
+    def materialise(index, locus, materialise_ctx):
+        assert threading.current_thread().ident == main_thread
+        assert materialise_ctx.l_feature_db is db
+        with lock:
+            observed["materialised"] = observed.get("materialised", 0) + 1
+        return MaterialisedLocus(index, locus, locus.id)
+
+    def process(payload, worker_ctx):
+        with lock:
+            worker_threads.add(threading.current_thread().ident)
+        if payload.submission_index == 0:
+            assert first_locus_gate.wait(3)
+        delta = worker_ctx.state_journal.finish()
+        return LocusResult(
+            payload.submission_index, payload.locus_id,
+            _Gene(payload.submission_index), delta=delta,
+        )
+
+    monkeypatch.setattr(locus_pipeline, "materialise_locus", materialise)
+    monkeypatch.setattr(locus_pipeline, "process_locus_native", process)
+
+    def release_first():
+        time.sleep(0.1)
+        with lock:
+            observed["window_roots"] = observed.get("roots", 0)
+            observed["window_materialised"] = observed.get("materialised", 0)
+        first_locus_gate.set()
+
+    releaser = threading.Thread(target=release_first)
+    releaser.start()
+    output = io.StringIO()
 
     count = parallel.parallel_step7(
-        ["gene"], db, ctx, io.StringIO(),
+        ["gene"], db, ctx, output,
         {"coding": {}, "non-coding": {}, "other": {}},
-        threads=8, progress_every=0,
+        threads=3, progress_every=0,
+    )
+    releaser.join()
+
+    assert count == len(loci)
+    assert output.getvalue() == "".join(f"{index}\n" for index in range(20))
+    assert observed["window_roots"] == 4
+    assert observed["window_materialised"] == 4
+    assert ctx.args._step7_max_inflight_observed == 4
+    assert ctx.args._step7_parallel_strategy == (
+        "parallel_parent_materialise_worker_process"
+    )
+    assert "non-reopenable" in ctx.args._step7_materialisation_constraint
+    assert not hasattr(ctx.args, "_step7_parallel_fallback_reason")
+    assert main_thread not in worker_threads
+    assert len(worker_threads) >= 2
+
+
+def test_nonreopenable_parent_materialisation_failure_is_isolated(
+        monkeypatch):
+    loci = [SimpleNamespace(id=f"g{i}") for i in range(5)]
+
+    class Connection:
+        def close(self):
+            return None
+
+    class DB:
+        dbfn = ":memory:"
+        conn = Connection()
+
+        def features_of_type_stream_safe(self, _kind):
+            yield from loci
+
+    db = DB()
+    ctx = _ctx(db, window=3)
+
+    def materialise(index, locus, _ctx):
+        if index == 2:
+            raise RuntimeError("injected materialisation failure")
+        return MaterialisedLocus(index, locus, locus.id)
+
+    def process(payload, worker_ctx):
+        delta = worker_ctx.state_journal.finish()
+        return LocusResult(
+            payload.submission_index, payload.locus_id,
+            _Gene(payload.submission_index), delta=delta,
+        )
+
+    monkeypatch.setattr(locus_pipeline, "materialise_locus", materialise)
+    monkeypatch.setattr(locus_pipeline, "process_locus_native", process)
+    output = io.StringIO()
+
+    count = parallel.parallel_step7(
+        ["gene"], db, ctx, output,
+        {"coding": {}, "non-coding": {}, "other": {}},
+        threads=3, progress_every=0,
     )
 
     assert count == len(loci)
-    assert ctx.args._step7_max_inflight_observed == 1
-    assert "non-reopenable" in ctx.args._step7_parallel_fallback_reason
+    assert output.getvalue() == "0\n1\n3\n4\n"
+    assert [record["locus_id"] for record in ctx.failure_records] == ["g2"]
+    assert ctx.args._step7_max_inflight_observed <= 3
 
 
 def test_root_scan_open_failure_closes_factory(monkeypatch):

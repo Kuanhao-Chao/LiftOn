@@ -31,13 +31,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from lifton.gff3_validator import validate_gff3_file
+from lifton.gff3_validator import (
+    validate_gff3_file,
+    validate_gff3_structure,
+    validate_gff3_target_bounds,
+)
 
 from benchmarks import run_benchmarks
 
 from . import devel_refresh
 from . import evaluator
 from . import fourway_compare
+from . import target_truth
 from .profiling import run_profiled
 
 
@@ -45,7 +50,7 @@ HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 DEFAULT_BENCHMARK_REGISTRY = HERE / "benchmarks.json"
 DEFAULT_REFERENCE_SHA = "3739dfc8f73396fccab7d7be0f95e008179cea5d"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DEFAULT_BOOTSTRAP_SEED = 20260717
 DEFAULT_BOOTSTRAP_REPLICATES = 10_000
 E2E_MODE_FEATURES = {
@@ -111,6 +116,8 @@ class PanelInputs:
     transcripts_fa: Path | None = None
     proteins_fa: Path | None = None
     truth_gff: Path | None = None
+    ortholog_map: Path | None = None
+    truth_id_policy: str = "ortholog-map"
 
     def required_paths(self) -> dict[str, Path]:
         paths = {
@@ -126,6 +133,17 @@ class PanelInputs:
         }
         paths.update({name: path for name, path in optional.items() if path is not None})
         return paths
+
+    def evaluation_paths(self) -> dict[str, Path]:
+        """Inputs consumed only after both LiftOn arms have completed."""
+
+        optional = {
+            "truth_gff": self.truth_gff,
+            "ortholog_map": self.ortholog_map,
+        }
+        return {
+            name: path for name, path in optional.items() if path is not None
+        }
 
 
 def _git(root: Path, *arguments: str) -> str:
@@ -466,6 +484,108 @@ def _benchmark_entry(path: Path, benchmark: str) -> dict[str, Any]:
     return dict(matches[0])
 
 
+def _evaluation_input_paths(
+    bench: Mapping[str, Any],
+    registry_path: Path,
+    panel: str | None = None,
+) -> dict[str, Any]:
+    by_panel = bench.get("target_truth_by_panel")
+    if by_panel is not None:
+        if not isinstance(by_panel, Mapping):
+            raise ValueError("target_truth_by_panel must be an object")
+        unknown = set(by_panel) - {"subset", "full", "e2e"}
+        if unknown:
+            raise ValueError(
+                f"target_truth_by_panel has unsupported panel "
+                f"{sorted(unknown)[0]!r}"
+            )
+        if panel is None:
+            raise ValueError(
+                "panel is required when target_truth_by_panel is declared"
+            )
+        if panel not in by_panel:
+            raise ValueError(
+                f"target_truth_by_panel has no exact {panel!r} selection"
+            )
+        truth = by_panel[panel]
+        if not isinstance(truth, Mapping):
+            raise ValueError(
+                f"target_truth_by_panel.{panel} must be an object"
+            )
+        truth_document = truth
+        legacy_values = {}
+    else:
+        truth = bench.get("target_truth")
+        truth_document = truth if isinstance(truth, Mapping) else {}
+        legacy_values = bench
+    values = {
+        "truth_gff": (
+            truth_document.get("gff")
+            or truth_document.get("truth_gff")
+            or legacy_values.get("truth_gff")
+        ),
+        "ortholog_map": (
+            truth_document.get("ortholog_map")
+            or legacy_values.get("ortholog_map")
+        ),
+    }
+    resolved = {}
+    for name, value in values.items():
+        if not value:
+            continue
+        path = Path(str(value)).expanduser()
+        if not path.is_absolute():
+            path = registry_path.parent / path
+        resolved[name] = path.resolve()
+    if "ortholog_map" in resolved and "truth_gff" not in resolved:
+        raise ValueError("ortholog_map requires a target truth GFF3")
+    if "truth_gff" in resolved:
+        policy = str(
+            truth_document.get("id_policy", "ortholog-map")
+        ).strip().lower()
+        if policy not in {"ortholog-map", "exact-id"}:
+            raise ValueError(
+                "target_truth.id_policy must be ortholog-map or exact-id"
+            )
+        if policy == "ortholog-map" and "ortholog_map" not in resolved:
+            raise ValueError(
+                "independent target truth requires a non-empty ortholog_map"
+            )
+        if policy == "exact-id" and "ortholog_map" in resolved:
+            raise ValueError(
+                "exact-id target truth cannot also declare ortholog_map"
+            )
+        resolved["truth_id_policy"] = policy
+    return resolved
+
+
+def _e2e_dataset_asset_path(value: str, benchmark: str) -> Path:
+    """Resolve a local canonical overlay or the legacy download-cache path."""
+
+    parsed = urllib.parse.urlsplit(str(value))
+    if parsed.scheme.lower() == "file":
+        if parsed.netloc not in {"", "localhost"}:
+            raise ValueError(
+                f"{benchmark}: file dataset assets must use a local authority"
+            )
+        if parsed.query or parsed.fragment:
+            raise ValueError(
+                f"{benchmark}: file dataset assets cannot contain a query or "
+                "fragment"
+            )
+        path = Path(urllib.parse.unquote(parsed.path)).expanduser()
+        if not path.is_absolute():
+            raise ValueError(
+                f"{benchmark}: file dataset assets must use an absolute path"
+            )
+        return path.resolve()
+    return (
+        run_benchmarks.DEFAULT_DATA_DIR
+        / benchmark
+        / run_benchmarks._filename_for(str(value))
+    )
+
+
 def resolve_panel_inputs(
     panel: str,
     benchmark: str,
@@ -483,18 +603,51 @@ def resolve_panel_inputs(
         if len(matches) != 1:
             raise ValueError(f"unknown end-to-end dataset: {benchmark}")
         dataset = matches[0]
-        data_dir = run_benchmarks.DEFAULT_DATA_DIR / benchmark
+        truth_gff = (
+            _e2e_dataset_asset_path(dataset.truth_gff, benchmark)
+            if dataset.truth_gff
+            else None
+        )
+        ortholog_map = (
+            _e2e_dataset_asset_path(dataset.ortholog_map, benchmark)
+            if dataset.ortholog_map
+            else None
+        )
+        truth_id_policy = str(dataset.truth_id_policy).strip().lower()
+        if truth_id_policy not in {"ortholog-map", "exact-id"}:
+            raise ValueError(
+                f"{benchmark}: truth_id_policy must be ortholog-map or exact-id"
+            )
+        if ortholog_map is not None and truth_gff is None:
+            raise ValueError(
+                f"{benchmark}: ortholog_map requires an independent truth_gff"
+            )
+        if truth_gff is not None:
+            if truth_id_policy == "ortholog-map" and ortholog_map is None:
+                raise ValueError(
+                    f"{benchmark}: independent E2E target truth requires a "
+                    "non-empty ortholog_map"
+                )
+            if truth_id_policy == "exact-id" and ortholog_map is not None:
+                raise ValueError(
+                    f"{benchmark}: exact-id E2E truth cannot also declare "
+                    "ortholog_map"
+                )
         result = PanelInputs(
             benchmark=benchmark,
             panel=panel,
             species=dataset.species,
-            cross_species=False,
-            annotation_database="RefSeq",
-            ref_fa=data_dir / run_benchmarks._filename_for(dataset.reference_fa),
-            ref_gff=data_dir / run_benchmarks._filename_for(dataset.reference_gff),
-            tgt_fa=data_dir / run_benchmarks._filename_for(dataset.target_fa),
+            cross_species=bool(dataset.cross_species),
+            annotation_database=str(dataset.annotation_database),
+            ref_fa=_e2e_dataset_asset_path(dataset.reference_fa, benchmark),
+            ref_gff=_e2e_dataset_asset_path(dataset.reference_gff, benchmark),
+            tgt_fa=_e2e_dataset_asset_path(dataset.target_fa, benchmark),
+            truth_gff=truth_gff,
+            ortholog_map=ortholog_map,
+            truth_id_policy=truth_id_policy,
         )
         _require_nonempty(result.required_paths())
+        _require_nonempty(result.evaluation_paths())
         return result
 
     benchmark_registry = Path(benchmark_registry).resolve()
@@ -505,6 +658,7 @@ def resolve_panel_inputs(
         "species": str(bench["species"]),
         "cross_species": bool(bench["cross_species"]),
         "annotation_database": str(bench.get("annotation_database", "RefSeq")),
+        **_evaluation_input_paths(bench, benchmark_registry, panel),
     }
     if panel == "subset":
         work = fourway_compare.WORK / benchmark
@@ -535,24 +689,44 @@ def resolve_panel_inputs(
                 "ref_gff": Path(bench["ref_gff"]),
                 "tgt_fa": Path(bench["tgt_genome"]),
             }
-        liftoff_gff, miniprot_gff, transcripts_fa, proteins_fa = (
-            devel_refresh._cached_inputs(benchmark)
-        )
+        full_input_mode = str(
+            bench.get("full_input_mode", "cached")
+        ).strip().lower()
+        if full_input_mode == "cached":
+            liftoff_gff, miniprot_gff, transcripts_fa, proteins_fa = (
+                devel_refresh._cached_inputs(benchmark)
+            )
+        elif full_input_mode == "raw":
+            liftoff_gff = miniprot_gff = None
+            transcripts_fa = proteins_fa = None
+        else:
+            raise ValueError(
+                f"{benchmark}: full_input_mode must be cached or raw"
+            )
         result = PanelInputs(
             **common,
             ref_fa=Path(paths["ref_fa"]),
             ref_gff=Path(paths["ref_gff"]),
             tgt_fa=Path(paths["tgt_fa"]),
-            liftoff_gff=Path(liftoff_gff),
-            miniprot_gff=Path(miniprot_gff),
-            transcripts_fa=Path(transcripts_fa),
-            proteins_fa=Path(proteins_fa),
+            liftoff_gff=(
+                Path(liftoff_gff) if liftoff_gff is not None else None
+            ),
+            miniprot_gff=(
+                Path(miniprot_gff) if miniprot_gff is not None else None
+            ),
+            transcripts_fa=(
+                Path(transcripts_fa) if transcripts_fa is not None else None
+            ),
+            proteins_fa=(
+                Path(proteins_fa) if proteins_fa is not None else None
+            ),
         )
     else:
         raise ValueError(
             f"paired panel must be subset, full, or e2e, not {panel!r}"
         )
     _require_nonempty(result.required_paths())
+    _require_nonempty(result.evaluation_paths())
     return result
 
 
@@ -564,6 +738,19 @@ def input_fingerprints(inputs: PanelInputs) -> dict[str, Any]:
             "sha256": sha256_file(path),
         }
         for name, path in sorted(inputs.required_paths().items())
+    }
+
+
+def evaluation_input_fingerprints(inputs: PanelInputs) -> dict[str, Any]:
+    """Fingerprint truth inputs separately from LiftOn execution inputs."""
+
+    return {
+        name: {
+            "path": str(path.resolve()),
+            "size": path.stat().st_size,
+            "sha256": sha256_file(path),
+        }
+        for name, path in sorted(inputs.evaluation_paths().items())
     }
 
 
@@ -655,23 +842,63 @@ def build_lifton_argv(
     return argv
 
 
-def _validation_document(path: Path) -> dict[str, Any]:
-    result = validate_gff3_file(str(path))
+def _issue_document(issue: Any, validator: str) -> dict[str, Any]:
+    return {
+        "validator": validator,
+        "severity": str(issue.severity),
+        "lineno": issue.lineno,
+        "feature_id": issue.feature_id,
+        "check": issue.check,
+        "message": issue.message,
+    }
+
+
+def _validation_pass_document(result: Any) -> dict[str, Any]:
     return {
         "is_valid": result.is_valid,
-        "stats": dict(sorted(result.stats.items())),
-        "n_errors": len(result.errors),
-        "n_warnings": len(result.warnings),
-        "issues": [
-            {
-                "severity": str(issue.severity),
-                "lineno": issue.lineno,
-                "feature_id": issue.feature_id,
-                "check": issue.check,
-                "message": issue.message,
-            }
-            for issue in result.issues
-        ],
+        "n_errors": result.severity_totals.get(
+            "ERROR", len(result.errors),
+        ),
+        "n_warnings": result.severity_totals.get(
+            "WARNING", len(result.warnings),
+        ),
+        "n_issues_reported": len(result.issues),
+        "issue_totals": dict(sorted(result.issue_totals.items())),
+    }
+
+
+def _validation_document(
+    path: Path,
+    target_fasta: Path | None = None,
+) -> dict[str, Any]:
+    full = validate_gff3_file(str(path))
+    structural = validate_gff3_structure(str(path))
+    passes = {
+        "full_semantic": _validation_pass_document(full),
+        "streaming_structure": _validation_pass_document(structural),
+    }
+    results = (("full_semantic", full), ("streaming_structure", structural))
+    if target_fasta is not None:
+        target_bounds = validate_gff3_target_bounds(
+            str(path), str(target_fasta), strict_sequence_regions=True,
+        )
+        passes["target_fasta_bounds"] = {
+            **_validation_pass_document(target_bounds),
+            "target_fasta": str(target_fasta.resolve()),
+        }
+        results = (*results, ("target_fasta_bounds", target_bounds))
+    issues = [
+        _issue_document(issue, validator)
+        for validator, result in results
+        for issue in result.issues
+    ]
+    return {
+        "is_valid": all(item["is_valid"] for item in passes.values()),
+        "stats": dict(sorted(full.stats.items())),
+        "n_errors": sum(item["n_errors"] for item in passes.values()),
+        "n_warnings": sum(item["n_warnings"] for item in passes.values()),
+        "passes": passes,
+        "issues": issues,
     }
 
 
@@ -766,7 +993,7 @@ def _run_one(
         )
     if not output.is_file() or output.stat().st_size == 0:
         raise RuntimeError(f"{source.label} did not publish a non-empty GFF3")
-    validation = _validation_document(output)
+    validation = _validation_document(output, isolated.tgt_fa)
     if not validation["is_valid"]:
         raise RuntimeError(
             f"{source.label} produced invalid GFF3 with {validation['n_errors']} errors"
@@ -882,7 +1109,12 @@ def _run_e2e_one(
 ) -> tuple[Path, dict[str, Any]]:
     version_dir.mkdir(parents=True, exist_ok=False)
     registry, dataset = _e2e_dataset(inputs.benchmark, dataset_registry)
-    dataset = dataclasses.replace(dataset, target_gff=None)
+    dataset = dataclasses.replace(
+        dataset,
+        target_gff=None,
+        truth_gff=None,
+        ortholog_map=None,
+    )
     dataset_dir = version_dir / "data" / dataset.id
     source_paths = {
         dataset.reference_fa: inputs.ref_fa,
@@ -920,7 +1152,7 @@ def _run_e2e_one(
     output = Path(row["out_gff"])
     if not output.is_file() or output.stat().st_size == 0:
         raise RuntimeError(f"{source.label} did not publish a non-empty GFF3")
-    validation = _validation_document(output)
+    validation = _validation_document(output, inputs.tgt_fa)
     if not validation["is_valid"]:
         raise RuntimeError(
             f"{source.label} produced invalid GFF3 with {validation['n_errors']} errors"
@@ -1060,6 +1292,82 @@ def _score_pair(
             },
         }
 
+    if inputs.truth_gff is not None:
+        truth_path = _isolated_link(
+            inputs.truth_gff,
+            score_root / f"target-truth{''.join(inputs.truth_gff.suffixes)}",
+        )
+        mapping_path = (
+            _isolated_link(
+                inputs.ortholog_map,
+                score_root / (
+                    f"ortholog-map{''.join(inputs.ortholog_map.suffixes)}"
+                ),
+            )
+            if inputs.ortholog_map is not None
+            else None
+        )
+        truth_validation = validate_gff3_target_bounds(
+            str(truth_path), str(isolated_tgt_fa),
+            strict_sequence_regions=True,
+        )
+        if not truth_validation.is_valid:
+            checks = ", ".join(
+                sorted({issue.check for issue in truth_validation.errors})
+            )
+            raise RuntimeError(
+                f"target truth annotation is outside the target FASTA: {checks}"
+            )
+        truth_evidence = {
+            "id_policy": inputs.truth_id_policy,
+            "mapping_required": inputs.truth_id_policy == "ortholog-map",
+            "gff": {
+                "path": str(truth_path.resolve()),
+                "size": truth_path.stat().st_size,
+                "sha256": sha256_file(truth_path),
+            },
+            "ortholog_map": (
+                {
+                    "path": str(mapping_path.resolve()),
+                    "size": mapping_path.stat().st_size,
+                    "sha256": sha256_file(mapping_path),
+                }
+                if mapping_path is not None
+                else None
+            ),
+            "target_bounds_validation": {
+                "is_valid": True,
+                "n_errors": truth_validation.severity_totals.get("ERROR", 0),
+                "n_warnings": truth_validation.severity_totals.get("WARNING", 0),
+                "n_issues_reported": len(truth_validation.issues),
+                "issue_totals": dict(sorted(truth_validation.issue_totals.items())),
+                "stats": dict(sorted(truth_validation.stats.items())),
+                "issues": [
+                    _issue_document(issue, "target_truth_bounds")
+                    for issue in truth_validation.issues
+                ],
+            },
+        }
+        for label, output in outputs.items():
+            metrics = target_truth.score_target_truth(
+                output,
+                truth_path,
+                ortholog_map=mapping_path,
+                source_gff=isolated_ref_gff,
+                id_policy=inputs.truth_id_policy,
+            )
+            metrics_path = target_truth.write_target_truth_metrics(
+                cell_dir / "evaluation" / f"{label}.target_truth.json",
+                metrics,
+            )
+            documents[label]["summary"]["target_truth"] = metrics
+            documents[label]["target_truth_evidence"] = truth_evidence
+            documents[label]["evaluation_artifacts"]["target_truth"] = {
+                "path": str(metrics_path.resolve()),
+                "size": metrics_path.stat().st_size,
+                "sha256": sha256_file(metrics_path),
+            }
+
 
 def run_paired_cell(
     *,
@@ -1078,8 +1386,8 @@ def run_paired_cell(
 ) -> dict[str, Any]:
     """Run one isolated AB/BA repetition and write ``pair_result.json``."""
 
-    if not 1 <= repetition <= 5:
-        raise ValueError("repetition must be between 1 and 5")
+    if not 1 <= repetition <= 10:
+        raise ValueError("repetition must be between 1 and 10")
     if threads < 1:
         raise ValueError("threads must be positive")
     if cell_dir.exists() and any(cell_dir.iterdir()):
@@ -1101,6 +1409,7 @@ def run_paired_cell(
         dataset_registry=dataset_registry,
     )
     inputs_document = input_fingerprints(inputs)
+    evaluation_inputs_document = evaluation_input_fingerprints(inputs)
     outputs: dict[str, Path] = {}
     documents: dict[str, dict[str, Any]] = {}
     for label in selected_order:
@@ -1154,6 +1463,7 @@ def run_paired_cell(
         },
         "provenance": provenance,
         "inputs": inputs_document,
+        "evaluation_inputs": evaluation_inputs_document,
         "versions": documents,
         "ratios": {
             "wall": wall_ratio,
@@ -1242,8 +1552,8 @@ def _positive_int(value: str) -> int:
 
 def _repetition_count(value: str) -> int:
     parsed = _positive_int(value)
-    if parsed > 5:
-        raise argparse.ArgumentTypeError("must be between 1 and 5")
+    if parsed > 10:
+        raise argparse.ArgumentTypeError("must be between 1 and 10")
     return parsed
 
 

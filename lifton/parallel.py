@@ -384,6 +384,17 @@ def parallel_step7(
     state_coordinator = Step7StateCoordinator(
         ctx.ref_features_dict, ctx.tree_dict,
     )
+    # Callers occasionally reuse an argparse namespace across focused runs.
+    # Clear prior runtime diagnostics before recording this dispatch.
+    for marker in (
+        "_step7_parallel_fallback_reason",
+        "_step7_parallel_strategy",
+        "_step7_materialisation_constraint",
+    ):
+        try:
+            delattr(ctx.args, marker)
+        except (AttributeError, TypeError):
+            pass
 
     def _consume_ordered(result, output_handle, stats):
         return consume(
@@ -447,6 +458,7 @@ def parallel_step7(
                 "_step7_max_inflight_observed",
                 1 if processed else 0,
             )
+            setattr(ctx.args, "_step7_parallel_strategy", "serial")
         except Exception:
             pass
         return processed
@@ -474,8 +486,9 @@ def parallel_step7(
     # tests/test_fresh_parallel_step7.py.
     #
     # The fuse applies only when `factory.viable` (DBs on-disk, re-openable
-    # per thread); in-memory/blob backends keep the serial parent-thread
-    # materialise + worker pool. `LIFTON_FUSE_STEP7=0` restores the
+    # per thread). In-memory/blob backends keep every real DB access on the
+    # parent thread, then fan fully materialised payloads out to workers.
+    # `LIFTON_FUSE_STEP7=0` restores the
     # pre-Iteration-10 two-phase prefetcher-pool path (escape hatch + A/B
     # baseline). `LIFTON_FUSE_MAT_CONCURRENCY=k` (default unset) caps how many
     # workers may be inside the materialise half at once (a Semaphore) — the
@@ -486,44 +499,29 @@ def parallel_step7(
     )
     factory = _ThreadLocalCtxFactory(ctx)
     open_root_scan = getattr(factory, "open_root_scan", None)
-    if not factory.viable:
-        reason = getattr(
-            factory, "fallback_reason",
-            "one or more materialisation databases are not reopenable",
-        )
-        try:
-            setattr(ctx.args, "_step7_parallel_fallback_reason", reason)
-        except Exception:
-            pass
-        try:
-            for idx, (_feature, locus) in enumerate(
-                    _iter_loci_serial_safe(features, l_feature_db)):
-                worker_ctx = make_worker_context(
-                    ctx, idx, state_coordinator,
-                )
-                result = process_locus(idx, locus, ctx=worker_ctx)
-                _consume_ordered(result, fw, transcripts_stats_dict)
-                processed = idx + 1
-                if progress_every and processed % progress_every == 0:
-                    progress_stream.write(
-                        f"\r>> LiftOn processed: {processed} features."
-                    )
-        finally:
-            close_factory = getattr(factory, "close", None)
-            if close_factory is not None:
-                close_factory()
-            try:
-                setattr(
-                    ctx.args, "_step7_max_inflight_observed",
-                    1 if processed else 0,
-                )
-            except Exception:
-                pass
-        return processed
     submission = None
     _fuse_enabled = os.environ.get("LIFTON_FUSE_STEP7", "1") != "0"
     fused = _fuse_enabled and factory.viable
     inflight_limit = _step7_inflight_limit(ctx.args, int(threads))
+    if fused:
+        strategy = "parallel_fused_worker_materialise"
+    elif factory.viable:
+        strategy = "parallel_prefetch_worker_materialise"
+    else:
+        strategy = "parallel_parent_materialise_worker_process"
+    try:
+        setattr(ctx.args, "_step7_parallel_strategy", strategy)
+        if not factory.viable:
+            setattr(
+                ctx.args,
+                "_step7_materialisation_constraint",
+                getattr(
+                    factory, "fallback_reason",
+                    "materialisation databases are not reopenable",
+                ),
+            )
+    except Exception:
+        pass
 
     _mat_sema = None
     if fused:
@@ -577,7 +575,8 @@ def parallel_step7(
         # feeds the processing executor through a bounded iterator instead of
         # retaining one full payload and one future per locus.  The on-disk
         # path still uses a separate prefetch pool (the two-pool A/B contract);
-        # in-memory/blob backends materialise on the parent thread.
+        # in-memory/blob backends materialise lazily on the parent thread and
+        # run only fully detached payloads on the processing workers.
         if factory.viable:
             # Phase 17c parallel prefetcher pool. Cap at 4 prefetchers
             # since the marginal gain plateaus (~50-60 % reduction at
@@ -601,21 +600,46 @@ def parallel_step7(
                         inflight_limit,
                     )
         else:
-            # In-memory backends or non-extractable dbfn — serial
-            # parent-thread materialise loop (correct, no prefetch speedup),
-            # also lazy so only the dispatch window owns full payloads.
+            # In-memory backends or non-extractable dbfn: the owning parent
+            # thread is the only code allowed to touch a real DB connection.
+            # Materialisation remains lazy; the bounded map has one vacant
+            # slot while next(source) builds a payload, so materialising +
+            # submitted + completed-but-not-emitted loci never exceed the
+            # configured dispatch window.
             def _payload_items():
                 for idx, (_feature, locus) in submission:
-                    yield materialise_locus(idx, locus, ctx)
+                    try:
+                        yield materialise_locus(idx, locus, ctx)
+                    except Exception as exc:
+                        # Match fused-path failure isolation. Resolving the
+                        # journal here also prevents later workers from
+                        # blocking forever at the ordered state gate.
+                        import traceback as _tb
+                        worker_ctx = make_worker_context(
+                            ctx, idx, state_coordinator,
+                        )
+                        yield LocusResult(
+                            index=idx,
+                            locus_id=getattr(locus, "id", "<unknown>"),
+                            lifton_gene=None,
+                            error=exc,
+                            error_tb=_tb.format_exc(),
+                            delta=worker_ctx.state_journal.finish(),
+                        )
 
         task_items = _payload_items()
 
+        def _process_materialised(payload):
+            if isinstance(payload, LocusResult):
+                return payload
+            worker_ctx = make_worker_context(
+                ctx, payload.submission_index, state_coordinator,
+            )
+            return process_locus_native(payload, worker_ctx)
+
         def _submit_one(executor, payload):
             return executor.submit(
-                process_locus_native, payload,
-                make_worker_context(
-                    ctx, payload.submission_index, state_coordinator,
-                ),
+                _process_materialised, payload,
             )
 
     # Every submitted-but-not-emitted locus counts against the window.  This
@@ -650,11 +674,19 @@ def parallel_step7(
         observed_high_water = max(observed_high_water, value)
 
     try:
-        root_scan_db = (
-            open_root_scan()
-            if open_root_scan is not None else l_feature_db
-        )
-        submission = enumerate(_iter_loci(features, root_scan_db))
+        if factory.viable:
+            root_scan_db = (
+                open_root_scan()
+                if open_root_scan is not None else l_feature_db
+            )
+            root_items = _iter_loci(features, root_scan_db)
+        else:
+            # Hierarchy reads and the root scan share the sole parent-owned
+            # connection. DuckDB's stream-safe keyset scan prevents child
+            # queries from invalidating its active cursor.
+            root_scan_db = l_feature_db
+            root_items = _iter_loci_serial_safe(features, root_scan_db)
+        submission = enumerate(root_items)
         task_source = iter(submission if fused else task_items)
         with ThreadPoolExecutor(max_workers=int(threads)) as executor:
             for result in _ordered_bounded_map(

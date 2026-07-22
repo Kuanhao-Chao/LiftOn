@@ -323,8 +323,8 @@ class TestThreadFanout:
         released by `time.sleep`).
 
         A lightweight reopenable-factory double keeps this test focused on
-        executor fan-out; non-reopenable production databases deliberately
-        use the true serial fallback."""
+        executor fan-out; non-reopenable production databases use a separate
+        parent-materialise/worker-process path."""
         from lifton import run_liftoff
         N = 4
         loci = [SimpleNamespace(id=f"l_{i}", _idx=i) for i in range(N)]

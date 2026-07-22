@@ -347,8 +347,10 @@ def args_optional(parser):
              'not algorithms. As of Iteration 8 this works on the DEFAULT '
              '(gffutils) backend WITHOUT --native — per-locus work runs '
              'against materialised proxy DBs, so any backend is thread-safe '
-             '(set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
-             'serial-on-gffutils). Note: combined with the default '
+             '(non-reopenable/in-memory databases are materialised on the '
+             'parent thread before worker dispatch). '
+             'Set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
+             'serial-on-gffutils. Note: combined with the default '
              'concurrent Step 4, peak busy cores can reach ~N+1.'
     )
     parser.add_argument(
@@ -1242,6 +1244,17 @@ def run_all_lifton_steps(args):
         "step7_max_inflight_observed",
         getattr(args, "_step7_max_inflight_observed", 0),
     )
+    step7_strategy = getattr(args, "_step7_parallel_strategy", None)
+    if step7_strategy:
+        manifest.set_backend_choice("step7_dispatch", step7_strategy)
+    step7_materialisation_constraint = getattr(
+        args, "_step7_materialisation_constraint", None,
+    )
+    if step7_materialisation_constraint:
+        manifest.set_backend_choice(
+            "step7_materialisation_constraint",
+            step7_materialisation_constraint,
+        )
     step7_fallback_reason = getattr(
         args, "_step7_parallel_fallback_reason", None,
     )

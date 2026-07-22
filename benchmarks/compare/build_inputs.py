@@ -23,22 +23,41 @@ from . import subset_builder, tool_runners
 
 HERE = Path(__file__).resolve().parent
 WORK = HERE / "work"
-REG = json.loads((HERE / "benchmarks.json").read_text())
+DEFAULT_REGISTRY = HERE / "benchmarks.json"
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("benchmark", help="benchmark id from benchmarks.json")
     ap.add_argument("-t", "--threads", type=int, default=8)
+    ap.add_argument(
+        "--registry",
+        type=Path,
+        default=DEFAULT_REGISTRY,
+        help="benchmark registry or a verified canonical-v2 overlay",
+    )
+    ap.add_argument(
+        "--work-root",
+        type=Path,
+        default=WORK,
+        help="root for generated subset and standalone-tool caches",
+    )
     ap.add_argument("--no-force", action="store_true",
                     help="reuse cached stages (.done sentinels) instead of rebuilding")
     args = ap.parse_args(argv)
 
-    bench = next((b for b in REG["benchmarks"] if b["id"] == args.benchmark), None)
+    registry = json.loads(args.registry.read_text())
+    bench = next(
+        (
+            b for b in registry["benchmarks"]
+            if isinstance(b, dict) and b.get("id") == args.benchmark
+        ),
+        None,
+    )
     if bench is None:
         ap.error(f"unknown benchmark id {args.benchmark!r}")
-    tools = REG["tools"]
-    work = WORK / args.benchmark
+    tools = registry["tools"]
+    work = args.work_root.resolve() / args.benchmark
     force = not args.no_force
 
     print(f"=== building A/B inputs for {args.benchmark} "

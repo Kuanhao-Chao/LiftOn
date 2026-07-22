@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "scope": "benchmarks",
+  "managed_paths": [
+    "benchmarks/inventory.py",
+    "benchmarks/inventory_rules.json",
+    "benchmarks/manifest_tools.py",
+    "benchmarks/manifests/canonical_v2_datasets.json"
+  ],
+  "output_paths": [
+    "benchmarks/BENCHMARK_INVENTORY.json",
+    "benchmarks/BENCHMARK_INVENTORY.md"
+  ],
+  "ineligible_local_patterns": [
+    "benchmarks/compare/_rerun_fulls/**",
+    "benchmarks/compare/_rescore_fulls/**",
+    "benchmarks/compare/_runs/**",
+    "benchmarks/compare/figure4_outliers/**",
+    "benchmarks/compare/figures/*_rerun/**",
+    "benchmarks/compare/work/**",
+    "benchmarks/logs/**",
+    "benchmarks/results_rerun/**",
+    "benchmarks/compare/*.run.log"
+  ],
+  "frozen_artifacts": {
+    "benchmarks/compare/fourway_results.json": "17144b5c6a55a6336d9266b7757ca9c1b3f9dd4fdb9a55a4dc80cfd991764331"
+  },
+  "families": [
+    {
+      "id": "canonical_release_baseline",
+      "classification": "canonical",
+      "claim_eligible": true,
+      "completion_state": "complete",
+      "description": "Frozen four-way result set and its directly derived report and figures.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/fourway_results.json",
+        "benchmarks/compare/fourway_report.json",
+        "benchmarks/compare/fourway_report.md",
+        "benchmarks/compare/figures/f*.png"
+      ]
+    },
+    {
+      "id": "canonical_registries",
+      "classification": "canonical",
+      "claim_eligible": false,
+      "completion_state": "supporting",
+      "description": "Benchmark, E2E, tier, and subset registries used to construct canonical cells.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/benchmarks.json",
+        "benchmarks/compare/baseline/*.json",
+        "benchmarks/datasets.json",
+        "benchmarks/human_subset.chroms",
+        "benchmarks/tiers.json"
+      ]
+    },
+    {
+      "id": "canonical_release_tooling",
+      "classification": "canonical",
+      "claim_eligible": false,
+      "completion_state": "supporting",
+      "description": "Current deterministic comparison, evaluation, controller, and publication tooling.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/__init__.py",
+        "benchmarks/compare/build_controller.py",
+        "benchmarks/compare/build_inputs.py",
+        "benchmarks/compare/enrich_joint_metrics.py",
+        "benchmarks/compare/evaluator.py",
+        "benchmarks/compare/feature_types.py",
+        "benchmarks/compare/fourway_compare.py",
+        "benchmarks/compare/fourway_report.py",
+        "benchmarks/compare/id_mapping.py",
+        "benchmarks/compare/joint_metrics.py",
+        "benchmarks/compare/release_evaluation.py",
+        "benchmarks/compare/release_report.py",
+        "benchmarks/compare/reporter.py",
+        "benchmarks/compare/run_compare.py",
+        "benchmarks/compare/subset_builder.py",
+        "benchmarks/compare/tool_runners.py",
+        "benchmarks/run_benchmarks.py"
+      ]
+    },
+    {
+      "id": "canonical_v2_provenance",
+      "classification": "canonical",
+      "claim_eligible": false,
+      "completion_state": "supporting",
+      "description": "Deterministic curated-artifact inventory and canonical-v2 dataset acquisition specification.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/canonical_v2_acquisition.py",
+        "benchmarks/compare/campaign_orchestrator.py",
+        "benchmarks/compare/campaign_profiles.json",
+        "benchmarks/compare/campaign_profiles.py",
+        "benchmarks/compare/canonical_v2_coverage.*",
+        "benchmarks/compare/canonical_v3_backlog.json",
+        "benchmarks/compare/ortholog_scope.py",
+        "benchmarks/compare/protocol_analysis.py",
+        "benchmarks/compare/synthetic_truth.py",
+        "benchmarks/compare/target_truth.py",
+        "benchmarks/inventory.py",
+        "benchmarks/inventory_rules.json",
+        "benchmarks/manifest_tools.py",
+        "benchmarks/manifests/canonical_v2_datasets.json"
+      ]
+    },
+    {
+      "id": "canonical_tier_full_results",
+      "classification": "canonical",
+      "claim_eligible": true,
+      "completion_state": "complete",
+      "description": "Completed tier-expansion full-genome result records retained in the frozen v1 profile.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/_full_runs/t1_maize_b73_to_mo17.json",
+        "benchmarks/compare/_full_runs/t1_tomato_microtom_to_heinz.json",
+        "benchmarks/compare/_full_runs/t2_human_to_gorilla.json",
+        "benchmarks/compare/_full_runs/t2_mouse_to_caroli.json",
+        "benchmarks/compare/_full_runs/t2_tomato_to_potato.json",
+        "benchmarks/compare/_full_runs/t3_dog_to_cat.json",
+        "benchmarks/compare/_full_runs/t3_human_to_macaque.json",
+        "benchmarks/compare/_full_runs/t3_human_to_marmoset.json",
+        "benchmarks/compare/_full_runs/t4_drosophila_to_bee.json",
+        "benchmarks/compare/_full_runs/t4_human_to_chicken.json",
+        "benchmarks/compare/_full_runs/t4_human_to_xenopus.json"
+      ]
+    },
+    {
+      "id": "diagnostic_headroom",
+      "classification": "diagnostic",
+      "claim_eligible": false,
+      "completion_state": "complete",
+      "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/chaining_headroom.*",
+        "benchmarks/compare/improvement_headroom.*",
+        "benchmarks/compare/miniprot_only_headroom.*",
+        "benchmarks/compare/miniprot_only_rescue_headroom.*",
+        "benchmarks/compare/orf_best_match_headroom.*",
+        "benchmarks/compare/step8_rescue_headroom.*",
+        "benchmarks/compare/strategy_b_feasibility.*"
+      ]
+    },
+    {
+      "id": "historical_ab_experiments",
+      "classification": "historical",
+      "claim_eligible": false,
+      "completion_state": "superseded",
+      "description": "Completed exploratory performance and accuracy A/B families; preserved but never pooled into canonical-v2.",
+      "superseded_by": "canonical_release_baseline",
+      "patterns": [
+        "benchmarks/compare/adaptive_floor_ab.*",
+        "benchmarks/compare/align_window_ab.*",
+        "benchmarks/compare/chain_sync_feasibility.*",
+        "benchmarks/compare/dbbuild_concurrent_ab.*",
+        "benchmarks/compare/extract_query_collapse_ab.*",
+        "benchmarks/compare/fast_align_ab.*",
+        "benchmarks/compare/frame_gate_ab.*",
+        "benchmarks/compare/frame_gate_xspecies.*",
+        "benchmarks/compare/fresh_parallel_step7_ab.*",
+        "benchmarks/compare/fuse_step7_ab.*",
+        "benchmarks/compare/legacy_merge_ab.*",
+        "benchmarks/compare/lift_gene_like_ab.*",
+        "benchmarks/compare/miniprot_candidate_ab.*",
+        "benchmarks/compare/miniprot_candidate_ladder_ab.*",
+        "benchmarks/compare/miniprot_only_rescue_ab.*",
+        "benchmarks/compare/miniprot_rescue_ab.*",
+        "benchmarks/compare/miniprot_threads_ab.*",
+        "benchmarks/compare/native_liftoff_ab.*",
+        "benchmarks/compare/orf_best_match_ab.*",
+        "benchmarks/compare/parallel_aligners_ab.*",
+        "benchmarks/compare/speed_ab.*",
+        "benchmarks/compare/step8_rescue_ab.*",
+        "benchmarks/compare/structural_rescore*"
+      ]
+    },
+    {
+      "id": "historical_v1_review",
+      "classification": "historical",
+      "claim_eligible": false,
+      "completion_state": "superseded",
+      "description": "Reports, refresh records, external comparisons, and figures supporting earlier technical reviews.",
+      "superseded_by": "canonical_release_baseline",
+      "patterns": [
+        "benchmarks/README.md",
+        "benchmarks/REPRODUCE.md",
+        "benchmarks/compare/IMPROVEMENT_AUDIT.md",
+        "benchmarks/compare/KNOWN_ISSUES.md",
+        "benchmarks/compare/MASTER_COMPARISON_REPORT.md",
+        "benchmarks/compare/MASTER_EXTCOMPARE_REPORT.md",
+        "benchmarks/compare/apply_devel_refresh.py",
+        "benchmarks/compare/blog_figures.py",
+        "benchmarks/compare/coverage_matrix.*",
+        "benchmarks/compare/devel_refresh/*.json",
+        "benchmarks/compare/extcompare*",
+        "benchmarks/compare/figures/blog/*.png",
+        "benchmarks/compare/figures/extcompare/*.png",
+        "benchmarks/compare/figures/report/*.png",
+        "benchmarks/compare/master_report.py",
+        "benchmarks/compare/merge_full_runs.py",
+        "benchmarks/compare/profiling.py",
+        "benchmarks/compare/report_figures.py",
+        "benchmarks/compare/v1_0_8_vs_devel_report.*",
+        "benchmarks/compare/version_compare*",
+        "benchmarks/compare/version_report.py",
+        "benchmarks/tier_expansion.md"
+      ]
+    },
+    {
+      "id": "obsolete_legacy_runners",
+      "classification": "obsolete",
+      "claim_eligible": false,
+      "completion_state": "retired",
+      "description": "Ad-hoc phase, fetch, validity, and shell runners replaced by guarded campaign tooling.",
+      "superseded_by": "canonical_release_tooling",
+      "patterns": [
+        "benchmarks/compare/devel_refresh.py",
+        "benchmarks/compare/expand_distant_pairs.sh",
+        "benchmarks/compare/fetch_new_pairs.py",
+        "benchmarks/compare/liftofftools_wrap.py",
+        "benchmarks/compare/run_optab.py",
+        "benchmarks/compare/run_validity_*.sh",
+        "benchmarks/compare/validity_relift.py",
+        "benchmarks/fetch_tiered.py",
+        "benchmarks/phase*.sh",
+        "benchmarks/register_tiers.py",
+        "benchmarks/run_benchmarks.sh",
+        "benchmarks/run_maize_salvage.sh",
+        "benchmarks/run_tiers_*.sh"
+      ]
+    },
+    {
+      "id": "ineligible_incomplete_soybean",
+      "classification": "ineligible",
+      "claim_eligible": false,
+      "completion_state": "incomplete",
+      "description": "Empty standalone soybean full result produced after the historical Liftoff failure.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/_full_runs/t1_soybean_w82_to_lee.json"
+      ]
+    }
+  ]
+}

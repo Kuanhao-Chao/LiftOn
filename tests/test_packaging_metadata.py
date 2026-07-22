@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import re
+import runpy
 from pathlib import Path
 
 from packaging.requirements import Requirement
@@ -11,6 +13,14 @@ import setuptools
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _package_version() -> tuple[str, str]:
+    text = (ROOT / "lifton" / "__init__.py").read_text(encoding="utf-8")
+    match = re.search(r"__version__\s*=\s*['\"](?P<version>v?[^'\"]+)['\"]", text)
+    assert match is not None
+    cli_version = match.group("version")
+    return cli_version, cli_version.removeprefix("v")
 
 
 def _setup_expression(name: str) -> ast.expr:
@@ -46,6 +56,33 @@ def _pip_environment_requirements() -> dict[str, Requirement]:
         requirement = Requirement(stripped[2:])
         requirements[requirement.name.lower()] = requirement
     return requirements
+
+
+def test_current_release_metadata_matches_package_version():
+    cli_version, package_version = _package_version()
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    docs_config = runpy.run_path(str(ROOT / "docs" / "source" / "conf.py"))
+    badge = f"https://img.shields.io/badge/version-{cli_version}-blue"
+
+    assert re.search(
+        rf"(?m)^version:\s*{re.escape(package_version)}\s*$", citation,
+    )
+    assert re.search(
+        r'(?m)^date-released:\s*["\']2026-07-22["\']\s*$', citation,
+    )
+    assert docs_config["release"] == package_version
+    assert docs_config["version"] == package_version
+    assert badge in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert badge in (ROOT / "docs" / "source" / "index.rst").read_text(
+        encoding="utf-8",
+    )
+    for relative_path in (
+        "docs/source/content/function_manual.rst",
+        "docs/source/content/installation.rst",
+    ):
+        assert f"      {cli_version}\n" in (ROOT / relative_path).read_text(
+            encoding="utf-8",
+        )
 
 
 def test_duckdb_release_exclusions_match_environment():
