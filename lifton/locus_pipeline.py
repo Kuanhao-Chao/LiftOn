@@ -668,9 +668,9 @@ class MaterialisedLocus:
 
     # Phase 17 (option b) — proxy-backed caches. Workers read the per-
     # locus DB-equivalents from these dicts via the proxy classes
-    # above. ``feature_cache`` covers the entire transitive descent
-    # of ``locus`` through ``l_feature_db`` (so the recursion at
-    # ``run_liftoff.process_liftoff:239`` is satisfied locally);
+    # above. ``feature_cache`` follows the same branch descent as
+    # ``run_liftoff.process_liftoff``: containers recurse through
+    # level-1 children, while features with direct exons are terminal;
     # ``ref_attrs_cache`` carries the ref-side ``[id].attributes``
     # lookups; ``miniprot_cache`` carries every ``m_feature_db[m_id]``
     # the chaining algorithm might consult.
@@ -760,44 +760,67 @@ def _walk_and_cache_features_batched(
     feature, ctx: StepContext, payload: MaterialisedLocus,
     loader: HierarchyBatchLoader, *, max_depth: int = 8,
 ) -> None:
-    """Breadth-first hierarchy snapshot using full-feature batch APIs."""
+    """Snapshot exactly the hierarchy branches ``process_liftoff`` reads.
+
+    A feature with direct level-1 exons is transcript-shaped: the runtime
+    consumes its exons and CDS/stop-codon descendants, then stops.  A feature
+    without direct exons is a container: the runtime reads its level-1
+    children and recurses.  Keeping that split here avoids querying every
+    signature for every node and avoids ever placing ordinary exon/CDS leaves
+    on the next frontier.
+    """
     frontier = [feature]
     depth = 0
     while frontier and depth <= max_depth:
         unique = []
+        frontier_ids = set()
         for current in frontier:
             feature_id = getattr(current, "id", None)
-            if feature_id is not None and feature_id not in payload.feature_cache:
+            if (feature_id is not None
+                    and feature_id not in payload.feature_cache
+                    and feature_id not in frontier_ids):
                 unique.append(current)
+                frontier_ids.add(feature_id)
         if not unique:
             return
 
         exon_l1 = loader.children_many(
             unique, featuretype="exon", level=1, order_by="start",
         )
-        children_l1 = loader.children_many(unique, level=1)
-        cds_stop = loader.children_many(
-            unique, featuretype=("CDS", "stop_codon"), order_by="start",
-        )
-        need_full_exons = [
+        containers = [
             current for current in unique
             if not exon_l1.get(getattr(current, "id", current), ())
         ]
-        full_exons = loader.children_many(
-            need_full_exons, featuretype="exon", order_by="start",
-        ) if need_full_exons else {}
+        terminals = [
+            current for current in unique
+            if exon_l1.get(getattr(current, "id", current), ())
+        ]
+        children_l1 = (
+            loader.children_many(containers, level=1) if containers else {}
+        )
+        cds_stop = (
+            loader.children_many(
+                terminals,
+                featuretype=("CDS", "stop_codon"),
+                order_by="start",
+            ) if terminals else {}
+        )
 
         next_frontier = []
         for current in unique:
             feature_id = current.id
             direct_exons = list(exon_l1.get(feature_id, ()))
-            direct_children = list(children_l1.get(feature_id, ()))
+            direct_children = (
+                [] if direct_exons else list(children_l1.get(feature_id, ()))
+            )
             entry = _FeaturePreFetch(
                 feature=current,
                 children_l1=direct_children,
                 exon_children_l1=direct_exons,
-                exon_children_full=(list(direct_exons) if direct_exons else
-                                    list(full_exons.get(feature_id, ()))),
+                # The runtime only asks for the no-level exon form after the
+                # direct-exon branch has succeeded. Standard GFF3 exons are
+                # leaves, so that result is the same ordered list.
+                exon_children_full=list(direct_exons),
                 cds_stop_children=list(cds_stop.get(feature_id, ())),
             )
             payload.feature_cache[feature_id] = entry
@@ -1020,7 +1043,7 @@ def materialise_locus(submission_index: int, locus,
     ``ctx.l_feature_db``, ``ctx.ref_db``, and ``ctx.m_feature_db`` so
     the worker thread is purely CPU + payload reads.
 
-    Phase 17 (option b): walks the locus's transitive descent and
+    Phase 17 (option b): walks the locus's runtime-reachable descent and
     populates ``payload.feature_cache`` (l_feature_db),
     ``payload.ref_attrs_cache`` (ref_db), and
     ``payload.miniprot_cache`` (m_feature_db). The legacy flat fields
@@ -1041,7 +1064,7 @@ def materialise_locus(submission_index: int, locus,
         slots=getattr(ctx.args, "threads", 1),
     )
 
-    # ── Phase 17b: walk + cache the entire l_feature_db tree under locus.
+    # ── Phase 17b: cache the runtime-reachable hierarchy under locus.
     try:
         if hierarchy_loader.batched:
             _walk_and_cache_features_batched(
@@ -1060,18 +1083,29 @@ def materialise_locus(submission_index: int, locus,
         payload.children_l1 = list(locus_entry.children_l1)
         payload.exon_children = list(locus_entry.exon_children_l1)
         payload.cds_stop_children = list(locus_entry.cds_stop_children)
-        # ``cds_children`` (CDS-only, no stop_codon) is a separate
-        # historical query the test suite asserts on; pre-fetch it
-        # explicitly so legacy tests keep passing.
-        try:
-            payload.cds_children = list(hierarchy_loader.children_many(
-                [locus], featuretype="CDS", order_by="start",
-            ).get(locus_id, ()))
-        except Exception as exc:
-            logger.log_warning(
-                f"materialise_locus({locus_id}): cds_children "
-                f"(legacy) failed: {exc}"
-            )
+        if not payload.cds_stop_children:
+            # A container locus no longer performs a redundant all-descendant
+            # CDS query. Reconstruct the legacy flat view from terminal cache
+            # entries; workers use ``feature_cache`` directly.
+            seen_descendants = set()
+            for entry in payload.feature_cache.values():
+                if not entry.exon_children_l1:
+                    continue
+                for descendant in entry.cds_stop_children:
+                    descendant_id = getattr(descendant, "id", None)
+                    identity = (
+                        ("id", descendant_id)
+                        if descendant_id is not None
+                        else ("object", id(descendant))
+                    )
+                    if identity not in seen_descendants:
+                        seen_descendants.add(identity)
+                        payload.cds_stop_children.append(descendant)
+        # Retain the historical field without its separate database query.
+        payload.cds_children = [
+            child for child in payload.cds_stop_children
+            if getattr(child, "featuretype", None) == "CDS"
+        ]
 
     # ── Phase 17b: populate the ref-side cache.
     _populate_ref_attrs_for_descent(payload, ctx)
@@ -1108,10 +1142,11 @@ class _ThreadLocalCtxFactory:
     holding its own DB, the materialise step parallelises and the
     parent-thread serial bottleneck dissolves.
 
-    The factory only constructs a non-trivial path when the DBs in the
-    parent ``ctx`` advertise an on-disk ``dbfn``. For in-memory DBs
-    (gffbase blob path) or DBs without a path the factory is not viable:
-    callers keep materialisation on the owning parent thread, then may
+    On-disk databases are reopened by path. DuckDB-backed in-memory gffbase
+    databases are duplicated with ``DuckDBPyConnection.cursor()``; DuckDB's
+    duplicate connection shares the same in-memory catalog while giving each
+    worker its own query context. Other in-memory/database-shaped objects are
+    not shared: callers keep materialisation on the owning parent thread, then
     safely fan fully detached payloads out to processing workers.
 
     All non-DB ``StepContext`` fields (``ref_features_dict``,
@@ -1141,7 +1176,9 @@ class _ThreadLocalCtxFactory:
             ("liftoff", parent_ctx.l_feature_db, self._l_dbfn),
             ("miniprot", parent_ctx.m_feature_db, self._m_dbfn),
         ):
-            if db is not None and not self._safe_to_share(db) and dbfn is None:
+            if (db is not None and not self._safe_to_share(db)
+                    and dbfn is None
+                    and not self._can_clone_connection(db)):
                 missing.append(label)
         self._fallback_reason = (
             "non-reopenable materialisation database(s): " + ", ".join(missing)
@@ -1178,12 +1215,32 @@ class _ThreadLocalCtxFactory:
             or (not hasattr(db, "conn") and not hasattr(db, "dbfn"))
         )
 
+    @staticmethod
+    def _can_clone_connection(db) -> bool:
+        """Return whether ``db`` can make an independent thread cursor.
+
+        ``duckdb.connect(":memory:")`` cannot be reopened by name: a new
+        connection would point at a different empty catalog.  DuckDB's
+        ``cursor()`` operation instead duplicates the connection while sharing
+        that catalog, which is the supported shape for concurrent Python
+        readers.  Limit this path to gffbase objects so a similarly named
+        method on an arbitrary backend is never treated as a safety promise.
+        """
+        module = type(db).__module__ or ""
+        conn = getattr(db, "conn", None)
+        return (
+            module.startswith("lifton.gffbase")
+            and conn is not None
+            and callable(getattr(conn, "cursor", None))
+        )
+
     @property
     def viable(self) -> bool:
-        """True iff every database read during materialisation can reopen."""
+        """True iff every materialisation DB can reopen or clone per thread."""
         liftoff_reopenable = (
             self._l_dbfn is not None
             or self._safe_to_share(self._parent_ctx.l_feature_db)
+            or self._can_clone_connection(self._parent_ctx.l_feature_db)
         )
         return liftoff_reopenable and self._fallback_reason is None
 
@@ -1193,16 +1250,31 @@ class _ThreadLocalCtxFactory:
 
     @staticmethod
     def _open_thread_db(parent_db, dbfn: Optional[str]):
-        """Open a fresh DB connection for the calling thread. Returns
-        the parent ``parent_db`` unchanged when no path is available,
-        which preserves correctness for in-memory backends (their
-        cross-thread reads are safe — only on-disk SQLite hard-binds
-        connections)."""
+        """Open or clone a DB handle owned by the calling thread.
+
+        Immutable test mappings may be shared. Database-shaped objects must
+        reopen by path or, for gffbase, duplicate their DuckDB connection;
+        the owning parent connection is never handed to a worker.
+        """
         if parent_db is None:
             return None
         if dbfn is None:
             if _ThreadLocalCtxFactory._safe_to_share(parent_db):
                 return parent_db
+            if _ThreadLocalCtxFactory._can_clone_connection(parent_db):
+                duplicate = None
+                try:
+                    duplicate = parent_db.conn.cursor()
+                    return type(parent_db)(duplicate)
+                except Exception as exc:
+                    if duplicate is not None:
+                        try:
+                            duplicate.close()
+                        except Exception:
+                            pass
+                    raise RuntimeError(
+                        "could not clone in-memory gffbase connection"
+                    ) from exc
             raise RuntimeError(
                 "materialisation database is not reopenable; refusing to "
                 "share its parent connection with a worker"
@@ -1331,8 +1403,8 @@ def materialise_locus_with_factory(
     factory, then calls the existing :func:`materialise_locus`
     against the per-thread DB connections. The output payload is
     byte-equivalent to the parent-thread variant by construction —
-    the same ``locus`` queried against the same on-disk SQLite gives
-    the same children + ref attributes."""
+    the same ``locus`` queried against the same on-disk database or shared
+    in-memory DuckDB catalog gives the same children + ref attributes."""
     ctx = factory.get()
     return materialise_locus(submission_index, locus, ctx)
 

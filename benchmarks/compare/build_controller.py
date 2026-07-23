@@ -2209,6 +2209,47 @@ def _validate_paired_result(
             cell, version, label=label,
         ))
 
+    # A same-commit pair is a mode/scheduling qualification, not a version
+    # comparison. LiftOn's I/O and parallel flags promise byte-identical
+    # annotations, so accepting two individually valid but divergent outputs
+    # would hide exactly the class of real-genome regression this canary is
+    # meant to detect.
+    if (
+        configuration["candidate"]["sha"]
+        == configuration["reference"]["sha"]
+        and all(isinstance(versions.get(label), Mapping)
+                for label in ("candidate", "reference"))
+    ):
+        candidate_version = versions["candidate"]
+        reference_version = versions["reference"]
+        candidate_fingerprints = candidate_version.get("fingerprints")
+        reference_fingerprints = reference_version.get("fingerprints")
+        if (isinstance(candidate_fingerprints, Mapping)
+                and isinstance(reference_fingerprints, Mapping)):
+            for field_name in ("byte_sha256", "semantic_sha256"):
+                if candidate_fingerprints.get(field_name) != (
+                    reference_fingerprints.get(field_name)
+                ):
+                    errors.append(
+                        "same-SHA paired outputs disagree on " + field_name
+                    )
+        candidate_evidence = candidate_version.get("evaluation_artifacts")
+        reference_evidence = reference_version.get("evaluation_artifacts")
+        candidate_tsv = (
+            candidate_evidence.get("transcripts_tsv")
+            if isinstance(candidate_evidence, Mapping) else None
+        )
+        reference_tsv = (
+            reference_evidence.get("transcripts_tsv")
+            if isinstance(reference_evidence, Mapping) else None
+        )
+        if (isinstance(candidate_tsv, Mapping)
+                and isinstance(reference_tsv, Mapping)
+                and candidate_tsv.get("sha256") != reference_tsv.get("sha256")):
+            errors.append(
+                "same-SHA paired neutral-evaluator TSVs disagree"
+            )
+
     ratios = raw.get("ratios")
     if not isinstance(ratios, Mapping):
         errors.append("paired result ratios are missing or not an object")

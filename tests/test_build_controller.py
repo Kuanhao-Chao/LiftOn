@@ -276,6 +276,33 @@ def _paired_result_fixture(tmp_path: Path, *, panel: str = "subset"):
     return cell, raw
 
 
+def test_same_sha_paired_result_requires_cross_mode_equivalence(tmp_path):
+    cell, raw = _paired_result_fixture(tmp_path, panel="e2e")
+    shared_sha = cell["paired"]["reference"]["sha"]
+    cell["paired"]["candidate"]["sha"] = shared_sha
+    raw["provenance"]["candidate"]["sha"] = shared_sha
+    raw["versions"]["candidate"]["source"]["sha"] = shared_sha
+
+    errors = controller._validate_paired_result(cell, raw)
+
+    assert "same-SHA paired outputs disagree on byte_sha256" in errors
+    assert "same-SHA paired outputs disagree on semantic_sha256" in errors
+    assert "same-SHA paired neutral-evaluator TSVs disagree" in errors
+
+    raw["versions"]["candidate"]["fingerprints"] = dict(
+        raw["versions"]["reference"]["fingerprints"]
+    )
+    raw["versions"]["candidate"]["evaluation_artifacts"][
+        "transcripts_tsv"
+    ]["sha256"] = raw["versions"]["reference"]["evaluation_artifacts"][
+        "transcripts_tsv"
+    ]["sha256"]
+
+    errors = controller._validate_paired_result(cell, raw)
+
+    assert not any(error.startswith("same-SHA paired") for error in errors)
+
+
 def _seal_plan(plan) -> None:
     provenance = plan["provenance"]
     provenance["fingerprint"] = controller.canonical_hash({
