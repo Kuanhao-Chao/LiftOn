@@ -7,6 +7,7 @@ from intervaltree import Interval, IntervalTree
 
 from lifton import lifton_class, miniprot_pipeline
 from lifton import run_miniprot
+from lifton.gffbase import create_db as create_gffbase_db
 from lifton.locus_pipeline import DeferredStateJournal, commit_locus_delta
 
 
@@ -197,8 +198,242 @@ def test_overlapped_worker_failure_matches_serial_skip(monkeypatch):
     assert outcome.processed == 1
     assert outcome.emitted == 0
     assert outcome.failures == []
+    assert outcome.preoverlap_elided == 1
+    assert outcome.analysis_submitted == 0
     assert output == ""
     assert score == ""
+
+
+def test_static_overlap_elides_materialization_and_analysis(monkeypatch):
+    transcript = _transcript("redundant", 1)
+    tree = {"chr1": IntervalTree([Interval(1, 21, "existing")])}
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("static overlap reached candidate work")
+
+    monkeypatch.setattr(
+        miniprot_pipeline, "materialize_miniprot_payload", forbidden,
+    )
+    monkeypatch.setattr(
+        miniprot_pipeline, "analyze_miniprot_candidate", forbidden,
+    )
+    outcome = miniprot_pipeline.parallel_step8(
+        [transcript],
+        object(),
+        object(),
+        tree,
+        object(),
+        {},
+        {},
+        {},
+        StringIO(),
+        StringIO(),
+        {"coding": {}, "non-coding": {}, "other": {}},
+        {},
+        {},
+        {},
+        {},
+        SimpleNamespace(overlap=0.1),
+        threads=2,
+        max_inflight=2,
+    )
+
+    assert outcome.processed == 1
+    assert outcome.emitted == 0
+    assert outcome.failures == []
+    assert outcome.preoverlap_elided == 1
+    assert outcome.analysis_submitted == 0
+    assert outcome.processed == (
+        outcome.preoverlap_elided + outcome.analysis_submitted
+    )
+    assert outcome.child_batch_calls == 0
+    assert outcome.child_scalar_materializations == 0
+
+
+def test_parent_rechecks_residual_after_earlier_step8_commit(monkeypatch):
+    first = _transcript("mp1", 1)
+    second = _transcript("mp2", 1)
+    analyses = [
+        miniprot_pipeline.MiniprotAnalysis(
+            0, first, _Gene("gene", "tx"), "tx\tfirst\n",
+        ),
+        miniprot_pipeline.MiniprotAnalysis(
+            1, second, _Gene("gene", "tx"), "tx\tsecond\n",
+        ),
+    ]
+
+    outcome, output, score, ref_features = _run(monkeypatch, analyses)
+
+    assert output == "gene\ttx\n"
+    assert score == "tx\tfirst\n"
+    assert outcome.processed == 2
+    assert outcome.emitted == 1
+    assert outcome.preoverlap_elided == 0
+    assert outcome.analysis_submitted == 2
+    assert outcome.processed == (
+        outcome.preoverlap_elided + outcome.analysis_submitted
+    )
+    assert ref_features["gene"].copy_num == 1
+
+
+def test_residual_children_are_batched_within_inflight_window(monkeypatch):
+    transcripts = [
+        _transcript(f"mp{index}", index * 100 + 1)
+        for index in range(5)
+    ]
+
+    class BatchedChildren:
+        def __init__(self):
+            self.batch_calls = []
+            self.scalar_calls = []
+
+        def children_batched_features(
+                self, anchors, *, featuretype=None, level=None,
+                order_by=None):
+            anchors = tuple(anchors)
+            self.batch_calls.append(
+                (anchors, featuretype, level, order_by)
+            )
+            return {
+                anchor: (
+                    SimpleNamespace(
+                        id=f"{anchor}-cds",
+                        featuretype="CDS",
+                        start=index * 100 + 1,
+                        end=index * 100 + 20,
+                        attributes={"ID": [f"{anchor}-cds"]},
+                    ),
+                )
+                for index, anchor in enumerate(anchors)
+            }
+
+        def children(self, transcript, **_kwargs):
+            self.scalar_calls.append(transcript.id)
+            return iter(())
+
+    database = BatchedChildren()
+    observed_children = {}
+
+    def fake_analyze(payload, **_kwargs):
+        observed_children[payload.index] = tuple(
+            child.id for child in payload.children
+        )
+        return miniprot_pipeline.MiniprotAnalysis(
+            payload.index, payload.transcript,
+        )
+
+    monkeypatch.setattr(
+        miniprot_pipeline, "analyze_miniprot_candidate", fake_analyze,
+    )
+    tree = {
+        "chr1": IntervalTree([
+            Interval(101, 121, "existing-1"),
+            Interval(301, 321, "existing-3"),
+        ])
+    }
+    outcome = miniprot_pipeline.parallel_step8(
+        transcripts,
+        SimpleNamespace(db_connection={}),
+        database,
+        tree,
+        object(),
+        {},
+        {},
+        {},
+        StringIO(),
+        StringIO(),
+        {"coding": {}, "non-coding": {}, "other": {}},
+        {},
+        {},
+        {},
+        {},
+        SimpleNamespace(overlap=0.1),
+        threads=2,
+        max_inflight=2,
+    )
+
+    assert [
+        call[0] for call in database.batch_calls
+    ] == [("mp0",), ("mp2",), ("mp4",)]
+    assert all(
+        featuretype == ("CDS", "stop_codon")
+        and level is None
+        and order_by == "start"
+        for _anchors, featuretype, level, order_by in database.batch_calls
+    )
+    assert database.scalar_calls == []
+    assert observed_children == {
+        index: (f"mp{index}-cds",) for index in (0, 2, 4)
+    }
+    assert outcome.processed == 5
+    assert outcome.preoverlap_elided == 2
+    assert outcome.analysis_submitted == 3
+    assert outcome.processed == (
+        outcome.preoverlap_elided + outcome.analysis_submitted
+    )
+    assert outcome.child_batch_calls == 3
+    assert outcome.child_batch_fallbacks == 0
+    assert outcome.child_scalar_materializations == 0
+    assert outcome.max_inflight_observed <= 2
+
+
+def test_batch_failure_falls_back_and_isolates_candidate_error():
+    transcripts = [
+        _transcript("good", 1),
+        _transcript("bad", 101),
+        _transcript("later", 201),
+    ]
+
+    class BrokenBatch:
+        def __init__(self):
+            self.batch_calls = 0
+            self.scalar_calls = []
+
+        def children_batched_features(self, *_args, **_kwargs):
+            self.batch_calls += 1
+            raise RuntimeError("batch unavailable")
+
+        def children(self, transcript, **_kwargs):
+            self.scalar_calls.append(transcript.id)
+            if transcript.id == "bad":
+                raise RuntimeError("malformed hierarchy")
+            return iter(())
+
+    database = BrokenBatch()
+    outcome = miniprot_pipeline.parallel_step8(
+        transcripts,
+        SimpleNamespace(db_connection={}),
+        database,
+        {},
+        object(),
+        {},
+        {},
+        {},
+        StringIO(),
+        StringIO(),
+        {"coding": {}, "non-coding": {}, "other": {}},
+        {},
+        {},
+        {},
+        {},
+        SimpleNamespace(overlap=0.1),
+        threads=2,
+        max_inflight=3,
+    )
+
+    assert database.batch_calls == 1
+    assert database.scalar_calls == ["good", "bad", "later"]
+    assert outcome.processed == 3
+    assert outcome.analysis_submitted == 3
+    assert outcome.processed == (
+        outcome.preoverlap_elided + outcome.analysis_submitted
+    )
+    assert outcome.child_batch_calls == 1
+    assert outcome.child_batch_fallbacks == 1
+    assert outcome.child_scalar_materializations == 3
+    assert len(outcome.failures) == 1
+    assert outcome.failures[0]["mRNA"] == "bad"
+    assert "malformed hierarchy" in outcome.failures[0]["message"]
 
 
 def test_materialization_failure_becomes_ordered_candidate_error():
@@ -234,17 +469,29 @@ def _db(rows):
     )
 
 
+def _gffbase_db(rows):
+    return create_gffbase_db(
+        "##gff-version 3\n" + "\n".join(rows) + "\n",
+        ":memory:",
+        from_string=True,
+        force=True,
+        build_rtree=False,
+    )
+
+
 def test_real_candidate_proxy_matches_serial_finalize(monkeypatch):
     ref_db = _db([
         "chr1\tref\tgene\t1\t90\t.\t+\t.\tID=gene;gene_biotype=protein_coding",
         "chr1\tref\tmRNA\t1\t90\t.\t+\t.\tID=tx;Parent=gene",
     ])
-    miniprot_db = _db([
+    miniprot_rows = [
         "chr1\tminiprot\tmRNA\t101\t190\t.\t+\t.\tID=mp1",
         "chr1\tminiprot\tCDS\t101\t190\t.\t+\t0\tID=cds1;Parent=mp1",
         "chr1\tminiprot\tmRNA\t301\t390\t.\t+\t.\tID=mp2",
         "chr1\tminiprot\tCDS\t301\t390\t.\t+\t0\tID=cds2;Parent=mp2",
-    ])
+    ]
+    miniprot_db = _db(miniprot_rows)
+    parallel_miniprot_db = _gffbase_db(miniprot_rows)
     args = SimpleNamespace(
         overlap=0.1,
         min_miniprot=0.5,
@@ -305,9 +552,9 @@ def test_real_candidate_proxy_matches_serial_finalize(monkeypatch):
     parallel_stats = {"coding": {}, "non-coding": {}, "other": {}}
     ref_features = {"gene": lifton_class.Lifton_feature("gene")}
     outcome = miniprot_pipeline.parallel_step8(
-        miniprot_db.features_of_type("mRNA"),
+        parallel_miniprot_db.features_of_type("mRNA"),
         SimpleNamespace(db_connection=ref_db),
-        miniprot_db,
+        parallel_miniprot_db,
         {},
         object(),
         {"tx": "M"},
@@ -327,6 +574,12 @@ def test_real_candidate_proxy_matches_serial_finalize(monkeypatch):
 
     assert outcome.failures == []
     assert outcome.emitted == 2
+    assert outcome.processed == (
+        outcome.preoverlap_elided + outcome.analysis_submitted
+    )
+    assert outcome.child_batch_calls == 1
+    assert outcome.child_batch_fallbacks == 0
+    assert outcome.child_scalar_materializations == 0
     assert parallel_output.getvalue() == serial_output
     assert parallel_score.getvalue() == serial_score
     assert parallel_stats == serial_stats

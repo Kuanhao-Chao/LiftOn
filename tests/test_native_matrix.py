@@ -221,6 +221,7 @@ class TestNativeUnlocksParallelism:
                 ).read_text()
             )
             backend = manifest["run"]["backend"]
+            counts = manifest["counts"]
             assert backend["liftoff_annotation"] == (
                 "gffbase" if inmem else "gffutils"
             )
@@ -229,11 +230,25 @@ class TestNativeUnlocksParallelism:
             )
             if threads == 1:
                 assert backend["step7_dispatch"] == "serial"
+                assert backend["step8_dispatch"] == "serial"
+                assert backend["step8_overlap_filter"] == "in_process"
             else:
                 assert backend["step7_dispatch"] == (
                     "parallel_fused_worker_materialise"
                 )
                 assert "step7_materialisation_constraint" not in backend
+                assert backend["step8_dispatch"] == (
+                    "parallel_batched_parent_materialise"
+                    if stream
+                    else "parallel_scalar_parent_materialise"
+                )
+                assert backend["step8_overlap_filter"] == (
+                    "monotonic_precheck_ordered_recheck"
+                )
+            assert counts["miniprot_candidates_processed"] == (
+                counts["miniprot_candidates_pre_overlap_elided"]
+                + counts["miniprot_candidates_submitted_for_analysis"]
+            )
 
         assert set(observed_sources) == {
             ("liftoff", False),
