@@ -93,13 +93,13 @@ class TestNativeUnlocksParallelism:
                         native=True, suffix=f"native_t{threads}")
         assert result == baseline
 
-    def test_inmemory_parallel_manifest_reports_parent_materialisation(
+    def test_inmemory_parallel_manifest_reports_cloned_fused_materialisation(
             self, integration_workspace, hermetic_pipeline, monkeypatch):
         from lifton import lifton_utils
 
         # The fixture normally supplies -L as a path, which intentionally
         # bypasses Liftoff's in-memory emitter. Feed the equivalent bytes here
-        # so this regression exercises a genuinely non-reopenable gffbase DB.
+        # so this regression exercises the cursor-cloned in-memory gffbase DB.
         liftoff_bytes = integration_workspace["liftoff"].read_bytes()
         monkeypatch.setattr(
             lifton_utils,
@@ -123,11 +123,9 @@ class TestNativeUnlocksParallelism:
         )
         backend = manifest["run"]["backend"]
         assert backend["step7_dispatch"] == (
-            "parallel_parent_materialise_worker_process"
+            "parallel_fused_worker_materialise"
         )
-        assert "non-reopenable" in backend[
-            "step7_materialisation_constraint"
-        ]
+        assert "step7_materialisation_constraint" not in backend
         assert "step7_parallel_fallback" not in backend
 
     def test_genuine_fast_path_sources_match_file_backed_baseline(
@@ -192,8 +190,8 @@ class TestNativeUnlocksParallelism:
         )
 
         cases = [
-            # Liftoff blob: serial DB semantics and the changed parent-
-            # materialise/worker-process path, with and without native mode.
+            # Liftoff blob: serial semantics at t1 and cursor-cloned fused
+            # materialise/process workers at t4, with/without native mode.
             (False, True, 1, False, "inmemory_serial"),
             (False, True, 4, False, "inmemory_parallel"),
             (False, True, 4, True, "inmemory_native_parallel"),
@@ -231,17 +229,11 @@ class TestNativeUnlocksParallelism:
             )
             if threads == 1:
                 assert backend["step7_dispatch"] == "serial"
-            elif inmem:
-                assert backend["step7_dispatch"] == (
-                    "parallel_parent_materialise_worker_process"
-                )
-                assert "non-reopenable" in backend[
-                    "step7_materialisation_constraint"
-                ]
             else:
                 assert backend["step7_dispatch"] == (
                     "parallel_fused_worker_materialise"
                 )
+                assert "step7_materialisation_constraint" not in backend
 
         assert set(observed_sources) == {
             ("liftoff", False),

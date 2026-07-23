@@ -1274,7 +1274,13 @@ class FeatureDB:
     @staticmethod
     def _order_clause_qualified(order_by, reverse, qualifier):
         if order_by is None:
-            col = f"{qualifier}.file_order"
+            # gffutils relation queries are backed by their relation/feature
+            # indexes and return equal-depth children in feature-ID order
+            # when callers do not request an order.  Real RefSeq loci often
+            # contain sibling transcripts with identical starts, so using
+            # ingest order here changes whole transcript blocks between the
+            # gffutils and gffbase paths.
+            col = f"{qualifier}.id"
         elif order_by == "length":
             col = f'({qualifier}."end" - {qualifier}.start)'
         elif order_by in {
@@ -1287,7 +1293,10 @@ class FeatureDB:
         direction = "DESC" if reverse else "ASC"
         clause = f"{col} {direction}"
         if order_by is not None and order_by != "file_order":
-            clause += f", {qualifier}.file_order ASC"
+            # SQLite/gffutils resolves equal requested keys by feature ID,
+            # independent of the primary direction. Make that compatibility
+            # contract deterministic instead of inheriting DuckDB join order.
+            clause += f", {qualifier}.id ASC"
         return clause
 
     # ------------------------------------------------------------------

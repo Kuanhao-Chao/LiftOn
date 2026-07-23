@@ -127,6 +127,7 @@ class _OrderedWriter:
             self.progress_stream.write(
                 f"\r>> LiftOn processed: {self.next_to_emit} features."
             )
+            self.progress_stream.flush()
 
     def offer(self, result: LocusResult) -> None:
         heapq.heappush(self.pending, (result.index, result))
@@ -452,6 +453,7 @@ def parallel_step7(
                 progress_stream.write(
                     f"\r>> LiftOn processed: {processed} features."
                 )
+                progress_stream.flush()
         try:
             setattr(
                 ctx.args,
@@ -479,15 +481,16 @@ def parallel_step7(
     # `max(T_materialise, T_process)`.
     #
     # Byte-identity carries through unchanged: the fused worker builds the
-    # SAME `MaterialisedLocus` payload (same locus, same on-disk DB,
+    # SAME `MaterialisedLocus` payload (same locus, same database catalog,
     # `order_by='start'`) the prefetcher pool built, and runs the SAME
     # `process_locus_native`; only the SCHEDULING changes. Pinned by the
-    # 24-cell matrix (its on-disk gffutils cells take the fused path) +
-    # tests/test_fresh_parallel_step7.py.
+    # 24-cell matrix (both reopened gffutils and cursor-cloned in-memory
+    # gffbase cells take the fused path) + tests/test_fresh_parallel_step7.py.
     #
-    # The fuse applies only when `factory.viable` (DBs on-disk, re-openable
-    # per thread). In-memory/blob backends keep every real DB access on the
-    # parent thread, then fan fully materialised payloads out to workers.
+    # The fuse applies only when `factory.viable`: databases must either be
+    # reopenable by path or support independent thread-local cursors. Other
+    # in-memory/blob backends keep every real DB access on the parent thread,
+    # then fan fully materialised payloads out to workers.
     # `LIFTON_FUSE_STEP7=0` restores the
     # pre-Iteration-10 two-phase prefetcher-pool path (escape hatch + A/B
     # baseline). `LIFTON_FUSE_MAT_CONCURRENCY=k` (default unset) caps how many
@@ -573,10 +576,10 @@ def parallel_step7(
     else:
         # Non-fused: materialisation remains a distinct stage, but it now
         # feeds the processing executor through a bounded iterator instead of
-        # retaining one full payload and one future per locus.  The on-disk
-        # path still uses a separate prefetch pool (the two-pool A/B contract);
-        # in-memory/blob backends materialise lazily on the parent thread and
-        # run only fully detached payloads on the processing workers.
+        # retaining one full payload and one future per locus. Reopenable and
+        # cursor-cloneable paths use a separate prefetch pool (the two-pool A/B
+        # contract); non-cloneable in-memory/blob backends materialise lazily
+        # on the parent thread and run only fully detached payloads on workers.
         if factory.viable:
             # Phase 17c parallel prefetcher pool. Cap at 4 prefetchers
             # since the marginal gain plateaus (~50-60 % reduction at

@@ -6,6 +6,7 @@ import io
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -353,6 +354,105 @@ def test_thread_local_factory_closes_partial_reopens_on_failure(tmp_path):
     assert DB.opened[0].conn.closed is True
 
 
+def test_thread_local_factory_clones_inmemory_gffbase_connections():
+    text = (
+        "##gff-version 3\n"
+        "chr1\tx\tgene\t1\t100\t.\t+\t.\tID=g1\n"
+        "chr1\tx\tmRNA\t1\t100\t.\t+\t.\tID=t2;Parent=g1\n"
+        "chr1\tx\tmRNA\t1\t90\t.\t+\t.\tID=t1;Parent=g1\n"
+    )
+    parent = create_db(
+        text, ":memory:", from_string=True, force=True, build_rtree=False,
+    )
+    ctx = _ctx(parent)
+    ctx.ref_db = parent
+    factory = locus_pipeline._ThreadLocalCtxFactory(ctx)
+
+    assert factory.viable is True
+    root_scan = factory.open_root_scan()
+    worker_ctx = factory.get()
+    assert root_scan is not parent
+    assert worker_ctx.l_feature_db is not parent
+    assert worker_ctx.ref_db is not parent
+    assert [feature.id for feature in root_scan.features_of_type("gene")] == [
+        "g1",
+    ]
+    assert [
+        feature.id for feature in worker_ctx.l_feature_db.children(
+            "g1", level=1, order_by="start",
+        )
+    ] == ["t1", "t2"]
+
+    factory.close()
+    factory.close_root_scan(root_scan)
+    # Closing every duplicate must leave the owner usable.
+    assert parent.count_features_of_type("gene") == 1
+
+
+def test_thread_local_factory_clones_inmemory_gffbase_concurrently():
+    records = ["##gff-version 3\n"]
+    for index in range(32):
+        start = index * 100 + 1
+        end = start + 89
+        records.extend([
+            f"chr1\tx\tgene\t{start}\t{end}\t.\t+\t.\tID=g{index}\n",
+            f"chr1\tx\tmRNA\t{start}\t{end}\t.\t+\t.\t"
+            f"ID=t{index}b;Parent=g{index}\n",
+            f"chr1\tx\tmRNA\t{start}\t{end}\t.\t+\t.\t"
+            f"ID=t{index}a;Parent=g{index}\n",
+        ])
+    parent = create_db(
+        "".join(records), ":memory:", from_string=True, force=True,
+        build_rtree=False,
+    )
+    factory = locus_pipeline._ThreadLocalCtxFactory(_ctx(parent))
+    worker_count = 8
+    before_open = threading.Barrier(worker_count)
+    before_query = threading.Barrier(worker_count)
+
+    def inspect_gene_group(group):
+        # Force connection duplication and queries to overlap across every
+        # worker, rather than letting a tiny fixture reuse one pool thread.
+        before_open.wait(timeout=10)
+        worker_ctx = factory.get()
+        before_query.wait(timeout=10)
+        observed = []
+        for gene_id in group:
+            observed.append((
+                gene_id,
+                tuple(feature.id for feature in
+                      worker_ctx.l_feature_db.children(
+                          gene_id, level=1, order_by="start",
+                      )),
+            ))
+        return (
+            threading.get_ident(), id(worker_ctx.l_feature_db), observed,
+        )
+
+    groups = [
+        [f"g{index}" for index in range(offset, 32, worker_count)]
+        for offset in range(worker_count)
+    ]
+    try:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(inspect_gene_group, group)
+                       for group in groups]
+            results = [future.result(timeout=20) for future in futures]
+    finally:
+        factory.close()
+
+    assert len({thread_id for thread_id, _db_id, _rows in results}) == (
+        worker_count
+    )
+    assert len({db_id for _thread_id, db_id, _rows in results}) == worker_count
+    for _thread_id, _db_id, rows in results:
+        for gene_id, child_ids in rows:
+            index = gene_id.removeprefix("g")
+            assert child_ids == (f"t{index}a", f"t{index}b")
+    # Closing every worker duplicate must leave the owner catalog usable.
+    assert parent.count_features_of_type("gene") == 32
+
+
 def test_full_feature_batches_match_scalar_hierarchy():
     text = (
         "##gff-version 3\n"
@@ -383,13 +483,13 @@ def test_full_feature_batches_match_scalar_hierarchy():
         ]
 
 
-def test_hierarchy_order_by_start_preserves_file_order_for_ties():
+def test_hierarchy_order_by_start_uses_gffutils_id_tiebreaker():
     text = (
         "##gff-version 3\n"
         "chr1\tmp\tmRNA\t1\t100\t.\t-\t.\tID=MP1\n"
-        "chr1\tmp\tCDS\t10\t30\t.\t-\t2\tID=cds;Parent=MP1\n"
         "chr1\tmp\tstop_codon\t10\t12\t.\t-\t0\t"
         "ID=stop;Parent=MP1\n"
+        "chr1\tmp\tCDS\t10\t30\t.\t-\t2\tID=cds;Parent=MP1\n"
         "chr1\tmp\tCDS\t20\t40\t.\t-\t0\tID=later;Parent=MP1\n"
     )
     db = create_db(
