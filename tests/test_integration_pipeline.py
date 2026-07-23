@@ -266,6 +266,13 @@ def test_run_all_lifton_steps_golden_path(integration_workspace,
     assert manifest["counts"]["miniprot_candidates_processed"] == 1
     assert manifest["counts"]["miniprot_genes_emitted"] == 0
     assert manifest["counts"]["step8_max_inflight_observed"] == 1
+    assert manifest["counts"]["miniprot_candidates_pre_overlap_elided"] == 0
+    assert manifest["counts"]["miniprot_candidates_submitted_for_analysis"] == 1
+    assert manifest["counts"]["step8_child_batch_calls"] == 0
+    assert manifest["counts"]["step8_child_batch_fallbacks"] == 0
+    assert manifest["counts"]["step8_child_scalar_materializations"] == 0
+    assert manifest["run"]["backend"]["step8_dispatch"] == "serial"
+    assert manifest["run"]["backend"]["step8_overlap_filter"] == "in_process"
     assert manifest["validation"]["gff3_structural"]["passed"] is True
     assert manifest["run"]["cache"]["reference_annotation"] == "rebuilt"
 

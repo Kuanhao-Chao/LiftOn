@@ -11,8 +11,9 @@ from __future__ import annotations
 import copy
 import io
 import traceback
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from itertools import islice
 from typing import Any, Iterable, Iterator
 
 from intervaltree import Interval
@@ -34,6 +35,7 @@ class MiniprotPayload:
     reference_features: dict[str, Any]
     error: BaseException | None = None
     error_tb: str | None = None
+    pre_overlapped: bool = False
 
 
 @dataclass
@@ -45,6 +47,7 @@ class MiniprotAnalysis:
     explicit_copy_number: int | None = None
     error: BaseException | None = None
     error_tb: str | None = None
+    pre_overlapped: bool = False
 
 
 @dataclass
@@ -54,6 +57,11 @@ class Step8Outcome:
     emitted_ref_gene_ids: set[str] | None = None
     failures: list[dict] | None = None
     max_inflight_observed: int = 0
+    preoverlap_elided: int = 0
+    analysis_submitted: int = 0
+    child_batch_calls: int = 0
+    child_batch_fallbacks: int = 0
+    child_scalar_materializations: int = 0
 
     def __post_init__(self):
         if self.emitted_ref_gene_ids is None:
@@ -111,9 +119,13 @@ class _AnnotationProxy:
         self.db_connection = _ReferenceDbProxy(features)
 
 
+_PREFETCH_UNSET = object()
+
+
 def materialize_miniprot_payload(index, transcript, ref_db, m_feature_db,
                                  m_id_2_ref_id_trans_dict,
-                                 ref_features_reverse_dict):
+                                 ref_features_reverse_dict, *,
+                                 prefetched_children=_PREFETCH_UNSET):
     """Copy the records a Step-8 worker needs on the DB-owning thread."""
     try:
         transcript_copy = copy.deepcopy(transcript)
@@ -127,12 +139,17 @@ def materialize_miniprot_payload(index, transcript, ref_db, m_feature_db,
             error_tb=traceback.format_exc(),
         )
     try:
-        children = tuple(
-            copy.deepcopy(child) for child in m_feature_db.children(
+        child_source = (
+            m_feature_db.children(
                 transcript,
                 featuretype=("CDS", "stop_codon"),
                 order_by="start",
             )
+            if prefetched_children is _PREFETCH_UNSET
+            else prefetched_children
+        )
+        children = tuple(
+            copy.deepcopy(child) for child in child_source
         )
         ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
             ref_features_reverse_dict,
@@ -173,6 +190,12 @@ def analyze_miniprot_candidate(payload, *, tgt_fai, ref_proteins, ref_trans,
                                ref_trans_exon_num_dict,
                                ref_features_reverse_dict, args):
     """Run expensive candidate work against copied records and private state."""
+    if payload.pre_overlapped:
+        return MiniprotAnalysis(
+            index=payload.index,
+            transcript=payload.transcript,
+            pre_overlapped=True,
+        )
     if payload.error is not None:
         return MiniprotAnalysis(
             index=payload.index,
@@ -287,6 +310,18 @@ def _rebase_score_text(score_text, transcript_ids):
     return "".join(lines)
 
 
+def _candidate_overlaps(transcript, tree_dict, overlap_ratio):
+    transcript_id = str(getattr(transcript, "id", "<unknown>"))
+    interval = Interval(
+        transcript.start,
+        transcript.end,
+        transcript_id,
+    )
+    return lifton_utils.check_ovps_ratio(
+        transcript, interval, overlap_ratio, tree_dict,
+    )
+
+
 def parallel_step8(transcripts: Iterable[Any], ref_db, m_feature_db, tree_dict,
                    tgt_fai, ref_proteins, ref_trans, ref_features_dict,
                    fw, fw_score, transcripts_stats_dict,
@@ -299,13 +334,95 @@ def parallel_step8(transcripts: Iterable[Any], ref_db, m_feature_db, tree_dict,
     outcome = Step8Outcome()
 
     def payloads() -> Iterator[MiniprotPayload]:
-        for index, transcript in enumerate(transcripts):
-            yield materialize_miniprot_payload(
-                index, transcript, ref_db, m_feature_db,
-                m_id_2_ref_id_trans_dict, ref_features_reverse_dict,
-            )
+        source = iter(enumerate(transcripts))
+        batch_size = min(128, limit)
+        batched_children = getattr(
+            m_feature_db, "children_batched_features", None,
+        )
+        while True:
+            batch = list(islice(source, batch_size))
+            if not batch:
+                return
+
+            pre_overlapped = set()
+            residual = []
+            for index, transcript in batch:
+                if _candidate_overlaps(
+                        transcript, tree_dict, args.overlap):
+                    pre_overlapped.add(index)
+                    outcome.preoverlap_elided += 1
+                else:
+                    residual.append((index, transcript))
+
+            prefetched = None
+            if residual and callable(batched_children):
+                try:
+                    outcome.child_batch_calls += 1
+                    prefetched = batched_children(
+                        [
+                            str(getattr(transcript, "id", transcript))
+                            for _index, transcript in residual
+                        ],
+                        featuretype=("CDS", "stop_codon"),
+                        level=None,
+                        order_by="start",
+                    )
+                    if not hasattr(prefetched, "get"):
+                        raise TypeError(
+                            "children_batched_features must return a mapping"
+                        )
+                except Exception:
+                    # The batched path is an optimization only. Fall back to
+                    # the established per-candidate materializer so one bad
+                    # hierarchy remains an ordered candidate failure rather
+                    # than aborting the whole Step-8 window.
+                    prefetched = None
+                    outcome.child_batch_fallbacks += 1
+
+            for index, transcript in batch:
+                if index in pre_overlapped:
+                    # Tree commits are monotonic: once an interval overlaps,
+                    # it cannot stop overlapping. Keep the item in the ordered
+                    # stream so processed counts and publication order remain
+                    # identical, but avoid every DB/ref/alignment operation.
+                    yield MiniprotPayload(
+                        index=index,
+                        transcript=transcript,
+                        children=(),
+                        reference_features={},
+                        pre_overlapped=True,
+                    )
+                    continue
+
+                outcome.analysis_submitted += 1
+                if prefetched is None:
+                    outcome.child_scalar_materializations += 1
+                    yield materialize_miniprot_payload(
+                        index, transcript, ref_db, m_feature_db,
+                        m_id_2_ref_id_trans_dict,
+                        ref_features_reverse_dict,
+                    )
+                    continue
+
+                transcript_id = str(
+                    getattr(transcript, "id", transcript)
+                )
+                yield materialize_miniprot_payload(
+                    index, transcript, ref_db, m_feature_db,
+                    m_id_2_ref_id_trans_dict,
+                    ref_features_reverse_dict,
+                    prefetched_children=prefetched.get(
+                        transcript_id, (),
+                    ),
+                )
 
     def worker(payload):
+        if payload.pre_overlapped:
+            return MiniprotAnalysis(
+                index=payload.index,
+                transcript=payload.transcript,
+                pre_overlapped=True,
+            )
         return analyze_miniprot_candidate(
             payload,
             tgt_fai=tgt_fai,
@@ -330,10 +447,18 @@ def parallel_step8(transcripts: Iterable[Any], ref_db, m_feature_db, tree_dict,
         executor = ThreadPoolExecutor(
             max_workers=threads, thread_name_prefix="lifton-step8",
         )
+
+        def submit(pool, payload):
+            if payload.pre_overlapped:
+                future = Future()
+                future.set_result(worker(payload))
+                return future
+            return pool.submit(worker, payload)
+
         analyses = _ordered_bounded_map(
             executor,
             payloads(),
-            lambda pool, payload: pool.submit(worker, payload),
+            submit,
             limit,
             high_water_callback=lambda value: high_water.__setitem__(
                 0, max(high_water[0], value)
@@ -344,13 +469,14 @@ def parallel_step8(transcripts: Iterable[Any], ref_db, m_feature_db, tree_dict,
         for analysis in analyses:
             outcome.processed += 1
             transcript_id = str(getattr(analysis.transcript, "id", "<unknown>"))
-            interval = Interval(
-                analysis.transcript.start,
-                analysis.transcript.end,
-                transcript_id,
-            )
-            if lifton_utils.check_ovps_ratio(
-                    analysis.transcript, interval, args.overlap, tree_dict):
+            if analysis.pre_overlapped:
+                continue
+            # A residual may overlap a gene committed by an earlier Step-8
+            # result after its bounded materialization window was prefetched.
+            # Recheck at the ordered publication boundary to preserve serial
+            # suppression semantics exactly.
+            if _candidate_overlaps(
+                    analysis.transcript, tree_dict, args.overlap):
                 continue
             if analysis.error is not None:
                 outcome.failures.append({

@@ -1319,6 +1319,30 @@ def run_all_lifton_steps(args):
     step8_candidates_processed = 0
     step8_genes_emitted = 0
     step8_max_inflight_observed = 0
+    step8_pre_overlap_elided = 0
+    step8_analysis_submitted = 0
+    step8_child_batch_calls = 0
+    step8_child_batch_fallbacks = 0
+    step8_child_scalar_materializations = 0
+    if m_feature_db is None:
+        step8_dispatch = "skipped"
+        step8_overlap_filter = "skipped"
+    elif _use_pool:
+        step8_dispatch = (
+            "parallel_batched_parent_materialise"
+            if callable(getattr(
+                m_feature_db, "children_batched_features", None,
+            ))
+            else "parallel_scalar_parent_materialise"
+        )
+        step8_overlap_filter = "monotonic_precheck_ordered_recheck"
+    else:
+        step8_dispatch = "serial"
+        step8_overlap_filter = "in_process"
+    manifest.set_backend_choice("step8_dispatch", step8_dispatch)
+    manifest.set_backend_choice(
+        "step8_overlap_filter", step8_overlap_filter,
+    )
     if m_feature_db is not None and _use_pool:
         from lifton import miniprot_pipeline as _miniprot_pipeline
 
@@ -1347,6 +1371,13 @@ def run_all_lifton_steps(args):
         step8_candidates_processed = step8_outcome.processed
         step8_genes_emitted = step8_outcome.emitted
         step8_max_inflight_observed = step8_outcome.max_inflight_observed
+        step8_pre_overlap_elided = step8_outcome.preoverlap_elided
+        step8_analysis_submitted = step8_outcome.analysis_submitted
+        step8_child_batch_calls = step8_outcome.child_batch_calls
+        step8_child_batch_fallbacks = step8_outcome.child_batch_fallbacks
+        step8_child_scalar_materializations = (
+            step8_outcome.child_scalar_materializations
+        )
         for failure in step8_outcome.failures:
             _record_pipeline_failure(
                 args,
@@ -1437,6 +1468,7 @@ def run_all_lifton_steps(args):
         step8_max_inflight_observed = (
             1 if step8_candidates_processed else 0
         )
+        step8_analysis_submitted = step8_candidates_processed
 
     manifest.record_count(
         "miniprot_candidates_processed", step8_candidates_processed,
@@ -1446,6 +1478,24 @@ def run_all_lifton_steps(args):
     )
     manifest.record_count(
         "step8_max_inflight_observed", step8_max_inflight_observed,
+    )
+    manifest.record_count(
+        "miniprot_candidates_pre_overlap_elided",
+        step8_pre_overlap_elided,
+    )
+    manifest.record_count(
+        "miniprot_candidates_submitted_for_analysis",
+        step8_analysis_submitted,
+    )
+    manifest.record_count(
+        "step8_child_batch_calls", step8_child_batch_calls,
+    )
+    manifest.record_count(
+        "step8_child_batch_fallbacks", step8_child_batch_fallbacks,
+    )
+    manifest.record_count(
+        "step8_child_scalar_materializations",
+        step8_child_scalar_materializations,
     )
 
     # Iteration 23: clean separate-pass miniprot-only rescue. Runs AFTER the
