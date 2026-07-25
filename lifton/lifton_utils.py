@@ -290,10 +290,21 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
                 cds_num += 1
                 miniprot_trans.add_cds(cds)
             tmp_m_lifton_aln = align.lifton_parasail_align(miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
-            if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
+            if tmp_m_lifton_aln is None:
+                # `lifton_parasail_align` returns None when it cannot build a protein
+                # alignment -- e.g. a miniprot mRNA with no CDS/stop_codon children, so
+                # the coding sequence (and therefore `protein_seq`) is empty. The old
+                # code assigned it and then read `.identity`, raising AttributeError;
+                # the caller catches that per-locus, so ONE unusable miniprot candidate
+                # silently dropped the ENTIRE Liftoff gene from the output even though
+                # its DNA lift was fine. Skip the candidate instead.
+                continue
+            if m_lifton_aln is None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
                 m_lifton_aln = tmp_m_lifton_aln
                 lifton_status.miniprot = m_lifton_aln.identity
-    return m_lifton_aln, has_valid_miniprot
+    # Only advertise a valid miniprot alignment when one was actually produced: callers
+    # gate `chaining_algorithm(...)` on this flag and would dereference a None alignment.
+    return m_lifton_aln, (has_valid_miniprot and m_lifton_aln is not None)
 
 
 def _parent_type(ref_db, parent_id):

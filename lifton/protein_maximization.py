@@ -173,6 +173,24 @@ def create_lifton_entries(
     return cds_list
 
 
+def _cds_in_chain_order(cds_children, source_aln):
+    """Wrap `cds_children` as Lifton_CDS in the order `update_cds_list` expects.
+
+    `create_lifton_entries` (the normal chaining path) walks a "-"-strand transcript
+    with `c_idx_fix = n - c_idx - 1`, so it emits CDS in DESCENDING genomic order;
+    `Lifton_TRANS.update_cds_list` then applies an unconditional `cds_list.reverse()`
+    for "-" to get ascending order. The whole-side fallbacks below hand back
+    `cds_children` directly, which is ASCENDING (queried `order_by='start'`), so that
+    same `reverse()` would INVERT them and `update_cds_list` would rebuild the exon /
+    CDS structure from a back-to-front list. Emit them in the same convention as the
+    normal path so the downstream contract holds for every branch.
+    """
+    entries = list(cds_children)
+    if getattr(getattr(source_aln, "db_entry", None), "strand", None) == "-":
+        entries.reverse()
+    return [lifton_class.Lifton_CDS(c) for c in entries]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main chaining algorithm
 # ─────────────────────────────────────────────────────────────────────────────
@@ -204,8 +222,8 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, DEBUG):
     if not l_children and not m_children:
         return [], chains
     if not m_children:
-        # miniprot produced nothing usable; return liftoff CDS as-is
-        return [lifton_class.Lifton_CDS(c) for c in l_children], chains
+        # miniprot produced nothing usable; return liftoff CDS.
+        return _cds_in_chain_order(l_children, l_lifton_aln), chains
     if not l_children:
         # FIX 2 (symmetric empty-input handling): Liftoff produced no CDS but
         # miniprot did. The old code returned [] here, silently DROPPING
@@ -221,7 +239,7 @@ def chaining_algorithm(l_lifton_aln, m_lifton_aln, fai, DEBUG):
                 f"[EMPTY_LIFTOFF_DIAG] n_miniprot_cds={len(m_children)} "
                 f"miniprot_identity={_id}\n")
         if os.environ.get("LIFTON_EMPTY_LIFTOFF", "1") != "0":
-            return [lifton_class.Lifton_CDS(c) for c in m_children], chains
+            return _cds_in_chain_order(m_children, m_lifton_aln), chains
         return [], chains
 
     # ── Guard: single-CDS transcripts ───────────────────────────────────────
