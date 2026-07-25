@@ -416,13 +416,17 @@ class Lifton_TRANS:
                     ovp_exons.append(cp_exon)
                 # |cccc|  |eeee|
                 elif exon.entry.start > only_cds.entry.end:
-                    if optimize and processed_ovp_exons:
-                        # --optimize bug-fix: the CDS-bearing exon has ALREADY
-                        # been emitted; this is a further downstream exon (3' UTR).
-                        # The default path re-emits a duplicate CDS exon for EVERY
-                        # such exon (corrupting multi-exon transcripts whose CDS
-                        # spans only the leading exon(s)); under --optimize emit it
-                        # as a plain UTR exon instead.
+                    if processed_ovp_exons:
+                        # The CDS-bearing exon has ALREADY been emitted; this is a
+                        # further downstream exon (3' UTR), so emit it as a plain UTR
+                        # exon. This used to be gated on `optimize`, so with
+                        # optimize=False (the --legacy-merge path and any direct
+                        # caller of Lifton_GENE.update_cds_list, whose default is
+                        # False) EVERY downstream exon re-entered the else-branch and
+                        # re-emitted another copy of the CDS-bearing exon -- duplicate
+                        # exon IDs, a doubled CDS and a wrong protein on any
+                        # multi-exon transcript whose CDS spans only the leading
+                        # exon(s). The guard is correct for both paths.
                         new_exons.append(exon)
                     else:
                         processed_ovp_exons = True
