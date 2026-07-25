@@ -116,14 +116,35 @@ def _switch_manifest_phase(args, name, details=None):
 
 
 def _record_pipeline_failure(args, phase, error, *, details=None,
-                             fatal=False, affects_completeness=True):
+                             fatal=False, affects_completeness=True,
+                             blocks_publication=None):
+    """Record a pipeline failure.
+
+    ``blocks_publication`` separates *completeness* failures from *corruption*:
+
+    * A per-locus processing/serialization error means one gene was skipped. The
+      emitted GFF3 is still well-formed -- hierarchies are buffered, so a malformed
+      child can never leave a half-written block -- and it is independently proven
+      well-formed by the mandatory structural validation that runs (and aborts) before
+      the publish gate. Withholding an otherwise-good 60,000-gene annotation because
+      of one bad locus is not useful, so these publish and are reported.
+    * A failure that means the output itself cannot be trusted (structural validation,
+      report-writing, or a non-empty reference producing zero features) blocks
+      publication.
+
+    Defaults to ``fatal`` so existing hard failures keep blocking. ``--strict-completeness``
+    restores the pre-v1.0.10.1 behaviour of blocking on *any* failure.
+    """
     details = dict(details or {})
     message = safe_exception_text(error, details.get("traceback"))
+    if blocks_publication is None:
+        blocks_publication = bool(fatal)
     record = {
         "phase": str(phase),
         "message": message,
         "details": details,
         "fatal": bool(fatal),
+        "blocks_publication": bool(blocks_publication),
     }
     if affects_completeness:
         getattr(args, "_pipeline_failures", []).append(record)
@@ -309,9 +330,16 @@ def args_optional(parser):
     )
     parser.add_argument(
         '--allow-partial-output', action='store_true', default=False,
-        help='Publish an output even when one or more loci could not be '
-             'serialized. The default reports partial results as a failed run; '
-             'all skipped loci are recorded in run_manifest.json.'
+        help='Publish the staged output even when a failure would otherwise block '
+             'publication (e.g. a non-empty reference that produced no features, or '
+             '--strict-completeness with skipped loci).'
+    )
+    parser.add_argument(
+        '--strict-completeness', action='store_true', default=False,
+        help='Refuse to publish if ANY locus was skipped. By default LiftOn '
+             'publishes the annotation (which is independently structurally '
+             'validated before publication), reports the run as "partial_success", '
+             'and records every skipped locus in run_manifest.json.'
     )
     parser.add_argument(
         '--strict-gff', dest='strict_gff', action='store_true', default=False,
@@ -1719,14 +1747,27 @@ def run_all_lifton_steps(args):
             args, "publish_output",
             "no feature hierarchies were emitted from a non-empty reference",
             details={"reference_features": len(reference_feature_ids)},
+            # An empty annotation from a non-empty reference is not a completeness
+            # loss, it is a failed run -- never publish it silently.
+            blocks_publication=True,
         )
     manifest.record_count(
         "pipeline_failures", len(getattr(args, "_pipeline_failures", []))
     )
     failures = getattr(args, "_pipeline_failures", [])
-    if failures and not getattr(args, "allow_partial_output", False):
+    # Only failures that mean the OUTPUT cannot be trusted block publication. Per-locus
+    # processing errors are completeness losses: the staged GFF3 has already passed the
+    # mandatory structural validation above, so it is well-formed, and withholding a
+    # whole genome because a handful of loci were skipped is not useful. They are still
+    # recorded in the manifest and the run is reported as `partial_success`.
+    # --strict-completeness restores the pre-v1.0.10.1 "any failure blocks" behaviour.
+    if getattr(args, "strict_completeness", False):
+        blocking = list(failures)
+    else:
+        blocking = [f for f in failures if f.get("blocks_publication")]
+    if blocking and not getattr(args, "allow_partial_output", False):
         error = LiftOnPartialOutputError(
-            f"{len(failures)} locus/report failure(s) prevented publication; "
+            f"{len(blocking)} failure(s) prevented publication; "
             "rerun with --allow-partial-output to publish the staged result"
         )
         _record_pipeline_failure(
