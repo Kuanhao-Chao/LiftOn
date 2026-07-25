@@ -22,7 +22,7 @@ full genomes.
 | 3 | CRITICAL | The **mandatory** structural validator used a closed `TRANSCRIPT_TYPES` allowlist while the lift auto-detects types and preserves the reference's middle level verbatim → LiftOn lifted an Ensembl `pseudogene → pseudogenic_transcript → exon` correctly, then **rejected its own output** and exited 2. Recognition is now shape-based (`is_transcript_type`), applied to both validators. | `1a4378a` |
 | 4 | HIGH | `exec_miniprot` preflighted miniprot *before* the `-M` short-circuit, so the documented cached `-L`/`-M` workflow exited 1 without miniprot installed. Also hardened `check_miniprot_installed` (suppress output — the version banner corrupted `-o stdout` GFF3 — and check the return code). | `43785a9` |
 | 5 | HIGH | `update_cds_list` Case 1 re-emitted the CDS-bearing exon for **every** downstream exon when `optimize=False` (`--legacy-merge` and every direct caller). Measured on the pre-fix baseline: a 7-exon transcript emitted **12 exons**, all but one a duplicate. | `e375c93` |
-| 6 | HIGH | The V2.5 "chain-log honesty" change also `return []`, **dropping an ambiguous chunk's CDS blocks** and punching a hole that frameshifts everything downstream. Label kept; emission restored via the documented Liftoff tie-break. | `f63324b` |
+| ~~6~~ | — | **REVERTED — see the NO-GO section below.** Restoring an ambiguous chunk's CDS was structurally right but net-negative on real data. | `f63324b` → reverted in `e1470c8` |
 | 7 | HIGH | Input fingerprinting (a multi-GB SHA-256 on a non-daemon executor the interpreter joins at exit) started **before** the aligner preflight, so a typo'd path or missing binary appeared to hang. | `36cbbec` |
 | 8 | HIGH | `CdsIdAllocator` claims were never released, so a **rejected** rescue candidate permanently burned stable CDS IDs and the rightful owner was pushed to a `-1` variant — output depending on how many candidates happened to be rejected. New `tentative()` savepoint, wired into all three stage-then-discard paths. | `eb265b2` |
 | 9 | HIGH | 3-level hierarchies (`gene → primary_transcript → miRNA → exon`) silently lost the transcript **and all its exons/CDS**: ids were resolved from the intermediate feature, and `LiftOn_FEATURE` lacked `add_transcript`. Added the delegates, fixed id resolution, made the skip log, and fixed `_render_feature`, which recursed blindly into `.features`. | `96a3e9f` |
@@ -44,15 +44,46 @@ sibling DBs rebuilt per arm (base = `e7a2aeb` in a detached worktree):
 **Step-7 wall −21.2 % (1.27×)**, consistent across repeats; peak RSS flat (within noise).
 Total wall on r1: 3:17 → 2:51 (−13.4 %).
 
-**Output delta: 12 lines across 3 of 7,922 transcripts — deterministic (identical in both
-repeats) and expected.** It is the effect of the ambiguous-chunk fix (#6): those chunks no
-longer return an empty CDS list, so the merge candidate is complete and wins the tie,
-moving 3 transcripts from `status=Liftoff` to `status=LiftOn_chaining_algorithm`
-(6591 → 6594 merged; 1331 → 1328 Liftoff). **CDS coordinates and `protein_identity` are
-identical** on all three (0.871 / 0.858 / 0.757) — the biology does not move; only the
-provenance label and the CDS attribute set change, the latter adopting the convention the
-merge path already uses. The Tier-1-only anchor run, taken before this fix, was fully
-byte-identical (md5 `3f908d02…`, 92,675 rows).
+The 12-line output delta observed in this A/B came entirely from the ambiguous-chunk
+change, which was subsequently **reverted** (below). **With the final tree, the batch is
+byte-identical on drosophila and exactly identity-neutral on mammalian data.**
+
+---
+
+## NO-GO — reverted after full-genome validation
+
+**Restoring an ambiguous chunk's CDS** (`f63324b`, reverted in `e1470c8`).
+
+A chunk where neither aligner scores a matching column returned `[]`, dropping its CDS
+blocks and leaving a hole in the merged list — structurally wrong, so the fix emitted
+Liftoff's blocks instead (the documented tie-break). The mammalian dog→cat validation
+(`-t8`, cached `-L`/`-M`) showed the hole was frequently scoring *higher* protein identity
+than the completed model, because restoring the block reintroduces its mismatches:
+
+| arm | improved | regressed | mean Δ protein identity |
+|---|---:|---:|---:|
+| base → HEAD, all fixes | 0 | **8** | **−0.00038106** |
+| base → HEAD minus this commit | 0 | **0** | **+0.00000000** |
+
+Individual losses were large (0.844→0.615, 0.849→0.616, 0.840→0.609). Only 1 of the 8 was
+a status flip, so this was not about which candidate wins: the merge **candidate itself**
+changed, got worse, and still beat pure Liftoff, so it was kept.
+
+Two lessons worth keeping:
+
+1. **The gate would not have caught it.** −0.00038 is inside
+   `scripts/benchmark_gate.py`'s ≤0.005 tolerance, and the drosophila subset showed only
+   3 benign transcripts with *identical* coordinates and *identical* protein identity.
+   Only the mammalian run exposed the cost — the Iteration-20/21/24 lesson again, now
+   also true for accuracy and not just crashes.
+2. **Structural correctness and the scoring metric can disagree.** Reverting matches the
+   established discipline for net-negative accuracy changes (Iterations 4, 9 and 15;
+   Iter-9 was "4 improved / 59 regressed", this was 0/8).
+
+The paired CDS-ordering fix (`_cds_in_chain_order`, from `c8ef69b`) is independent and
+stays. To revisit, the real question — is a hole better than a mismatched block? — needs a
+divergence-ladder A/B judged on ORF-validity and the structural metrics
+(`benchmarks/compare/structural_rescore.py`), not on protein identity alone.
 
 ---
 
