@@ -201,17 +201,25 @@ def _build_replacement_text(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans
     # (a throwaway copy since we only need the write side effect, not the counts).
     _throwaway_stats = {"coding": {}, "non-coding": {}, "other": {}}
     cds_id_allocator = getattr(args, "_cds_id_allocator", None)
-    written = (
-        lifton_gene.write_entry(buf, _throwaway_stats)
-        if cds_id_allocator is None
-        else lifton_gene.write_entry(
-            buf,
-            _throwaway_stats,
-            cds_id_allocator=cds_id_allocator,
-        )
-    )
-    if written is False or getattr(
-            lifton_gene, "_serialization_failures", []):
+
+    def _rejected():
+        return written is False or getattr(
+            lifton_gene, "_serialization_failures", [])
+
+    if cds_id_allocator is None:
+        written = lifton_gene.write_entry(buf, _throwaway_stats)
+    else:
+        # Provisional claims: this candidate may be discarded below, and a rejected
+        # candidate must not permanently take another transcript's stable CDS ID.
+        with cds_id_allocator.tentative() as scope:
+            written = lifton_gene.write_entry(
+                buf,
+                _throwaway_stats,
+                cds_id_allocator=cds_id_allocator,
+            )
+            if not _rejected():
+                scope.commit()
+    if _rejected():
         return None, None
     return pi, buf.getvalue()
 

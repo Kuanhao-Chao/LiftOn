@@ -86,15 +86,20 @@ def _stage_gene(lifton_gene, cds_id_allocator=None):
     """Serialize to a private buffer and collect stats before committing state."""
     buffer = io.StringIO()
     staged_stats = {'coding': {}, 'non-coding': {}, 'other': {}}
-    written = (
-        lifton_gene.write_entry(buffer, staged_stats)
-        if cds_id_allocator is None
-        else lifton_gene.write_entry(
-            buffer,
-            staged_stats,
-            cds_id_allocator=cds_id_allocator,
-        )
-    )
+    if cds_id_allocator is None:
+        written = lifton_gene.write_entry(buffer, staged_stats)
+    else:
+        # Claim CDS IDs provisionally: a candidate rejected below must not burn the
+        # identifiers, or the transcript that legitimately owns a stable cds- ID gets
+        # pushed to a "-1" variant purely because some earlier candidate was discarded.
+        with cds_id_allocator.tentative() as scope:
+            written = lifton_gene.write_entry(
+                buffer,
+                staged_stats,
+                cds_id_allocator=cds_id_allocator,
+            )
+            if written is not False:
+                scope.commit()
     failures = getattr(lifton_gene, "_serialization_failures", [])
     if written is False:
         return None, None, failures
