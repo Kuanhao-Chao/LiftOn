@@ -107,17 +107,7 @@ def process_m_l_children(
         chains.append(
             f"empty[{l_aa_start:.2f}-{l_aa_end:.2f}]"
         )
-        # The label records that provenance is genuinely ambiguous here -- that was the
-        # point of the V2.5 fix. The chunk's CDS must still be EMITTED though: returning
-        # [] dropped them from the merged list, punching a hole that frameshifts or
-        # truncates every downstream block (routine on distant pairs, where a window
-        # with no matching column is common). Fall back to Liftoff's blocks, the same
-        # tie-break the scoring branch below applies ("safer: preserves splicing
-        # structure") -- 0.0 vs 0.0 is a tie.
-        return create_lifton_entries(
-            m_c_idx, m_c_idx_last, m_lifton_aln,
-            l_c_idx, l_c_idx_last, l_lifton_aln,
-            fai, False)
+        return []
 
     miniprot_wins = m_identity > l_identity
 

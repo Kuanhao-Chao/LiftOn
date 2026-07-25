@@ -637,19 +637,14 @@ class TestV2_5_ChainLogEmptyLabelling:
         `empty[...]` so provenance is honest."""
         from lifton import protein_maximization
 
-        # Construct minimal lifton_aln stand-ins with cdss_protein_aln_boundaries.
-        # `cds_children`/`db_entry` are required because the ambiguous-window branch
-        # now still EMITS the chunk's CDS (returning [] punched a hole in the merged
-        # list); only the chain LABEL was ever the point of this test.
+        # Construct minimal lifton_aln stand-ins with cdss_protein_aln_boundaries
         m_aln = SimpleNamespace(
             cdss_protein_aln_boundaries={0: (0, 0), 1: (0, 0)},
             ref_aln="", query_aln="",
-            cds_children=[], db_entry=SimpleNamespace(strand="+"),
         )
         l_aln = SimpleNamespace(
             cdss_protein_aln_boundaries={0: (0, 0), 1: (0, 0)},
             ref_aln="", query_aln="",
-            cds_children=[], db_entry=SimpleNamespace(strand="+"),
         )
         chains: list[str] = []
         cds_ls = protein_maximization.process_m_l_children(
