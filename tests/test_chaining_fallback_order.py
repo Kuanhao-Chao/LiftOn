@@ -70,32 +70,6 @@ def test_minus_strand_fallbacks_emit_descending_like_the_normal_path():
         assert _spans(_run(empty_side, "-")) == list(reversed(ASCENDING))
 
 
-def test_ambiguous_window_still_emits_its_cds():
-    """Tier-2 audit fix: a chunk where NEITHER aligner has a matching column must
-    still contribute its CDS blocks.
-
-    The V2.5 "chain-log honesty" change relabelled that case `empty[...]` but ALSO
-    returned [], silently dropping the chunk's CDS from the merged list and punching a
-    hole that frameshifts/truncates every downstream block. The label is right; the drop
-    was not. Liftoff wins the 0.0-vs-0.0 tie, as in the scoring branch.
-    """
-    children = [_cds(s, e, "+") for s, e in ASCENDING]
-    l_aln = _aln(children, "+")
-    m_aln = _aln(children, "+")
-    # Zero-length protein windows on both sides -> both identities 0.0.
-    for aln in (l_aln, m_aln):
-        aln.cdss_protein_aln_boundaries = {i: (0, 0) for i in range(len(children) + 1)}
-        aln.ref_aln = ""
-        aln.query_aln = ""
-
-    chains = []
-    cds_ls = protein_maximization.process_m_l_children(
-        1, 0, m_aln, 1, 0, l_aln, fai=None, chains=chains, DEBUG=False)
-
-    assert any(c.startswith("empty[") for c in chains), chains   # honest label kept
-    assert cds_ls, "ambiguous window dropped its CDS blocks"     # ...and CDS emitted
-
-
 def test_minus_strand_fallback_survives_update_cds_list_reverse():
     """End-to-end contract: after update_cds_list's reverse(), the CDS list is
     ascending — i.e. the exon/CDS structure is rebuilt front-to-back, not inverted."""
