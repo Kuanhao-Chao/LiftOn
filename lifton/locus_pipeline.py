@@ -328,6 +328,37 @@ class Step7StateCoordinator:
             commit_locus_delta(
                 delta, self.ref_features_dict, self.tree_dict,
             )
+            # Drop the logical placeholders this delta just made redundant.
+            #
+            # `_logical_intervals` exists so an allocated-but-not-yet-committed gene
+            # is still visible to `overlap()`. Once `commit_locus_delta` has put the
+            # interval into the real `tree_dict` the logical copy is a pure duplicate:
+            # both are built by the SAME `_make_interval(start, end, gene_id)` and
+            # `overlap()` unions them into a set, so removing it cannot change any
+            # query result. Without this the list grew for the whole run and every
+            # `overlap()` -- two per (transcript, miniprot-candidate) pair -- rescanned
+            # it linearly under this one lock, which is O(n^2) on a gene-dense
+            # chromosome and silently caps the `--threads N` speedup.
+            #
+            # Entries for loci that FAILED to serialize are deliberately left in
+            # place: they were never committed to `tree_dict`, so pruning by index
+            # would change which candidates they suppress.
+            if delta.tree_intervals:
+                from lifton.intervals import _make_interval
+                committed = {}
+                for seqid, start, end, gene_id in delta.tree_intervals:
+                    committed.setdefault(seqid, set()).add(
+                        _make_interval(start, end, gene_id)
+                    )
+                for seqid, done in committed.items():
+                    rows = self._logical_intervals.get(seqid)
+                    if not rows:
+                        continue
+                    remaining = [row for row in rows if row[1] not in done]
+                    if remaining:
+                        self._logical_intervals[seqid] = remaining
+                    else:
+                        del self._logical_intervals[seqid]
 
 
 class LocusStateJournal:
