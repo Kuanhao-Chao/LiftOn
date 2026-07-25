@@ -352,8 +352,15 @@ def check_miniprot_installed():
     # as "miniprot is not installed". Only the things that genuinely mean
     # "binary is missing or unrunnable" return False here.
     try:
-        subprocess.run(command)
-        installed = True
+        # Suppress the child's output and require a successful exit, matching the
+        # documented twin run_liftoff.check_minimap2_installed. Without
+        # stdout=DEVNULL the version banner is written to the inherited fd 1, which
+        # under `-o stdout` injects it straight into the emitted GFF3 stream
+        # (redirect_stdout only rebinds the Python-level object, not the fd). A
+        # present-but-broken binary also used to report "installed".
+        completed = subprocess.run(
+            command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        installed = completed.returncode == 0
     except (FileNotFoundError, PermissionError, NotADirectoryError,
             subprocess.SubprocessError):
         pass

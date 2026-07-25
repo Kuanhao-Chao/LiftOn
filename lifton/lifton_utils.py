@@ -135,9 +135,14 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         Returns:
         miniprot_annotation: miniprot annotation file path
     """
-    check_miniprot_installed()
     miniprot_annotation = args.miniprot
     if miniprot_annotation is None or not os.path.exists(miniprot_annotation):
+        # Preflight ONLY when miniprot is actually going to run. Checking before the
+        # -M short-circuit made the documented cached workflow
+        #   lifton -g ref.gff3 -L prior.gff3 -M prior_miniprot.gff3 ...
+        # exit 1 on a machine without miniprot installed, even though the binary is
+        # never invoked. (main() already gates its own preflight the same way.)
+        check_miniprot_installed()
         print("\n**********************")
         print("** Running miniprot **")
         print("**********************")
