@@ -78,6 +78,29 @@ def _can_be_child_bearing_root(ftype: str) -> bool:
 
     return ftype not in EXON_TYPES | CDS_TYPES
 
+
+def is_transcript_type(ftype: str) -> bool:
+    """Return whether *ftype* names a transcript (middle) hierarchy level.
+
+    The explicit ``TRANSCRIPT_TYPES`` set cannot be complete. LiftOn auto-detects
+    gene-like parent types from the reference (``get_gene_like_feature_types``) and
+    preserves the reference's middle-level type VERBATIM, while the Sequence Ontology
+    transcript namespace is open-ended: Ensembl/GENCODE emit ``pseudogenic_transcript``
+    under ``pseudogene``, RefSeq emits ``misc_RNA``/``pre_miRNA``, and so on. Because
+    ``validate_gff3_structure`` is mandatory and every issue it raises is an ERROR,
+    an unlisted-but-valid type made LiftOn faithfully lift a feature, write valid
+    GFF3, and then reject its OWN output and exit 2 with no annotation.
+
+    So recognise the namespace by shape as well as by name: anything ending in
+    ``RNA`` (``misc_RNA``, ``pre_miRNA``, ``pseudogenic_tRNA``, …) or in
+    ``_transcript`` (``pseudogenic_transcript``, ``unconfirmed_transcript``, …) is a
+    transcript level. Types outside that namespace -- e.g. ``misc_feature`` -- are
+    still rejected, so a genuinely wrong hierarchy keeps failing.
+    """
+    if ftype in TRANSCRIPT_TYPES:
+        return True
+    return ftype.endswith("RNA") or ftype.endswith("_transcript")
+
 # The GFF3 spec permits four strand values: '+', '-', '.' (not stranded), and
 # '?' (stranded but the strand is unknown). '?' is valid and appears on real
 # RefSeq organellar features, so flagging it was a false positive.
@@ -795,7 +818,7 @@ def validate_gff3_structure(
                         feature_id=feature_id,
                     )
                 elif (ftype in EXON_TYPES | CDS_TYPES
-                      and parent_type not in TRANSCRIPT_TYPES
+                      and not is_transcript_type(parent_type)
                       and parent_type not in DIRECT_EXON_PARENT_TYPES
                       and not parent_is_root):
                     check = (
@@ -1394,7 +1417,7 @@ def _check_hierarchy(
                     ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if (parent_rec.ftype not in TRANSCRIPT_TYPES
+                if (not is_transcript_type(parent_rec.ftype)
                         and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES
                         and not is_child_bearing_root(parent_rec)):
                     issue_counts["exon_wrong_parent"] += 1
@@ -1416,7 +1439,7 @@ def _check_hierarchy(
                     ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if (parent_rec.ftype not in TRANSCRIPT_TYPES
+                if (not is_transcript_type(parent_rec.ftype)
                         and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES
                         and not is_child_bearing_root(parent_rec)):
                     issue_counts["cds_wrong_parent"] += 1
