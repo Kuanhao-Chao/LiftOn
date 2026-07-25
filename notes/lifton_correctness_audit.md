@@ -31,8 +31,28 @@ full genomes.
 | P3 | PERF | `Step7StateCoordinator._logical_intervals` was never pruned, so every `overlap()` (two per transcript/candidate pair) rescanned a list that grew all run, under one lock — O(n²) capping `--threads N`. Committed intervals are provable duplicates of the real tree, so pruning them is a no-op for results. | `c130c59` |
 | V1 | GAP | Parallel Step 8 had **no** serial-vs-threaded byte gate (the 24-cell fixtures yield ~0 Step-8 candidates). Added one with a fixture that genuinely fires, plus a guard so it cannot go vacuous. | `6126700` |
 
-**Measured effect** (drosophila, `-t8 --locus-pipeline`, cached `-L`/`-M`): Step-7 wall
-**158.9 s → 132.4 s (−16.7 %)**, total **3:17 → 2:51 (−13.4 %)**, byte-identical output.
+### Measured effect
+
+Drosophila, `-t8 --locus-pipeline`, cached `-L`/`-M`, 2 repeats, arms alternated,
+sibling DBs rebuilt per arm (base = `e7a2aeb` in a detached worktree):
+
+| arm | Step-7 wall | peak RSS |
+|---|---:|---:|
+| base r1 / r2 | 158.9 s / 164.3 s (mean **161.6 s**) | 1.06 GB / 1.10 GB |
+| head r1 / r2 | 132.4 s / 122.5 s (mean **127.4 s**) | 1.10 GB / 1.07 GB |
+
+**Step-7 wall −21.2 % (1.27×)**, consistent across repeats; peak RSS flat (within noise).
+Total wall on r1: 3:17 → 2:51 (−13.4 %).
+
+**Output delta: 12 lines across 3 of 7,922 transcripts — deterministic (identical in both
+repeats) and expected.** It is the effect of the ambiguous-chunk fix (#6): those chunks no
+longer return an empty CDS list, so the merge candidate is complete and wins the tie,
+moving 3 transcripts from `status=Liftoff` to `status=LiftOn_chaining_algorithm`
+(6591 → 6594 merged; 1331 → 1328 Liftoff). **CDS coordinates and `protein_identity` are
+identical** on all three (0.871 / 0.858 / 0.757) — the biology does not move; only the
+provenance label and the CDS attribute set change, the latter adopting the convention the
+merge path already uses. The Tier-1-only anchor run, taken before this fix, was fully
+byte-identical (md5 `3f908d02…`, 92,675 rows).
 
 ---
 
@@ -82,6 +102,19 @@ Kept here so nothing is lost. Each has a rationale for deferring.
 - **`get_id_fraction` guard drift**: `get_partial_id_fraction` tests `total_length == 0`
   where its sibling uses `<= 0`. Unreachable today; left alone deliberately because
   changing it would change output in the negative case.
+
+### Output quality
+- **Merged CDS lines lose their descriptive attributes.** Measured on drosophila: of the
+  CDS beneath `status=LiftOn_chaining_algorithm` transcripts, **35,145 carry only
+  `ID`/`Parent` while 1 keeps the rich set** — `Dbxref`, `Name`, `gene`, `gbkey`,
+  `locus_tag`, `product`, `protein_id` are dropped whenever the merge fires, because
+  `create_lifton_entries` assigns a shared `parent_attrs` and `add_lifton_cds` then resets
+  attributes to `{Parent}`. Transcripts that stay on the pure-Liftoff path keep everything,
+  so a single output is inconsistent and most CDS rows are impoverished. This is
+  long-standing behaviour (not introduced by this batch — it was measured on the *base*
+  commit) but it is a real usability regression against the reference annotation and a good
+  candidate for the next pass: carry the source CDS attributes through the merge the way
+  the CDS **ID** is now carried (`Lifton_CDS._source_id`).
 
 ### Performance / memory
 - **`scan_annotation` runs full ID bookkeeping + NCBI per-line validation on the derived
