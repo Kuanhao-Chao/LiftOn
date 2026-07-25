@@ -397,9 +397,25 @@ def test_mandatory_structural_validation_cannot_be_bypassed(
     assert manifest["validation"]["gff3_structural"]["passed"] is False
 
 
-@pytest.mark.parametrize("allow_partial", [False, True])
-def test_partial_output_requires_explicit_opt_in(
-        integration_workspace, hermetic_pipeline, monkeypatch, allow_partial):
+@pytest.mark.parametrize(
+    "extra_flags,publishes",
+    [
+        ([], True),                                              # default: publish + report
+        (["--strict-completeness"], False),                      # opt back in to blocking
+        (["--strict-completeness", "--allow-partial-output"], True),
+    ],
+)
+def test_skipped_locus_publishes_unless_strict_completeness(
+        integration_workspace, hermetic_pipeline, monkeypatch,
+        extra_flags, publishes):
+    """A skipped locus is a COMPLETENESS loss, not corruption.
+
+    The staged GFF3 has already passed the mandatory structural validation, so it is
+    well-formed; withholding a whole genome because one locus failed is not useful.
+    LiftOn therefore publishes by default and reports `partial_success`, recording every
+    skipped locus in the manifest. `--strict-completeness` restores the pre-v1.0.10.1
+    behaviour of blocking, and `--allow-partial-output` overrides that in turn.
+    """
     from lifton import parallel
     from lifton import lifton as lifton_main
     from lifton.exceptions import LiftOnPartialOutputError
@@ -427,12 +443,11 @@ def test_partial_output_requires_explicit_opt_in(
         "-o", str(out_gff),
         "-ad", "RefSeq",
         "--force",
+        *extra_flags,
     ]
-    if allow_partial:
-        argv.append("--allow-partial-output")
     args = lifton_main.parse_args(argv)
 
-    if allow_partial:
+    if publishes:
         lifton_main.run_all_lifton_steps(args)
         assert out_gff.read_text().startswith("##gff-version 3\n")
         expected_status = "partial_success"
@@ -448,7 +463,8 @@ def test_partial_output_requires_explicit_opt_in(
          "run_manifest.json").read_text()
     )
     assert manifest["run"]["status"] == expected_status
-    assert manifest["counts"]["pipeline_failures"] == 1
+    # The skipped locus is always recorded, published or not.
+    assert manifest["counts"]["pipeline_failures"] >= 1
 
 
 def test_stdout_mode_emits_only_gff3(
