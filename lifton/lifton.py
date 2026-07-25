@@ -1807,12 +1807,6 @@ An accurate homology lift-over tool between assemblies
     '''
     print(banner, file=sys.stderr)
     args = parse_args(arglist)
-    if all(hasattr(args, name) for name in (
-            "output", "target", "reference", "reference_annotation")):
-        outdir, lifton_outdir = _run_outdirs(args.output)
-        os.makedirs(outdir, exist_ok=True)
-        os.makedirs(lifton_outdir, exist_ok=True)
-        _ensure_run_manifest(args, outdir, lifton_outdir)
     try:
         # Only preflight tools the selected execution path will actually launch.
         # Evaluation and valid precomputed -L/-M inputs are intentionally usable
@@ -1857,6 +1851,18 @@ An accurate homology lift-over tool between assemblies
                     "valid precomputed -L file, or use the supported native "
                     "Liftoff path."
                 )
+        # Create the run manifest only AFTER the preflight has passed. Constructing it
+        # submits a full SHA-256 of the target genome, reference genome and reference
+        # annotation to a ThreadPoolExecutor whose worker the interpreter joins at exit,
+        # so doing it first meant a typo'd path or a missing minimap2/miniprot appeared
+        # to HANG for the length of a multi-GB hash before printing its error.
+        # run_all_lifton_steps calls _ensure_run_manifest itself, so nothing is lost.
+        if all(hasattr(args, name) for name in (
+                "output", "target", "reference", "reference_annotation")):
+            outdir, lifton_outdir = _run_outdirs(args.output)
+            os.makedirs(outdir, exist_ok=True)
+            os.makedirs(lifton_outdir, exist_ok=True)
+            _ensure_run_manifest(args, outdir, lifton_outdir)
         if getattr(args, "output", None) == "stdout":
             args._gff_stdout = sys.stdout
             with redirect_stdout(sys.stderr):
