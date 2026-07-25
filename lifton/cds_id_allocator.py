@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Callable, Iterable
 
 
 _COPY_SUFFIX = re.compile(r"_(\d+)$")
+
+
+class _TentativeScope:
+    """Handle yielded by :meth:`CdsIdAllocator.tentative`."""
+
+    __slots__ = ("committed",)
+
+    def __init__(self) -> None:
+        self.committed = False
+
+    def commit(self) -> None:
+        """Keep the IDs claimed inside this scope."""
+        self.committed = True
 
 
 class CdsIdAllocator:
@@ -90,6 +104,34 @@ class CdsIdAllocator:
                 cached = False
             self._exact_source_lookup_cache[identifier] = cached
         return cached
+
+    @contextlib.contextmanager
+    def tentative(self):
+        """Claim IDs provisionally, rolling them back unless the scope is committed.
+
+        The rescue paths serialize a candidate gene into a throwaway buffer and only
+        afterwards decide whether to keep it. Because ``reserve_explicit`` /
+        ``allocate_synthetic`` mutate ``_claims`` with no release, a REJECTED candidate
+        permanently burned its identifiers, so the transcript that legitimately owns
+        e.g. ``cds-NP_004985.1`` was later pushed to ``cds-NP_004985.1-1`` -- output
+        that depends on how many candidates happened to be rejected, defeating the
+        stable-CDS-ID guarantee.
+
+        Usage::
+
+            with allocator.tentative() as scope:
+                block = _stage_gene(gene, allocator)
+                if block is not None:
+                    scope.commit()
+        """
+        before = dict(self._claims)
+        scope = _TentativeScope()
+        try:
+            yield scope
+        finally:
+            if not scope.committed:
+                self._claims.clear()
+                self._claims.update(before)
 
     def reserve_explicit(
         self,

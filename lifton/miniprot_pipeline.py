@@ -509,15 +509,19 @@ def parallel_step8(transcripts: Iterable[Any], ref_db, m_feature_db, tree_dict,
             cds_id_allocator = getattr(
                 args, "_cds_id_allocator", None
             )
-            write_result = (
-                gene.write_entry(block, transcripts_stats_dict)
-                if cds_id_allocator is None
-                else gene.write_entry(
-                    block,
-                    transcripts_stats_dict,
-                    cds_id_allocator=cds_id_allocator,
-                )
-            )
+            if cds_id_allocator is None:
+                write_result = gene.write_entry(block, transcripts_stats_dict)
+            else:
+                # Provisional claims: an unserializable candidate is skipped below and
+                # must not permanently burn the CDS IDs it touched.
+                with cds_id_allocator.tentative() as scope:
+                    write_result = gene.write_entry(
+                        block,
+                        transcripts_stats_dict,
+                        cds_id_allocator=cds_id_allocator,
+                    )
+                    if write_result is not False:
+                        scope.commit()
             if write_result is False:
                 outcome.failures.append({
                     "mRNA": transcript_id,
