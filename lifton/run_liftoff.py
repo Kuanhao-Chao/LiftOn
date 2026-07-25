@@ -539,7 +539,18 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
         if ENTRY_FEATURE: # Gene (1st) features with direct exons
             ref_trans_id = ref_gene_id
         else: # Transcript features with direct exons
-            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, locus.id)
+            # `lifton_gene` is the ROOT Lifton_GENE only at depth 1. In a 3-level
+            # hierarchy (gene -> primary_transcript -> miRNA -> exon) the recursion
+            # passes the INTERMEDIATE LiftOn_FEATURE here, so its `entry.id` is the
+            # intermediate's -- not a gene id. Feeding that to get_ref_ids_liftoff
+            # failed to resolve, `ref_db[None]` raised, and the transcript plus all
+            # its exons/CDS were silently dropped. Pass None so the lookup resolves
+            # from the transcript id alone (the function's documented case 2).
+            _parent_gene_id = (
+                lifton_gene.entry.id
+                if isinstance(lifton_gene, lifton_class.Lifton_GENE) else None
+            )
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, _parent_gene_id, locus.id)
         lifton_status = lifton_class.Lifton_Status()
         lifton_status.annotation = "Liftoff"
         # V1.1a fix: narrow bare `except:` to the actual exceptions a
@@ -549,6 +560,13 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
         try: # Test if the reference transcript exists. Skip if not.
             ref_db[ref_trans_id]
         except (KeyError, gffutils.exceptions.FeatureNotFoundError):
+            # Skipping here drops this transcript AND all of its exons/CDS from the
+            # output, so say so instead of returning silently -- an unresolvable id
+            # used to be indistinguishable from "nothing to lift".
+            logger.log_warning(
+                f"Skipping {locus.id}: reference transcript "
+                f"{ref_trans_id!r} was not found in the reference annotation."
+            )
             return None
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
         orf_done = False

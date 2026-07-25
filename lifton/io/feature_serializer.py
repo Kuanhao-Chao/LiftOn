@@ -59,7 +59,14 @@ def _render_feature(feature) -> str:
     out = io.StringIO()
     out.write(gff3_writer.format_feature(feature.entry) + "\n")
     for sub_feature in feature.features.values():
-        out.write(_render_feature(sub_feature))
+        # A 3-level hierarchy (gene -> primary_transcript -> miRNA -> exon) nests a
+        # real Lifton_TRANS under a LiftOn_FEATURE, so dispatch on shape exactly as
+        # _render_gene does -- recursing blindly into `.features` raised
+        # AttributeError on the transcript and lost the whole subtree.
+        if hasattr(sub_feature, "exons"):
+            out.write(_render_trans(sub_feature))
+        else:
+            out.write(_render_feature(sub_feature))
     return out.getvalue()
 
 
