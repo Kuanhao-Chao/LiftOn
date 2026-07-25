@@ -303,6 +303,62 @@ class LiftOn_FEATURE:
         self.features[Lifton_feature.entry.id] = Lifton_feature
         return Lifton_feature
 
+    # ── Transcript-bearing delegates ────────────────────────────────────────────
+    # A 3-level reference hierarchy (e.g. RefSeq gene -> primary_transcript ->
+    # miRNA -> exon) makes `process_liftoff` descend with the INTERMEDIATE feature
+    # standing in for the gene. Without these methods that recursion raised
+    # AttributeError ('LiftOn_FEATURE' object has no attribute 'add_transcript'),
+    # which `process_locus` catches per-locus -- so the transcript, its exons and its
+    # CDS were dropped from the output with no diagnostic. Mirror the `Lifton_GENE`
+    # API over `self.features`, which `write_entry`/`normalize_containment` already
+    # recurse, so a nested transcript is emitted under its real parent.
+
+    def add_transcript(self, ref_trans_id, gffutil_entry_trans, ref_trans_attrs):
+        Lifton_trans = Lifton_TRANS(
+            ref_trans_id, getattr(self, "ref_gene_id", None), self.entry.id,
+            self.copy_num, gffutil_entry_trans, ref_trans_attrs,
+        )
+        self.features[Lifton_trans.entry.id] = Lifton_trans
+        return Lifton_trans
+
+    def add_exon(self, trans_id, gffutil_entry_exon):
+        self.features[trans_id].add_exon(gffutil_entry_exon)
+
+    def add_cds(self, trans_id, gffutil_entry_cds):
+        self.features[trans_id].add_cds(gffutil_entry_cds)
+
+    def orf_search_protein(self, trans_id, ref_trans_id, fai, ref_proteins,
+                           fai_trans, lifton_status, eval_only=False,
+                           eval_liftoff_chm13=False):
+        child = self.features.get(trans_id)
+        if child is None or not hasattr(child, "orf_search_protein"):
+            return None, False
+        ref_protein_seq = (str(ref_proteins[ref_trans_id])
+                           if ref_trans_id in ref_proteins.keys() else None)
+        ref_trans_seq = (str(fai_trans[ref_trans_id])
+                         if ref_trans_id in fai_trans.keys() else None)
+        return child.orf_search_protein(
+            fai, ref_protein_seq, ref_trans_seq, lifton_status,
+            is_non_coding=False, eval_only=eval_only,
+        )
+
+    def add_lifton_gene_status_attrs(self, source):
+        self.entry.attributes["source"] = [source]
+
+    def add_lifton_trans_status_attrs(self, trans_id, lifton_status):
+        # Only a Lifton_TRANS child takes the 1-argument form; a nested
+        # LiftOn_FEATURE has this same 2-argument signature, so dispatch by type.
+        child = self.features.get(trans_id)
+        if isinstance(child, Lifton_TRANS):
+            child.add_lifton_trans_status_attrs(lifton_status)
+
+    def update_boundaries(self):
+        for child in self.features.values():
+            if child.entry.start < self.entry.start:
+                self.entry.start = child.entry.start
+            if child.entry.end > self.entry.end:
+                self.entry.end = child.entry.end
+
     def normalize_containment(self, cds_id_allocator=None):
         """Recursively normalize the generic-feature hierarchy (gene-like
         features: pseudogenes, ncRNA genes, structured mobile elements) so a
