@@ -362,6 +362,10 @@ def test_mandatory_structural_validation_cannot_be_bypassed(
             is_valid=False,
             errors=[object()],
             warnings=[],
+            # `result.issues` is capped per check, so the pipeline reports the
+            # uncapped severity total; a ValidationResult always carries it.
+            severity_totals={},
+            issue_totals={},
             stats={},
             file_path=str(out_gff),
             total_lines=1,

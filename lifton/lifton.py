@@ -1563,8 +1563,13 @@ def run_all_lifton_steps(args):
             args, "write_reports", e, fatal=True,
         )
     finally:
-        # Guarantee closure of file objects
-        fw.close()
+        # Guarantee closure of file objects. The staged GFF3 must be closed
+        # THROUGH the transaction: a bare `fw.close()` leaves the stream closed
+        # but the transaction still OPEN, so `OutputTransaction.close()` takes
+        # its `if not self._stream.closed` short-circuit and skips the
+        # flush + os.fsync -- `commit()` would then publish, via os.replace,
+        # data that never reached disk. `close()` is idempotent.
+        output_transaction.close()
         fw_score.close()
         fw_unmapped.close()
         fw_extra_copy.close()
@@ -1598,10 +1603,16 @@ def run_all_lifton_steps(args):
     structural_result = gff3_validator.validate_gff3_structure(
         staged_output_path,
     )
+    # `result.issues` is capped per check, so `len(errors)` understates a badly
+    # broken file (50 per check, whatever the true count). Report the uncapped
+    # severity total the validator now tracks.
+    structural_error_total = structural_result.severity_totals.get(
+        gff3_validator.Severity.ERROR, len(structural_result.errors),
+    )
     manifest.record_validation(
         "gff3_structural",
         passed=structural_result.is_valid,
-        errors=len(structural_result.errors),
+        errors=structural_error_total,
         warnings=len(structural_result.warnings),
         details={"path": staged_output_path},
     )
@@ -1612,14 +1623,14 @@ def run_all_lifton_steps(args):
         )
         error = LiftOnValidationError(
             "output GFF3 failed mandatory structural validation with "
-            f"{len(structural_result.errors)} error(s)"
+            f"{structural_error_total} error(s)"
         )
         _record_pipeline_failure(
             args,
             "validate_output_structure",
             error,
             fatal=True,
-            details={"errors": len(structural_result.errors)},
+            details={"errors": structural_error_total},
         )
         partial_path = output_transaction.abort()
         logger.log_error(

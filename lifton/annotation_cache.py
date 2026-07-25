@@ -10,11 +10,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 import uuid
 import fcntl
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Mapping
+
+from lifton import logger
 
 
 MANIFEST_FORMAT_VERSION = 2
@@ -148,6 +151,31 @@ def temporary_db_path(db_path: str) -> str:
     return os.path.join(parent, f".{name}.tmp.{os.getpid()}.{uuid.uuid4().hex}")
 
 
+def _open_lock_file(lock_path: str):
+    """Open an advisory lock file, degrading to a temp-dir lock.
+
+    A shared, read-only reference mount is a normal HPC layout, and the cached
+    database next to it is then reused read-only. Creating ``<db>.lock`` beside
+    it raises ``PermissionError``, which used to abort the run outright. Fall
+    back to a lock in the temp directory, keyed by a digest of the absolute DB
+    path so peers on the same host still serialise on the same file.
+    """
+    parent = os.path.dirname(os.path.abspath(lock_path))
+    try:
+        Path(parent).mkdir(parents=True, exist_ok=True)
+        return open(lock_path, "a+b")
+    except OSError:
+        pass
+    digest = hashlib.sha256(
+        os.path.abspath(lock_path).encode("utf-8", "surrogateescape")
+    ).hexdigest()[:32]
+    fallback = os.path.join(tempfile.gettempdir(), f"lifton-cache-{digest}.lock")
+    try:
+        return open(fallback, "a+b")
+    except OSError:
+        return None
+
+
 @contextmanager
 def cache_lock(db_path: str) -> Iterator[None]:
     """Serialize cache rebuilds with an advisory ``<db>.lock`` file.
@@ -157,10 +185,21 @@ def cache_lock(db_path: str) -> Iterator[None]:
     Lock files are intentionally persistent and contain no state.
     """
 
-    lock_path = os.fspath(db_path) + ".lock"
-    parent = os.path.dirname(os.path.abspath(lock_path))
-    Path(parent).mkdir(parents=True, exist_ok=True)
-    with open(lock_path, "a+b") as handle:
+    handle = _open_lock_file(os.fspath(db_path) + ".lock")
+    if handle is None:
+        # No writable lock location anywhere. Serialisation is an optimisation,
+        # not a correctness requirement — the rebuild itself publishes through
+        # an atomic same-directory rename — so proceed unlocked rather than
+        # failing the run.
+        logger.log_warning(
+            "Could not create a cache lock for "
+            f"{os.fspath(db_path)!r}; proceeding without cross-process "
+            "serialisation. Concurrent LiftOn runs may rebuild the same "
+            "annotation database redundantly."
+        )
+        yield
+        return
+    with handle:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         try:
             yield

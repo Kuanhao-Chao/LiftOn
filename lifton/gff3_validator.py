@@ -661,6 +661,16 @@ def validate_gff3_structure(
         feature_id: str = "",
     ) -> None:
         issue_counts[check] += 1
+        # Record the UNCAPPED totals as well as the (capped) issue objects.
+        # ``result.issues`` stops growing after ``max_issues_per_check``, so a
+        # file with thousands of errors used to report exactly 50 per check --
+        # and ``ValidationResult.is_valid``'s severity_totals clause, written
+        # precisely to survive that capping, was inert because nothing ever
+        # populated the dict. Updating here covers every return path.
+        result.issue_totals[check] = issue_counts[check]
+        result.severity_totals[Severity.ERROR] = (
+            result.severity_totals.get(Severity.ERROR, 0) + 1
+        )
         if issue_counts[check] <= max_issues_per_check:
             result.issues.append(GFF3Issue(
                 Severity.ERROR, lineno, feature_id, check, message,

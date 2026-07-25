@@ -384,6 +384,15 @@ class FeatureDB:
         # that share a start coordinate).
         if order_by is not None and order_by != "file_order":
             clause += ", file_order ASC"
+        else:
+            # ``file_order`` alone is NOT a total order: rows synthesised by
+            # parent inference carry no ingest position, so an unordered root
+            # scan could hand the serial and parallel passes different
+            # submission indices — i.e. a different output order for the same
+            # input.  ``id`` is unique, so this makes the scan deterministic.
+            # (``_order_clause_qualified`` already orders relation queries by
+            # id for the same reason.)
+            clause += ", id ASC"
         return clause
 
     # ------------------------------------------------------------------
