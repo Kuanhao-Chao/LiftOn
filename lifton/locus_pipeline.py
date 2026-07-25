@@ -861,7 +861,18 @@ def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLoc
         return
 
     entry = _FeaturePreFetch(feature=feature)
-    # Variant 1: featuretype='exon', level=1
+    # Variant 1: featuretype='exon', level=1. This also CLASSIFIES the feature, exactly
+    # as the batched sibling `_walk_and_cache_features_batched` does:
+    #   * direct level-1 exons  -> TRANSCRIPT-shaped ("terminal"): the runtime consumes
+    #     its exons plus CDS/stop-codon descendants and stops.
+    #   * no direct exons       -> CONTAINER: the runtime reads its level-1 children and
+    #     recurses into them.
+    # The scalar walker used to run all four query variants for EVERY feature and then
+    # recurse into `children_l1` -- which for a transcript is its exons and CDS. Each of
+    # those leaves then paid ~4 more SQLite round-trips and got a cache entry of its own,
+    # for signatures the runtime never asks a leaf about (the proxy answers an un-cached
+    # feature with an empty iterator either way). On a human RefSeq lift that is millions
+    # of redundant queries. Keeping the container/terminal split here removes them.
     try:
         entry.exon_children_l1 = list(
             ctx.l_feature_db.children(
@@ -872,7 +883,26 @@ def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLoc
         logger.log_warning(
             f"_walk_and_cache_features({feature_id}): exon@l1 failed: {exc}"
         )
-    # Variant 2: level=1 (any type)
+
+    if entry.exon_children_l1:
+        # Terminal. Variant 3 (no-level exons) equals Variant 1 under the leaf-exon
+        # convention (Phase 17c Win 1), and Variant 2 is only ever asked of containers.
+        entry.exon_children_full = list(entry.exon_children_l1)
+        # Variant 4: featuretype=('CDS','stop_codon') (no level)
+        try:
+            entry.cds_stop_children = list(
+                ctx.l_feature_db.children(
+                    feature, featuretype=("CDS", "stop_codon"), order_by="start",
+                )
+            )
+        except Exception as exc:
+            logger.log_warning(
+                f"_walk_and_cache_features({feature_id}): CDS+stop_codon failed: {exc}"
+            )
+        payload.feature_cache[feature_id] = entry
+        return
+
+    # Container. Variant 2: level=1 (any type)
     try:
         entry.children_l1 = list(
             ctx.l_feature_db.children(feature, level=1)
@@ -880,42 +910,6 @@ def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLoc
     except Exception as exc:
         logger.log_warning(
             f"_walk_and_cache_features({feature_id}): children@l1 failed: {exc}"
-        )
-    # Variant 3: featuretype='exon' (no level, used by lifton_add_trans_exon_cds).
-    #
-    # Phase 17c Win 1: dedup against Variant 1 when the feature has any
-    # level-1 exon children. In standard GFF3 (gene → mRNA → exon, with
-    # exons as leaves), the per-locus body only invokes Variant 3 on
-    # transcript-shaped features (i.e. those reached via the
-    # ``len(exon_children) > 0`` branch at run_liftoff.py:240) — and on
-    # those, all exons are at level=1 by the leaf-exon convention. So
-    # Variant 3 ⊇ Variant 1 holds with equality, and the second query
-    # is redundant. The fallback path (run a real query when there are
-    # no level-1 exons) is preserved for gene-level features where the
-    # proxy might still be asked for Variant 3 defensively.
-    if entry.exon_children_l1:
-        entry.exon_children_full = list(entry.exon_children_l1)
-    else:
-        try:
-            entry.exon_children_full = list(
-                ctx.l_feature_db.children(
-                    feature, featuretype="exon", order_by="start",
-                )
-            )
-        except Exception as exc:
-            logger.log_warning(
-                f"_walk_and_cache_features({feature_id}): exon (no-level) failed: {exc}"
-            )
-    # Variant 4: featuretype=('CDS','stop_codon') (no level)
-    try:
-        entry.cds_stop_children = list(
-            ctx.l_feature_db.children(
-                feature, featuretype=("CDS", "stop_codon"), order_by="start",
-            )
-        )
-    except Exception as exc:
-        logger.log_warning(
-            f"_walk_and_cache_features({feature_id}): CDS+stop_codon failed: {exc}"
         )
     payload.feature_cache[feature_id] = entry
 

@@ -221,7 +221,12 @@ class TestMaterialiseLocus:
         assert len(payload.exon_children) == 2
         assert len(payload.cds_children) == 2
         assert len(payload.cds_stop_children) == 2
-        assert len(payload.children_l1) == 4
+        # This fixture's locus has DIRECT level-1 exons, i.e. it is transcript-shaped
+        # ("terminal"), so the runtime consumes its exons + CDS and never asks for its
+        # level-1 children -- the walker therefore does not spend that query. This
+        # matches `_walk_and_cache_features_batched`, which likewise assigns
+        # `children_l1 = [] if direct_exons else ...`.
+        assert payload.children_l1 == []
 
     def test_populates_ref_attrs(self, monkeypatch):
         ctx, locus = _build_ctx_for_materialise(monkeypatch)
