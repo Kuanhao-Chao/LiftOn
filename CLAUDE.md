@@ -6,6 +6,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 LiftOn is a homology-based genome-annotation lift-over CLI. Given a reference genome `R`, its annotation `R_A`, and a target genome `T`, it produces an annotation `T_A` for `T`. It combines DNA-level alignment (a vendored fork of Liftoff, which can shell out to `minimap2` *or* drive it in-process via the `mappy` PyO3 binding) with protein-level alignment (`miniprot` invoked as a subprocess, with a `pyminiprot`-shaped facade ready to drop in a real PyO3 binding when one ships) and merges the two via an in-house "protein-maximization" chaining algorithm + ORF-rescue pass. CLI entry: `lifton.lifton:main` (`setup.py:34` → `lifton/lifton.py:649`, which calls `run_all_lifton_steps` at `lifton/lifton.py:283`). A second console script `gff3-validate = lifton.gff3_validator:_main` ships from the same package.
 
+## Current state (refreshed 2026-07 by the full-repository audit)
+
+**Read this before trusting line numbers below.** Much of this file was written across
+Iterations 1-24 and its file:line references have drifted; the code is authoritative for
+*current shape*, this file for *history and NO-GOs* (the NO-GO list is still accurate and
+still worth honouring). Concretely: `lifton/lifton.py` is ~1850 lines (not ~649), and the
+suite is ~1450 tests (not 524/662/805).
+
+**Modules added after the Iteration notes were written**, none of which appear elsewhere in
+this document:
+
+| Module | Role |
+|---|---|
+| `run_manifest.py` | `lifton_output/run_manifest.json`: sanitized args, SHA-256 input fingerprints, tool/dependency versions, per-phase **wall-clock** timings, counts, validation, failures. This — not `--measure_time`, which uses `process_time()` and cannot see the miniprot subprocess — is the correct instrument for any timing claim. |
+| `output_transaction.py` | GFF3 is staged and atomically published only on success; a failed run leaves `*.partial.gff3`. |
+| `annotation_validator.py` / `annotation_cache.py` | One-pass annotation scan (format, directives, ids, NCBI findings) + content-addressed DB caches with manifest sidecars and flock. |
+| `miniprot_pipeline.py` | Bounded, deterministic **parallel Step 8** — the twin of `parallel_step7`, with its own proxy-DB materialisation. |
+| `cds_id_allocator.py` | File-scoped stable/synthetic CDS-ID allocation, with a `tentative()` savepoint so a rejected candidate cannot burn an ID. |
+| `cross_locus_rescue.py` | Opt-in cross-locus rescue (env/flag gated). |
+| `variants.py`, `coreutils.py` | Mutation classification; the dependency-free leaf helpers from the Iteration-16 cycle break. |
+
+**Structural blind spot to design around.** Every synthetic fixture in `tests/conftest.py`
+is gene-only, coding-only, 600 bp and 2-level. That is what keeps the 24-cell matrix green
+with no golden edit, but it is also why the Iteration-20/21/24 bugs — and the nine defects
+found by the 2026-07 audit — shipped past hundreds of green tests. When adding a feature,
+ask what fixture shape would expose it: pseudogene/gene-like children, a 3-level hierarchy,
+an unlisted transcript type, a failing locus, real Step-8 candidates. Several such fixtures
+now exist (`tests/test_nested_hierarchy.py`, `tests/test_validator_transcript_types.py`,
+`tests/test_step8_parallel_matrix.py`).
+
+Full findings, including everything deliberately deferred, are in
+`notes/lifton_correctness_audit.md`.
+
 ## Environment & commands
 
 The project requires native deps (`parasail`, `pysam`, `pyfaidx`, `gffutils`, `duckdb`, `pyarrow`) that ship as bioconda/conda-forge wheels. On macOS/ARM, `pip install parasail` will fail to build from source — use conda. The vendored `lifton/gffbase/` ships a pre-built Rust extension (`_native*.so`); a missing extension falls back to the pure-Python parser at `lifton/gffbase/_pyfallback/`.
@@ -20,7 +53,7 @@ conda install -y -c bioconda -c conda-forge \
 pip install mappy   # Phase 16 Tier 5: real --native minimap2 path; also unblocks test_native_bindings.py
 pip install -e .
 
-# Run the test suite (524 tests collect; fully hermetic re: minimap2/miniprot —
+# Run the test suite (~1450 tests collect as of the 2026-07 audit batch; fully hermetic re: minimap2/miniprot —
 # they're monkey-patched to raise). 3 files (test_property_based, test_streaming_property,
 # test_vulnerabilities) ERROR on collection unless `hypothesis` is installed; without `mappy`
 # in the env, ~5 test_native_bindings cases fail (they assert mappy is present).
