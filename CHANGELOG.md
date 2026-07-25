@@ -35,9 +35,6 @@ All notable changes to **LiftOn** are documented here. This project follows
 - **`--legacy-merge` no longer duplicates exons.** A single-CDS transcript
   re-emitted the CDS-bearing exon for every downstream exon (a 7-exon
   transcript emitted 12).
-- **An ambiguous chaining chunk keeps its CDS.** Chunks where neither aligner
-  scored a match were relabelled *and* dropped, frameshifting everything
-  downstream.
 - **Cached `-L`/`-M` runs work without miniprot installed** — the preflight ran
   before the short-circuit. `check_miniprot_installed` no longer leaks a
   version banner into `-o stdout` output and now checks the exit status.
@@ -53,8 +50,10 @@ All notable changes to **LiftOn** are documented here. This project follows
   per-alignment identity counters are vectorized (2.4–2.8× protein, 1.6–1.8×
   DNA), and the Step-7 ordered gate prunes committed intervals instead of
   rescanning an ever-growing list under a single lock. Measured on
-  *Drosophila* at `-t 8`: Step 7 −16.7 %, total wall −13.4 %, byte-identical
-  output.
+  *Drosophila* at `-t 8` over two alternated repeats: **Step 7 −21 %**
+  (161.6 s → 127.4 s), peak RSS flat, byte-identical output. Verified
+  identity-neutral on a mammalian dog→cat lift (mean protein-identity
+  delta 0.00000000 over 4,288 transcripts).
 
 ### Added
 
