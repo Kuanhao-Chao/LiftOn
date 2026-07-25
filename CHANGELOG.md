@@ -6,6 +6,56 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A skipped locus no longer withholds the whole annotation.** Any per-locus
+  processing or serialization failure previously blocked publication, so one
+  bad gene in a 60,000-gene genome produced exit 2 and only a
+  `*.partial.gff3`. Per-locus failures now publish, report the run as
+  `partial_success`, and are recorded in `run_manifest.json`; publication is
+  blocked only by failures that mean the output itself cannot be trusted
+  (structural validation, report writing, or a non-empty reference that
+  produced no features). `--strict-completeness` restores the previous
+  behaviour and `--allow-partial-output` still overrides.
+- **LiftOn no longer rejects its own valid output.** The mandatory structural
+  validator recognised transcript levels through a closed allowlist while the
+  lift auto-detects gene-like types and preserves the reference's middle level
+  verbatim, so an Ensembl/GENCODE `pseudogene → pseudogenic_transcript → exon`
+  (and RefSeq `misc_RNA`, `pre_miRNA`, `pseudogenic_tRNA`) was lifted
+  correctly and then failed validation. Transcript levels are now recognised
+  by shape; genuinely wrong hierarchies are still rejected.
+- **An unusable miniprot alignment no longer drops a whole gene.** A miniprot
+  mRNA with no CDS children produced a `None` alignment that was dereferenced,
+  removing the entire Liftoff locus even though its DNA lift was sound. The
+  chaining whole-side fallbacks now also emit CDS in the order
+  `update_cds_list` expects.
+- **Three-level hierarchies are lifted instead of dropped.** A reference shaped
+  `gene → primary_transcript → miRNA → exon` silently lost the nested
+  transcript and all of its exons and CDS.
+- **`--legacy-merge` no longer duplicates exons.** A single-CDS transcript
+  re-emitted the CDS-bearing exon for every downstream exon (a 7-exon
+  transcript emitted 12).
+- **An ambiguous chaining chunk keeps its CDS.** Chunks where neither aligner
+  scored a match were relabelled *and* dropped, frameshifting everything
+  downstream.
+- **Cached `-L`/`-M` runs work without miniprot installed** — the preflight ran
+  before the short-circuit. `check_miniprot_installed` no longer leaks a
+  version banner into `-o stdout` output and now checks the exit status.
+- **Rejected rescue candidates no longer burn stable CDS IDs**, which made
+  output depend on how many candidates happened to be rejected.
+- **A missing binary or typo'd path reports immediately** instead of appearing
+  to hang through a multi-gigabyte input fingerprint.
+
+### Performance
+
+- **Faster per-locus processing.** The scalar materialiser no longer walks
+  exon/CDS leaves (millions of redundant SQLite queries on large genomes), the
+  per-alignment identity counters are vectorized (2.4–2.8× protein, 1.6–1.8×
+  DNA), and the Step-7 ordered gate prunes committed intervals instead of
+  rescanning an ever-growing list under a single lock. Measured on
+  *Drosophila* at `-t 8`: Step 7 −16.7 %, total wall −13.4 %, byte-identical
+  output.
+
 ### Added
 
 - **Auditable run manifests and transactional output.** Every completed CLI
