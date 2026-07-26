@@ -1,7 +1,7 @@
 import subprocess
 import os, copy, sys
 import gffutils
-from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
+from lifton import align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
 from intervaltree import Interval, IntervalTree
@@ -154,8 +154,8 @@ def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args,
     """
     ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
     lifton_gene = lifton_class.Lifton_GENE(
-        ref_gene_id, copy.deepcopy(locus),
-        copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict,
+        ref_gene_id, coreutils.clone_feature(locus),
+        coreutils.clone_attributes(ref_db[ref_gene_id].attributes), tree_dict,
         ref_features_dict, args, tmp=with_exons,
         state_journal=state_journal,
     )
@@ -177,7 +177,7 @@ def lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_tran
         lifton_trans: Lifton transcript instance
         len(cdss_list): number of CDSs
     """
-    lifton_trans = lifton_gene.add_transcript(ref_trans_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_trans_id].attributes))
+    lifton_trans = lifton_gene.add_transcript(ref_trans_id, coreutils.clone_feature(locus), coreutils.clone_attributes(ref_db[ref_trans_id].attributes))
     exons = l_feature_db.children(locus, featuretype='exon', order_by='start')
     for exon in list(exons):
         lifton_gene.add_exon(lifton_trans.entry.id, exon)
@@ -447,7 +447,7 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                     lifton_trans.exons = []
                     for _c in _mini_children:
                         lifton_gene.add_exon(lifton_trans.entry.id, _c)
-                        _cds_copy = copy.deepcopy(_c)
+                        _cds_copy = coreutils.clone_feature(_c)
                         lifton_gene.add_cds(lifton_trans.entry.id, _cds_copy)
                     lifton_trans.update_boundaries()
                     lifton_gene.update_boundaries()
@@ -525,7 +525,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
         if ENTRY_FEATURE: # Gene (1st) features without direct exons
             parent_feature = lifton_gene
         else: # Middle features without exons
-            parent_feature = lifton_gene.add_feature(copy.deepcopy(locus))
+            parent_feature = lifton_gene.add_feature(coreutils.clone_feature(locus))
         features = l_feature_db.children(locus, level=1)
         for feature in list(features):
             process_liftoff(

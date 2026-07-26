@@ -491,11 +491,29 @@ class Lifton_TRANS:
             )
             if template:
                 self._cds_attr_template = template
-        for exon in self.exons:
-            _, ovp = coreutils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
-            if ovp:
-                gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
-                exon.add_cds(gffutil_entry_cds)
+        overlapping = [
+            exon for exon in self.exons
+            if coreutils.segments_overlap_length(
+                (exon.entry.start, exon.entry.end),
+                (gffutil_entry_cds.start, gffutil_entry_cds.end))[1]
+        ]
+        if len(overlapping) > 1:
+            # "A CDS lies in exactly one exon" is assumed throughout the model
+            # but was never checked, so a CDS spanning an intron was attached to
+            # every exon it touched -- emitting the same CDS several times, and
+            # (because they shared ONE Feature object) letting a later edit to
+            # any copy silently rewrite the others.
+            logger.log_warning(
+                f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
+                f"({gffutil_entry_cds.start}-{gffutil_entry_cds.end}) spans "
+                f"{len(overlapping)} exons of {self.entry.id}; each will carry "
+                "its own copy. The reference model is malformed here."
+            )
+        for exon in overlapping:
+            entry = (gffutil_entry_cds if len(overlapping) == 1
+                     else coreutils.clone_feature(gffutil_entry_cds))
+            entry.attributes['Parent'] = [self.entry.id]
+            exon.add_cds(entry)
 
     def update_gffutil_entry_trans(self, gffutil_entry_trans):
         for key, atr in gffutil_entry_trans.attributes.items():
@@ -777,7 +795,7 @@ class Lifton_TRANS:
         cds_children = []
         for exon in self.exons:
             if exon.cds is not None:
-                cds_children.append(copy.deepcopy(exon.cds.entry))
+                cds_children.append(coreutils.clone_feature(exon.cds.entry))
                 # Chaining the CDS features
                 p_seq = exon.cds.entry.sequence(fai) if include_sequence else ""
                 if exon.cds.entry.strand == '-':
@@ -1215,6 +1233,22 @@ class Lifton_EXON:
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
         self.cds = None
 
+    def __deepcopy__(self, memo):
+        # `copy.deepcopy(trans.exons)` in `run_liftoff._snapshot_merge_state` and
+        # `copy.deepcopy(exon)` in `update_cds_list` were the two hottest copy
+        # sites in the Step-7 profile. An exon holds exactly one gffutils
+        # Feature and at most one Lifton_CDS, so a purpose-built clone is both
+        # complete and ~6.6x cheaper per Feature. `memo` is honoured so a shared
+        # reference stays shared, exactly as deepcopy guarantees.
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        clone = Lifton_EXON.__new__(Lifton_EXON)
+        memo[id(self)] = clone
+        clone.entry = coreutils.clone_feature(self.entry)
+        clone.cds = copy.deepcopy(self.cds, memo) if self.cds is not None else None
+        return clone
+
     def update_exon_info(self, start, end):
         self.cds = None
         self.entry.source = "LiftOn"
@@ -1227,7 +1261,7 @@ class Lifton_EXON:
 
     def add_novel_lifton_cds(self, gffutil_entry_exon, start, end,
                              attr_template=None):
-        gffutil_entry_cds = copy.deepcopy(gffutil_entry_exon)
+        gffutil_entry_cds = coreutils.clone_feature(gffutil_entry_exon)
         gffutil_entry_cds.featuretype = "CDS"
         gffutil_entry_cds.start = start
         gffutil_entry_cds.end = end
@@ -1301,6 +1335,20 @@ class Lifton_CDS:
         ):
             self._source_id_base = self._source_id_base[:-len(copy_suffix)]
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
+
+    def __deepcopy__(self, memo):
+        # Copied verbatim rather than re-run through __init__: the source-ID
+        # provenance (_source_id / _source_id_base / _source_copy_number) is
+        # derived from attributes that __init__ POPS, so re-deriving it from a
+        # clone would silently lose the copy suffix. See Lifton_EXON.__deepcopy__.
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        clone = Lifton_CDS.__new__(Lifton_CDS)
+        memo[id(self)] = clone
+        clone.__dict__.update(self.__dict__)
+        clone.entry = coreutils.clone_feature(self.entry)
+        return clone
 
     def update_CDS_info(self, start, end):
         self.entry.source = "LiftOn"

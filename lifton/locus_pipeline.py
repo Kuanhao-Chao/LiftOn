@@ -16,11 +16,12 @@
 
 from __future__ import annotations
 
-import copy as _copy
 import io as _io
 import os as _os
 import threading as _threading
 import traceback as _traceback
+
+from lifton import coreutils
 from collections import OrderedDict as _OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -645,6 +646,40 @@ class _MFeatureDbProxy:
             raise KeyError(m_id)
         return self._cache[m_id].feature
 
+    # The cache is populated with order_by='start'.
+    _CACHED_ORDER = "start"
+
+    @classmethod
+    def _ordered(cls, children, order_by):
+        """Serve the requested ordering from the cached rows.
+
+        The cache holds one ordering, and the proxy used to return it whatever
+        the caller asked for -- so a caller wanting file order (``order_by=None``,
+        which is what the real backends give) would silently receive start-sorted
+        rows instead. Every current caller does ask for 'start', so this was
+        latent; re-sorting in memory keeps it that way for any future one,
+        without a database round-trip from a worker thread.
+        """
+        if order_by == cls._CACHED_ORDER or len(children) < 2:
+            return children
+        if order_by in (None, "file_order"):
+            # Rows with no ingest position sort last, keeping their relative
+            # order, exactly as the SQL `file_order ASC, id ASC` tiebreak does.
+            return sorted(
+                children,
+                key=lambda f: (
+                    getattr(f, "file_order", None) is None,
+                    getattr(f, "file_order", 0) or 0,
+                    getattr(f, "id", "") or "",
+                ),
+            )
+        if order_by in ("end", "start", "seqid", "featuretype"):
+            return sorted(children, key=lambda f: getattr(f, order_by))
+        raise NotImplementedError(
+            f"_MFeatureDbProxy.children: cannot serve order_by={order_by!r} "
+            f"from a cache built with order_by={cls._CACHED_ORDER!r}."
+        )
+
     def children(self, feature, featuretype=None, level=None,
                  order_by=None):
         m_id = getattr(feature, "id", feature)
@@ -652,7 +687,7 @@ class _MFeatureDbProxy:
         if entry is None:
             return iter([])
         if featuretype == ("CDS", "stop_codon"):
-            return iter(entry.cds_stop_children)
+            return iter(self._ordered(entry.cds_stop_children, order_by))
         raise NotImplementedError(
             f"_MFeatureDbProxy.children: un-cached signature "
             f"(featuretype={featuretype!r}); the only signature the "
@@ -960,7 +995,7 @@ def _maybe_cache_ref_attrs(payload: MaterialisedLocus, ref_db,
     if ref_id is None or ref_id in payload.ref_attrs_cache:
         return
     try:
-        attrs = _copy.deepcopy(ref_db[ref_id].attributes)
+        attrs = coreutils.clone_attributes(ref_db[ref_id].attributes)
         payload.ref_attrs_cache[ref_id] = attrs
     except Exception:
         # Leave it absent → proxy will raise KeyError, which the
@@ -1015,7 +1050,7 @@ def _populate_ref_attrs_for_descent(payload: MaterialisedLocus,
         ctx.ref_db, slots=getattr(ctx.args, "threads", 1),
     )
     for ref_id, feature in loader.features_many(ref_ids).items():
-        payload.ref_attrs_cache[ref_id] = _copy.deepcopy(feature.attributes)
+        payload.ref_attrs_cache[ref_id] = coreutils.clone_attributes(feature.attributes)
 
 
 def _populate_miniprot_cache(payload: MaterialisedLocus,
