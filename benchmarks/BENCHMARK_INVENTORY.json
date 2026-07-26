@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "b28d5da1a85e99391601e8ee822c40f18e661fec1dc554f68e5ef1aa5a8dea4e",
-      "bytes": 476469,
+      "aggregate_sha256": "d747b778cd8aa94c6a73ae5343b81807f05bc52e5f4ab33eae33948c942b6bf0",
+      "bytes": 476531,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -173,13 +173,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "fce754556333992dcdd7da5171965cca4019c47e9dfe9163707ef04cdf259e3f",
-      "bytes": 212542,
+      "aggregate_sha256": "32cac421499a519ebeceb8d83ab723f79cfed18773b991c1281d04362afb7356",
+      "bytes": 228227,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
-      "file_count": 21,
+      "file_count": 24,
       "id": "diagnostic_headroom",
       "superseded_by": null
     },
@@ -2420,6 +2420,40 @@
       "sha256": "bd8ba8a4de58348222c411573a7f8d100984fe86c37f0acb0d09067972ca7b86"
     },
     {
+      "bytes": 4603,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "2d67308a360327bc330cf2df0e08ac875fb6b0a9d0d15a68052376b30fedd65e",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/start_lost_headroom.json",
+      "sha256": "01a575325d0b110d607f6e141f925e914d76878fc0c71a3b7adbbda4fd9b490e"
+    },
+    {
+      "bytes": 1701,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/start_lost_headroom.md",
+      "sha256": "9922250b7c77c0b54ee91c62fbf9550ec4029f235f363731eb0cf7d8429d233a"
+    },
+    {
+      "bytes": 9381,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/start_lost_headroom.py",
+      "sha256": "73e89b06f0e714fe4ecd15bf87e6640e05264947d7618254ac588b2749f1b2cc"
+    },
+    {
       "bytes": 1035,
       "claim_eligible": false,
       "classification": "historical",
@@ -2732,18 +2766,18 @@
       "sha256": "6ebd107ac0ded7dba4a1eab44431b0e15737a8c6a5c77c4bd400a65449086a1f"
     },
     {
-      "bytes": 10207,
+      "bytes": 10269,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "4c172d2d4d6ad28b69bffaea4bd25b89a4456cd2c6ad0731c09da164a9f06110",
+        "shape_sha256": "d98f859ec37b9c07fe17c120c2adef2fe70fe4544271aa39dc672479035ebae4",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "70d17bbf9265486401a6df08516795fe93d49b30c529d7d71e4f29a120f9a85c"
+      "sha256": "a6e3b62dd330d1934cd12e6fed79b8f698e5cf6a75de1bfb95aefc89a4fd5c8d"
     },
     {
       "bytes": 34428,
@@ -2906,7 +2940,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "5331fc21c7b85af94e70d9f10d05585014d5a4f948fecb1ad529144b4cb2d8e8",
+  "inventory_sha256": "f0d28f81ff0bec594c951714fa36ef9e074b82c01dad7fae7d621f9ecbbb4aba",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -2950,19 +2984,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "9c93e9ed219b4cfaa4929f735d0e42d8bad631bcc4f875fd9f6adb2a40eac32e",
+  "rules_sha256": "d305e0818ad4c3b4485c197dcb29696bff09cf0a0ba7c40f61666be4a83592b8",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "8e0ecf0e847cf8f856feb4a2398035f4a054f88fed64fc6331d8ee374345677e",
-    "bytes": 12334987,
+    "aggregate_sha256": "f0ec4d23a406d3b6cdb260f6e7789e9a459e28fd8883b98ba7c8b7d9c2802bee",
+    "bytes": 12350734,
     "classification_counts": {
       "canonical": 61,
-      "diagnostic": 21,
+      "diagnostic": 24,
       "historical": 135,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 235
+    "file_count": 238
   }
 }
