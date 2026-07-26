@@ -263,6 +263,16 @@ Kept here so nothing is lost. Each has a rationale for deferring.
   eight-cell divergence ladder.
 
 ### Performance / memory
+- **Codon-table translation — NO-GO, below the measurement floor** (2026-07-26).
+  `Bio.Seq` translation plus `CodonTable.__getitem__` is **2.8 %** of profiled Step-7 time
+  on dog→cat. A lookup table built by asking Biopython itself for all 4,096 IUPAC codons
+  (40 ms, would be lazy) is **1.7× faster** on a 10.8 kb sequence — 0.762 → 0.442 ms.
+  1.7× on a 2.8 % component is **~1.2 % of Step 7**, and this benchmark's run-to-run
+  spread is 8.9 %: the win could never be demonstrated end to end, only asserted. The
+  equivalence surface is also wider than it first appears — whole-sequence translation has
+  to agree with per-codon lookup for gaps (`ATG---TAA` → `M-*`), lowercase, and characters
+  outside the table. Not worth the code for an unverifiable gain. Reconsider only if a
+  profile ever puts translation materially higher.
 - **The second half of the SQL collapse needs a proxy cache first** (2026-07-26).
   `LIFTON_SQL_DIAG` (`lifton/sql_diag.py`) attributed all 72,913 Step-7 statements on
   drosophila to their call sites. Two sites stood out, both issuing more queries than

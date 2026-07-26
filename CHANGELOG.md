@@ -234,6 +234,18 @@ annotation bytes).
 
 ### Performance (byte-neutral)
 
+- **GFF3 validation is bounded instead of whole-file.** `validate_gff3_file`,
+  reachable from `--validate-output` and the `gff3-validate` CLI, materialised a
+  record per row and walked that list five times: **406 MB** for a 92,675-row
+  output and **5.64 GB** for a full dog→cat lift. It now validates one
+  contiguous top-level block at a time — **39 MB** and **267 MB** respectively,
+  21× less memory at mammalian scale and 1.9× faster, with reports identical
+  down to issue order and message text. Files that are not block-ordered, or
+  that contain a genuine duplicate ID, fall back to the previous path unchanged.
+- **One fewer database query per miniprot candidate.** The same
+  `children(..., ('CDS','stop_codon'))` statement was issued twice per
+  candidate — 9.6 % of every SQL statement Step 7 ran on *Drosophila*
+  (72,913 → 65,901). Output is byte-identical.
 - **Vendored-Liftoff speed backports.** `seperate_parents_and_children`
   (hierarchy build) now selects only the parent/child/feature id columns rather
   than `SELECT *`, and `convert_all_children_coords` (child-coordinate conversion)
