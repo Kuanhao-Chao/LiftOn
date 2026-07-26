@@ -103,6 +103,47 @@ def _ensure_run_manifest(args, outdir, lifton_outdir):
     return manifest
 
 
+def _start_step7_profile():
+    """Begin an output-neutral CPU profile of Step 7, if requested.
+
+    Step 7 is the wall-clock hot spot, but a wall-time probe only says *how
+    long*, never *where*. Repeatedly across this project the named bottleneck
+    turned out to be the wrong one, so profile before optimising.
+    """
+    if not os.environ.get("LIFTON_PROFILE_STEP7"):
+        return None
+    import cProfile
+    profiler = cProfile.Profile()
+    profiler.enable()
+    return profiler
+
+
+def _finish_step7_profile(profiler, outdir):
+    if profiler is None:
+        return
+    profiler.disable()
+    import io as _io
+    import pstats
+    setting = os.environ.get("LIFTON_PROFILE_STEP7", "")
+    if setting.strip().lower() in ("1", "true", "yes", "on", ""):
+        target = os.path.join(outdir, "step7_profile.txt")
+    else:
+        target = setting
+    buffer = _io.StringIO()
+    stats = pstats.Stats(profiler, stream=buffer).sort_stats("tottime")
+    stats.print_stats(45)
+    report = buffer.getvalue()
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write(report)
+        profiler.dump_stats(os.path.splitext(target)[0] + ".prof")
+    except OSError as exc:
+        logger.log_warning(f"Could not write the Step-7 profile: {exc}")
+    sys.stderr.write("\n".join(report.splitlines()[:22]) + "\n")
+    sys.stderr.flush()
+
+
 def _switch_manifest_phase(args, name, details=None):
     manifest = getattr(args, "_run_manifest", None)
     if manifest is None:
@@ -911,11 +952,13 @@ def run_all_lifton_steps(args):
         ref_proteins = Fasta(ref_proteins_file)
     logger.log("\t * number of transcripts: ", len(ref_trans.keys()), debug=True)
     logger.log("\t * number of proteins: ", len(ref_proteins.keys()), debug=True)
-    trunc_ref_proteins = lifton_utils.get_truncated_protein(ref_proteins)
-    logger.log("\t\t * number of truncated proteins: ", len(trunc_ref_proteins.keys()), debug=True)
+    # Count, don't collect: the dict was built only to be measured, then held
+    # for the rest of the run.
+    trunc_ref_protein_count = lifton_utils.count_truncated_proteins(ref_proteins)
+    logger.log("\t\t * number of truncated proteins: ", trunc_ref_protein_count, debug=True)
     manifest.record_count("reference_transcripts", len(ref_trans.keys()))
     manifest.record_count("reference_proteins", len(ref_proteins.keys()))
-    manifest.record_count("truncated_reference_proteins", len(trunc_ref_proteins.keys()))
+    manifest.record_count("truncated_reference_proteins", trunc_ref_protein_count)
 
     ################################
     # optional Step: Evaluation mode
@@ -1264,11 +1307,18 @@ def run_all_lifton_steps(args):
     # stderr line when LIFTON_PERF_STEP7 is set — lets the Iteration-8
     # fresh-parallel A/B isolate the Step-7 speedup (no --native needed)
     # without touching the output GFF3 or time.txt.
+    # Output-neutral CPU profile of the same region. cProfile only instruments
+    # the calling thread, so this is meaningful at -t1 (which is also the mode
+    # that makes a per-function ranking comparable run to run). Set
+    # LIFTON_PROFILE_STEP7=1 for a default path under the output directory, or
+    # to a path of your own.
+    _prof7 = _start_step7_profile()
     _w7_start = time.perf_counter()
     processed_features = _parallel.parallel_step7(
         features, l_feature_db, _ctx, fw, transcripts_stats_dict,
         threads=_threads if _use_pool else 1,
     )
+    _finish_step7_profile(_prof7, lifton_outdir)
     manifest.record_count(
         "step7_max_inflight_observed",
         getattr(args, "_step7_max_inflight_observed", 0),

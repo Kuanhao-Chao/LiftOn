@@ -50,6 +50,20 @@ def get_truncated_protein(ref_proteins):
     return truncated_proteins
 
 
+def count_truncated_proteins(ref_proteins):
+    """Number of reference proteins that fail ``check_protein_valid``.
+
+    The pipeline only ever reported ``len()`` of the dict :func:`
+    get_truncated_protein` builds, so at human scale it materialised a
+    dictionary of pyfaidx records -- and kept it alive for the whole run --
+    to produce a single integer.
+    """
+    return sum(
+        1 for record in ref_proteins.keys()
+        if not check_protein_valid(str(ref_proteins[record]))
+    )
+
+
 def write_seq_2_file(outdir, ref_seqs, target):
     """
         This function writes the reference sequences to a file.

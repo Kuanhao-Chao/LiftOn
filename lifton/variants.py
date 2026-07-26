@@ -50,16 +50,33 @@ def _coding_subalignment(align_dna, cds_start, cds_end):
     DNA alignment spans the FULL transcript (5'UTR + CDS + 3'UTR); a 1-2 bp indel in
     an UTR is not a coding frameshift, yet the unscoped check flagged it — extremely
     common on close pairs (e.g. human<->chimp), producing false 'frameshift' labels
-    in score.txt and a needless ORF re-search that can perturb the emitted model."""
-    q_sub, r_sub = [], []
+    in score.txt and a needless ORF re-search that can perturb the emitted model.
+
+    ``qpos`` never decreases, so the selected columns form a CONTIGUOUS run --
+    only its two boundaries have to be located and the body is a slice. That
+    turns a per-character Python loop that built two character lists (13.5 s,
+    ~3% of Step 7 on the drosophila profile) into a boundary scan plus two
+    C-level slices, with an ungapped fast path for close pairs, which is
+    exactly where this check runs most often."""
+    query = align_dna.query_aln
+    ref = align_dna.ref_aln
+    if cds_start >= cds_end:
+        return "", ""
+    if "-" not in query:
+        # Ungapped query: column index == transcript position.
+        return query[cds_start:cds_end], ref[cds_start:cds_end]
+    length = len(query)
+    start_col = end_col = length
     qpos = 0
-    for qc, rc in zip(align_dna.query_aln, align_dna.ref_aln):
-        if cds_start <= qpos < cds_end:
-            q_sub.append(qc)
-            r_sub.append(rc)
+    for col, qc in enumerate(query):
+        if qpos == cds_start and start_col == length:
+            start_col = col
+        if qpos == cds_end:
+            end_col = col
+            break
         if qc != '-':
             qpos += 1
-    return "".join(q_sub), "".join(r_sub)
+    return query[start_col:end_col], ref[start_col:end_col]
 
 
 def find_variants(align_dna, align_protein, lifton_status, peps, is_non_coding, cds_span=None):
