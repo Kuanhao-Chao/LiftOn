@@ -5,6 +5,7 @@ from lifton.liftoff import liftoff_main
 # Iteration 16: the three pure helpers below moved to the dependency-free
 # leaf module lifton.coreutils to break the lifton_utils <-> lifton_class
 # import cycle. Re-exported here so lifton_utils.<helper> keeps resolving.
+from lifton import coreutils
 from lifton.coreutils import (  # noqa: F401
     custom_bisect_insert,
     get_ID_base,
@@ -300,14 +301,20 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
             # Valid miniprot transcript exists => check if the miniprot transcript is valid
             has_valid_miniprot = True
             miniprot_trans = lifton_class.Lifton_TRANS(m_id, "", "", 0, m_entry, {})
-            exons = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start')
-            for exon in list(exons):
+            # ONE query, not two identical ones: this exact statement used to
+            # run twice per candidate, 7,038 times on drosophila -- 9.6% of every
+            # SQL statement Step 7 issued. The second consumer needs its own
+            # objects because `Lifton_EXON.__init__` rewrites `featuretype`, so
+            # feeding it the exons' features would hand `add_cds` rows already
+            # relabelled 'exon'. Cloning costs ~5 us against a SQL round-trip.
+            children = list(m_feature_db.children(
+                m_entry, featuretype=('CDS', 'stop_codon'), order_by='start'))
+            for exon in children:
                 miniprot_trans.add_exon(exon)
-            cdss = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start') 
             cds_num = 0
-            for cds in list(cdss):
+            for cds in children:
                 cds_num += 1
-                miniprot_trans.add_cds(cds)
+                miniprot_trans.add_cds(coreutils.clone_feature(cds))
             tmp_m_lifton_aln = align.lifton_parasail_align(miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
             if tmp_m_lifton_aln is None:
                 # `lifton_parasail_align` returns None when it cannot build a protein
