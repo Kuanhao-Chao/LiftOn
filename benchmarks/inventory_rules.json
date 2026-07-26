@@ -140,6 +140,7 @@
         "benchmarks/compare/miniprot_only_headroom.*",
         "benchmarks/compare/miniprot_only_rescue_headroom.*",
         "benchmarks/compare/orf_best_match_headroom.*",
+        "benchmarks/compare/start_lost_headroom.*",
         "benchmarks/compare/step8_rescue_headroom.*",
         "benchmarks/compare/strategy_b_feasibility.*"
       ]

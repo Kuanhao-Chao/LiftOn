@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "64f495a6ec678217f0c6526b87ae5275bb2235b04eed3612a5a3ed8884f322d4",
-      "bytes": 476417,
+      "aggregate_sha256": "b28d5da1a85e99391601e8ee822c40f18e661fec1dc554f68e5ef1aa5a8dea4e",
+      "bytes": 476469,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -2732,18 +2732,18 @@
       "sha256": "6ebd107ac0ded7dba4a1eab44431b0e15737a8c6a5c77c4bd400a65449086a1f"
     },
     {
-      "bytes": 10155,
+      "bytes": 10207,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "60ab743a07bc0994bd4182dc888a989e7cc8cc9becfbb31dd32456dce8989560",
+        "shape_sha256": "4c172d2d4d6ad28b69bffaea4bd25b89a4456cd2c6ad0731c09da164a9f06110",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "2f87135d978d350186698b052222c38cdaeae084a0b5fd7072c9c18bc72623a4"
+      "sha256": "70d17bbf9265486401a6df08516795fe93d49b30c529d7d71e4f29a120f9a85c"
     },
     {
       "bytes": 34428,
@@ -2906,7 +2906,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "88988be23d0b80fd905aa3b084e89d6a7b16e95f09e4390bfabc0c1a6dbe0bae",
+  "inventory_sha256": "5331fc21c7b85af94e70d9f10d05585014d5a4f948fecb1ad529144b4cb2d8e8",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -2950,12 +2950,12 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "66b8ef7bea6756148558c99735a3b362eb11a1af07554f32eb4028e059a3f4f1",
+  "rules_sha256": "9c93e9ed219b4cfaa4929f735d0e42d8bad631bcc4f875fd9f6adb2a40eac32e",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "5e3272062288f7a9b2b7f7fa9fd4f747e8ae8ae34bf8902eb7d77a3de1710f86",
-    "bytes": 12334935,
+    "aggregate_sha256": "8e0ecf0e847cf8f856feb4a2398035f4a054f88fed64fc6331d8ee374345677e",
+    "bytes": 12334987,
     "classification_counts": {
       "canonical": 61,
       "diagnostic": 21,

@@ -1,0 +1,188 @@
+[
+  {
+    "benchmark": "celegans_to_briggsae",
+    "divergence": "distant_cross_species",
+    "n_scored": 5767,
+    "n_current": 1888,
+    "n_scoped": 1925,
+    "n_missed": 46,
+    "n_newly_rescued": 0,
+    "n_false_positive": 9,
+    "frac_newly_rescued": 0.0,
+    "transcripts_with_5utr": 786,
+    "examples": []
+  },
+  {
+    "benchmark": "drosophila_to_anopheles",
+    "divergence": "very_distant_cross_species",
+    "n_scored": 2435,
+    "n_current": 1534,
+    "n_scoped": 1539,
+    "n_missed": 6,
+    "n_newly_rescued": 0,
+    "n_false_positive": 1,
+    "frac_newly_rescued": 0.0,
+    "transcripts_with_5utr": 122,
+    "examples": []
+  },
+  {
+    "benchmark": "zebrafish_to_medaka",
+    "divergence": "distant_cross_species",
+    "n_scored": 1065,
+    "n_current": 620,
+    "n_scoped": 625,
+    "n_missed": 5,
+    "n_newly_rescued": 0,
+    "n_false_positive": 0,
+    "frac_newly_rescued": 0.0,
+    "transcripts_with_5utr": 92,
+    "examples": []
+  },
+  {
+    "benchmark": "rice_to_sorghum",
+    "divergence": "distant_cross_species",
+    "n_scored": 10704,
+    "n_current": 4654,
+    "n_scoped": 4724,
+    "n_missed": 157,
+    "n_newly_rescued": 0,
+    "n_false_positive": 87,
+    "frac_newly_rescued": 0.0,
+    "transcripts_with_5utr": 3026,
+    "examples": []
+  },
+  {
+    "benchmark": "t4_human_to_xenopus",
+    "divergence": "very_distant_cross_species",
+    "n_scored": 637,
+    "n_current": 404,
+    "n_scoped": 401,
+    "n_missed": 0,
+    "n_newly_rescued": 0,
+    "n_false_positive": 3,
+    "frac_newly_rescued": 0.0,
+    "transcripts_with_5utr": 64,
+    "examples": []
+  },
+  {
+    "benchmark": "t4_human_to_chicken",
+    "divergence": "very_distant_cross_species",
+    "n_scored": 2007,
+    "n_current": 1043,
+    "n_scoped": 1033,
+    "n_missed": 2,
+    "n_newly_rescued": 0,
+    "n_false_positive": 12,
+    "frac_newly_rescued": 0.0,
+    "transcripts_with_5utr": 221,
+    "examples": []
+  },
+  {
+    "benchmark": "human_to_mouse",
+    "divergence": "distant_cross_species",
+    "n_scored": 6451,
+    "n_current": 2154,
+    "n_scoped": 2144,
+    "n_missed": 74,
+    "n_newly_rescued": 10,
+    "n_false_positive": 84,
+    "frac_newly_rescued": 0.00155,
+    "transcripts_with_5utr": 2067,
+    "examples": [
+      {
+        "transcript": "rna-NM_001167670.3",
+        "utr_len": 65,
+        "first3_full": "AGG",
+        "first3_at_cds": "GTG",
+        "ref_at_cds": "ATG",
+        "protein_first": "V"
+      },
+      {
+        "transcript": "rna-NM_001323563.2",
+        "utr_len": 482,
+        "first3_full": "AGT",
+        "first3_at_cds": "TTG",
+        "ref_at_cds": "ATG",
+        "protein_first": "L"
+      },
+      {
+        "transcript": "rna-NM_001323564.2",
+        "utr_len": 187,
+        "first3_full": "ACT",
+        "first3_at_cds": "TTG",
+        "ref_at_cds": "ATG",
+        "protein_first": "L"
+      },
+      {
+        "transcript": "rna-XM_047440274.1",
+        "utr_len": 228,
+        "first3_full": "GGA",
+        "first3_at_cds": "ATA",
+        "ref_at_cds": "ATG",
+        "protein_first": "I"
+      },
+      {
+        "transcript": "rna-NM_001363731.2",
+        "utr_len": 351,
+        "first3_full": "GTC",
+        "first3_at_cds": "ACA",
+        "ref_at_cds": "ATG",
+        "protein_first": "T"
+      }
+    ]
+  },
+  {
+    "benchmark": "drosophila",
+    "divergence": "D. melanogaster -> D. erecta",
+    "n_scored": 13756,
+    "n_current": 1437,
+    "n_scoped": 1516,
+    "n_missed": 102,
+    "n_newly_rescued": 32,
+    "n_false_positive": 23,
+    "frac_newly_rescued": 0.002326,
+    "transcripts_with_5utr": 6797,
+    "examples": [
+      {
+        "transcript": "rna-NM_001260463.1",
+        "utr_len": 81,
+        "first3_full": "ATC",
+        "first3_at_cds": "CTG",
+        "ref_at_cds": "ATG",
+        "protein_first": "L"
+      },
+      {
+        "transcript": "rna-NM_170577.3",
+        "utr_len": 212,
+        "first3_full": "AGT",
+        "first3_at_cds": "CTG",
+        "ref_at_cds": "ATG",
+        "protein_first": "L"
+      },
+      {
+        "transcript": "rna-NM_001260395.2",
+        "utr_len": 134,
+        "first3_full": "ATT",
+        "first3_at_cds": "ACA",
+        "ref_at_cds": "ATG",
+        "protein_first": "T"
+      },
+      {
+        "transcript": "rna-NM_001170245.1",
+        "utr_len": 239,
+        "first3_full": "GTC",
+        "first3_at_cds": "TTT",
+        "ref_at_cds": "ATG",
+        "protein_first": "F"
+      },
+      {
+        "transcript": "rna-NM_001170245.1",
+        "utr_len": 238,
+        "first3_full": "GTC",
+        "first3_at_cds": "ATT",
+        "ref_at_cds": "AAT",
+        "protein_first": "I"
+      }
+    ]
+  }
+]
