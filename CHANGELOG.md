@@ -24,6 +24,13 @@ All notable changes to **LiftOn** are documented here. This project follows
   transcript, and validity flat; output grows 12–43%.
   `LIFTON_NO_CDS_ATTR_CARRY=1` reproduces the previous bytes.
 
+  Confirmed on a full dog→cat genome (1,815,199 rows): **692,520 CDS rows gain
+  their descriptive attributes**, CDS coverage reaches 739,862/739,862, and
+  columns 1–8 are byte-identical on every row — so `protein_identity` is
+  unchanged across all 66,276 transcripts and `gff3-validate` reports the same
+  0 errors / 176 warnings in both arms. Output grows 398 MB → 524 MB (+31.5 %)
+  and peak RSS by 2.5 % (2.90 → 2.98 GB).
+
 ### Fixed
 
 - **Copy genes no longer get doubly-suffixed CDS identifiers.** Every chained
