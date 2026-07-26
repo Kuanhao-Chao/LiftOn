@@ -762,7 +762,16 @@ class Lifton_TRANS:
                 self.exons.sort(key=lambda e: (e.entry.start, e.entry.end))
             self.update_boundaries()
 
-    def get_coding_seq(self, fai):
+    def get_coding_seq(self, fai, include_sequence=True):
+        """Collect the CDS children, their lengths, and (optionally) the
+        spliced coding sequence.
+
+        ``include_sequence=False`` skips the per-CDS ``entry.sequence(fai)``
+        fetch and the string concatenation. ``align.LiftOn_translate`` -- the
+        only caller, and one that runs up to three times per transcript inside
+        the Step-7 hot loop -- immediately OVERWRITES the coding sequence with
+        ``get_coding_trans_seq``'s, so every one of those fetches was wasted.
+        """
         coding_seq = ""
         cdss_lens = []
         cds_children = []
@@ -770,7 +779,7 @@ class Lifton_TRANS:
             if exon.cds is not None:
                 cds_children.append(copy.deepcopy(exon.cds.entry))
                 # Chaining the CDS features
-                p_seq = exon.cds.entry.sequence(fai)
+                p_seq = exon.cds.entry.sequence(fai) if include_sequence else ""
                 if exon.cds.entry.strand == '-':
                     coding_seq = p_seq + coding_seq
                     cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
@@ -889,7 +898,10 @@ class Lifton_TRANS:
           • orf_idx_e is initialised to 0 (not i) before the inner loop so
             the `orf_idx_s < orf_idx_e` guard is correct.
         """
-        trans_seq = trans_seq.upper()
+        # Coerce ONCE. The scan below used to wrap every codon slice in str()
+        # to tolerate a Bio.Seq; doing it here keeps that safety while letting
+        # the inner loop compare plain string slices.
+        trans_seq = str(trans_seq).upper()
         start_codon = "ATG"
         stop_codons = {"TAA", "TAG", "TGA"}
         # One best ORF per frame (longest)
@@ -899,21 +911,24 @@ class Lifton_TRANS:
         for frame in range(3):
             i = frame
             while i < len(trans_seq):
-                codon = str(trans_seq[i:i + 3])
-                if codon == start_codon:
+                if trans_seq[i:i + 3] == start_codon:
                     # Scan forward for a stop codon
                     orf_idx_s = i
                     orf_idx_e = 0  # will be set when stop found
-                    orf_seq = ""
                     found_stop = False
                     for j in range(i, len(trans_seq), 3):
-                        cod = str(trans_seq[j:j + 3])
-                        orf_seq += cod
-                        if cod in stop_codons:
+                        if trans_seq[j:j + 3] in stop_codons:
                             orf_idx_e = j + 3
                             found_stop = True
                             break
-                    if found_stop and orf_idx_s < orf_idx_e:
+                    if not found_stop:
+                        # This scan already covered every codon from `i` to the
+                        # end of the sequence IN THIS FRAME, so no later ATG in
+                        # the frame can find a stop either. Continuing would
+                        # re-scan the same tail from each subsequent ATG, which
+                        # is where the worst case turned quadratic.
+                        break
+                    if orf_idx_s < orf_idx_e:
                         curr_orf_len = orf_idx_e - orf_idx_s
                         if curr_orf_len > max_orf_len[frame]:
                             max_orf_len[frame] = curr_orf_len

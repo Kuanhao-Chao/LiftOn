@@ -97,6 +97,21 @@ configure_alignment(band=not _FULL_DP_ALIGN_ENV)
 # parasail's C kernel on an IUPAC code is the worst-case behaviour the
 # Phase 13.5A audit flagged as High.
 _PARASAIL_DNA_ALPHABET = frozenset("ACGTN*")
+# Maps every byte OUTSIDE the parasail alphabet to 'N' in one C-level pass.
+# Built lazily on first use so the table cost is paid only by sequences that
+# actually need normalising.
+_PARASAIL_DNA_TRANSLATION = None
+
+
+def _parasail_dna_translation():
+    global _PARASAIL_DNA_TRANSLATION
+    if _PARASAIL_DNA_TRANSLATION is None:
+        _PARASAIL_DNA_TRANSLATION = {
+            code: "N"
+            for code in range(256)
+            if chr(code) not in _PARASAIL_DNA_ALPHABET
+        }
+    return _PARASAIL_DNA_TRANSLATION
 
 
 def _sanitise_for_parasail_dna(seq: str) -> str:
@@ -106,12 +121,22 @@ def _sanitise_for_parasail_dna(seq: str) -> str:
     characters; any other byte (e.g. IUPAC ambiguity codes R/Y/W/S/K/M)
     can either crash the C kernel or score garbage. Coerce them to N
     so the kernel handles them as 'unknown nucleotide'.
+
+    Both steps run at C speed. The clean-sequence check used to be a
+    per-character Python generator over every sequence LiftOn aligns --
+    71.3 M calls and ~3% of Step 7 on the drosophila profile, for a test that
+    almost always says "clean". ``set()`` collapses the string to its distinct
+    characters in one pass instead.
     """
     if not seq:
         return seq
     upper = seq.upper()
-    if all(ch in _PARASAIL_DNA_ALPHABET for ch in upper):
+    if set(upper) <= _PARASAIL_DNA_ALPHABET:
         return upper
+    # Characters above U+00FF cannot appear in a table keyed by byte value, so
+    # fall back to the explicit comprehension for genuinely exotic input.
+    if max(upper) <= "\xff":
+        return upper.translate(_parasail_dna_translation())
     return "".join(
         ch if ch in _PARASAIL_DNA_ALPHABET else "N" for ch in upper
     )
@@ -288,7 +313,12 @@ def LiftOn_translate(lifton_trans, fai, ref_proteins, ref_trans_id):
         Returns:
         Referece protein sequence (in string), translated protein sequence (in string), CDS lengths, CDS children
     """
-    coding_seq, cds_children, cdss_lens = lifton_trans.get_coding_seq(fai)
+    # The first call's coding sequence is discarded on the very next line, so
+    # ask it not to fetch one. Only `cds_children` and `cdss_lens` survive.
+    # The call ORDER is load-bearing: `get_coding_trans_seq` updates each CDS's
+    # frame, and `cds_children` must be the deep copies taken BEFORE that.
+    _, cds_children, cdss_lens = lifton_trans.get_coding_seq(
+        fai, include_sequence=False)
     coding_seq, _ = lifton_trans.get_coding_trans_seq(fai)
     protein_seq = lifton_trans.translate_coding_seq(coding_seq)
     # print("protein_seq: ", protein_seq)
