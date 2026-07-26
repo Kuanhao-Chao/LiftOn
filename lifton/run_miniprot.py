@@ -1,8 +1,8 @@
-from lifton import align, logger, lifton_class, lifton_utils
+from lifton import align, coreutils, logger, lifton_class, lifton_utils
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-import subprocess, os, sys, copy
+import subprocess, os, sys
 from intervaltree import Interval, IntervalTree
 
 
@@ -520,22 +520,22 @@ def lifton_miniprot_with_ref_protein(
     """
     mtrans_id = m_feature.attributes["ID"][0]
     # Create LifOn gene instance
-    m_gene_feature = copy.deepcopy(m_feature)
+    m_gene_feature = coreutils.clone_feature(m_feature)
     m_gene_feature.featuretype = "gene"
     lifton_gene = lifton_class.Lifton_GENE(
         ref_gene_id, m_gene_feature,
-        copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict,
+        coreutils.clone_attributes(ref_db[ref_gene_id].attributes), tree_dict,
         ref_features_dict, args, state_journal=state_journal,
     )
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
     # Create LifOn transcript instance
-    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
+    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, coreutils.clone_feature(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
     lifton_gene.update_trans_info(Lifton_trans.entry.id, m_feature.seqid, m_feature.start, m_feature.end)
     # Create exon / CDS entries
     cdss = m_feature_db.children(m_feature, featuretype='CDS')  # Replace 'exon' with the desired child feature type
     for cds in list(cdss):
         lifton_gene.add_exon(Lifton_trans.entry.id, cds)
-        cds_copy = copy.deepcopy(cds)
+        cds_copy = coreutils.clone_feature(cds)
         lifton_gene.add_cds(Lifton_trans.entry.id, cds_copy)
     # Update LiftOn status
     lifton_status = lifton_class.Lifton_Status()                

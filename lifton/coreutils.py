@@ -1,11 +1,16 @@
 """Dependency-free core helpers (Iteration 16).
 
-These three pure functions used to live in ``lifton.lifton_utils``. They were
-moved here to break the ``lifton_utils`` <-> ``lifton_class`` package-level
-import cycle: ``lifton_class`` needs only these helpers from ``lifton_utils``,
-so importing this leaf module instead removes that edge entirely. This module
-must import nothing from elsewhere in ``lifton`` so it stays a true leaf —
-``lifton_utils`` re-exports these names for backward compatibility.
+The first three pure functions used to live in ``lifton.lifton_utils``. They
+were moved here to break the ``lifton_utils`` <-> ``lifton_class``
+package-level import cycle: ``lifton_class`` needs only these helpers from
+``lifton_utils``, so importing this leaf module instead removes that edge
+entirely. This module must import nothing from elsewhere in ``lifton`` so it
+stays a true leaf — ``lifton_utils`` re-exports these names for backward
+compatibility.
+
+``clone_feature`` / ``clone_attributes`` were added later for the same reason:
+they are shared pure helpers with no LiftOn dependencies, so they belong in the
+leaf rather than in whichever module happened to need them first.
 """
 
 
@@ -111,3 +116,78 @@ def segments_overlap_length(segment1, segment2):
         ovp_len = 0
     ovp = ovp_len > 0
     return ovp_len, ovp
+
+
+def clone_attributes(attributes):
+    """Copy a gffutils attribute mapping deeply enough to be independent.
+
+    An attribute value is a list of strings, so ``list(v)`` copies everything
+    that can be mutated; strings are immutable. ``copy.deepcopy`` reaches the
+    same result by recursing into every string object, which is where a large
+    part of the Step-7 copy cost went (43% of a Feature deepcopy, and more now
+    that merged CDS rows carry the reference's full attribute set).
+
+    The result keeps the source's class, so a ``gffutils.attributes.Attributes``
+    stays one and a plain dict stays a dict.
+    """
+    if attributes is None:
+        return None
+    clone = attributes.__class__()
+    for key, value in attributes.items():
+        clone[key] = list(value) if isinstance(value, (list, tuple)) else value
+    return clone
+
+
+def _iter_slots(cls):
+    """Every ``__slots__`` name declared anywhere in ``cls``'s MRO."""
+    seen = []
+    for klass in cls.__mro__:
+        slots = klass.__dict__.get("__slots__", ())
+        if isinstance(slots, str):
+            slots = (slots,)
+        for name in slots:
+            if name not in ("__dict__", "__weakref__") and name not in seen:
+                seen.append(name)
+    return seen
+
+
+def clone_feature(feature):
+    """Return an independent copy of a ``gffutils.Feature``.
+
+    Equivalent to ``copy.deepcopy`` for every field LiftOn reads or writes, and
+    measured ~6.6x faster on a CDS carrying a full RefSeq attribute set
+    (33.1 us -> 5.0 us). ``copy.deepcopy`` was the second-hottest entry in both
+    Step-7 profiles, at 36 M calls.
+
+    Everything on a Feature except ``attributes``, ``extra`` and ``dialect`` is
+    an immutable scalar, so a ``__dict__`` copy plus fresh copies of those two
+    mutable containers is a complete clone.
+
+    ``dialect`` is shared ON PURPOSE, and that is a quarter of the win: it is a
+    single parser-metadata dict shared by every feature of a database already,
+    and nothing in LiftOn writes to it (the only readers are
+    ``dialect['fmt']`` in the two vendored Liftoff writers). Should that ever
+    change, this is the line to revisit.
+
+    BOTH feature classes must work. ``gffutils.Feature`` keeps its state in
+    ``__dict__``; the vendored ``lifton.gffbase.feature.Feature`` declares
+    ``__slots__`` and therefore has no ``__dict__`` at all, which is the class
+    the ``--inmemory-liftoff`` path uses.
+    """
+    cls = feature.__class__
+    clone = cls.__new__(cls)
+    state = getattr(feature, "__dict__", None)
+    if state is not None:
+        clone.__dict__.update(state)
+    else:
+        for name in _iter_slots(cls):
+            try:
+                setattr(clone, name, getattr(feature, name))
+            except AttributeError:
+                # An unset slot stays unset on the clone, as deepcopy leaves it.
+                pass
+    clone.attributes = clone_attributes(feature.attributes)
+    extra = getattr(feature, "extra", None)
+    if isinstance(extra, (list, tuple)):
+        clone.extra = list(extra)
+    return clone
