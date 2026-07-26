@@ -6,8 +6,7 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
-### Changed
-
+### Changed (output-affecting — results differ vs v1.0.10.1)
 - **Every CDS row now carries the reference's descriptive attributes.** The
   chaining merge and the ORF-rescue boundary patch rebuild a transcript's CDS
   list and used to reset the emitted attributes to `{Parent}`, so an output
@@ -31,8 +30,7 @@ All notable changes to **LiftOn** are documented here. This project follows
   0 errors / 176 warnings in both arms. Output grows 398 MB → 524 MB (+31.5 %)
   and peak RSS by 2.5 % (2.90 → 2.98 GB).
 
-### Fixed
-
+### Fixed (robustness / correctness)
 - **Copy genes no longer get doubly-suffixed CDS identifiers.** Every chained
   CDS of a transcript shared one attribute dict, and `Lifton_CDS.__init__`
   reads `extra_copy_number` and then pops it — so only the first segment had its
@@ -99,9 +97,31 @@ All notable changes to **LiftOn** are documented here. This project follows
   output depend on how many candidates happened to be rejected.
 - **A missing binary or typo'd path reports immediately** instead of appearing
   to hang through a multi-gigabyte input fingerprint.
+- **Deterministic, isolated locus state.** Parallel Step 7 buffers copy/tree,
+  score, and chain side effects per locus and commits them in submission order;
+  miniprot candidates do not consume copy IDs or suppression intervals before
+  acceptance. GFF3 hierarchies are buffered so malformed children cannot leave
+  half-written transcript blocks, and statistics count emitted models only.
+- **Output validation exit status and directive provenance.** A validation
+  failure now exits non-zero and cannot replace an existing output. Reference
+  assembly/species/coordinate directives are no longer copied onto target
+  coordinates.
+- **Header-only Liftoff output from an invalid minimap2 index (GH #57).**
+  LiftOn now validates cached `.mmi` files, detects unresolved Git LFS
+  pointers and corrupt or stale indexes, and rebuilds them in the run's
+  `lifton_output/intermediate_files/` directory. Minimap2 failures and
+  malformed SAM headers are reported at the alignment stage instead of later
+  appearing as an annotation-format error. Generated minimap2 indexes are no
+  longer stored in Git LFS.
+- **`--stream` miniprot ingest crash (GH #56).** DuckDB 1.5.3 and 1.5.4 can
+  fail while appending gffbase's internal spatial `GEOMETRY` column once a
+  large GFF3 crosses a row-group boundary. Those releases are excluded, and
+  existing environments automatically use the equivalent B-tree query path.
+  Streamed blobs also retry once on a fresh connection without geometry if
+  another DuckDB build raises the same internal error. Users can force this
+  safe path with `LIFTON_DISABLE_RTREE=1`.
 
-### Performance
-
+### Performance (byte-neutral)
 - **Features are cloned, not deep-copied.** `copy.deepcopy` ranked second in
   both Step-7 profiles (36.2 M calls on *Drosophila*), and 43 % of a single
   `Feature` copy recursed through attribute strings while 24 % re-copied the
@@ -133,9 +153,15 @@ All notable changes to **LiftOn** are documented here. This project follows
   (161.6 s → 127.4 s), peak RSS flat, byte-identical output. Verified
   identity-neutral on a mammalian dog→cat lift (mean protein-identity
   delta 0.00000000 over 4,288 transcripts).
+- **Bounded locus scheduling and direct miniprot ingest.** Parallel Step 7
+  now keeps at most `2 * --threads` submitted-but-not-emitted loci by default
+  (`--step7-max-inflight` overrides it) and lazily materializes full payloads.
+  Parallel Step 8 and evaluation use the same ordered bound, configurable with
+  `--step8-max-inflight` and `--evaluation-max-inflight`. `--stream` now parses
+  miniprot stdout incrementally into a staged, checkpointed DuckDB database,
+  avoiding both `miniprot.gff3` and a second in-memory hit graph.
 
 ### Added
-
 - **Auditable run manifests and transactional output.** Every completed CLI
   run writes `lifton_output/run_manifest.json` with sanitized arguments,
   SHA-256 input fingerprints, software/tool versions, backend and cache
@@ -159,47 +185,10 @@ All notable changes to **LiftOn** are documented here. This project follows
   retry/reconciliation commands. Controller runs never update the canonical
   benchmark baseline.
 
-### Performance
-
-- **Bounded locus scheduling and direct miniprot ingest.** Parallel Step 7
-  now keeps at most `2 * --threads` submitted-but-not-emitted loci by default
-  (`--step7-max-inflight` overrides it) and lazily materializes full payloads.
-  Parallel Step 8 and evaluation use the same ordered bound, configurable with
-  `--step8-max-inflight` and `--evaluation-max-inflight`. `--stream` now parses
-  miniprot stdout incrementally into a staged, checkpointed DuckDB database,
-  avoiding both `miniprot.gff3` and a second in-memory hit graph.
-
 ### Development
 
 - `make test-fault` runs deterministic injected-failure coverage;
   `make test-fault-stress` opts into the longer repeated stress cases.
-
-### Fixed
-
-- **Deterministic, isolated locus state.** Parallel Step 7 buffers copy/tree,
-  score, and chain side effects per locus and commits them in submission order;
-  miniprot candidates do not consume copy IDs or suppression intervals before
-  acceptance. GFF3 hierarchies are buffered so malformed children cannot leave
-  half-written transcript blocks, and statistics count emitted models only.
-- **Output validation exit status and directive provenance.** A validation
-  failure now exits non-zero and cannot replace an existing output. Reference
-  assembly/species/coordinate directives are no longer copied onto target
-  coordinates.
-
-- **Header-only Liftoff output from an invalid minimap2 index (GH #57).**
-  LiftOn now validates cached `.mmi` files, detects unresolved Git LFS
-  pointers and corrupt or stale indexes, and rebuilds them in the run's
-  `lifton_output/intermediate_files/` directory. Minimap2 failures and
-  malformed SAM headers are reported at the alignment stage instead of later
-  appearing as an annotation-format error. Generated minimap2 indexes are no
-  longer stored in Git LFS.
-- **`--stream` miniprot ingest crash (GH #56).** DuckDB 1.5.3 and 1.5.4 can
-  fail while appending gffbase's internal spatial `GEOMETRY` column once a
-  large GFF3 crosses a row-group boundary. Those releases are excluded, and
-  existing environments automatically use the equivalent B-tree query path.
-  Streamed blobs also retry once on a fresh connection without geometry if
-  another DuckDB build raises the same internal error. Users can force this
-  safe path with `LIFTON_DISABLE_RTREE=1`.
 
 ## [1.0.10] - 2026-07-03
 

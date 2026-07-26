@@ -197,10 +197,39 @@ Kept here so nothing is lost. Each has a rationale for deferring.
 - **Three-source strand ambiguity in `Lifton_TRANS`** (`get_coding_trans_seq` keys on
   `exons[0].entry.strand`, `__update_cds_boundary` on `self.entry.strand`,
   `get_coding_seq` per-CDS). Enforce one source of truth at `add_exon`/`add_cds` time.
-- **`start_lost` is effectively untestable as written** (`variants.py`): it compares the
-  first three bases of the full spliced transcript, which is 5′UTR for most transcripts,
-  so a genuine start loss is not flagged — and it gates ORF rescue. The CDS span is now
-  computed in `orf_search_protein` (added for GH #46) and can be reused.
+- **`start_lost` reads the wrong three columns — real, quantified, and NO-GO to change**
+  (2026-07-26). `variants.find_variants` ANDs four clauses, and the first two read
+  `align_dna.query_aln[0:3]`: the first three columns of the FULL transcript alignment,
+  which for any mRNA with a 5′UTR is UTR sequence. When that UTR matches, the chain
+  short-circuits and a genuine start loss is never flagged — and `start_lost` gates ORF
+  rescue. `cds_span` (GH #46) locates the real start codon.
+
+  A byte-neutral `LIFTON_START_LOST_DIAG` probe evaluated the same four clauses at the
+  CDS start across the eight-cell ladder
+  (`benchmarks/compare/start_lost_headroom.{py,json,md}`). **42,822 transcripts scored:**
+
+  | | count |
+  |---|---|
+  | start losses the shipped test MISSES | 392 |
+  | of those, that would NEWLY enter ORF rescue | **42 (0.098 %)** |
+  | FALSE POSITIVES (shipped says yes, scoped says no) | **219** |
+
+  The mechanism prediction held — the miss appears only on close pairs (drosophila 32,
+  human→mouse 10; **0 on all five distant/very-distant cells**), which is exactly where a
+  matching 5′UTR is likely. But the effect is negligible, because a lost start codon
+  almost always comes with a frameshift or stop anomaly, so those transcripts are already
+  re-searching. And the probe caught what an upside-only count could not: **the 219 false
+  positives outnumber the 42 genuine gains 5:1**, so correcting the condition is a SWAP,
+  not an addition — and ORF-rescue swaps have gone net-negative before (Iteration 9: 4
+  improved, 59 regressed, reverted).
+
+  **Decision: NO-GO** on changing the condition. This is a *labelling* defect — the
+  `mutation=start_lost` annotation in the output and `score.txt` is wrong for ~1.4 % of
+  transcripts in both directions — with essentially no effect on the emitted models. The
+  probe was reverted (Iteration-9/13/15 precedent); the harness and results are retained,
+  and re-running needs the `LIFTON_START_LOST_DIAG` instrumentation restored in
+  `variants.find_variants` plus the `diag_id` pass-through from
+  `Lifton_TRANS.orf_search_protein`.
 - ~~**`Lifton_TRANS.add_cds` attaches one CDS to every overlapping exon**~~ — **FIXED**:
   each overlapping exon now gets its own copy and the malformed model is reported.
 - **Case-1 merged exon inherits the DOWNSTREAM exon's ID** (masked today because
