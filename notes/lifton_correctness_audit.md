@@ -181,12 +181,30 @@ Kept here so nothing is lost. Each has a rationale for deferring.
   signature; wiring a real-DB fallback risks using a parent SQLite connection from a
   worker, the exact hazard the proxy architecture exists to prevent. Fix by giving the
   worker's *thread-local* DB to the proxy, only on the `factory.viable` path.
-- **`validate_gff3_file` is not memory-bounded** (`--validate-output` materialises a
-  `GFF3Record` per row; ~4 M rows on a human-scale output). Rewrite the hierarchy /
-  containment / phase checks as a streaming pass over the contiguous top-level blocks
-  LiftOn already guarantees. Still deferred: this is the *opt-in* validator and the
-  `gff3-validate` CLI, so the cost is high memory rather than a wrong answer, and the
-  *mandatory* publication gate (`validate_gff3_structure`) already streams.
+- **`validate_gff3_file` is not memory-bounded — now MEASURED, with the rewrite designed
+  and its baselines captured** (2026-07-26). On one 92,675-row output: the deep validator
+  peaks at **406 MB** where the streaming `validate_gff3_structure` uses **36 MB** (11.2×,
+  and 2.8× slower). On the full dog→cat output (1,815,199 rows) it peaks at
+  **5.64 GB**.
+
+  *Design.* `_parse_gff3` materialises every row into `records`, then `_check_hierarchy`,
+  `_check_containment`, `_check_cds_phase`, `_check_lifton_attrs` and `_compute_stats` each
+  re-walk that list. The five check functions can be kept **unchanged** and fed one
+  contiguous top-level block at a time — LiftOn guarantees blocks are contiguous — with
+  three things made global so the report does not move: (a) per-check issue counters, so
+  `max_issues_per_check` still caps across the file rather than per block; (b) the issue
+  lists accumulated per check-type and concatenated in the original check order at the
+  end, since today all hierarchy issues precede all containment issues; (c) a first pass
+  collecting the **ID set only** (strings, not records), because duplicate-ID detection and
+  `_check_hierarchy` rule 1 are inherently cross-block. That last item makes memory
+  O(distinct ids) rather than truly O(1) — roughly 200 MB at dog→cat scale, still ~28×
+  better than 5.64 GB.
+
+  *Baselines are already captured* for the equivalence gate: the full `ValidationResult`
+  (every issue in order, with its message) on the drosophila anchor (92,675 rows, 66
+  issues, sha `856609d89b079a22…`) and the full dog→cat output (1,815,199 rows, 176 issues,
+  sha `7b290aafe82a0e83…`). These reports feed the committed benchmark validity figures and
+  must come back byte-identical.
 - ~~**`validate_gff3_structure` under-reports counts**~~ — **FIXED** (2026-07-25).
 - ~~**gffbase root-scan ordering is not total**~~ — **FIXED** (`, id ASC`).
 - ~~**Read-only reference directories hard-fail**~~ — **FIXED** (temp-dir lock fallback).

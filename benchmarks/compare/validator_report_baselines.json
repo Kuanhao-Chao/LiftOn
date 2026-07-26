@@ -1,0 +1,1759 @@
+{
+  "dogcat_full": {
+    "comment_lines": 1,
+    "data_lines": 1815199,
+    "is_valid": true,
+    "issue_totals": {},
+    "issues": [
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 62,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 63,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 64,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 65,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 66,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 68,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 69,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 70,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 71,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 72,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 73,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 74,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 75,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 76,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 77,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6306,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6307,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6308,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6309,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6313,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6314,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6315,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 6316,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 9268,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 9269,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 9270,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 9271,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 9272,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 9273,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18400,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18401,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18402,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18403,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18404,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18409,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18410,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18411,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18412,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 18413,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22797,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22798,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22799,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22800,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22801,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22802,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22803,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22804,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22805,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 22806,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038458617.1",
+        "line": 840,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038458351.1",
+        "line": 2827,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456664.1",
+        "line": 16987,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456665.1",
+        "line": 16996,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456666.1",
+        "line": 17006,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456667.1",
+        "line": 17015,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456668.1",
+        "line": 17024,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456669.1",
+        "line": 17034,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456670.1",
+        "line": 17042,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456671.1",
+        "line": 17052,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456672.1",
+        "line": 17061,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456673.1",
+        "line": 17070,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456674.1",
+        "line": 17078,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456675.1",
+        "line": 17088,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456676.1",
+        "line": 17096,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456677.1",
+        "line": 17105,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456678.1",
+        "line": 17115,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456679.1",
+        "line": 17122,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456680.1",
+        "line": 17130,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456681.1",
+        "line": 17139,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456682.1",
+        "line": 17147,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456683.1",
+        "line": 17154,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456684.1",
+        "line": 17160,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456849.1",
+        "line": 17457,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456850.1",
+        "line": 17461,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456851.1",
+        "line": 17464,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456852.1",
+        "line": 17467,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038456633.1",
+        "line": 38541,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_022408136.2",
+        "line": 39839,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038662900.1",
+        "line": 54741,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038458342.1",
+        "line": 66766,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038469729.1",
+        "line": 89433,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038469737.1",
+        "line": 89437,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038469743.1",
+        "line": 89441,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038469752.1",
+        "line": 89443,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_005618088.4",
+        "line": 89527,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_846466.6",
+        "line": 89529,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_005631749.4",
+        "line": 91673,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_536424.6",
+        "line": 100140,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038589914.1",
+        "line": 100781,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038486144.1",
+        "line": 107400,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038498329.1",
+        "line": 112633,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038454887.1",
+        "line": 172270,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_022416575.2",
+        "line": 184775,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038455173.1",
+        "line": 184780,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038455174.1",
+        "line": 184784,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038455176.1",
+        "line": 184803,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038452623.1",
+        "line": 217311,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038538867.1",
+        "line": 237411,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-XM_038458479.1",
+        "line": 251912,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAC-GCA-15_1",
+        "line": 270225,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAC-GCA-11_1",
+        "line": 270226,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAC-GCA-5_2",
+        "line": 270368,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAC-GCA-5_1",
+        "line": 270390,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAL-AAG_1",
+        "line": 496355,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAR-CCG_1",
+        "line": 496390,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAR-UCG-5_1",
+        "line": 496425,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAM-CAU-2_1",
+        "line": 496806,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAM-CAU-2_2",
+        "line": 496906,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAI-AAU_1",
+        "line": 496913,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAS-UGA-2_1",
+        "line": 496964,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAV-AAC_1",
+        "line": 497094,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAV-AAC_2",
+        "line": 497095,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAI-AAU_2",
+        "line": 497096,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAV-CAC_1",
+        "line": 497136,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAI-UAU_1",
+        "line": 497193,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAR-ACG_1",
+        "line": 497194,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAL-CAG-3_2",
+        "line": 497341,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAW-CCA-2_1",
+        "line": 497416,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAP-AGG_1",
+        "line": 647809,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAY-GUA-2_2",
+        "line": 647834,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAY-GUA-2_1",
+        "line": 647853,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAN-GUU_2",
+        "line": 930114,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAH-GUG_4",
+        "line": 930121,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAE-UUC-4_3",
+        "line": 930122,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAH-GUG_2",
+        "line": 930242,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAE-UUC-4_2",
+        "line": 930243,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_7",
+        "line": 1217958,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_2",
+        "line": 1217959,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_1",
+        "line": 1217960,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_5",
+        "line": 1217961,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_18",
+        "line": 1217962,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_15",
+        "line": 1217963,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_12",
+        "line": 1217964,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_6",
+        "line": 1217965,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_17",
+        "line": 1217966,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_16",
+        "line": 1217967,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_4",
+        "line": 1217968,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_3",
+        "line": 1217969,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_9",
+        "line": 1217970,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_13",
+        "line": 1217971,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_11",
+        "line": 1217972,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_8",
+        "line": 1217973,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_14",
+        "line": 1217974,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-LOC119874872_10",
+        "line": 1217975,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAH-GUG_1",
+        "line": 1377974,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAR-UCU-6_1",
+        "line": 1411889,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAE-CUC_2",
+        "line": 1702921,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAE-CUC_5",
+        "line": 1702949,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-TRNAD-GUC_7",
+        "line": 1702969,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_013975269.1",
+        "line": 268558,
+        "message": "CDS #2 of transcript 'rna-XM_014119794.1': expected phase 1 (accum_len=74), got 0",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038309057.1",
+        "line": 354698,
+        "message": "CDS #14 of transcript 'rna-XM_038453129.1': expected phase 0 (accum_len=927), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_849147.4",
+        "line": 1274236,
+        "message": "CDS #7 of transcript 'rna-XM_844054.7': expected phase 0 (accum_len=678), got 1",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473075.1",
+        "line": 1416475,
+        "message": "CDS #17 of transcript 'rna-XM_038617147.1': expected phase 0 (accum_len=1911), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473090.1",
+        "line": 1416545,
+        "message": "CDS #17 of transcript 'rna-XM_038617162.1': expected phase 0 (accum_len=1884), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473092.1",
+        "line": 1416579,
+        "message": "CDS #16 of transcript 'rna-XM_038617164.1': expected phase 0 (accum_len=1851), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473096.1",
+        "line": 1416613,
+        "message": "CDS #17 of transcript 'rna-XM_038617168.1': expected phase 0 (accum_len=1827), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473099.1",
+        "line": 1416647,
+        "message": "CDS #16 of transcript 'rna-XM_038617171.1': expected phase 0 (accum_len=1818), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473104.1",
+        "line": 1416680,
+        "message": "CDS #16 of transcript 'rna-XM_038617176.1': expected phase 0 (accum_len=1815), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473110.1",
+        "line": 1416713,
+        "message": "CDS #16 of transcript 'rna-XM_038617182.1': expected phase 0 (accum_len=1818), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473113.1",
+        "line": 1416746,
+        "message": "CDS #16 of transcript 'rna-XM_038617185.1': expected phase 0 (accum_len=1785), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473120.1",
+        "line": 1416779,
+        "message": "CDS #16 of transcript 'rna-XM_038617192.1': expected phase 0 (accum_len=1764), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473123.1",
+        "line": 1416812,
+        "message": "CDS #16 of transcript 'rna-XM_038617195.1': expected phase 0 (accum_len=1761), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473124.1",
+        "line": 1416845,
+        "message": "CDS #16 of transcript 'rna-XM_038617196.1': expected phase 0 (accum_len=1731), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473125.1",
+        "line": 1416877,
+        "message": "CDS #15 of transcript 'rna-XM_038617197.1': expected phase 0 (accum_len=1644), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473126.1",
+        "line": 1416908,
+        "message": "CDS #15 of transcript 'rna-XM_038617198.1': expected phase 0 (accum_len=1635), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473127.1",
+        "line": 1416939,
+        "message": "CDS #15 of transcript 'rna-XM_038617199.1': expected phase 0 (accum_len=1632), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038473128.1",
+        "line": 1416972,
+        "message": "CDS #17 of transcript 'rna-XM_038617200.1': expected phase 0 (accum_len=1914), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038316882.1",
+        "line": 1545187,
+        "message": "CDS #2 of transcript 'rna-XM_038460954.1': expected phase 1 (accum_len=92), got 0",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038316882.1",
+        "line": 1545186,
+        "message": "CDS #3 of transcript 'rna-XM_038460954.1': expected phase 0 (accum_len=204), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_013964680.1",
+        "line": 1726914,
+        "message": "CDS #6 of transcript 'rna-XM_014109205.3': expected phase 0 (accum_len=411), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_013964681.1",
+        "line": 1726928,
+        "message": "CDS #6 of transcript 'rna-XM_014109206.3': expected phase 0 (accum_len=411), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_022268131.1",
+        "line": 1726964,
+        "message": "CDS #6 of transcript 'rna-XM_022412423.2': expected phase 0 (accum_len=411), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_022268132.1",
+        "line": 1726978,
+        "message": "CDS #6 of transcript 'rna-XM_022412424.2': expected phase 0 (accum_len=411), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_038316923.1",
+        "line": 1727001,
+        "message": "CDS #6 of transcript 'rna-XM_038460995.1': expected phase 0 (accum_len=411), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-XP_003640321.1",
+        "line": 1762289,
+        "message": "CDS #14 of transcript 'rna-XM_003640273.5': expected phase 0 (accum_len=1716), got 1",
+        "severity": "WARNING"
+      }
+    ],
+    "issues_sha256": "7b290aafe82a0e831de31a0b1b5a54c7d61b31797892aa465e6debbdd8f23ede",
+    "n_errors": 0,
+    "n_issues": 176,
+    "n_warnings": 176,
+    "path": "/tmp/claude-3822/-ccb-salz3-kh-chao-LiftOn/9c2ee318-dfbd-4fcb-ba89-e83cc65410ef/scratchpad/fullgenome/on/lifton.gff3",
+    "severity_totals": {},
+    "stats": {
+      "CDS": 739862,
+      "SRP_RNA": 1,
+      "V_gene_segment": 1,
+      "exon": 950371,
+      "gene": 32358,
+      "guide_RNA": 10,
+      "lnc_RNA": 22734,
+      "mRNA": 61345,
+      "primary_transcript": 275,
+      "pseudogene": 2507,
+      "rRNA": 14,
+      "snRNA": 295,
+      "snoRNA": 186,
+      "tRNA": 309,
+      "transcript": 4931
+    },
+    "total_lines": 1815200
+  },
+  "drosophila": {
+    "comment_lines": 1,
+    "data_lines": 92675,
+    "is_valid": true,
+    "issue_totals": {},
+    "issues": [
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 66998,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 66999,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67000,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67001,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67002,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67003,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67004,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67005,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 67006,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 83335,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 83336,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 83337,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 83338,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 83339,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 83340,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92543,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92547,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92548,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92553,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92554,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92555,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92556,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92563,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92564,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92565,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92571,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92572,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92577,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92581,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92582,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92583,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92584,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92591,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92592,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92593,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92599,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92603,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92604,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92609,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92613,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92617,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92621,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92625,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92626,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92631,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92632,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92633,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92639,
+        "message": "Non-CDS feature 'exon' has phase '0' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92640,
+        "message": "Non-CDS feature 'exon' has phase '1' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "non_cds_phase",
+        "feature": "",
+        "line": 92641,
+        "message": "Non-CDS feature 'exon' has phase '2' (should be '.')",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_001300533.1",
+        "line": 33040,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_001260050.3",
+        "line": 34778,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_001316531.1",
+        "line": 53856,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_142066.2",
+        "line": 53858,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_001316577.1",
+        "line": 61395,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_001300449.1",
+        "line": 65231,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "mrna_has_cds",
+        "feature": "rna-NM_141267.3",
+        "line": 88550,
+        "message": "mRNA has no CDS children (expected for protein-coding transcripts)",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-Dmel_CR31587_1",
+        "line": 54468,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-Dmel_CR31588_1",
+        "line": 54475,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-Dmel_CG32491_1",
+        "line": 78757,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-Dmel_CG32491_2",
+        "line": 78772,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-Dmel_CG32491_3",
+        "line": 78809,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "gene_has_transcripts",
+        "feature": "gene-Dmel_CG32491_4",
+        "line": 78904,
+        "message": "Gene has no child transcripts or features",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-NP_651539.3",
+        "line": 14687,
+        "message": "CDS #7 of transcript 'rna-NM_143282.4': expected phase 0 (accum_len=1107), got 1",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-NP_001036734.1",
+        "line": 76074,
+        "message": "CDS #6 of transcript 'rna-NM_001043269.3': expected phase 0 (accum_len=636), got 2",
+        "severity": "WARNING"
+      },
+      {
+        "check": "cds_phase_consistency",
+        "feature": "cds-NP_650916.1",
+        "line": 76087,
+        "message": "CDS #6 of transcript 'rna-NM_142659.2': expected phase 0 (accum_len=636), got 2",
+        "severity": "WARNING"
+      }
+    ],
+    "issues_sha256": "856609d89b079a22c184fdc4b93771446a7881f935986360ed795966b856a6de",
+    "n_errors": 0,
+    "n_issues": 66,
+    "n_warnings": 66,
+    "path": "/tmp/claude-3822/-ccb-salz3-kh-chao-LiftOn/9c2ee318-dfbd-4fcb-ba89-e83cc65410ef/scratchpad/anchorP2/default.gff3",
+    "severity_totals": {},
+    "stats": {
+      "CDS": 37393,
+      "RNase_MRP_RNA": 1,
+      "RNase_P_RNA": 2,
+      "SRP_RNA": 2,
+      "antisense_RNA": 147,
+      "exon": 43288,
+      "gene": 4048,
+      "lnc_RNA": 483,
+      "mRNA": 7140,
+      "ncRNA": 7,
+      "primary_transcript": 41,
+      "snRNA": 10,
+      "snoRNA": 37,
+      "tRNA": 76
+    },
+    "total_lines": 92676
+  }
+}
