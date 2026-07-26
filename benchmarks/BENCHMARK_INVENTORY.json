@@ -184,13 +184,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "f206cc55a68b6ce9e2bb8b683236e0b634ceff440247515db16921706677f89e",
-      "bytes": 332614,
+      "aggregate_sha256": "a02cbfaa320763ba68f44763d3c09826be6ca2eaa7890c691e955364ecb8c4a9",
+      "bytes": 341302,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "description": "Completed exploratory performance and accuracy A/B families; preserved but never pooled into canonical-v2.",
-      "file_count": 71,
+      "file_count": 73,
       "id": "historical_ab_experiments",
       "superseded_by": "canonical_release_baseline"
     },
@@ -694,6 +694,30 @@
       },
       "path": "benchmarks/compare/canonical_v3_backlog.json",
       "sha256": "114e16569991bb4b87d27d6120496d1d07c37c07b8a528d474bcb71fe933263f"
+    },
+    {
+      "bytes": 6755,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "f27d7b4c90f4aaa17075d64d1121e4f85b562ec704d90040d692ec05df89cfee",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/cds_attr_parity_ab.json",
+      "sha256": "4d830c14ae4dfa4f1e6d1f27ec6e34e11605efb560347b20a4a54a5aaab133b3"
+    },
+    {
+      "bytes": 1933,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/cds_attr_parity_ab.md",
+      "sha256": "f74d300cb52fc4c3f1e41e799f4cc518d7e163031c8cac782e16a0ac0a7ad7f2"
     },
     {
       "bytes": 12206,
@@ -2882,7 +2906,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "6c1e51220ebb9f7ffdcc63189e546bb0e4487a46553a4ac783e44cfb324bdde7",
+  "inventory_sha256": "88988be23d0b80fd905aa3b084e89d6a7b16e95f09e4390bfabc0c1a6dbe0bae",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -2930,15 +2954,15 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "c4111e20a79a4b3b8af052937027875f9a3a89678e7ec4dad1f34b3a720012dd",
-    "bytes": 12326247,
+    "aggregate_sha256": "5e3272062288f7a9b2b7f7fa9fd4f747e8ae8ae34bf8902eb7d77a3de1710f86",
+    "bytes": 12334935,
     "classification_counts": {
       "canonical": 61,
       "diagnostic": 21,
-      "historical": 133,
+      "historical": 135,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 233
+    "file_count": 235
   }
 }

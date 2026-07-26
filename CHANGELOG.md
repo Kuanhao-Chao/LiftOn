@@ -6,8 +6,58 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Every CDS row now carries the reference's descriptive attributes.** The
+  chaining merge and the ORF-rescue boundary patch rebuild a transcript's CDS
+  list and used to reset the emitted attributes to `{Parent}`, so an output
+  described some CDS richly and most not at all: on the full drosophila lift,
+  7,127 of 7,142 pure-Liftoff CDS rows carried
+  `Dbxref`/`Name`/`gbkey`/`gene`/`locus_tag`/`product`/`protein_id`/
+  `orig_transcript_id` while only 21 of 151,277 merged rows did — even though
+  all 28,051 merged mRNA rows kept those same attributes. A rebuilt CDS now
+  inherits its transcript's reference CDS attributes. `ID` remains owned by the
+  write-funnel allocator and `Parent` is still rewritten, so the change only
+  adds attributes. Across the eight-dataset divergence ladder, CDS coverage
+  rises from as low as 0.06 to 1.0 with columns 1–8 byte-identical on every
+  row, no attribute lost or rewritten, `protein_identity` unchanged on every
+  transcript, and validity flat; output grows 12–43%.
+  `LIFTON_NO_CDS_ATTR_CARRY=1` reproduces the previous bytes.
+
 ### Fixed
 
+- **Copy genes no longer get doubly-suffixed CDS identifiers.** Every chained
+  CDS of a transcript shared one attribute dict, and `Lifton_CDS.__init__`
+  reads `extra_copy_number` and then pops it — so only the first segment had its
+  copy suffix stripped, the rest kept it, and the write funnel then appended the
+  suffix again, emitting `cds-NP_9.1_1_1`. Annotations without extra gene copies
+  are unaffected.
+- **A CDS spanning several exons is reported instead of silently duplicated,**
+  and each exon now receives its own copy rather than all of them sharing one
+  object that a later edit could rewrite.
+- **The miniprot child proxy honours the requested ordering.** It served the one
+  ordering its cache was built with whatever the caller asked for, so a request
+  for file order — what the real backends return — would have been answered with
+  start-sorted rows. Latent: every current caller asks for `start`.
+- **The mandatory output validator now reports the true error count.**
+  `validate_gff3_structure` never populated `issue_totals`/`severity_totals`,
+  so the run manifest and the failure message reported at most 50 errors per
+  check however broken the file was — and in counts-only mode
+  (`max_issues_per_check=0`) `is_valid` returned True for a file with real
+  errors. The deep `gff3-validate` CLI keeps its documented per-check cap.
+- **Staged output is fsynced before it is published.** The pipeline closed the
+  staged GFF3 with a bare `close()`, so `OutputTransaction.close()`
+  short-circuited and skipped its flush and `os.fsync`; `commit()` could then
+  publish, via `os.replace`, data that had never reached disk.
+- **gffbase root scans are totally ordered.** `_order_clause(None)` sorted by
+  `file_order` alone, which rows synthesised by parent inference do not carry,
+  so the serial and parallel passes could assign different submission indices
+  to the same input.
+- **A read-only reference directory no longer aborts the run.**
+  `annotation_cache.cache_lock` created `<db>.lock` next to the database and
+  raised an uncaught `PermissionError` on a shared read-only mount; it now
+  falls back to a temp-directory lock and, failing that, proceeds unlocked with
+  a warning.
 - **A skipped locus no longer withholds the whole annotation.** Any per-locus
   processing or serialization failure previously blocked publication, so one
   bad gene in a 60,000-gene genome produced exit 2 and only a
@@ -45,6 +95,28 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ### Performance
 
+- **Features are cloned, not deep-copied.** `copy.deepcopy` ranked second in
+  both Step-7 profiles (36.2 M calls on *Drosophila*), and 43 % of a single
+  `Feature` copy recursed through attribute strings while 24 % re-copied the
+  `dialect` dict — one object every feature of a database already shares and
+  nothing in LiftOn writes to. `coreutils.clone_feature` / `clone_attributes`
+  copy exactly what is mutable and share the rest: **33.06 µs → 5.00 µs** per
+  rich CDS. `Lifton_EXON` and `Lifton_CDS` gain `__deepcopy__` so the hottest
+  caller speeds up without changing its call site. Byte-identical output.
+- **Less wasted work in the Step-7 hot loop.** A new `LIFTON_PROFILE_STEP7`
+  cProfile gate ranked the per-locus phase, and four provably equivalent
+  rewrites followed: the parasail alphabet check (71.3 M generator calls for a
+  test that almost always answers "clean") now decides by set membership;
+  `_coding_subalignment` locates two boundaries and slices instead of building
+  two character lists; `__find_orfs` drops a write-only accumulator and a
+  quadratic re-scan; and `LiftOn_translate` no longer fetches a coding sequence
+  it discards on the next line. `get_truncated_protein` gains a counting
+  companion so a dictionary of pyfaidx records is not built for its `len()`.
+  Output is **byte-identical** on the drosophila and dog→cat subsets. Step-7
+  wall over six alternated repeats against the previous commit: dog→cat
+  **198.5 s → 187.7 s (−5.4 %, faster in 6 of 6 repeats)**; on drosophila the
+  −1.9 % mean sits inside that benchmark's own 8.9 % run-to-run spread, so no
+  claim is made there.
 - **Faster per-locus processing.** The scalar materialiser no longer walks
   exon/CDS leaves (millions of redundant SQLite queries on large genomes), the
   per-alignment identity counters are vectorized (2.4–2.8× protein, 1.6–1.8×

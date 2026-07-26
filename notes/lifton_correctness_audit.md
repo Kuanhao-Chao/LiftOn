@@ -87,6 +87,88 @@ divergence-ladder A/B judged on ORF-validity and the structural metrics
 
 ---
 
+## Follow-up pass (2026-07-25) — what was taken off this list
+
+The next batch closed the top output-quality item and four robustness items, and
+replaced the guessed performance ranking with a measured one. Resolved entries
+are struck from the lists below; the reasoning that produced them is kept.
+
+- **Merged CDS attribute loss — FIXED.** The measurement grew when re-taken on a
+  full output rather than a subset: **151,277 CDS rows under
+  `status=LiftOn_chaining_algorithm`, of which 21 carried descriptive
+  attributes**, against 7,127 of 7,142 on the pure-Liftoff path — and all 28,051
+  merged mRNA rows kept theirs, confirming an internal inconsistency rather than
+  a policy. A transcript-level template captured in `Lifton_TRANS.add_cds` now
+  feeds both rebuild paths. Proven on the eight-cell divergence ladder
+  (`benchmarks/compare/cds_attr_parity_ab.{py,json,md}`): CDS coverage 0.06–0.63
+  → 1.0, columns 1–8 byte-identical on every row, 0 attributes lost or
+  rewritten, `protein_identity` unchanged, validity flat, +12–43% file size.
+  *Known caveat, accepted for parity:* a handful of reference CDS attributes
+  describe the **reference** feature rather than the lifted one (`partial`,
+  `end_range`, `exception`, `transl_except` — 900/699/494/59 rows on the
+  drosophila anchor). Carrying them can therefore be slightly stale after a
+  merge that moved a boundary. The pure-Liftoff path has always carried them, so
+  emitting them is the *consistent* choice; treating them specially would mean
+  diverging from the reference in a second, undocumented way. Revisit only with
+  a rule that applies to both paths.
+- **`validate_gff3_structure` under-reporting — FIXED**, including the inert
+  `is_valid` clause. The deep `validate_gff3_file` / `gff3-validate` CLI keeps
+  its documented per-check cap on purpose: changing that number would silently
+  re-baseline every committed benchmark validity figure.
+- **`stats.print_report` fsync bypass — FIXED** (close through the transaction).
+- **gffbase `_order_clause(None)` ordering — FIXED** (`, id ASC`).
+- **`annotation_cache.cache_lock` on read-only references — FIXED**
+  (temp-dir fallback, then unlocked with a warning).
+- **`trunc_ref_proteins` dict built for its `len()` — FIXED**
+  (`count_truncated_proteins`).
+
+### The Step-7 profile, and what it changed
+
+A `LIFTON_PROFILE_STEP7` cProfile gate (output-neutral) was added and run at
+`-t1` on drosophila and dog→cat. It contradicted parts of the guessed ranking
+above, which is the point:
+
+| rank | drosophila `tottime` | note |
+|---|---|---|
+| 1 | `parasail nw_trace_scan_sat` 132.1 s | the kernel; irreducible |
+| 2 | `copy.deepcopy` 36.0 s / 73.6 s cum, **36.2 M calls** | **not on the list** |
+| 3 | `sqlite3.Cursor.execute` 24.0 s | |
+| 4 | `__find_orfs` 18.9 s | on the list |
+| 5 | `variants._coding_subalignment` 13.5 s | **not on the list** |
+| 8 | `align.py:113` alphabet genexpr 8.0 s + `all` 6.0 s, **71.3 M calls** | **not on the list** |
+
+Fixed from this: the alphabet check (set membership + a C translation table),
+`_coding_subalignment` (the selected columns are contiguous, so only the two
+boundaries need locating — plus an ungapped fast path), `__find_orfs` (a
+write-only accumulator, and a provably equivalent break that removes the
+quadratic re-scan), and the discarded coding sequence in `LiftOn_translate`.
+
+**`copy.deepcopy` was addressed in the next pass (2026-07-25, second batch).**
+`coreutils.clone_feature` copies a `gffutils.Feature`'s mutable state and shares
+its immutable `dialect`: **33.06 µs → 5.00 µs** on a rich CDS. `Lifton_EXON` and
+`Lifton_CDS` gained `__deepcopy__` so the hottest caller sped up without
+changing its call site. One trap worth remembering: the first cut used
+`feature.__dict__`, which is right for `gffutils.Feature` but wrong for the
+vendored `lifton.gffbase.feature.Feature` — that one declares `__slots__` and has
+no `__dict__`, and it is the class `--inmemory-liftoff` uses. It did not raise;
+it silently produced a different lift. The 24-cell matrix caught it, no unit test
+did. The original reasoning for deferring is kept below.
+
+**`copy.deepcopy` was deferred in the first pass** even though it ranks second.
+Its callers are `run_liftoff._snapshot_merge_state` (20,690 calls, **32.0 s
+cumulative** — the best-of-outcome snapshot/restore protocol),
+`Lifton_TRANS.get_coding_seq` (15.5 s) and `update_cds_list` (15.3 s). Two
+reasons to leave it: the profiled figure is inflated because per-call profiler
+overhead falls hardest on 36 M tiny calls, so the real share is smaller than it
+looks; and a cheaper clone must reproduce gffutils `Feature` semantics exactly
+while `update_cds_list` mixes copied and original exon objects in one list, and
+`normalize_containment` later mutates an attribute dict in place. Getting that
+subtly wrong changes output. Note the interaction with the CDS-attribute fix:
+richer attribute dicts make this snapshot *more* expensive, so it is the
+strongest remaining performance target — it just needs its own careful pass.
+
+---
+
 ## DEFERRED — verified findings not addressed in this pass
 
 Kept here so nothing is lost. Each has a rationale for deferring.
@@ -102,23 +184,16 @@ Kept here so nothing is lost. Each has a rationale for deferring.
 - **`validate_gff3_file` is not memory-bounded** (`--validate-output` materialises a
   `GFF3Record` per row; ~4 M rows on a human-scale output). Rewrite the hierarchy /
   containment / phase checks as a streaming pass over the contiguous top-level blocks
-  LiftOn already guarantees.
-- **`validate_gff3_structure` under-reports counts**: it never populates
-  `severity_totals`/`issue_totals`, so `manifest.record_validation(..., errors=...)` is
-  capped at the per-check limit and `is_valid`'s first clause is inert.
-- **gffbase root-scan ordering is not total**: `_order_clause(None)` emits
-  `file_order ASC` with no tiebreak, so rows with NULL `file_order` (inferred roots) can
-  order differently between the serial and parallel scans → different submission indices.
-  One-line fix (`, id ASC`), plus a matrix cell with inferred roots.
-- **Read-only reference directories hard-fail**: `annotation_cache.cache_lock` opens a
-  `.lock` next to the DB, so a shared/read-only reference mount (a common HPC layout)
-  raises an uncaught `PermissionError` where the DB used to be reused read-only.
-- **Durability gap**: `stats.print_report`'s `finally` does a bare `fw.close()` on the
-  transaction's staging stream, so `OutputTransaction.close()` skips its `fsync` and
-  `commit()` publishes data that was never flushed to disk.
-- **Miniprot child proxies ignore `order_by=None`** and always serve start-sorted rows,
-  while the real backends return file order — currently masked because miniprot emits
-  ascending.
+  LiftOn already guarantees. Still deferred: this is the *opt-in* validator and the
+  `gff3-validate` CLI, so the cost is high memory rather than a wrong answer, and the
+  *mandatory* publication gate (`validate_gff3_structure`) already streams.
+- ~~**`validate_gff3_structure` under-reports counts**~~ — **FIXED** (2026-07-25).
+- ~~**gffbase root-scan ordering is not total**~~ — **FIXED** (`, id ASC`).
+- ~~**Read-only reference directories hard-fail**~~ — **FIXED** (temp-dir lock fallback).
+- ~~**Durability gap** (bare `fw.close()` skips the transaction `fsync`)~~ — **FIXED**.
+- ~~**Miniprot child proxies ignore `order_by=None`**~~ — **FIXED**: the proxy re-sorts
+  the cached rows in memory (no database round-trip from a worker thread) and fails
+  loudly for an ordering it cannot serve.
 - **Three-source strand ambiguity in `Lifton_TRANS`** (`get_coding_trans_seq` keys on
   `exons[0].entry.strand`, `__update_cds_boundary` on `self.entry.strand`,
   `get_coding_seq` per-CDS). Enforce one source of truth at `add_exon`/`add_cds` time.
@@ -126,8 +201,8 @@ Kept here so nothing is lost. Each has a rationale for deferring.
   first three bases of the full spliced transcript, which is 5′UTR for most transcripts,
   so a genuine start loss is not flagged — and it gates ORF rescue. The CDS span is now
   computed in `orf_search_protein` (added for GH #46) and can be reused.
-- **`Lifton_TRANS.add_cds` attaches one CDS to every overlapping exon** and mutates the
-  caller's `Parent`; "a CDS lies in exactly one exon" is assumed, never checked.
+- ~~**`Lifton_TRANS.add_cds` attaches one CDS to every overlapping exon**~~ — **FIXED**:
+  each overlapping exon now gets its own copy and the malformed model is reported.
 - **Case-1 merged exon inherits the DOWNSTREAM exon's ID** (masked today because
   `normalize_containment` renumbers on collision — see `test_cds_ids.py`).
 - **`get_id_fraction` guard drift**: `get_partial_id_fraction` tests `total_length == 0`
@@ -135,17 +210,10 @@ Kept here so nothing is lost. Each has a rationale for deferring.
   changing it would change output in the negative case.
 
 ### Output quality
-- **Merged CDS lines lose their descriptive attributes.** Measured on drosophila: of the
-  CDS beneath `status=LiftOn_chaining_algorithm` transcripts, **35,145 carry only
-  `ID`/`Parent` while 1 keeps the rich set** — `Dbxref`, `Name`, `gene`, `gbkey`,
-  `locus_tag`, `product`, `protein_id` are dropped whenever the merge fires, because
-  `create_lifton_entries` assigns a shared `parent_attrs` and `add_lifton_cds` then resets
-  attributes to `{Parent}`. Transcripts that stay on the pure-Liftoff path keep everything,
-  so a single output is inconsistent and most CDS rows are impoverished. This is
-  long-standing behaviour (not introduced by this batch — it was measured on the *base*
-  commit) but it is a real usability regression against the reference annotation and a good
-  candidate for the next pass: carry the source CDS attributes through the merge the way
-  the CDS **ID** is now carried (`Lifton_CDS._source_id`).
+- ~~**Merged CDS lines lose their descriptive attributes.**~~ — **FIXED** (2026-07-25).
+  See the follow-up section above; the full-output re-measurement was far larger than
+  this subset figure (151,277 rows affected, not 35,145), and the fix is proven on the
+  eight-cell divergence ladder.
 
 ### Performance / memory
 - **`scan_annotation` runs full ID bookkeeping + NCBI per-line validation on the derived
@@ -153,30 +221,32 @@ Kept here so nothing is lost. Each has a rationale for deferring.
   and multi-hundred-MB ID dicts per run. Add a `fingerprint_only` scan level.
 - **`AnnotationScanResult` is retained for the whole run**; only `cds_namespace_ids` and
   `copy_suffix_ids` (reference only) are needed after the allocator is seeded.
-- **`trunc_ref_proteins` builds a whole dict only to take `len()`** (~5.6 s at human
-  scale). Replace with a counter.
+- ~~**`trunc_ref_proteins` builds a whole dict only to take `len()`**~~ — **FIXED**
+  (`lifton_utils.count_truncated_proteins`).
 - **The gffbase adapter re-hashes the reference up to 4×** because `_expected_manifest`
   omits `source=` (the gffutils path passes it correctly).
-- **`align.py` computes the coding sequence twice per transcript**
-  (`get_coding_seq` then `get_coding_trans_seq`), paying two full sets of pyfaidx fetches
-  in the Step-7 hot loop.
+- ~~**`align.py` computes the coding sequence twice per transcript**~~ — **FIXED**
+  (`get_coding_seq(..., include_sequence=False)`).
 - **`orf_search_protein` re-reads the reference protein/transcript FASTA records on every
-  call** — up to 3× per merge-firing transcript.
-- **`__find_orfs` accumulates a write-only `orf_seq` string** (4–9 % of the scan) and its
-  outer loop is worst-case quadratic when an ATG has no downstream stop.
+  call** — up to 3× per merge-firing transcript. Still deferred: it did **not** appear
+  anywhere in the top 45 of either Step-7 profile, so the predicted cost was wrong. Worth
+  revisiting only if a profile puts it there.
+- ~~**`__find_orfs` accumulates a write-only `orf_seq` string** and its outer loop is
+  worst-case quadratic~~ — **FIXED**.
 - **Step 5 (2 gffutils DB builds, ~15 % of a cached-aligner run) is NOT a threading
   target** — that is the documented Iteration-11 NO-GO (GIL-bound; measured 8–12 % slower).
 
 ### Measurement
 - **`--measure_time` uses `time.process_time()`** for all steps, so it cannot see the
   miniprot subprocess and double-counts parallel threads. The correct per-phase wall clock
-  already exists in `run_manifest.json`; `time.txt` should be sourced from it.
+  already exists in `run_manifest.json`; `time.txt` should be sourced from it. Still
+  deferred — but `LIFTON_PROFILE_STEP7` (added 2026-07-25) now gives a trustworthy
+  *per-function* view of the hot phase, which is what the optimisation work actually
+  needed; `--measure_time` remains a reporting wart rather than a blocker.
 
 ### Documentation
-- **`CLAUDE.md` is stale**: it describes 524–805 tests and a ~649-line `lifton.py`
-  (actually 1384+ tests and 1850 lines) and does not mention nine shipped modules
-  (`run_manifest`, `output_transaction`, `annotation_cache`, `annotation_validator`,
-  `cds_id_allocator`, `cross_locus_rescue`, `miniprot_pipeline`, `variants`, `coreutils`).
+- ~~**`CLAUDE.md` is stale**~~ — **FIXED** in the first batch (the nine undocumented
+  modules and the true test/line counts are now recorded there).
 
 ---
 

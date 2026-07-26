@@ -12,7 +12,7 @@ LiftOn is a homology-based genome-annotation lift-over CLI. Given a reference ge
 Iterations 1-24 and its file:line references have drifted; the code is authoritative for
 *current shape*, this file for *history and NO-GOs* (the NO-GO list is still accurate and
 still worth honouring). Concretely: `lifton/lifton.py` is ~1850 lines (not ~649), and the
-suite is ~1450 tests (not 524/662/805).
+suite is ~1610 tests (not 524/662/805).
 
 **Modules added after the Iteration notes were written**, none of which appear elsewhere in
 this document:
@@ -39,6 +39,22 @@ now exist (`tests/test_nested_hierarchy.py`, `tests/test_validator_transcript_ty
 Full findings, including everything deliberately deferred, are in
 `notes/lifton_correctness_audit.md`.
 
+**Follow-up batch (2026-07-25)** — the top deferred item plus four robustness fixes and a
+profile-driven performance pass. Suite ~1610. Three things worth carrying forward:
+
+- **`LIFTON_PROFILE_STEP7`** (in `lifton.py`) now dumps a cProfile of the Step-7 dispatch.
+  Use it before optimising: it contradicted the audit's guessed ranking twice, and
+  `copy.deepcopy` — 36 M calls, second overall, 32 s cumulative inside
+  `run_liftoff._snapshot_merge_state` — is the strongest remaining target, deliberately
+  left for its own pass because a cheaper clone must reproduce gffutils `Feature`
+  semantics exactly.
+- **`LIFTON_NO_CDS_ATTR_CARRY=1`** reproduces the pre-2026-07-25 CDS attribute shape.
+- **A column-9-only change has a stronger gate than a mean-PI A/B**: require columns 1-8
+  byte-identical on every row, which for a CDS *is* its coordinates, strand and phase, so
+  the protein provably cannot move. `benchmarks/compare/cds_attr_parity_ab.py` implements
+  it, and takes `LIFTON_AB_PYTHONPATH` to pin both arms to one build (a detached
+  worktree) while the main tree moves on.
+
 ## Environment & commands
 
 The project requires native deps (`parasail`, `pysam`, `pyfaidx`, `gffutils`, `duckdb`, `pyarrow`) that ship as bioconda/conda-forge wheels. On macOS/ARM, `pip install parasail` will fail to build from source — use conda. The vendored `lifton/gffbase/` ships a pre-built Rust extension (`_native*.so`); a missing extension falls back to the pure-Python parser at `lifton/gffbase/_pyfallback/`.
@@ -53,7 +69,7 @@ conda install -y -c bioconda -c conda-forge \
 pip install mappy   # Phase 16 Tier 5: real --native minimap2 path; also unblocks test_native_bindings.py
 pip install -e .
 
-# Run the test suite (~1450 tests collect as of the 2026-07 audit batch; fully hermetic re: minimap2/miniprot —
+# Run the test suite (~1610 tests collect as of the 2026-07-25 follow-up batch; fully hermetic re: minimap2/miniprot —
 # they're monkey-patched to raise). 3 files (test_property_based, test_streaming_property,
 # test_vulnerabilities) ERROR on collection unless `hypothesis` is installed; without `mappy`
 # in the env, ~5 test_native_bindings cases fail (they assert mappy is present).
