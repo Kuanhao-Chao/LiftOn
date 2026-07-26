@@ -14,7 +14,7 @@ Bug-fixes applied:
   • Fix create_lifton_entries for empty index ranges.
 """
 
-from lifton import get_id_fraction, lifton_class, logger
+from lifton import coreutils, get_id_fraction, lifton_class, logger
 import math
 import os
 import sys
@@ -167,7 +167,13 @@ def create_lifton_entries(
             continue  # safety: skip out-of-bounds
 
         lifton_cds = source_aln.cds_children[c_idx_fix]
-        lifton_cds.attributes = parent_attrs
+        # Each segment gets its OWN attribute dict. Sharing one object made the
+        # segments disagree about their own provenance: `Lifton_CDS.__init__`
+        # reads `extra_copy_number` and then POPS it, so on a copy gene only the
+        # FIRST segment saw the key and had its copy suffix stripped from
+        # `_source_id_base` -- every sibling kept the suffixed form and so was
+        # treated as a different CDS by `_normalize_cds_ids`.
+        lifton_cds.attributes = coreutils.clone_attributes(parent_attrs)
         cds_list.append(lifton_class.Lifton_CDS(lifton_cds))
 
     return cds_list
