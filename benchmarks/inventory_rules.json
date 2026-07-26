@@ -154,6 +154,7 @@
       "patterns": [
         "benchmarks/compare/adaptive_floor_ab.*",
         "benchmarks/compare/align_window_ab.*",
+        "benchmarks/compare/cds_attr_parity_ab.*",
         "benchmarks/compare/chain_sync_feasibility.*",
         "benchmarks/compare/dbbuild_concurrent_ab.*",
         "benchmarks/compare/extract_query_collapse_ab.*",
