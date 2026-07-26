@@ -263,6 +263,28 @@ Kept here so nothing is lost. Each has a rationale for deferring.
   eight-cell divergence ladder.
 
 ### Performance / memory
+- **The second half of the SQL collapse needs a proxy cache first** (2026-07-26).
+  `LIFTON_SQL_DIAG` (`lifton/sql_diag.py`) attributed all 72,913 Step-7 statements on
+  drosophila to their call sites. Two sites stood out, both issuing more queries than
+  they need on the same feature:
+
+  | site | statements | share |
+  |---|---|---|
+  | `lifton_utils.py:303`/`:306` — *the identical query, twice* | 7,038 | 9.6 % |
+  | `run_liftoff.py:181`/`:184` — two filtered `children()` calls | 7,924 each | 21.8 % |
+
+  The first is **fixed** (one query, the second consumer gets clones because
+  `Lifton_EXON.__init__` rewrites `featuretype`): 72,913 → 65,901, −9.6 %.
+
+  The second was implemented, verified byte-identical on both drosophila anchors and
+  measured at 57,977 statements (−20.5 % combined) — and then **reverted**, because the
+  24-cell matrix failed. `children(locus, order_by='start')` is a signature
+  `_LFeatureDbProxy` does not cache, so the collapse is correct serially and raises
+  `NotImplementedError` on every threaded run. The proxy guardrail worked exactly as
+  designed. Landing it needs an `all_children_full` entry added to `MaterialisedLocus`,
+  populated in **both** `_walk_and_cache_features` and its batched twin (where it would
+  *replace* the two queries those already issue), and served by the proxy — then the same
+  anchor plus matrix verification. Worth doing; it was simply not worth rushing.
 - **`scan_annotation` runs full ID bookkeeping + NCBI per-line validation on the derived
   Liftoff/miniprot intermediates**, not just the reference — two extra full-file passes
   and multi-hundred-MB ID dicts per run. Add a `fingerprint_only` scan level.

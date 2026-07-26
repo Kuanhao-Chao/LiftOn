@@ -103,6 +103,9 @@ def _ensure_run_manifest(args, outdir, lifton_outdir):
     return manifest
 
 
+from lifton import sql_diag as _sql_diag
+
+
 def _start_step7_profile():
     """Begin an output-neutral CPU profile of Step 7, if requested.
 
@@ -1312,6 +1315,12 @@ def run_all_lifton_steps(args):
     # that makes a per-function ranking comparable run to run). Set
     # LIFTON_PROFILE_STEP7=1 for a default path under the output directory, or
     # to a path of your own.
+    # Opt-in SQL attribution for Step 7 (LIFTON_SQL_DIAG). Observes only.
+    if _sql_diag.enabled():
+        _sql_diag.attach(l_feature_db, "liftoff")
+        _sql_diag.attach(getattr(ref_db, "db_connection", ref_db), "ref")
+        if m_feature_db is not None:
+            _sql_diag.attach(m_feature_db, "miniprot")
     _prof7 = _start_step7_profile()
     _w7_start = time.perf_counter()
     processed_features = _parallel.parallel_step7(
@@ -1319,6 +1328,8 @@ def run_all_lifton_steps(args):
         threads=_threads if _use_pool else 1,
     )
     _finish_step7_profile(_prof7, lifton_outdir)
+    if _sql_diag.enabled():
+        _sql_diag.report()
     manifest.record_count(
         "step7_max_inflight_observed",
         getattr(args, "_step7_max_inflight_observed", 0),
