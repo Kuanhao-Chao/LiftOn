@@ -173,13 +173,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "32cac421499a519ebeceb8d83ab723f79cfed18773b991c1281d04362afb7356",
-      "bytes": 228227,
+      "aggregate_sha256": "1d1a0e793bd94cd6e38afc9f26616d58d07611db5f919310ebbc8145c3cc7b03",
+      "bytes": 283004,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
-      "file_count": 24,
+      "file_count": 25,
       "id": "diagnostic_headroom",
       "superseded_by": null
     },
@@ -2678,6 +2678,20 @@
       "sha256": "0c67075b4dfe45ab296f7336617b85863bdf7035f27c05feef16e55be75ea139"
     },
     {
+      "bytes": 54777,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "6a52b030a837f46dc05815791fc510a8d5c11289993c23061a050148b9b2a66c",
+        "top_level_count": 2
+      },
+      "path": "benchmarks/compare/validator_report_baselines.json",
+      "sha256": "f28d954666d3802b62497fa06c40420670db8be3cbb2331e9f1c2a3b1331379c"
+    },
+    {
       "bytes": 10313,
       "claim_eligible": false,
       "classification": "obsolete",
@@ -2940,7 +2954,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "f0d28f81ff0bec594c951714fa36ef9e074b82c01dad7fae7d621f9ecbbb4aba",
+  "inventory_sha256": "89948337ba837c61f1b724bd367e385ef805b5d47aed17ff7545ed8168b4fbee",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -2988,15 +3002,15 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "f0ec4d23a406d3b6cdb260f6e7789e9a459e28fd8883b98ba7c8b7d9c2802bee",
-    "bytes": 12350734,
+    "aggregate_sha256": "552ecc01f8362aefe54444e4a9039b8a71346fa9159244fc23bdfc5f39f36b80",
+    "bytes": 12405511,
     "classification_counts": {
       "canonical": 61,
-      "diagnostic": 24,
+      "diagnostic": 25,
       "historical": 135,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 238
+    "file_count": 239
   }
 }
