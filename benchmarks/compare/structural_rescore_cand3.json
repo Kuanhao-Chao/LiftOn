@@ -1,0 +1,94 @@
+[
+  {
+    "benchmark": "t4_human_to_chicken",
+    "which": "cand3",
+    "n_common": 822,
+    "n_added": 0,
+    "mean_pi": {
+      "base": 0.72046,
+      "changed": 0.72146
+    },
+    "common_structural_delta": {
+      "orf_valid": -0.00122,
+      "intron_chain_exact": 0.0,
+      "exon_sn": 0.00021,
+      "exon_sp": 9e-05
+    },
+    "added_structural": {
+      "orf_valid": null,
+      "intron_chain_exact": null,
+      "exon_sn": null,
+      "exon_sp": null
+    },
+    "no_common_regression": true
+  },
+  {
+    "benchmark": "human_to_mouse",
+    "which": "cand3",
+    "n_common": 2657,
+    "n_added": 0,
+    "mean_pi": {
+      "base": 0.78091,
+      "changed": 0.78266
+    },
+    "common_structural_delta": {
+      "orf_valid": 0.00753,
+      "intron_chain_exact": 0.00489,
+      "exon_sn": 0.00562,
+      "exon_sp": 0.00025
+    },
+    "added_structural": {
+      "orf_valid": null,
+      "intron_chain_exact": null,
+      "exon_sn": null,
+      "exon_sp": null
+    },
+    "no_common_regression": true
+  },
+  {
+    "benchmark": "rice_to_sorghum",
+    "which": "cand3",
+    "n_common": 4556,
+    "n_added": 0,
+    "mean_pi": {
+      "base": 0.67517,
+      "changed": 0.67745
+    },
+    "common_structural_delta": {
+      "orf_valid": 0.00307,
+      "intron_chain_exact": 0.00022,
+      "exon_sn": 0.0007,
+      "exon_sp": -0.00064
+    },
+    "added_structural": {
+      "orf_valid": null,
+      "intron_chain_exact": null,
+      "exon_sn": null,
+      "exon_sp": null
+    },
+    "no_common_regression": true
+  },
+  {
+    "benchmark": "celegans_to_briggsae",
+    "which": "cand3",
+    "n_common": 3113,
+    "n_added": 0,
+    "mean_pi": {
+      "base": 0.72086,
+      "changed": 0.7215
+    },
+    "common_structural_delta": {
+      "orf_valid": -0.00032,
+      "intron_chain_exact": 0.00064,
+      "exon_sn": 0.00051,
+      "exon_sp": -0.00011
+    },
+    "added_structural": {
+      "orf_valid": null,
+      "intron_chain_exact": null,
+      "exon_sn": null,
+      "exon_sp": null
+    },
+    "no_common_regression": true
+  }
+]

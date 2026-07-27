@@ -1,4 +1,5 @@
 from lifton import align, coreutils, get_id_fraction, variants, logger
+from lifton.cds_id_allocator import CdsIdAllocator
 from lifton.io import feature_serializer
 import copy, os, re
 from Bio.Seq import Seq
@@ -21,6 +22,61 @@ def _containment_normalize_enabled():
     pre-Iteration-24 bytes (manuscript reproduction / A-B baseline).
     """
     return os.environ.get("LIFTON_NO_CONTAINMENT_NORMALIZE", "").lower() not in ("1", "true", "yes")
+
+
+# Attributes that IDENTIFY or RE-PARENT a CDS row rather than describe it, and
+# so are never carried across a rebuild: ``ID`` belongs to the write-funnel
+# allocator (``Lifton_TRANS._normalize_cds_ids``), ``Parent`` is rewritten to the
+# emitting transcript, and ``extra_copy_number`` is LiftOn bookkeeping that never
+# reaches the output.
+_CDS_STRUCTURAL_ATTR_KEYS = ("ID", "Parent", "extra_copy_number")
+
+
+def _cds_attr_carry_enabled():
+    """Carry a CDS's descriptive attributes across a rebuild (default ON).
+
+    The chaining merge and the ORF-rescue boundary patch REBUILD a transcript's
+    CDS list, and both used to reset the emitted attributes to ``{Parent}``. The
+    result was an internally inconsistent file: on drosophila, 7,127 of 7,142
+    pure-Liftoff CDS rows kept ``Dbxref``/``product``/``protein_id``/``gene``/…
+    while only 21 of 151,277 merged rows did — even though every merged mRNA row
+    kept the very same attributes. Reference CDS segments of one transcript share
+    those attributes (a discontinuous feature), so a rebuilt segment inherits the
+    transcript's set and reaches parity with the Liftoff path.
+
+    Default ON. Set ``LIFTON_NO_CDS_ATTR_CARRY=1`` to reproduce the pre-change
+    ``{Parent}``-only bytes (manuscript reproduction / A-B baseline).
+    """
+    return os.environ.get("LIFTON_NO_CDS_ATTR_CARRY", "").lower() not in ("1", "true", "yes")
+
+
+def _descriptive_cds_attrs(attributes):
+    """Return a FRESH dict holding only the describing attributes."""
+    if not attributes:
+        return {}
+    return {
+        key: value for key, value in attributes.items()
+        if key not in _CDS_STRUCTURAL_ATTR_KEYS
+    }
+
+
+def _build_cds_attributes(parent, source_attrs=None, attr_template=None):
+    """Build the attribute dict for a rebuilt CDS row.
+
+    Always returns a NEW dict. ``protein_maximization.create_lifton_entries``
+    hands every chained CDS of a transcript the SAME ``parent_attrs`` object, so
+    reusing it here would let the per-segment ``ID`` assignment in
+    ``_normalize_cds_ids`` clobber every sibling. The transcript-level template
+    wins over the individual source row so that all segments of one CDS describe
+    themselves identically, as the reference does.
+    """
+    attributes = {}
+    if _cds_attr_carry_enabled():
+        attributes = _descriptive_cds_attrs(attr_template)
+        if not attributes:
+            attributes = _descriptive_cds_attrs(source_attrs)
+    attributes["Parent"] = parent
+    return attributes
 
 
 class Lifton_ORF:
@@ -80,7 +136,9 @@ class Lifton_feature:
 
 
 class Lifton_GENE:
-    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs, tree_dict, ref_features_dict, args, tmp = False):
+    def __init__(self, ref_gene_id, gffutil_entry_gene, ref_gene_attrs,
+                 tree_dict, ref_features_dict, args, tmp=False,
+                 state_journal=None):
         ###########################
         # Assigning the reference gene & attributes
         ###########################
@@ -90,7 +148,15 @@ class Lifton_GENE:
         self.is_non_coding = False
         self.transcripts = {}
         self.ref_gene_id = ref_gene_id
-        self.copy_num = self.__get_gene_copy(ref_features_dict)
+        if state_journal is None:
+            self.copy_num = self.__get_gene_copy(ref_features_dict)
+        else:
+            # Parallel Step 7 assigns copy IDs through a short ordered gate.
+            # The worker records, but does not apply, the corresponding global
+            # counter/tree mutations; ordered ``consume`` commits them later.
+            self.copy_num = state_journal.allocate_gene_copy(
+                ref_gene_id, self.entry, ref_features_dict,
+            )
         self.tmp = tmp
         self.entry.attributes = ref_gene_attrs
         # Bug fix #1 (Phase 5): build the ID as a list-of-str per the
@@ -101,7 +167,8 @@ class Lifton_GENE:
         self.entry.attributes["ID"] = [gene_id]
         if self.copy_num > 0:
             self.entry.attributes["extra_copy_number"] = [str(self.copy_num)]
-        self.__update_gene_copy(ref_features_dict)
+        if state_journal is None:
+            self.__update_gene_copy(ref_features_dict)
         self.entry.id = gene_id
         # V2.8: route via _make_interval so single-base genes don't crash.
         # Only `gene`-type loci join the interval tree that gates miniprot
@@ -111,7 +178,7 @@ class Lifton_GENE:
         # adding them here would let them suppress a miniprot coding-gene rescue
         # just by overlapping it — so they are deliberately kept OUT. On a
         # gene-only ref this is a no-op (byte-identical, 24-cell green).
-        if self.entry.featuretype == "gene":
+        if self.entry.featuretype == "gene" and state_journal is None:
             from lifton.intervals import _make_interval
             gene_interval = _make_interval(
                 self.entry.start, self.entry.end, self.entry.id,
@@ -215,21 +282,26 @@ class Lifton_GENE:
     def add_lifton_trans_status_attrs(self, trans_id, lifton_status):
         self.transcripts[trans_id].add_lifton_trans_status_attrs(lifton_status)
 
-    def write_entry(self, fw, transcripts_stats_dict):
+    def write_entry(
+        self,
+        fw,
+        transcripts_stats_dict,
+        cds_id_allocator=None,
+    ):
         # Iter-24: normalize parent-child containment (extend exons to cover
         # their CDS; set each transcript + the gene span to the child envelope)
         # right before serialisation, so the emitted GFF3 is always valid.
         # No-op on well-formed genes -> byte-identical default.
-        self.normalize_containment()
+        self.normalize_containment(cds_id_allocator=cds_id_allocator)
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_gene(self, fw, transcripts_stats_dict)
+        return feature_serializer.write_gene(self, fw, transcripts_stats_dict)
 
     def update_boundaries(self):
         for key, trans in self.transcripts.items():
             self.entry.start = trans.entry.start if trans.entry.start < self.entry.start else self.entry.start
             self.entry.end = trans.entry.end if trans.entry.end > self.entry.end else self.entry.end
 
-    def normalize_containment(self):
+    def normalize_containment(self, cds_id_allocator=None):
         """Normalize every child's containment, then widen the gene span to
         cover all children. No-op when disabled / well-formed. ``self.transcripts``
         can hold both coding ``Lifton_TRANS`` and gene-like ``LiftOn_FEATURE``
@@ -242,7 +314,10 @@ class Lifton_GENE:
         for trans in self.transcripts.values():
             fn = getattr(trans, "normalize_containment", None)
             if fn is not None:
-                fn()
+                if hasattr(trans, "exons"):
+                    fn(cds_id_allocator=cds_id_allocator)
+                else:
+                    fn()
         self.entry.start = min(t.entry.start for t in self.transcripts.values())
         self.entry.end = max(t.entry.end for t in self.transcripts.values())
 
@@ -283,7 +358,63 @@ class LiftOn_FEATURE:
         self.features[Lifton_feature.entry.id] = Lifton_feature
         return Lifton_feature
 
-    def normalize_containment(self):
+    # ── Transcript-bearing delegates ────────────────────────────────────────────
+    # A 3-level reference hierarchy (e.g. RefSeq gene -> primary_transcript ->
+    # miRNA -> exon) makes `process_liftoff` descend with the INTERMEDIATE feature
+    # standing in for the gene. Without these methods that recursion raised
+    # AttributeError ('LiftOn_FEATURE' object has no attribute 'add_transcript'),
+    # which `process_locus` catches per-locus -- so the transcript, its exons and its
+    # CDS were dropped from the output with no diagnostic. Mirror the `Lifton_GENE`
+    # API over `self.features`, which `write_entry`/`normalize_containment` already
+    # recurse, so a nested transcript is emitted under its real parent.
+
+    def add_transcript(self, ref_trans_id, gffutil_entry_trans, ref_trans_attrs):
+        Lifton_trans = Lifton_TRANS(
+            ref_trans_id, getattr(self, "ref_gene_id", None), self.entry.id,
+            self.copy_num, gffutil_entry_trans, ref_trans_attrs,
+        )
+        self.features[Lifton_trans.entry.id] = Lifton_trans
+        return Lifton_trans
+
+    def add_exon(self, trans_id, gffutil_entry_exon):
+        self.features[trans_id].add_exon(gffutil_entry_exon)
+
+    def add_cds(self, trans_id, gffutil_entry_cds):
+        self.features[trans_id].add_cds(gffutil_entry_cds)
+
+    def orf_search_protein(self, trans_id, ref_trans_id, fai, ref_proteins,
+                           fai_trans, lifton_status, eval_only=False,
+                           eval_liftoff_chm13=False):
+        child = self.features.get(trans_id)
+        if child is None or not hasattr(child, "orf_search_protein"):
+            return None, False
+        ref_protein_seq = (str(ref_proteins[ref_trans_id])
+                           if ref_trans_id in ref_proteins.keys() else None)
+        ref_trans_seq = (str(fai_trans[ref_trans_id])
+                         if ref_trans_id in fai_trans.keys() else None)
+        return child.orf_search_protein(
+            fai, ref_protein_seq, ref_trans_seq, lifton_status,
+            is_non_coding=False, eval_only=eval_only,
+        )
+
+    def add_lifton_gene_status_attrs(self, source):
+        self.entry.attributes["source"] = [source]
+
+    def add_lifton_trans_status_attrs(self, trans_id, lifton_status):
+        # Only a Lifton_TRANS child takes the 1-argument form; a nested
+        # LiftOn_FEATURE has this same 2-argument signature, so dispatch by type.
+        child = self.features.get(trans_id)
+        if isinstance(child, Lifton_TRANS):
+            child.add_lifton_trans_status_attrs(lifton_status)
+
+    def update_boundaries(self):
+        for child in self.features.values():
+            if child.entry.start < self.entry.start:
+                self.entry.start = child.entry.start
+            if child.entry.end > self.entry.end:
+                self.entry.end = child.entry.end
+
+    def normalize_containment(self, cds_id_allocator=None):
         """Recursively normalize the generic-feature hierarchy (gene-like
         features: pseudogenes, ncRNA genes, structured mobile elements) so a
         feature always contains its children. Only ever EXTENDS this feature's
@@ -303,7 +434,7 @@ class LiftOn_FEATURE:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_feature(self, fw)
+        return feature_serializer.write_feature(self, fw)
 
     def print_feature(self):
         print(self.entry)
@@ -312,6 +443,13 @@ class LiftOn_FEATURE:
 
 
 class Lifton_TRANS:
+    # Descriptive attributes shared by this transcript's reference CDS rows,
+    # captured by `add_cds` and reused whenever the merge or the ORF rescue
+    # rebuilds the CDS list. Declared on the class so an instance built without
+    # `__init__` (as several tests and the locus proxies do) still resolves it.
+    # See `_cds_attr_carry_enabled`.
+    _cds_attr_template = None
+
     def __init__(self, ref_trans_id, ref_gene_id, gene_id, copy_num, gffutil_entry_trans, ref_trans_attrs):
         # Assigning the reference transcripts & attributes
         if int(copy_num) > 0:
@@ -344,11 +482,38 @@ class Lifton_TRANS:
         coreutils.custom_bisect_insert(self.exons, Lifton_exon)
 
     def add_cds(self, gffutil_entry_cds):
-        for exon in self.exons:
-            _, ovp = coreutils.segments_overlap_length((exon.entry.start, exon.entry.end), (gffutil_entry_cds.start, gffutil_entry_cds.end))
-            if ovp:
-                gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
-                exon.add_cds(gffutil_entry_cds)
+        if self._cds_attr_template is None:
+            # First reference CDS wins: every segment of one discontinuous CDS
+            # carries the same descriptive attributes, so this is the whole
+            # transcript's set.
+            template = _descriptive_cds_attrs(
+                getattr(gffutil_entry_cds, "attributes", None)
+            )
+            if template:
+                self._cds_attr_template = template
+        overlapping = [
+            exon for exon in self.exons
+            if coreutils.segments_overlap_length(
+                (exon.entry.start, exon.entry.end),
+                (gffutil_entry_cds.start, gffutil_entry_cds.end))[1]
+        ]
+        if len(overlapping) > 1:
+            # "A CDS lies in exactly one exon" is assumed throughout the model
+            # but was never checked, so a CDS spanning an intron was attached to
+            # every exon it touched -- emitting the same CDS several times, and
+            # (because they shared ONE Feature object) letting a later edit to
+            # any copy silently rewrite the others.
+            logger.log_warning(
+                f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
+                f"({gffutil_entry_cds.start}-{gffutil_entry_cds.end}) spans "
+                f"{len(overlapping)} exons of {self.entry.id}; each will carry "
+                "its own copy. The reference model is malformed here."
+            )
+        for exon in overlapping:
+            entry = (gffutil_entry_cds if len(overlapping) == 1
+                     else coreutils.clone_feature(gffutil_entry_cds))
+            entry.attributes['Parent'] = [self.entry.id]
+            exon.add_cds(entry)
 
     def update_gffutil_entry_trans(self, gffutil_entry_trans):
         for key, atr in gffutil_entry_trans.attributes.items():
@@ -396,13 +561,17 @@ class Lifton_TRANS:
                     ovp_exons.append(cp_exon)
                 # |cccc|  |eeee|
                 elif exon.entry.start > only_cds.entry.end:
-                    if optimize and processed_ovp_exons:
-                        # --optimize bug-fix: the CDS-bearing exon has ALREADY
-                        # been emitted; this is a further downstream exon (3' UTR).
-                        # The default path re-emits a duplicate CDS exon for EVERY
-                        # such exon (corrupting multi-exon transcripts whose CDS
-                        # spans only the leading exon(s)); under --optimize emit it
-                        # as a plain UTR exon instead.
+                    if processed_ovp_exons:
+                        # The CDS-bearing exon has ALREADY been emitted; this is a
+                        # further downstream exon (3' UTR), so emit it as a plain UTR
+                        # exon. This used to be gated on `optimize`, so with
+                        # optimize=False (the --legacy-merge path and any direct
+                        # caller of Lifton_GENE.update_cds_list, whose default is
+                        # False) EVERY downstream exon re-entered the else-branch and
+                        # re-emitted another copy of the CDS-bearing exon -- duplicate
+                        # exon IDs, a doubled CDS and a wrong protein on any
+                        # multi-exon transcript whose CDS spans only the leading
+                        # exon(s). The guard is correct for both paths.
                         new_exons.append(exon)
                     else:
                         processed_ovp_exons = True
@@ -415,7 +584,7 @@ class Lifton_TRANS:
                         else:
                             merged_exon.entry.start = ovp_exons[0].entry.start
                             merged_exon.entry.end = ovp_exons[-1].entry.end
-                        merged_exon.add_lifton_cds(only_cds)
+                        merged_exon.add_lifton_cds(only_cds, attr_template=self._cds_attr_template)
                         new_exons.append(merged_exon)
                         new_exons.append(exon)
                 idx_exon_itr += 1
@@ -434,7 +603,7 @@ class Lifton_TRANS:
                     else:
                         merged_exon.entry.start = ovp_exons[0].entry.start
                         merged_exon.entry.end = ovp_exons[-1].entry.end
-                    merged_exon.add_lifton_cds(only_cds)
+                    merged_exon.add_lifton_cds(only_cds, attr_template=self._cds_attr_template)
                     new_exons.append(merged_exon)
         ########################
         # Case 2: only 1 exon, and >1 CDSs
@@ -455,7 +624,7 @@ class Lifton_TRANS:
                 else:
                     exon.entry.end = cds.entry.end
                     exon.entry.start = cds.entry.start
-                exon.add_lifton_cds(cds)
+                exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                 new_exons.append(exon)
         ########################
         # Case 3: multiple CDSs and exons
@@ -497,7 +666,7 @@ class Lifton_TRANS:
                         new_exon = copy.deepcopy(self.exons[exon_idx])
                         new_exon.update_exon_info(
                             min(exon_start, cds_start), cds_end)
-                        new_exon.add_lifton_cds(cds_list[0])
+                        new_exon.add_lifton_cds(cds_list[0], attr_template=self._cds_attr_template)
                         new_exons.append(new_exon)
                         exon_idx += 1
                         cds_idx += 1
@@ -506,7 +675,7 @@ class Lifton_TRANS:
                     elif exon_start > cds_end:
                         new_exon = copy.deepcopy(self.exons[exon_idx])
                         new_exon.update_exon_info(cds_start, cds_end)
-                        new_exon.add_lifton_cds(cds_list[0])
+                        new_exon.add_lifton_cds(cds_list[0], attr_template=self._cds_attr_template)
                         new_exons.append(new_exon)
                         cds_idx += 1
                         break
@@ -523,7 +692,7 @@ class Lifton_TRANS:
                         # First overlap found — emit and move on
                         new_exon = copy.deepcopy(exon)
                         new_exon.update_exon_info(cds_start, cds_end)
-                        new_exon.add_lifton_cds(cds_list[cds_idx])
+                        new_exon.add_lifton_cds(cds_list[cds_idx], attr_template=self._cds_attr_template)
                         new_exons.append(new_exon)
                         cds_idx += 1
                         break
@@ -531,7 +700,7 @@ class Lifton_TRANS:
                         # CDS comes before first exon
                         new_exon = copy.deepcopy(exon)
                         new_exon.update_exon_info(cds_start, cds_end)
-                        new_exon.add_lifton_cds(cds_list[cds_idx])
+                        new_exon.add_lifton_cds(cds_list[cds_idx], attr_template=self._cds_attr_template)
                         new_exons.append(new_exon)
                         cds_idx += 1
                     else:
@@ -543,7 +712,7 @@ class Lifton_TRANS:
                 cds = cds_list[cds_idx]
                 new_exon = copy.deepcopy(exon)
                 new_exon.update_exon_info(cds.entry.start, cds.entry.end)
-                new_exon.add_lifton_cds(cds)
+                new_exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                 new_exons.append(new_exon)
                 cds_idx += 1
             ################################################
@@ -566,7 +735,7 @@ class Lifton_TRANS:
                     last_cds_processed = True
                     new_exon = copy.deepcopy(exon)
                     new_exon.update_exon_info(cds_start, max(cds_end, exon_end))
-                    new_exon.add_lifton_cds(cds)
+                    new_exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                     new_exons.append(new_exon)
                     exon_idx += 1
                     break
@@ -574,7 +743,7 @@ class Lifton_TRANS:
                     last_cds_processed = True
                     new_exon = copy.deepcopy(exon)
                     new_exon.update_exon_info(cds_start, cds_end)
-                    new_exon.add_lifton_cds(cds)
+                    new_exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                     new_exons.append(new_exon)
                     break
             ################################################
@@ -592,21 +761,43 @@ class Lifton_TRANS:
             if not last_cds_processed:
                 new_exon = copy.deepcopy(self.exons[-1])
                 new_exon.update_exon_info(cds.entry.start, cds.entry.end)
-                new_exon.add_lifton_cds(cds)
+                new_exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                 new_exons.append(new_exon)
         self.exons = new_exons
         if self.exons:  # guard against empty exon list
+            if _containment_normalize_enabled():
+                # FIX 3 (root): the rebuilt exon list can be non-monotonic — the
+                # chaining interleaves miniprot+Liftoff CDS and Case-5 appends a
+                # synthetic exon from a deep-copied template — so update_boundaries
+                # (exons[0].start..exons[-1].end) could invert the span (start>end)
+                # transiently, before the write-funnel normalize_containment fixes
+                # it (Iter-24). Sort here so the span is valid AT THE SOURCE for any
+                # consumer between here and the writer (the best-of-outcome merge
+                # snapshots the span; ORF rescue walks exons). Byte-neutral on the
+                # default path (normalize_containment re-sorts to the same order);
+                # gated on the same flag so LIFTON_NO_CONTAINMENT_NORMALIZE=1 still
+                # reproduces the exact pre-Iteration-24 escape-hatch bytes.
+                self.exons.sort(key=lambda e: (e.entry.start, e.entry.end))
             self.update_boundaries()
 
-    def get_coding_seq(self, fai):
+    def get_coding_seq(self, fai, include_sequence=True):
+        """Collect the CDS children, their lengths, and (optionally) the
+        spliced coding sequence.
+
+        ``include_sequence=False`` skips the per-CDS ``entry.sequence(fai)``
+        fetch and the string concatenation. ``align.LiftOn_translate`` -- the
+        only caller, and one that runs up to three times per transcript inside
+        the Step-7 hot loop -- immediately OVERWRITES the coding sequence with
+        ``get_coding_trans_seq``'s, so every one of those fetches was wasted.
+        """
         coding_seq = ""
         cdss_lens = []
         cds_children = []
         for exon in self.exons:
             if exon.cds is not None:
-                cds_children.append(copy.deepcopy(exon.cds.entry))
+                cds_children.append(coreutils.clone_feature(exon.cds.entry))
                 # Chaining the CDS features
-                p_seq = exon.cds.entry.sequence(fai)
+                p_seq = exon.cds.entry.sequence(fai) if include_sequence else ""
                 if exon.cds.entry.strand == '-':
                     coding_seq = p_seq + coding_seq
                     cdss_lens.insert(0, exon.cds.entry.end - exon.cds.entry.start + 1)
@@ -644,7 +835,11 @@ class Lifton_TRANS:
     def translate_coding_seq(self, coding_seq):
         protein_seq = None
         if coding_seq != "":
-            protein_seq = str(Seq(coding_seq).translate())
+            # Biopython has historically truncated a terminal partial codon
+            # while warning that it may become an error. Preserve that result
+            # explicitly so frameshift evaluation remains warning-free.
+            complete_length = len(coding_seq) - (len(coding_seq) % 3)
+            protein_seq = str(Seq(coding_seq[:complete_length]).translate())
         return protein_seq
 
     def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
@@ -677,7 +872,15 @@ class Lifton_TRANS:
         # Aligning the LiftOn protein & DNA sequences
         lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
         lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
-        variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps, is_non_coding)
+        # GH #46: the CDS is a contiguous block in the spliced transcript
+        # (5'UTR + CDS + 3'UTR), so locate it to scope frameshift detection to the
+        # coding region (a UTR indel must not be labelled a coding frameshift).
+        cds_span = None
+        if coding_seq and trans_seq:
+            _cds_start = trans_seq.find(coding_seq)
+            if _cds_start >= 0:
+                cds_span = (_cds_start, _cds_start + len(coding_seq))
+        variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps, is_non_coding, cds_span=cds_span)
         ORF_search = False
         for mutation in lifton_status.status:
             # identical # synonymous 
@@ -713,7 +916,10 @@ class Lifton_TRANS:
           • orf_idx_e is initialised to 0 (not i) before the inner loop so
             the `orf_idx_s < orf_idx_e` guard is correct.
         """
-        trans_seq = trans_seq.upper()
+        # Coerce ONCE. The scan below used to wrap every codon slice in str()
+        # to tolerate a Bio.Seq; doing it here keeps that safety while letting
+        # the inner loop compare plain string slices.
+        trans_seq = str(trans_seq).upper()
         start_codon = "ATG"
         stop_codons = {"TAA", "TAG", "TGA"}
         # One best ORF per frame (longest)
@@ -723,21 +929,24 @@ class Lifton_TRANS:
         for frame in range(3):
             i = frame
             while i < len(trans_seq):
-                codon = str(trans_seq[i:i + 3])
-                if codon == start_codon:
+                if trans_seq[i:i + 3] == start_codon:
                     # Scan forward for a stop codon
                     orf_idx_s = i
                     orf_idx_e = 0  # will be set when stop found
-                    orf_seq = ""
                     found_stop = False
                     for j in range(i, len(trans_seq), 3):
-                        cod = str(trans_seq[j:j + 3])
-                        orf_seq += cod
-                        if cod in stop_codons:
+                        if trans_seq[j:j + 3] in stop_codons:
                             orf_idx_e = j + 3
                             found_stop = True
                             break
-                    if found_stop and orf_idx_s < orf_idx_e:
+                    if not found_stop:
+                        # This scan already covered every codon from `i` to the
+                        # end of the sequence IN THIS FRAME, so no later ATG in
+                        # the frame can find a stop either. Continuing would
+                        # re-scan the same tail from each subsequent ATG, which
+                        # is where the worst case turned quadratic.
+                        break
+                    if orf_idx_s < orf_idx_e:
                         curr_orf_len = orf_idx_e - orf_idx_s
                         if curr_orf_len > max_orf_len[frame]:
                             max_orf_len[frame] = curr_orf_len
@@ -805,11 +1014,11 @@ class Lifton_TRANS:
                         if strand == "+":
                             st = exon.entry.start + (final_orf.start - accum_exon_length)
                             en = (exon.entry.start + (final_orf.end - accum_exon_length) - 1) if is_single_exon_orf else exon.entry.end
-                            exon.add_novel_lifton_cds(exon.entry, st, en)
+                            exon.add_novel_lifton_cds(exon.entry, st, en, attr_template=self._cds_attr_template)
                         elif strand == "-":
                             en = exon.entry.end - (final_orf.start - accum_exon_length)
                             st = (exon.entry.end - (final_orf.end - accum_exon_length) + 1) if is_single_exon_orf else exon.entry.start
-                            exon.add_novel_lifton_cds(exon.entry, st, en)
+                            exon.add_novel_lifton_cds(exon.entry, st, en, attr_template=self._cds_attr_template)
                             
                     exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
                     accum_cds_length += (exon.cds.entry.end - exon.cds.entry.start + 1)
@@ -828,13 +1037,13 @@ class Lifton_TRANS:
                             exon.cds.entry.start = exon.entry.end - (final_orf.end - accum_exon_length) + 1
                     else:
                         if strand == "+":
-                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length)-1)
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.start + (final_orf.end - accum_exon_length)-1, attr_template=self._cds_attr_template)
                         elif strand == "-":
-                            exon.add_novel_lifton_cds(exon.entry, exon.entry.end - (final_orf.end - accum_exon_length) + 1, exon.entry.end)
+                            exon.add_novel_lifton_cds(exon.entry, exon.entry.end - (final_orf.end - accum_exon_length) + 1, exon.entry.end, attr_template=self._cds_attr_template)
                 else:
                     # Keep the original full CDS / extend the CDS to full exon length
                     if exon.cds is None:
-                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end)
+                        exon.add_novel_lifton_cds(exon.entry, exon.entry.start, exon.entry.end, attr_template=self._cds_attr_template)
                     else:
                         exon.cds.update_CDS_info(exon.entry.start, exon.entry.end)
                 exon.cds.entry.frame = str(self.__get_cds_frame(accum_cds_length))
@@ -849,13 +1058,13 @@ class Lifton_TRANS:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_trans(self, fw)
+        return feature_serializer.write_trans(self, fw)
 
     def update_boundaries(self):
         self.entry.start = self.exons[0].entry.start
         self.entry.end = self.exons[-1].entry.end
 
-    def normalize_containment(self):
+    def normalize_containment(self, cds_id_allocator=None):
         """Guarantee GFF3 parent-child containment for this transcript.
 
         ORF-boundary patching / chaining can leave a CDS extending a few bp
@@ -902,6 +1111,113 @@ class Lifton_TRANS:
                 new_id = f"{base}-{i}"
                 exon.entry.id = new_id
                 exon.entry.attributes["ID"] = [new_id]
+        # GH #32/#8: give every CDS an ID. Preserve an existing stable source ID
+        # (for example NCBI's cds-NP_*) and use it to fill missing segments.
+        # Chaining/miniprot can rebuild every segment without an ID; only then
+        # synthesize the shared discontinuous-feature ID from the transcript.
+        cds_features = [
+            exon.cds for exon in self.exons if exon.cds is not None
+        ]
+        if not cds_features:
+            return
+
+        def first_id(values):
+            if isinstance(values, str):
+                values = [values]
+            return next(
+                (str(value) for value in values if value not in (None, "")),
+                None,
+            )
+
+        reserved_ids = {
+            feature_id
+            for feature_id in (
+                first_id(exon.entry.attributes.get("ID", []))
+                for exon in self.exons
+            )
+            if feature_id
+        }
+        if self.entry.id:
+            reserved_ids.add(self.entry.id)
+
+        ref_trans_id = getattr(self, "ref_tran_id", None)
+        copy_suffix = ""
+        if (
+            ref_trans_id
+            and self.entry.id
+            and self.entry.id.startswith(f"{ref_trans_id}_")
+        ):
+            copy_suffix = self.entry.id[len(ref_trans_id):]
+            if not copy_suffix[1:].isdigit():
+                copy_suffix = ""
+
+        def preservable_cds_id(cds):
+            cds_id = getattr(cds, "_source_id_base", None)
+            if not cds_id or cds_id in reserved_ids:
+                return None
+            if copy_suffix:
+                cds_id += copy_suffix
+            return None if cds_id in reserved_ids else cds_id
+
+        normalized_ids = [
+            preservable_cds_id(cds) for cds in cds_features
+        ]
+        allocator = cds_id_allocator or CdsIdAllocator()
+        parent_id = str(self.entry.id or "")
+        source_ids = [
+            getattr(cds, "_source_id_base", None)
+            for cds in cds_features
+        ]
+        for cds_id in dict.fromkeys(
+            identifier for identifier in normalized_ids if identifier
+        ):
+            source_id = next(
+                source
+                for identifier, source in zip(normalized_ids, source_ids)
+                if identifier == cds_id
+            )
+            if allocator.reserve_explicit(
+                cds_id,
+                parent_id,
+                source_identifier=source_id,
+            ):
+                continue
+            normalized_ids = [
+                None if identifier == cds_id else identifier
+                for identifier in normalized_ids
+            ]
+        existing_ids = list(dict.fromkeys(
+            cds_id for cds_id in normalized_ids if cds_id
+        ))
+        synthetic_base = (
+            "cds-" + re.sub(r"^rna-", "", (self.entry.id or ""))
+        )
+        needs_synthetic = (
+            not existing_ids
+            or (len(existing_ids) > 1 and any(
+                identifier is None for identifier in normalized_ids
+            ))
+        )
+        synthetic_id = (
+            allocator.allocate_synthetic(
+                synthetic_base,
+                parent_id,
+                local_reserved_ids=reserved_ids | set(existing_ids),
+            )
+            if needs_synthetic else None
+        )
+
+        if len(existing_ids) <= 1:
+            shared_id = existing_ids[0] if existing_ids else synthetic_id
+            for cds in cds_features:
+                cds.entry.attributes["ID"] = [shared_id]
+            return
+
+        # Multiple pre-existing IDs can be valid segment-level identifiers.
+        # Do not collapse them; fill only gaps. Copies still need distinct IDs
+        # from the source transcript, so append the transcript's copy suffix.
+        for cds, cds_id in zip(cds_features, normalized_ids):
+            cds.entry.attributes["ID"] = [cds_id or synthetic_id]
 
     def print_transcript(self):
         print(f"\t{self.entry}")
@@ -917,6 +1233,22 @@ class Lifton_EXON:
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
         self.cds = None
 
+    def __deepcopy__(self, memo):
+        # `copy.deepcopy(trans.exons)` in `run_liftoff._snapshot_merge_state` and
+        # `copy.deepcopy(exon)` in `update_cds_list` were the two hottest copy
+        # sites in the Step-7 profile. An exon holds exactly one gffutils
+        # Feature and at most one Lifton_CDS, so a purpose-built clone is both
+        # complete and ~6.6x cheaper per Feature. `memo` is honoured so a shared
+        # reference stays shared, exactly as deepcopy guarantees.
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        clone = Lifton_EXON.__new__(Lifton_EXON)
+        memo[id(self)] = clone
+        clone.entry = coreutils.clone_feature(self.entry)
+        clone.cds = copy.deepcopy(self.cds, memo) if self.cds is not None else None
+        return clone
+
     def update_exon_info(self, start, end):
         self.cds = None
         self.entry.source = "LiftOn"
@@ -927,27 +1259,38 @@ class Lifton_EXON:
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
         self.cds = Lifton_cds
 
-    def add_novel_lifton_cds(self, gffutil_entry_exon, start, end):
-        gffutil_entry_cds = copy.deepcopy(gffutil_entry_exon)
+    def add_novel_lifton_cds(self, gffutil_entry_exon, start, end,
+                             attr_template=None):
+        gffutil_entry_cds = coreutils.clone_feature(gffutil_entry_exon)
         gffutil_entry_cds.featuretype = "CDS"
         gffutil_entry_cds.start = start
         gffutil_entry_cds.end = end
         Lifton_cds = Lifton_CDS(gffutil_entry_cds)
-        attributes = {}
-        attributes['Parent'] = self.entry.attributes['Parent']
-        Lifton_cds.entry.attributes = attributes
+        Lifton_cds._source_id = None
+        Lifton_cds._source_id_base = None
+        # The template, not the exon's own attributes: an exon row carries
+        # `gbkey=mRNA` and no `protein_id`, so copying it would mislabel the CDS.
+        Lifton_cds.entry.attributes = _build_cds_attributes(
+            self.entry.attributes['Parent'], attr_template=attr_template,
+        )
         self.cds = Lifton_cds
 
-    def add_lifton_cds(self, Lifton_cds):
+    def add_lifton_cds(self, Lifton_cds, attr_template=None):
         if Lifton_cds is not None:
-            attributes = {}
-            attributes['Parent'] = self.entry.attributes['Parent']
-            Lifton_cds.entry.attributes = attributes
+            # Source ID/copy provenance lives on ``Lifton_CDS`` until the
+            # enabled write-funnel normalizer validates and materializes it, so
+            # ``ID`` is never carried here. The describing attributes ARE, so a
+            # rebuilt CDS reads like the reference row it came from.
+            Lifton_cds.entry.attributes = _build_cds_attributes(
+                self.entry.attributes['Parent'],
+                source_attrs=Lifton_cds.entry.attributes,
+                attr_template=attr_template,
+            )
         self.cds = Lifton_cds
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_exon(self, fw)
+        return feature_serializer.write_exon(self, fw)
 
     def print_exon(self):
         print(f"\t\t{self.entry}")
@@ -960,7 +1303,52 @@ class Lifton_CDS:
         gffutil_entry_cds.source = "LiftOn"
         gffutil_entry_cds.featuretype = "CDS"
         self.entry = gffutil_entry_cds
+        source_id = self.entry.attributes.get("ID", [])
+        if isinstance(source_id, str):
+            self._source_id = source_id or None
+        else:
+            self._source_id = next(
+                (
+                    str(identifier)
+                    for identifier in source_id
+                    if identifier not in (None, "")
+                ),
+                None,
+            )
+        source_copy_number = self.entry.attributes.get(
+            "extra_copy_number", []
+        )
+        if isinstance(source_copy_number, str):
+            source_copy_number = [source_copy_number]
+        self._source_copy_number = (
+            str(source_copy_number[0]) if source_copy_number else None
+        )
+        copy_suffix = (
+            f"_{self._source_copy_number}"
+            if self._source_copy_number not in (None, "", "0") else ""
+        )
+        self._source_id_base = self._source_id
+        if (
+            self._source_id_base
+            and copy_suffix
+            and self._source_id_base.endswith(copy_suffix)
+        ):
+            self._source_id_base = self._source_id_base[:-len(copy_suffix)]
         if 'extra_copy_number' in self.entry.attributes: self.entry.attributes.pop('extra_copy_number')
+
+    def __deepcopy__(self, memo):
+        # Copied verbatim rather than re-run through __init__: the source-ID
+        # provenance (_source_id / _source_id_base / _source_copy_number) is
+        # derived from attributes that __init__ POPS, so re-deriving it from a
+        # clone would silently lose the copy suffix. See Lifton_EXON.__deepcopy__.
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        clone = Lifton_CDS.__new__(Lifton_CDS)
+        memo[id(self)] = clone
+        clone.__dict__.update(self.__dict__)
+        clone.entry = coreutils.clone_feature(self.entry)
+        return clone
 
     def update_CDS_info(self, start, end):
         self.entry.source = "LiftOn"
@@ -969,7 +1357,7 @@ class Lifton_CDS:
 
     def write_entry(self, fw):
         # GFF3 serialisation extracted to lifton.io.feature_serializer (Iter 19).
-        feature_serializer.write_cds(self, fw)
+        return feature_serializer.write_cds(self, fw)
 
     def print_cds(self):
         print(f"\t\t{self.entry}")

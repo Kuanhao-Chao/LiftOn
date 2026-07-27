@@ -1,0 +1,16 @@
+{
+  "pair": "t4_human_to_chicken",
+  "n_off": 35815,
+  "n_on": 35815,
+  "n_common": 35815,
+  "n_improved": 598,
+  "n_regressed": 0,
+  "n_lost(off-minus-on)": 0,
+  "mean_pi_off": 0.77157,
+  "mean_pi_on": 0.77672,
+  "apples_to_apples_vs_miniprot_off": -0.01029,
+  "apples_to_apples_vs_miniprot_on": -0.00513,
+  "deficit_shrunk": true,
+  "n_tagged_LiftOn_miniprot": 603,
+  "GATE_PASS": true
+}

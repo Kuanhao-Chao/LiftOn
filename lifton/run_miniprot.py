@@ -1,5 +1,8 @@
-from lifton import align, logger, lifton_class, lifton_utils
-import subprocess, os, sys, copy
+from lifton import align, coreutils, logger, lifton_class, lifton_utils
+from dataclasses import dataclass
+from io import BytesIO
+from pathlib import Path
+import subprocess, os, sys
 from intervaltree import Interval, IntervalTree
 
 
@@ -7,20 +10,18 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
     """Phase 15c (V3.10) — drain a Popen's stdout/stderr in bounded
     chunks instead of `proc.communicate()`.
 
-    `communicate()` allocates `bytes(stdout)` + `bytes(stderr)` and
-    holds both simultaneously; for a multi-GB miniprot run that's an
-    8-figure peak-RSS pathology. Chunked reads keep peak buffer at
-    `chunk_size` per stream until both are drained, after which we
-    `b"".join()` once. The final bytes object is unavoidable because
-    gffbase.create_db(from_string=True) needs the full blob — but we
-    avoid the doubled-allocation interim.
+    ``communicate()`` allocates ``bytes(stdout)`` + ``bytes(stderr)`` and
+    holds both simultaneously. Chunked reads keep each live pipe read bounded
+    by ``chunk_size``. ``BytesIO.getvalue()`` then exposes each accumulated
+    buffer without the explicit second full-size allocation required by
+    ``b"".join(chunks)``.
 
     Returns ``(stdout_bytes, stderr_bytes, returncode)``.
     """
     import threading
 
-    stdout_chunks: list[bytes] = []
-    stderr_chunks: list[bytes] = []
+    stdout_buffer = BytesIO()
+    stderr_buffer = BytesIO()
 
     def _drain(stream, sink):
         if stream is None:
@@ -30,7 +31,7 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
                 buf = stream.read(chunk_size)
                 if not buf:
                     return
-                sink.append(buf)
+                sink.write(buf)
         finally:
             try:
                 stream.close()
@@ -38,17 +39,17 @@ def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
                 pass
 
     t_out = threading.Thread(
-        target=_drain, args=(proc.stdout, stdout_chunks), daemon=True,
+        target=_drain, args=(proc.stdout, stdout_buffer), daemon=True,
     )
     t_err = threading.Thread(
-        target=_drain, args=(proc.stderr, stderr_chunks), daemon=True,
+        target=_drain, args=(proc.stderr, stderr_buffer), daemon=True,
     )
     t_out.start()
     t_err.start()
     rc = proc.wait()
     t_out.join()
     t_err.join()
-    return b"".join(stdout_chunks), b"".join(stderr_chunks), rc
+    return stdout_buffer.getvalue(), stderr_buffer.getvalue(), rc
 
 
 def _resolve_miniprot_threads(threads):
@@ -122,6 +123,217 @@ def _build_miniprot_command(miniprot_path, tgt_genome, ref_proteins_file,
     return command
 
 
+@dataclass(frozen=True)
+class MiniprotArtifact:
+    """Published database and bounded diagnostics from streamed miniprot."""
+
+    database_path: str
+    byte_count: int
+    feature_count: int
+    stderr_tail: str
+    returncode: int
+
+
+class _BoundedStderr:
+    def __init__(self, limit: int = 64 << 10):
+        self.limit = max(1, int(limit))
+        self._tail = bytearray()
+        self._error_carry = b""
+        self.error_seen = False
+
+    def feed(self, chunk: bytes) -> None:
+        upper = self._error_carry + bytes(chunk).upper()
+        if b"ERROR" in upper:
+            self.error_seen = True
+        self._error_carry = upper[-4:]
+        self._tail.extend(chunk)
+        if len(self._tail) > self.limit:
+            del self._tail[:-self.limit]
+
+    @property
+    def text(self) -> str:
+        return bytes(self._tail).decode("utf-8", errors="replace")
+
+
+def _with_stderr_tail(message: str, stderr_state: _BoundedStderr) -> str:
+    """Attach bounded miniprot diagnostics without retaining full stderr."""
+
+    tail = stderr_state.text.strip()
+    if not tail:
+        return message
+    return f"{message}\nminiprot stderr (bounded tail):\n{tail}"
+
+
+def _stop_process(proc) -> None:
+    """Best-effort process teardown used by all streaming failure paths."""
+    try:
+        running = proc.poll() is None
+    except Exception:
+        running = True
+    if running:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    try:
+        proc.wait(timeout=5)
+        return
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        pass
+
+
+def _remove_duckdb_staging(path: str) -> None:
+    """Remove a staged DuckDB file and any crash-left WAL sidecar."""
+
+    for candidate in (path, path + ".wal"):
+        try:
+            os.unlink(candidate)
+        except FileNotFoundError:
+            pass
+
+
+def _refuse_destination_wal(path: str) -> None:
+    """Fail closed instead of publishing a database beside an old WAL."""
+
+    wal_path = path + ".wal"
+    if os.path.lexists(wal_path):
+        raise RuntimeError(
+            "refusing to replace the miniprot database while a destination "
+            f"WAL exists: {wal_path}; recover or remove the stale database "
+            "and WAL together before retrying"
+        )
+
+
+def run_miniprot_streaming_db(
+    outdir, args, tgt_genome, ref_proteins_file, *, chunk_size=1 << 20,
+) -> MiniprotArtifact:
+    """Stream miniprot stdout directly into a staged gffbase database.
+
+    The published database is replaced atomically only after miniprot exits
+    successfully, stderr contains no ``ERROR`` token, and at least one mRNA
+    can be queried from a checkpointed database.
+    """
+    import threading
+    from lifton.gffbase import ingest as _ingest
+
+    miniprot_outdir = os.path.join(outdir, "miniprot")
+    os.makedirs(miniprot_outdir, exist_ok=True)
+    final_path = os.path.join(miniprot_outdir, "miniprot.duckdb")
+    partial_path = final_path + ".partial"
+    _remove_duckdb_staging(partial_path)
+    _refuse_destination_wal(final_path)
+
+    command = _build_miniprot_command(
+        "miniprot", tgt_genome, ref_proteins_file, args.mp_options,
+        getattr(args, "threads", 1),
+    )
+    proc = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        bufsize=1 << 20,
+    )
+    stderr_state = _BoundedStderr()
+
+    def _drain_stderr():
+        if proc.stderr is None:
+            return
+        try:
+            while True:
+                chunk = proc.stderr.read(1 << 16)
+                if not chunk:
+                    return
+                stderr_state.feed(chunk)
+        finally:
+            try:
+                proc.stderr.close()
+            except Exception:
+                pass
+
+    stderr_thread = threading.Thread(
+        target=_drain_stderr, name="lifton-miniprot-stderr", daemon=True,
+    )
+    stderr_thread.start()
+    decoder = _ingest.GFF3ChunkDecoder(max_chunk_bytes=chunk_size)
+    connection = None
+
+    def _records():
+        if proc.stdout is None:
+            return
+        try:
+            while True:
+                chunk = proc.stdout.read(chunk_size)
+                if not chunk:
+                    break
+                yield from decoder.feed(chunk)
+            yield from decoder.finish()
+        finally:
+            try:
+                proc.stdout.close()
+            except Exception:
+                pass
+
+    try:
+        connection, stats = _ingest.from_record_stream(
+            _records(), dbfn=partial_path, force=True,
+            dialect={"fmt": "gff3"}, directives=decoder.directives,
+            build_rtree=False,
+        )
+        returncode = proc.wait()
+        stderr_thread.join()
+        if returncode != 0:
+            raise RuntimeError(_with_stderr_tail(
+                f"miniprot exited with code {returncode}", stderr_state,
+            ))
+        if stderr_state.error_seen:
+            raise RuntimeError(_with_stderr_tail(
+                "miniprot reported ERROR on stderr", stderr_state,
+            ))
+        if decoder.byte_count == 0 or stats.n_features_raw == 0:
+            raise RuntimeError("miniprot produced an empty GFF3 stream")
+        mrna_count = connection.execute(
+            "SELECT COUNT(*) FROM features WHERE featuretype = 'mRNA'"
+        ).fetchone()[0]
+        if not mrna_count:
+            raise RuntimeError("miniprot output contains no mRNA features")
+        connection.execute("CHECKPOINT")
+        connection.close()
+        connection = None
+        if os.path.exists(partial_path + ".wal"):
+            raise RuntimeError(
+                "checkpointed miniprot database retained an unexpected WAL"
+            )
+        # Repeat the check at publication time in case a concurrent or
+        # interrupted opener created a sidecar while miniprot was running.
+        _refuse_destination_wal(final_path)
+        os.replace(partial_path, final_path)
+        from lifton.output_transaction import _fsync_directory
+        _fsync_directory(Path(final_path).parent)
+        return MiniprotArtifact(
+            database_path=final_path,
+            byte_count=decoder.byte_count,
+            feature_count=stats.n_features_raw,
+            stderr_tail=stderr_state.text,
+            returncode=returncode,
+        )
+    except BaseException:
+        _stop_process(proc)
+        stderr_thread.join(timeout=5)
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
+        _remove_duckdb_staging(partial_path)
+        raise
+
+
 def check_miniprot_installed():
     """
         This function checks if miniprot is installed.
@@ -140,8 +352,15 @@ def check_miniprot_installed():
     # as "miniprot is not installed". Only the things that genuinely mean
     # "binary is missing or unrunnable" return False here.
     try:
-        subprocess.run(command)
-        installed = True
+        # Suppress the child's output and require a successful exit, matching the
+        # documented twin run_liftoff.check_minimap2_installed. Without
+        # stdout=DEVNULL the version banner is written to the inherited fd 1, which
+        # under `-o stdout` injects it straight into the emitted GFF3 stream
+        # (redirect_stdout only rebinds the Python-level object, not the fd). A
+        # present-but-broken binary also used to report "installed".
+        completed = subprocess.run(
+            command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        installed = completed.returncode == 0
     except (FileNotFoundError, PermissionError, NotADirectoryError,
             subprocess.SubprocessError):
         pass
@@ -158,12 +377,13 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
       ``<outdir>/miniprot/miniprot.gff3`` and return the **path**.
       This is the legacy Phase 5 contract — preserved byte-for-byte.
 
-    * ``args.stream`` is True: pipe miniprot's stdout straight into
-      RAM via ``Popen.communicate()`` and return the **bytes blob**.
-      No disk write. Phase 7 streaming-adapter fast path.
+    * ``args.stream`` is True: decode miniprot's stdout incrementally into a
+      staged DuckDB database and return that database's **path**. No whole
+      GFF3 byte blob or intermediate text file is materialized.
 
-    Failure modes (any of them returns ``None`` so the pipeline
-    continues with Liftoff-only results):
+    Failure modes return ``None`` so the pipeline can finish a diagnostic
+    Liftoff-only partial result. The CLI does not publish that partial GFF3
+    unless ``--allow-partial-output`` was explicitly requested.
       1. Non-zero exit code from miniprot.
       2. miniprot prints "ERROR" to stderr (exit 0 + error is a known miniprot quirk).
       3. Output is absent or empty.
@@ -181,9 +401,9 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
 
     Returns
     -------
-    str | bytes | None
-        Path to the miniprot GFF3 output file, an in-memory bytes
-        blob when streaming, or None on failure.
+    str | None
+        Path to the miniprot GFF3 file (legacy mode) or direct DuckDB input
+        (streaming mode), or None on failure.
     """
     miniprot_outdir = outdir + "miniprot/"
     os.makedirs(miniprot_outdir, exist_ok=True)
@@ -195,66 +415,36 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     )
 
     stream_mode = bool(getattr(args, "stream", False))
-    native_mode = bool(getattr(args, "native", False))
-    try:
-        if stream_mode and native_mode:
-            # ── Phase 11 native + streaming path: route through the
-            # MiniprotIndex facade. Today the facade still uses the
-            # subprocess underneath, so the bytes are byte-identical
-            # to the streaming branch (verified by
-            # tests/test_native_bindings.py::TestMiniprotFacadeStreamingParity).
-            # When a real `pyminiprot` PyO3 binding lands the facade
-            # will route through it transparently — no caller change.
-            from lifton.native_bindings import MiniprotIndex
-            try:
-                idx = MiniprotIndex(
-                    tgt_genome,
-                    mp_options=args.mp_options,
-                    miniprot_path=miniprot_path,
-                    ref_proteins_path=ref_proteins_file,
-                    threads=getattr(args, "threads", 1),
-                )
-                bundle = idx.align_all()
-                stdout_bytes = bundle.raw_bytes
-                stderr_text = ""
-                return_code = 0
-                output_size = len(stdout_bytes)
-            except RuntimeError as exc:
-                # The facade re-raises miniprot's own ERROR / non-zero
-                # exit conditions; surface them through the same code
-                # path as the legacy branches so logging stays uniform.
-                print(f"\n[LiftOn] miniprot (native facade) failed: {exc}",
-                      file=sys.stderr)
-                return None
-        elif stream_mode:
-            # ── Streaming branch: stdout -> RAM, bounded-chunk drain ──────
-            # Phase 15c: replace proc.communicate() with chunked drain
-            # so peak RAM is bounded by chunk_size per stream during
-            # collection, not by 2× the full output.
-            proc = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=1 << 20,
+    if stream_mode:
+        try:
+            artifact = run_miniprot_streaming_db(
+                outdir, args, tgt_genome, ref_proteins_file,
             )
-            stdout_bytes, stderr_bytes, return_code = \
-                _drain_stream_chunks(proc, chunk_size=1 << 16)
-            stderr_text = stderr_bytes.decode("utf-8", errors="replace") \
-                if stderr_bytes else ""
-            output_size = len(stdout_bytes) if stdout_bytes else 0
-        else:
-            # ── Legacy file-write branch (Phase 5 baseline behaviour) ─────
-            with open(miniprot_output, "w") as fw:
-                proc = subprocess.run(
-                    command,
-                    stdout=fw,
-                    stderr=subprocess.PIPE,  # capture stderr so we can scan it
-                    text=True,
-                )
-            stderr_text = proc.stderr or ""
-            return_code = proc.returncode
-            output_size = (os.path.getsize(miniprot_output)
-                           if os.path.exists(miniprot_output) else 0)
+            if artifact.stderr_tail:
+                print(artifact.stderr_tail, end="", file=sys.stderr)
+            return artifact.database_path
+        except Exception as exc:
+            print(
+                f"\n[LiftOn] miniprot streaming ingest failed: {exc}\n"
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
+                file=sys.stderr,
+            )
+            return None
+    try:
+        # Legacy file-write branch (Phase 5 baseline behaviour). Streaming
+        # returned above after publishing its direct DuckDB artifact.
+        with open(miniprot_output, "w") as fw:
+            proc = subprocess.run(
+                command,
+                stdout=fw,
+                stderr=subprocess.PIPE,  # capture stderr so we can scan it
+                text=True,
+            )
+        stderr_text = proc.stderr or ""
+        return_code = proc.returncode
+        output_size = (os.path.getsize(miniprot_output)
+                       if os.path.exists(miniprot_output) else 0)
 
         # Print stderr so the user sees miniprot's own log lines
         if stderr_text:
@@ -264,8 +454,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         if return_code != 0:
             print(
                 f"\n[LiftOn] miniprot exited with code {return_code}. "
-                "Miniprot output will be skipped — LiftOn will continue "
-                "using Liftoff results only.",
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
                 file=sys.stderr,
             )
             return None
@@ -275,8 +465,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             print(
                 "\n[LiftOn] miniprot reported an ERROR during mapping "
                 "(exit code 0 but ERROR seen in output). "
-                "Miniprot output will be skipped — LiftOn will continue "
-                "using Liftoff results only.",
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
                 file=sys.stderr,
             )
             return None
@@ -285,8 +475,8 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         if output_size == 0:
             print(
                 "\n[LiftOn] miniprot produced an empty output. "
-                "Miniprot results will be skipped — LiftOn will continue "
-                "using Liftoff results only.",
+                "Miniprot output will be skipped; LiftOn will stage a "
+                "Liftoff-only partial result.",
                 file=sys.stderr,
             )
             return None
@@ -294,20 +484,19 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     except Exception as exc:
         print(
             f"\n[LiftOn] miniprot failed unexpectedly: {exc}\n"
-            "Miniprot output will be skipped — LiftOn will continue "
-            "using Liftoff results only.",
+            "Miniprot output will be skipped; LiftOn will stage a "
+            "Liftoff-only partial result.",
             file=sys.stderr,
         )
         return None
 
-    if stream_mode:
-        return stdout_bytes
-
     return miniprot_output
 
 
-def lifton_miniprot_with_ref_protein(m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai, 
-ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
+def lifton_miniprot_with_ref_protein(
+        m_feature, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai,
+        ref_proteins, ref_trans, tree_dict, ref_features_dict, args,
+        state_journal=None):
     """
         This function create a miniprot gene entry with reference protein.
 
@@ -331,18 +520,22 @@ ref_proteins, ref_trans, tree_dict, ref_features_dict, args):
     """
     mtrans_id = m_feature.attributes["ID"][0]
     # Create LifOn gene instance
-    m_gene_feature = copy.deepcopy(m_feature)
+    m_gene_feature = coreutils.clone_feature(m_feature)
     m_gene_feature.featuretype = "gene"
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, m_gene_feature, copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, args)
+    lifton_gene = lifton_class.Lifton_GENE(
+        ref_gene_id, m_gene_feature,
+        coreutils.clone_attributes(ref_db[ref_gene_id].attributes), tree_dict,
+        ref_features_dict, args, state_journal=state_journal,
+    )
     lifton_gene.update_gene_info(m_feature.seqid, m_feature.start, m_feature.end)
     # Create LifOn transcript instance
-    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, copy.deepcopy(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
+    Lifton_trans = lifton_gene.add_miniprot_transcript(ref_trans_id, coreutils.clone_feature(m_feature), ref_db[ref_trans_id].attributes, ref_features_dict)
     lifton_gene.update_trans_info(Lifton_trans.entry.id, m_feature.seqid, m_feature.start, m_feature.end)
     # Create exon / CDS entries
     cdss = m_feature_db.children(m_feature, featuretype='CDS')  # Replace 'exon' with the desired child feature type
     for cds in list(cdss):
         lifton_gene.add_exon(Lifton_trans.entry.id, cds)
-        cds_copy = copy.deepcopy(cds)
+        cds_copy = coreutils.clone_feature(cds)
         lifton_gene.add_cds(Lifton_trans.entry.id, cds_copy)
     # Update LiftOn status
     lifton_status = lifton_class.Lifton_Status()                
@@ -363,7 +556,11 @@ def _miniprot_rescue_band_ok(ratio, args):
     return lo < ratio < hi
 
 
-def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict, ref_features_len_dict, ref_trans_exon_num_dict, ref_features_reverse_dict, args):
+def process_miniprot(
+        mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_proteins,
+        ref_trans, ref_features_dict, fw_score, m_id_2_ref_id_trans_dict,
+        ref_features_len_dict, ref_trans_exon_num_dict,
+        ref_features_reverse_dict, args, state_journal=None):
     if m_feature_db is None:
         return None
     mtrans_id = mtrans.attributes["ID"][0]
@@ -372,31 +569,39 @@ def process_miniprot(mtrans, ref_db, m_feature_db, tree_dict, tgt_fai, ref_prote
     lifton_gene = None
     lifton_trans = None
     if not is_overlapped:
-        ref_trans_id = m_id_2_ref_id_trans_dict[mtrans_id]            
         ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-        if ref_gene_id is None:
+        if ref_gene_id is None or ref_trans_id is None:
             return None
-        if ref_trans_id in ref_proteins.keys() and ref_trans_id in ref_trans.keys():
-            if ref_trans_id != None:
-                # Check if the additional copy is valid
-                # 1. Remove processed pseudogenes: 1 CDS in miniprot but >1 CDS in reference
-                # 2. Check the trans ratio is in the range of min_minprot and max_minprot
-                if len(list(m_feature_db.children(mtrans, featuretype='CDS'))) == 1 and ref_trans_exon_num_dict[ref_trans_id] > 1: # Processed pseudogene
-                    return None
-                miniprot_trans_ratio = (mtrans.end - mtrans.start + 1) / ref_features_len_dict[ref_gene_id]
-                if miniprot_trans_ratio > args.min_miniprot and miniprot_trans_ratio < args.max_miniprot:
-                    lifton_gene, lifton_trans, transcript_id, lifton_status = lifton_miniprot_with_ref_protein(mtrans, m_feature_db, ref_db.db_connection, ref_gene_id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
-                    lifton_gene.transcripts[transcript_id].entry.attributes["miniprot_annotation_ratio"] = [f"{miniprot_trans_ratio:.3f}"]
-                else: # Invalid miniprot transcript
-                    # Iteration 23: miniprot-only rescue for genuinely-missing
-                    # genes (ratio outside the default band) is no longer done
-                    # in-loop -- it mutated the shared Step-8 suppression
-                    # tree_dict mid-loop (off ⊄ on). It now runs as a separate
-                    # post-Step-8 pass (lifton.miniprot_rescue) so this default
-                    # decision is independent of --miniprot-rescue (off ⊆ on).
-                    return None
-            else: # Skip those cannot be found in reference.
-                return None
+        if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+            return None
+        # Check if the additional copy is valid:
+        # 1. Remove processed pseudogenes: one miniprot CDS but >1 ref exon.
+        # 2. Check the transcript ratio against the default miniprot band.
+        if (len(list(m_feature_db.children(mtrans, featuretype='CDS'))) == 1
+                and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1):
+            return None
+        ref_feature_len = ref_features_len_dict.get(ref_gene_id)
+        if not ref_feature_len:
+            return None
+        miniprot_trans_ratio = (
+            (mtrans.end - mtrans.start + 1) / ref_feature_len
+        )
+        if (miniprot_trans_ratio > args.min_miniprot
+                and miniprot_trans_ratio < args.max_miniprot):
+            lifton_gene, lifton_trans, transcript_id, lifton_status = \
+                lifton_miniprot_with_ref_protein(
+                    mtrans, m_feature_db, ref_db.db_connection,
+                    ref_gene_id, ref_trans_id, tgt_fai, ref_proteins,
+                    ref_trans, tree_dict, ref_features_dict, args,
+                    state_journal=state_journal,
+                )
+            lifton_gene.transcripts[transcript_id].entry.attributes[
+                "miniprot_annotation_ratio"
+            ] = [f"{miniprot_trans_ratio:.3f}"]
+        else:  # Invalid default miniprot transcript; separate rescue may add it.
+            # The separate post-Step-8 pass keeps this decision independent of
+            # rescue mode and preserves off ⊆ on.
+            return None
         lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
         lifton_utils.print_lifton_status(transcript_id, mtrans, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("miniprot")

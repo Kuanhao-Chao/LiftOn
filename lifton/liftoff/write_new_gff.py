@@ -1,5 +1,6 @@
 from lifton.liftoff  import liftoff_utils
 from lifton import __version__
+from lifton.io.gff3_writer import encode_attribute_value
 import sys
 
 
@@ -18,7 +19,14 @@ def write_new_gff(lifted_features, args, feature_db):
     out_type = feature_db.dialect['fmt']
     write_header(f, out_type)
     parents = liftoff_utils.get_parent_list(lifted_features)
-    parents.sort(key=lambda x: x.id)
+    # Number gene copies in GENOMIC order, not alignment-encounter order.
+    # Extra copies of one gene share a base `.id`, so a sort by `.id` alone is
+    # stable and preserves the dict's insertion (alignment) order — which is
+    # non-deterministic across fresh runs, so the `_N` copy suffix on a given
+    # locus could differ run-to-run. Sorting by (seqid, start, end, id) before
+    # finalize_parent_features assigns copy_num makes `_0` the 5'-most copy on
+    # each sequence and the numbering deterministic + aligned to genomic order.
+    parents.sort(key=lambda x: (x.seqid, x.start, x.end, x.id))
     final_parent_list = finalize_parent_features(parents, args)
     final_parent_list.sort(key=lambda x: (x.seqid, x.start))
     for final_parent in final_parent_list:
@@ -102,13 +110,18 @@ def make_gff_line(attr_dict, feature):
     # GFF3 spec allows CDS features to have IDs, and CDS from the same mRNA should have the same ID
     attributes_str = ""
     if "ID" in attr_dict and len(attr_dict["ID"]) > 0:
-        attributes_str = "ID=" + attr_dict["ID"][0] + ";"
+        attributes_str = "ID=" + encode_attribute_value(attr_dict["ID"][0]) + ";"
     
     for attr in attr_dict:
         if attr != "copy_id":
             value_str = ""
             for value in attr_dict[attr]:
-                value_str += value + ","
+                # Encode each logical value before joining the official
+                # multi-value list.  Writing a literal comma from a product or
+                # Note value makes the intermediate GFF3 ambiguous: the
+                # on-disk and in-memory database adapters can then reconstruct
+                # different value boundaries and emit different final bytes.
+                value_str += encode_attribute_value(value) + ","
             if attr != "ID":
                 attributes_str += (attr + "=" + value_str[:-1] + ";")
     return feature.seqid + "\t" + feature.source + "\t" + feature.featuretype + "\t" + str(feature.start) + \

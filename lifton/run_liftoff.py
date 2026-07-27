@@ -1,10 +1,50 @@
 import subprocess
 import os, copy, sys
 import gffutils
-from lifton import align, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
-from lifton.exceptions import LiftOnInputError
+from lifton import align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
+from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
 from intervaltree import Interval, IntervalTree
+
+
+def _copy_liftoff_args(args):
+    """Deep-copy CLI options while omitting private runtime state.
+
+    LiftOn attaches live objects such as the asynchronous run manifest to its
+    argparse namespace. Those private fields are orchestration state, not
+    Liftoff configuration, and may contain locks or queues that cannot be
+    copied or sent to Liftoff's multiprocessing workers. Public CLI values
+    retain the historical deep-copy isolation.
+    """
+
+    liftoff_args = copy.copy(args)
+    for name in list(vars(liftoff_args)):
+        if name.startswith("_"):
+            delattr(liftoff_args, name)
+    return copy.deepcopy(liftoff_args)
+
+
+def check_minimap2_installed(minimap2_path="minimap2"):
+    """Return True iff the ``minimap2`` binary is on PATH (GitHub issue #43).
+
+    minimap2 is a hard runtime dependency of the (vendored Liftoff) DNA-lift on the
+    default path, but — unlike miniprot — it was neither listed in the requirements
+    nor preflight-checked, so a missing binary surfaced only as a deep
+    FileNotFoundError mid-run. Mirrors run_miniprot.check_miniprot_installed; output
+    is suppressed so the preflight does not print minimap2's version banner."""
+    try:
+        completed = subprocess.run(
+            [minimap2_path, "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if getattr(completed, "returncode", 0) != 0:
+            return False
+        return True
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            subprocess.SubprocessError):
+        return False
+
 
 def run_liftoff(output_dir, ref_db, args):
     """Run Liftoff and return either a path to the resulting GFF3
@@ -34,7 +74,7 @@ def run_liftoff(output_dir, ref_db, args):
         Path to the Liftoff GFF3 output, OR an in-memory bytes blob
         when ``args.inmemory_liftoff`` is True.
     """
-    liftoff_args = copy.deepcopy(args)
+    liftoff_args = _copy_liftoff_args(args)
     liftoff_outdir = output_dir + "liftoff/"
     os.makedirs(liftoff_outdir, exist_ok=True)
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
@@ -64,6 +104,10 @@ def run_liftoff(output_dir, ref_db, args):
             )
         else:
             liftoff_main.run_all_liftoff_steps(liftoff_args, ref_db)
+    except LiftOnAlignmentError as e:
+        logger.log_error(f"Liftoff alignment failed: {e}")
+        logger.log_error("LiftOn cannot proceed without a valid Liftoff baseline annotation.")
+        sys.exit(1)
     except Exception as e:
         import traceback
         logger.log_error(f"Liftoff encountered a fatal error during native execution: {e}")
@@ -91,7 +135,8 @@ def run_liftoff(output_dir, ref_db, args):
     return liftoff_annotation
 
 
-def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, with_exons=False):
+def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args,
+                           with_exons=False, state_journal=None):
     """
         This function initializes Lifton gene instance.
 
@@ -108,7 +153,12 @@ def initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, wi
         ref_trans_id: reference transcript
     """
     ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, locus.id, None)
-    lifton_gene = lifton_class.Lifton_GENE(ref_gene_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_gene_id].attributes), tree_dict, ref_features_dict, args, tmp=with_exons)
+    lifton_gene = lifton_class.Lifton_GENE(
+        ref_gene_id, coreutils.clone_feature(locus),
+        coreutils.clone_attributes(ref_db[ref_gene_id].attributes), tree_dict,
+        ref_features_dict, args, tmp=with_exons,
+        state_journal=state_journal,
+    )
     return lifton_gene, ref_gene_id, ref_trans_id
 
 
@@ -127,7 +177,7 @@ def lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_tran
         lifton_trans: Lifton transcript instance
         len(cdss_list): number of CDSs
     """
-    lifton_trans = lifton_gene.add_transcript(ref_trans_id, copy.deepcopy(locus), copy.deepcopy(ref_db[ref_trans_id].attributes))
+    lifton_trans = lifton_gene.add_transcript(ref_trans_id, coreutils.clone_feature(locus), coreutils.clone_attributes(ref_db[ref_trans_id].attributes))
     exons = l_feature_db.children(locus, featuretype='exon', order_by='start')
     for exon in list(exons):
         lifton_gene.add_exon(lifton_trans.entry.id, exon)
@@ -208,6 +258,34 @@ def _optimize_fast_enabled():
     return env.strip().lower() not in ("", "0", "false", "no", "off")
 
 
+# Default for the miniprot-only 3rd candidate (below). lifton.py's
+# resolve_miniprot_candidate_args sets this from the CLI flag
+# (--no-miniprot-candidate -> False) once at startup; the LIFTON_MINIPROT_CANDIDATE
+# env var still WINS at read time (so the 24-cell matrix + the A/B harness, which
+# force via env, are unaffected by the CLI default).
+_MINIPROT_CANDIDATE_DEFAULT = True
+
+
+def _miniprot_candidate_enabled():
+    """Third best-of-outcome candidate: a standalone MINIPROT-ONLY model.
+
+    The 2-way merge keeps max(Liftoff+ORF, chained-merge+ORF) but never considers
+    miniprot's NATIVE model. At very-distant divergence the DNA lift can collapse
+    to a truncated stub (Figure 4: LiftOn ~0.04 vs miniprot ~0.99, miniprot model
+    7-17% the length yet near-perfect identity), and the chaining cannot capture
+    miniprot because its exact-coordinate sync points rarely fire — so the clean
+    full-length miniprot model is discarded. This candidate is emitted ONLY when
+    its ORF-rescued protein identity is STRICTLY better than the 2-way winner, so
+    per-transcript identity is non-decreasing (additive), close pairs barely
+    change, and the perfect-ORF 24-cell fixtures (merge branch never fires) stay
+    byte-identical. On by default; --no-miniprot-candidate (or
+    LIFTON_MINIPROT_CANDIDATE=0) restores the 2-way best-of-outcome merge."""
+    env = os.environ.get("LIFTON_MINIPROT_CANDIDATE")
+    if env is None:
+        return _MINIPROT_CANDIDATE_DEFAULT
+    return env.strip().lower() not in ("", "0", "false", "no", "off")
+
+
 def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                                  ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
                                  tgt_fai, ref_trans_id, ref_proteins, ref_trans,
@@ -238,6 +316,19 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
     liftoff_aln = lifton_utils.LiftOn_liftoff_alignment(lifton_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
     # miniprot alignment
     miniprot_aln, has_valid_miniprot = lifton_utils.LiftOn_miniprot_alignment(locus.seqid, locus, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans_id, lifton_status)
+    # Strand guard (GitHub issue #33), hoisted so BOTH the chaining/best-of-outcome
+    # merge (below) and the candidate-3 miniprot-only rescue share it. A miniprot hit
+    # whose CDS children are on the OPPOSITE strand from the lifted transcript is an
+    # antisense/spurious match: chaining its CDS under this transcript's mRNA (which
+    # keeps the Liftoff strand) emits strand-inconsistent GFF3 (exon on one strand, CDS
+    # on the other) and its "strictly better" ORF-rescue score is a wrong-frame fluke.
+    # candidate-3 already guarded this; the chaining merge did not (issue #33).
+    _mini_children = getattr(miniprot_aln, "cds_children", None)
+    _mini_strand_ok = bool(_mini_children) and all(
+        _c.strand == lifton_trans.entry.strand for _c in _mini_children)
+    # Block the merge ONLY for a genuinely opposite-strand hit; an empty miniprot keeps
+    # the pre-existing empty-handling in chaining_algorithm (byte-identical otherwise).
+    _mini_wrong_strand = bool(_mini_children) and not _mini_strand_ok
     orf_done = False
     if liftoff_aln is None:
         lifton_status.annotation = "no_ref_protein"
@@ -246,7 +337,7 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
         lifton_status.lifton_aa = 1
     elif liftoff_aln.identity < 1:
         # Liftoff protein annotation is not perfect
-        if has_valid_miniprot:
+        if has_valid_miniprot and not _mini_wrong_strand:
             lifton_status.annotation = "LiftOn_chaining_algorithm"
             cds_list, chains = protein_maximization.chaining_algorithm(
                 liftoff_aln, miniprot_aln, tgt_fai, DEBUG)
@@ -318,13 +409,69 @@ def process_liftoff_with_protein(locus, lifton_gene, lifton_trans,
                     else:
                         # Keep Liftoff (current state IS the Liftoff candidate).
                         lifton_status.annotation = "Liftoff"
+                # Candidate 3 (default-on): a standalone miniprot-only model.
+                # The 2-way winner above can be a collapsed-Liftoff stub at very-
+                # distant divergence; emit miniprot's native model iff its ORF-
+                # rescued identity is STRICTLY better, so this is additive
+                # (per-transcript identity non-decreasing) and a no-op wherever
+                # miniprot is not strictly better (close pairs + the perfect-ORF
+                # 24-cell fixtures stay byte-identical). LIFTON_MINIPROT_CANDIDATE=0
+                # restores the 2-way behaviour.
+                _best_outcome = lifton_status.lifton_aa
+                # _mini_children / _mini_strand_ok were hoisted above the merge for the
+                # issue-#33 strand guard; candidate 3 reuses them — it likewise requires
+                # the miniprot children to share the transcript strand before building a
+                # standalone model (drosophila rna-NM_176527.1: 0->4 strand_consistency
+                # errors, neutral protein id 0.138->0.045 when it fired antisense).
+                if (_miniprot_candidate_enabled() and _best_outcome < 1.0
+                        and _mini_strand_ok):
+                    _snapWin = _snapshot_merge_state(lifton_gene, lifton_trans, lifton_status)
+                    _restore_merge_structure(lifton_gene, lifton_trans, _snap0)
+                    _restore_status_and_mutation(lifton_trans, lifton_status, _snap0)
+                    lifton_status.lifton_aa = 0
+                    # Build a CLEAN miniprot-only scaffold — mirrors the proven
+                    # Step-8/Iter-23 builder (run_miniprot.lifton_miniprot_with_
+                    # ref_protein): clear the exon list, then add one CDS-only
+                    # exon per miniprot CDS child. Do NOT reconcile through
+                    # update_cds_list: that 5-case merge assumes the incoming
+                    # CDS list was derived FROM the existing exon scaffold (true
+                    # for the chaining algorithm's candidate 2) and explicitly
+                    # preserves non-overlapping exons — miniprot's CDS
+                    # boundaries are independent of Liftoff's exon structure,
+                    # and when they don't nest cleanly the reconciliation left
+                    # stale Liftoff exons plus duplicated exon entries, silently
+                    # corrupting the emitted GFF3 (caught by the chicken A/B:
+                    # 72 catastrophic regressions up to 0.809 -> 0.004,
+                    # confirmed by direct forensic diff of the written exon
+                    # list against miniprot's clean model).
+                    lifton_trans.exons = []
+                    for _c in _mini_children:
+                        lifton_gene.add_exon(lifton_trans.entry.id, _c)
+                        _cds_copy = coreutils.clone_feature(_c)
+                        lifton_gene.add_cds(lifton_trans.entry.id, _cds_copy)
+                    lifton_trans.update_boundaries()
+                    lifton_gene.update_boundaries()
+                    lifton_gene.orf_search_protein(
+                        lifton_trans.entry.id, ref_trans_id, tgt_fai,
+                        ref_proteins, ref_trans, lifton_status)
+                    if lifton_status.lifton_aa > _best_outcome:
+                        # miniprot's native model is strictly better — keep it.
+                        lifton_status.annotation = "LiftOn_miniprot"
+                    else:
+                        # Not strictly better — revert to the 2-way winner exactly.
+                        _restore_merge_structure(lifton_gene, lifton_trans, _snapWin)
+                        _restore_status_and_mutation(lifton_trans, lifton_status, _snapWin)
                 # Candidate(s) already ran ORF-rescue; tell process_liftoff to skip
                 # the canonical orf_search_protein so it is not run twice.
                 orf_done = True
     return orf_done
 
 
-def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, ENTRY_FEATURE=False, _visited=None):
+def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
+                    ref_id_2_m_id_trans_dict, m_feature_db, tree_dict,
+                    tgt_fai, ref_proteins, ref_trans, ref_features_dict,
+                    fw_score, fw_chain, args, ENTRY_FEATURE=False,
+                    _visited=None, state_journal=None):
     """
         This function processes liftoff annotation.
 
@@ -367,22 +514,43 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
     exon_children = list(l_feature_db.children(locus, featuretype='exon', level=1, order_by='start'))
     if lifton_gene is None and ENTRY_FEATURE:
         # Gene (1st) features
-        lifton_gene, ref_gene_id, ref_trans_id = initialize_lifton_gene(locus, ref_db, tree_dict, ref_features_dict, args, with_exons=len(exon_children)>0)
+        lifton_gene, ref_gene_id, ref_trans_id = initialize_lifton_gene(
+            locus, ref_db, tree_dict, ref_features_dict, args,
+            with_exons=len(exon_children) > 0,
+            state_journal=state_journal,
+        )
         if lifton_gene.ref_gene_id is None: return None
     if len(exon_children) == 0:
         parent_feature = None
         if ENTRY_FEATURE: # Gene (1st) features without direct exons
             parent_feature = lifton_gene
         else: # Middle features without exons
-            parent_feature = lifton_gene.add_feature(copy.deepcopy(locus))
+            parent_feature = lifton_gene.add_feature(coreutils.clone_feature(locus))
         features = l_feature_db.children(locus, level=1)
         for feature in list(features):
-            process_liftoff(parent_feature, feature, ref_db, l_feature_db, ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict, fw_score, fw_chain, args, _visited=_visited)
+            process_liftoff(
+                parent_feature, feature, ref_db, l_feature_db,
+                ref_id_2_m_id_trans_dict, m_feature_db, tree_dict, tgt_fai,
+                ref_proteins, ref_trans, ref_features_dict, fw_score,
+                fw_chain, args, _visited=_visited,
+                state_journal=state_journal,
+            )
     else:
         if ENTRY_FEATURE: # Gene (1st) features with direct exons
             ref_trans_id = ref_gene_id
         else: # Transcript features with direct exons
-            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, lifton_gene.entry.id, locus.id)
+            # `lifton_gene` is the ROOT Lifton_GENE only at depth 1. In a 3-level
+            # hierarchy (gene -> primary_transcript -> miRNA -> exon) the recursion
+            # passes the INTERMEDIATE LiftOn_FEATURE here, so its `entry.id` is the
+            # intermediate's -- not a gene id. Feeding that to get_ref_ids_liftoff
+            # failed to resolve, `ref_db[None]` raised, and the transcript plus all
+            # its exons/CDS were silently dropped. Pass None so the lookup resolves
+            # from the transcript id alone (the function's documented case 2).
+            _parent_gene_id = (
+                lifton_gene.entry.id
+                if isinstance(lifton_gene, lifton_class.Lifton_GENE) else None
+            )
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, _parent_gene_id, locus.id)
         lifton_status = lifton_class.Lifton_Status()
         lifton_status.annotation = "Liftoff"
         # V1.1a fix: narrow bare `except:` to the actual exceptions a
@@ -392,6 +560,13 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db, ref_id_2_m_id_tran
         try: # Test if the reference transcript exists. Skip if not.
             ref_db[ref_trans_id]
         except (KeyError, gffutils.exceptions.FeatureNotFoundError):
+            # Skipping here drops this transcript AND all of its exons/CDS from the
+            # output, so say so instead of returning silently -- an unresolvable id
+            # used to be indistinguishable from "nothing to lift".
+            logger.log_warning(
+                f"Skipping {locus.id}: reference transcript "
+                f"{ref_trans_id!r} was not found in the reference annotation."
+            )
             return None
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
         orf_done = False

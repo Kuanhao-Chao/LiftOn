@@ -33,6 +33,12 @@ comparison/mouse_to_rat_results/lifton_output/
 dictionary/annotations/
 *.txt
 
+# Generated minimap2 indexes
+*.mmi
+
+# Guarded benchmark-controller state, logs, and detached-run sentinels
+benchmarks/compare/_runs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

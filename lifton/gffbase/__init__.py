@@ -33,11 +33,14 @@ from .gffwriter import GFFWriter
 from .iterators import DataIterator
 from .interface import FeatureDB
 from .create_db import create_db
+from .ingest import GFF3ChunkDecoder, from_record_stream
 from .sqlite_export import export_sqlite
 
 __all__ = [
     # Drop-in legacy surface
     "create_db",
+    "from_record_stream",
+    "GFF3ChunkDecoder",
     "FeatureDB",
     "Feature",
     "DataIterator",

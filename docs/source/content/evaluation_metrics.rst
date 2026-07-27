@@ -38,6 +38,12 @@ To compute protein sequence identity scores, we first generate the protein seque
 
 The protein sequence identity score is calculated up to the first encountered stop codon in the target protein. Differing slightly from the BLAST-style metric employed for DNA sequence identity, LiftOn compresses the gaps in the reference alignment :cite:p:`hengleeseq_identity`. This adjustment serves two purposes: (1) to accommodate potential repeat regions that might result in a longer or shorter protein in the target genome; and (2) to avoid over-penalization of the start codon in the upstream 5' UTR or the stop codon in the downstream 3' UTR.
 
+.. note::
+
+   See the :ref:`Benchmarks (v1.0.9) <benchmarks>` page for how this metric is
+   used to compare LiftOn against Liftoff, miniprot, and the previous release
+   across 17 whole genomes and 34 subsets.
+
 In the example below (:numref:`figure-sequence-identity-protein`), the reference and target protein sequences are aligned, and the number of matching amino acids is 18. The total number of alignment columns is 26, and the number of gaps in the reference protein is 4, resulting in a protein sequence identity score of 81.8%.
 
 .. math::

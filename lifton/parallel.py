@@ -30,10 +30,17 @@ import pickle
 import sys
 import tempfile
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Iterable, Iterator, Optional, Tuple
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from typing import Callable, Iterable, Iterator, Optional, Tuple
 
-from lifton.locus_pipeline import LocusResult, StepContext, consume, process_locus
+from lifton.locus_pipeline import (
+    LocusResult,
+    Step7StateCoordinator,
+    StepContext,
+    consume,
+    make_worker_context,
+    process_locus,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -51,15 +58,18 @@ class _OrderedWriter:
     order regardless of how many entries spilled.
     """
 
-    def __init__(self, *, spill_dir: str, max_pending: int,
+    def __init__(self, *, spill_dir: str, max_pending: Optional[int],
                  consume_fn, fw, stats: dict,
-                 progress_every: int = 0):
+                 progress_every: int = 0, progress_stream=None):
         self.spill_dir = spill_dir
-        self.max_pending = max(1, int(max_pending))
+        self.max_pending = (max(1, int(max_pending))
+                            if max_pending is not None else None)
         self.consume_fn = consume_fn
         self.fw = fw
         self.stats = stats
         self.progress_every = progress_every
+        self.progress_stream = (sys.stdout if progress_stream is None
+                                else progress_stream)
         self.pending: list = []           # min-heap of (idx, LocusResult)
         self.spilled: dict[int, str] = {} # idx -> pickle path
         self.next_to_emit = 0
@@ -114,16 +124,18 @@ class _OrderedWriter:
         self.next_to_emit += 1
         if self.progress_every and \
                 self.next_to_emit % self.progress_every == 0:
-            sys.stdout.write(
+            self.progress_stream.write(
                 f"\r>> LiftOn processed: {self.next_to_emit} features."
             )
+            self.progress_stream.flush()
 
     def offer(self, result: LocusResult) -> None:
         heapq.heappush(self.pending, (result.index, result))
         # Drain any prefix that just became contiguous.
         self._drain_ready()
         # Bound heap depth.
-        while len(self.pending) > self.max_pending:
+        while (self.max_pending is not None and
+               len(self.pending) > self.max_pending):
             self._spill_one()
 
     def _drain_ready(self) -> None:
@@ -182,6 +194,18 @@ def _iter_loci(features: Iterable[str], l_feature_db) -> Iterator[Tuple[str, obj
             yield feature, locus
 
 
+def _iter_loci_serial_safe(
+    features: Iterable[str], l_feature_db,
+) -> Iterator[Tuple[str, object]]:
+    """Root scan safe to interleave with hierarchy reads on one handle."""
+    safe_scan = getattr(l_feature_db, "features_of_type_stream_safe", None)
+    for feature in features:
+        loci = (safe_scan(feature) if callable(safe_scan)
+                else l_feature_db.features_of_type(feature))
+        for locus in loci:
+            yield feature, locus
+
+
 def _backend_supports_threads(*dbs, native: bool = False) -> bool:
     """Return True iff per-locus tasks can safely run on worker
     threads given the supplied FeatureDB inputs.
@@ -229,6 +253,92 @@ def _backend_supports_threads(*dbs, native: bool = False) -> bool:
     return True
 
 
+def _step7_inflight_limit(args, threads: int) -> int:
+    """Return the maximum number of submitted-but-not-emitted loci.
+
+    The ordered commit boundary, not merely future completion, drives this
+    limit.  Consequently a slow early locus cannot let later completed results
+    accumulate without bound.  ``LIFTON_STEP7_MAX_INFLIGHT`` is primarily an
+    operational escape hatch; embedders may set ``args.step7_max_inflight``
+    directly without requiring a CLI-only option.
+    """
+    for raw in (getattr(args, "step7_max_inflight", None),
+                os.environ.get("LIFTON_STEP7_MAX_INFLIGHT")):
+        if not isinstance(raw, (int, str)) or isinstance(raw, bool):
+            continue
+        try:
+            configured = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if configured > 0:
+            return configured
+    return max(1, 2 * int(threads))
+
+
+def _ordered_bounded_map(
+    executor,
+    items,
+    submit_fn,
+    max_inflight: int,
+    *,
+    high_water_callback: Optional[Callable[[int], None]] = None,
+):
+    """Yield submitted work in input order while bounding the whole window.
+
+    ``Executor.map`` eagerly consumes its input on older Python releases and
+    limiting only unfinished futures still permits completed later results to
+    accumulate behind a slow first item.  This primitive counts both states
+    against one limit.  It is shared by Step 7's materialisation prefetch and
+    locus-processing stages so their memory contracts cannot drift apart.
+    """
+    source = iter(items)
+    futures = {}
+    buffered = {}
+    submitted = 0
+    next_to_yield = 0
+    exhausted = False
+
+    def report_high_water():
+        if high_water_callback is not None:
+            high_water_callback(len(futures) + len(buffered))
+
+    def fill_window():
+        nonlocal submitted, exhausted
+        while not exhausted and len(futures) + len(buffered) < max_inflight:
+            try:
+                item = next(source)
+            except StopIteration:
+                exhausted = True
+                break
+            future = submit_fn(executor, item)
+            futures[future] = submitted
+            submitted += 1
+            report_high_water()
+
+    fill_window()
+    while futures or buffered:
+        while next_to_yield in buffered:
+            result = buffered.pop(next_to_yield)
+            next_to_yield += 1
+            yield result
+            fill_window()
+        if not futures:
+            continue
+        done, _ = wait(tuple(futures), return_when=FIRST_COMPLETED)
+        for future in done:
+            ordinal = futures.pop(future)
+            buffered[ordinal] = future.result()
+            report_high_water()
+
+
+def _iter_bounded_ordered(executor, items, submit_fn,
+                          max_inflight: int):
+    """Backward-compatible alias for the shared bounded-map primitive."""
+    yield from _ordered_bounded_map(
+        executor, items, submit_fn, max_inflight,
+    )
+
+
 def parallel_step7(
     features: Iterable[str],
     l_feature_db,
@@ -268,8 +378,30 @@ def parallel_step7(
         emittable or not). Mirrors the legacy ``processed_features``
         counter so the surrounding stats/log code is unchanged.
     """
-    submission = enumerate(_iter_loci(features, l_feature_db))
     processed = 0
+    progress_stream = (sys.stderr
+                       if getattr(ctx.args, "output", None) == "stdout"
+                       else sys.stdout)
+    state_coordinator = Step7StateCoordinator(
+        ctx.ref_features_dict, ctx.tree_dict,
+    )
+    # Callers occasionally reuse an argparse namespace across focused runs.
+    # Clear prior runtime diagnostics before recording this dispatch.
+    for marker in (
+        "_step7_parallel_fallback_reason",
+        "_step7_parallel_strategy",
+        "_step7_materialisation_constraint",
+    ):
+        try:
+            delattr(ctx.args, marker)
+        except (AttributeError, TypeError):
+            pass
+
+    def _consume_ordered(result, output_handle, stats):
+        return consume(
+            result, output_handle, stats, ctx=ctx,
+            state_coordinator=state_coordinator,
+        )
 
     # Thread-safety guard. Iteration 8: workers never issue reads
     # against the shared FeatureDB connection — they go through the
@@ -296,6 +428,14 @@ def parallel_step7(
             "serial. Unset LIFTON_PARALLEL_BLOCK_GFFUTILS to use the "
             "materialised-payload + proxy-DB parallel path.\n".format(threads)
         )
+        try:
+            setattr(
+                ctx.args,
+                "_step7_parallel_fallback_reason",
+                "LIFTON_PARALLEL_BLOCK_GFFUTILS requested serial execution",
+            )
+        except Exception:
+            pass
         threads = 1
 
     if threads is None or threads <= 1:
@@ -303,24 +443,32 @@ def parallel_step7(
         # Produces output identical to the pre-Phase-9 inline loop in
         # lifton.py (the new path goes through `consume` instead of an
         # inline `if/write_entry`, but the resulting bytes are equal).
-        for idx, (_feature, locus) in submission:
-            result = process_locus(idx, locus, ctx=ctx)
-            consume(result, fw, transcripts_stats_dict)
+        for idx, (_feature, locus) in enumerate(
+                _iter_loci_serial_safe(features, l_feature_db)):
+            worker_ctx = make_worker_context(ctx, idx, state_coordinator)
+            result = process_locus(idx, locus, ctx=worker_ctx)
+            _consume_ordered(result, fw, transcripts_stats_dict)
             processed = idx + 1
-            if processed % progress_every == 0:
-                sys.stdout.write(
+            if progress_every and processed % progress_every == 0:
+                progress_stream.write(
                     f"\r>> LiftOn processed: {processed} features."
                 )
+                progress_stream.flush()
+        try:
+            setattr(
+                ctx.args,
+                "_step7_max_inflight_observed",
+                1 if processed else 0,
+            )
+            setattr(ctx.args, "_step7_parallel_strategy", "serial")
+        except Exception:
+            pass
         return processed
 
     # ── Parallel path with ordered-writer buffer ─────────────────────
-    # Materialise the locus list in the parent thread BEFORE any
-    # worker starts. Both backend iterators (gffutils SQLite cursors,
-    # gffbase DuckDB result sets) are not safe to keep open while
-    # worker threads issue concurrent reads on the same connection.
-    materialised = list(submission)
-    processed = len(materialised)
-
+    # Roots come from a dedicated reopened database, so worker hierarchy
+    # queries cannot invalidate the scan cursor. Roots and full payloads are
+    # consumed lazily within the same bounded dispatch window.
     # Iteration 10: parallel Step 7 FUSES materialise + process into one
     # pipelined pool. Each worker materialises ITS OWN locus (reads from a
     # thread-local re-opened DB via `_ThreadLocalCtxFactory`) and then
@@ -333,15 +481,17 @@ def parallel_step7(
     # `max(T_materialise, T_process)`.
     #
     # Byte-identity carries through unchanged: the fused worker builds the
-    # SAME `MaterialisedLocus` payload (same locus, same on-disk DB,
+    # SAME `MaterialisedLocus` payload (same locus, same database catalog,
     # `order_by='start'`) the prefetcher pool built, and runs the SAME
     # `process_locus_native`; only the SCHEDULING changes. Pinned by the
-    # 24-cell matrix (its on-disk gffutils cells take the fused path) +
-    # tests/test_fresh_parallel_step7.py.
+    # 24-cell matrix (both reopened gffutils and cursor-cloned in-memory
+    # gffbase cells take the fused path) + tests/test_fresh_parallel_step7.py.
     #
-    # The fuse applies only when `factory.viable` (DBs on-disk, re-openable
-    # per thread); in-memory/blob backends keep the serial parent-thread
-    # materialise + worker pool. `LIFTON_FUSE_STEP7=0` restores the
+    # The fuse applies only when `factory.viable`: databases must either be
+    # reopenable by path or support independent thread-local cursors. Other
+    # in-memory/blob backends keep every real DB access on the parent thread,
+    # then fan fully materialised payloads out to workers.
+    # `LIFTON_FUSE_STEP7=0` restores the
     # pre-Iteration-10 two-phase prefetcher-pool path (escape hatch + A/B
     # baseline). `LIFTON_FUSE_MAT_CONCURRENCY=k` (default unset) caps how many
     # workers may be inside the materialise half at once (a Semaphore) — the
@@ -351,8 +501,30 @@ def parallel_step7(
         _ThreadLocalCtxFactory, materialise_locus_with_factory,
     )
     factory = _ThreadLocalCtxFactory(ctx)
+    open_root_scan = getattr(factory, "open_root_scan", None)
+    submission = None
     _fuse_enabled = os.environ.get("LIFTON_FUSE_STEP7", "1") != "0"
-    fused = _fuse_enabled and factory.viable and len(materialised) > 0
+    fused = _fuse_enabled and factory.viable
+    inflight_limit = _step7_inflight_limit(ctx.args, int(threads))
+    if fused:
+        strategy = "parallel_fused_worker_materialise"
+    elif factory.viable:
+        strategy = "parallel_prefetch_worker_materialise"
+    else:
+        strategy = "parallel_parent_materialise_worker_process"
+    try:
+        setattr(ctx.args, "_step7_parallel_strategy", strategy)
+        if not factory.viable:
+            setattr(
+                ctx.args,
+                "_step7_materialisation_constraint",
+                getattr(
+                    factory, "fallback_reason",
+                    "materialisation databases are not reopenable",
+                ),
+            )
+    except Exception:
+        pass
 
     _mat_sema = None
     if fused:
@@ -364,14 +536,13 @@ def parallel_step7(
                 _mat_sema = None
 
     if fused:
-        payloads = None  # workers materialise on their own thread
-
         def _mat_and_process(idx, locus):
             # Materialise + process on ONE worker thread. Wrap the
             # materialise half so a failure becomes a per-locus error
             # LocusResult (mirrors process_locus_native) instead of
             # crashing the pool; Exception (not BaseException) so
             # KeyboardInterrupt/SystemExit still propagate.
+            worker_ctx = make_worker_context(ctx, idx, state_coordinator)
             try:
                 if _mat_sema is not None:
                     with _mat_sema:
@@ -388,105 +559,164 @@ def parallel_step7(
                     lifton_gene=None,
                     error=exc,
                     error_tb=_tb.format_exc(),
+                    delta=worker_ctx.state_journal.finish(),
                 )
-            return process_locus_native(payload, ctx)
+            except BaseException:
+                # Preserve KeyboardInterrupt/SystemExit propagation without
+                # leaving later workers blocked at the ordered copy gate.
+                worker_ctx.state_journal.finish()
+                raise
+            return process_locus_native(payload, worker_ctx)
 
-        def _submit(ex):
-            return {
-                ex.submit(_mat_and_process, idx, locus): idx
-                for idx, (_feature, locus) in materialised
-            }
+        task_items = None
+
+        def _submit_one(executor, item):
+            idx, (_feature, locus) = item
+            return executor.submit(_mat_and_process, idx, locus)
     else:
-        # Non-fused: build payloads up front, then the worker pool processes
-        # them. Viable-but-fuse-disabled (LIFTON_FUSE_STEP7=0) rebuilds the
-        # pre-Iteration-10 prefetcher pool (the A/B `two_phase` baseline);
-        # non-viable (in-memory/blob) uses the serial parent-thread loop.
-        if factory.viable and len(materialised) > 0:
+        # Non-fused: materialisation remains a distinct stage, but it now
+        # feeds the processing executor through a bounded iterator instead of
+        # retaining one full payload and one future per locus. Reopenable and
+        # cursor-cloneable paths use a separate prefetch pool (the two-pool A/B
+        # contract); non-cloneable in-memory/blob backends materialise lazily
+        # on the parent thread and run only fully detached payloads on workers.
+        if factory.viable:
             # Phase 17c parallel prefetcher pool. Cap at 4 prefetchers
             # since the marginal gain plateaus (~50-60 % reduction at
             # N=4 per the Phase 17 exploration sizing); larger pool
             # increases SQLite contention without commensurate speedup.
-            prefetch_workers = min(4, int(threads),
-                                   max(1, len(materialised)))
-            payloads = [None] * len(materialised)
-            with ThreadPoolExecutor(
-                    max_workers=prefetch_workers,
-                    thread_name_prefix="lifton-prefetch") as _pf_pool:
-                _pf_futures = {
-                    _pf_pool.submit(
+            prefetch_workers = min(4, int(threads))
+
+            def _payload_items():
+                def _submit_prefetch(executor, item):
+                    idx, (_feature, locus) = item
+                    return executor.submit(
                         materialise_locus_with_factory,
                         idx, locus, factory,
-                    ): idx
-                    for idx, (_feature, locus) in materialised
-                }
-                for _fut in as_completed(_pf_futures):
-                    _p = _fut.result()
-                    payloads[_p.submission_index] = _p
-        else:
-            # In-memory backends or non-extractable dbfn — serial
-            # parent-thread materialise loop (correct, no prefetch speedup).
-            payloads = [
-                materialise_locus(idx, locus, ctx)
-                for idx, (_feature, locus) in materialised
-            ]
-
-        def _submit(ex):
-            return {
-                ex.submit(process_locus_native, p, ctx): p.submission_index
-                for p in payloads
-            }
-
-    # Phase 15d: bounded ordered-writer with on-disk spill, opt-in via
-    # ctx.args.writer_max_pending (default = unbounded ⇒ legacy heap
-    # path is byte-identical). When set, the writer caps in-RAM
-    # pending entries and spills the rest to a temp directory.
-    max_pending = int(getattr(ctx.args, "writer_max_pending", 0) or 0)
-    if max_pending > 0:
-        spill_dir = tempfile.mkdtemp(prefix="lifton_writer_spill_")
-        writer = _OrderedWriter(
-            spill_dir=spill_dir,
-            max_pending=max_pending,
-            consume_fn=consume,
-            fw=fw,
-            stats=transcripts_stats_dict,
-            progress_every=progress_every,
-        )
-        with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-            futures = _submit(ex)
-            for fut in as_completed(futures):
-                writer.offer(fut.result())
-        writer.drain()
-        try:
-            os.rmdir(spill_dir)
-        except OSError:
-            pass
-        return processed
-
-    # Legacy unbounded heap path — byte-identical to Phase 9 behaviour.
-    next_to_emit = 0
-    pending: list = []  # min-heap keyed by submission index
-
-    with ThreadPoolExecutor(max_workers=int(threads)) as ex:
-        futures = _submit(ex)
-
-        for fut in as_completed(futures):
-            result: LocusResult = fut.result()
-            heapq.heappush(pending, (result.index, result))
-            # Drain prefix that is now contiguous from `next_to_emit`.
-            while pending and pending[0][0] == next_to_emit:
-                _, drained = heapq.heappop(pending)
-                consume(drained, fw, transcripts_stats_dict)
-                next_to_emit += 1
-                if next_to_emit % progress_every == 0:
-                    sys.stdout.write(
-                        f"\r>> LiftOn processed: {next_to_emit} features."
                     )
 
-    # Defensive: drain anything left (should be empty by construction
-    # because `as_completed` enumerates every future).
-    while pending:
-        _, drained = heapq.heappop(pending)
-        consume(drained, fw, transcripts_stats_dict)
-        next_to_emit += 1
+                with ThreadPoolExecutor(
+                        max_workers=prefetch_workers,
+                        thread_name_prefix="lifton-prefetch") as pool:
+                    yield from _iter_bounded_ordered(
+                        pool, submission, _submit_prefetch,
+                        inflight_limit,
+                    )
+        else:
+            # In-memory backends or non-extractable dbfn: the owning parent
+            # thread is the only code allowed to touch a real DB connection.
+            # Materialisation remains lazy; the bounded map has one vacant
+            # slot while next(source) builds a payload, so materialising +
+            # submitted + completed-but-not-emitted loci never exceed the
+            # configured dispatch window.
+            def _payload_items():
+                for idx, (_feature, locus) in submission:
+                    try:
+                        yield materialise_locus(idx, locus, ctx)
+                    except Exception as exc:
+                        # Match fused-path failure isolation. Resolving the
+                        # journal here also prevents later workers from
+                        # blocking forever at the ordered state gate.
+                        import traceback as _tb
+                        worker_ctx = make_worker_context(
+                            ctx, idx, state_coordinator,
+                        )
+                        yield LocusResult(
+                            index=idx,
+                            locus_id=getattr(locus, "id", "<unknown>"),
+                            lifton_gene=None,
+                            error=exc,
+                            error_tb=_tb.format_exc(),
+                            delta=worker_ctx.state_journal.finish(),
+                        )
+
+        task_items = _payload_items()
+
+        def _process_materialised(payload):
+            if isinstance(payload, LocusResult):
+                return payload
+            worker_ctx = make_worker_context(
+                ctx, payload.submission_index, state_coordinator,
+            )
+            return process_locus_native(payload, worker_ctx)
+
+        def _submit_one(executor, payload):
+            return executor.submit(
+                _process_materialised, payload,
+            )
+
+    # Every submitted-but-not-emitted locus counts against the window.  This
+    # is stronger than limiting executor futures alone: if locus 0 is slow,
+    # completed loci 1..N cannot trigger unlimited replenishment.
+    raw_max_pending = getattr(ctx.args, "writer_max_pending", 0)
+    if not isinstance(raw_max_pending, (int, str)) or \
+            isinstance(raw_max_pending, bool):
+        raw_max_pending = 0
+    try:
+        max_pending = max(0, int(raw_max_pending))
+    except (TypeError, ValueError):
+        max_pending = 0
+
+    spill_tmp = (tempfile.TemporaryDirectory(
+        prefix="lifton_writer_spill_") if max_pending > 0 else None)
+    writer = _OrderedWriter(
+        spill_dir=(spill_tmp.name if spill_tmp is not None else ""),
+        max_pending=(max_pending if max_pending > 0 else None),
+        consume_fn=_consume_ordered,
+        fw=fw,
+        stats=transcripts_stats_dict,
+        progress_every=progress_every,
+        progress_stream=progress_stream,
+    )
+    root_scan_db = None
+    task_source = None
+    observed_high_water = 0
+
+    def _record_high_water(value):
+        nonlocal observed_high_water
+        observed_high_water = max(observed_high_water, value)
+
+    try:
+        if factory.viable:
+            root_scan_db = (
+                open_root_scan()
+                if open_root_scan is not None else l_feature_db
+            )
+            root_items = _iter_loci(features, root_scan_db)
+        else:
+            # Hierarchy reads and the root scan share the sole parent-owned
+            # connection. DuckDB's stream-safe keyset scan prevents child
+            # queries from invalidating its active cursor.
+            root_scan_db = l_feature_db
+            root_items = _iter_loci_serial_safe(features, root_scan_db)
+        submission = enumerate(root_items)
+        task_source = iter(submission if fused else task_items)
+        with ThreadPoolExecutor(max_workers=int(threads)) as executor:
+            for result in _ordered_bounded_map(
+                    executor, task_source, _submit_one, inflight_limit,
+                    high_water_callback=_record_high_water):
+                writer.offer(result)
+        writer.drain()
+        processed = writer.next_to_emit
+    finally:
+        close_source = getattr(task_source, "close", None)
+        if close_source is not None:
+            close_source()
+        close_factory = getattr(factory, "close", None)
+        if close_factory is not None:
+            close_factory()
+        if root_scan_db is not None and root_scan_db is not l_feature_db:
+            close_scan = getattr(factory, "close_root_scan", None)
+            if close_scan is not None:
+                close_scan(root_scan_db)
+        if spill_tmp is not None:
+            spill_tmp.cleanup()
+        try:
+            setattr(
+                ctx.args, "_step7_max_inflight_observed",
+                observed_high_water,
+            )
+        except Exception:
+            pass
 
     return processed

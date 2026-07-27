@@ -9,6 +9,7 @@ Builds a gffutils SQLite database from an annotation file with:
 """
 
 import gffutils
+import gffutils.constants
 import sys
 import os
 import subprocess
@@ -16,14 +17,30 @@ from collections import defaultdict
 from typing import Optional
 import re
 
-from lifton import extract_sequence, logger
+from lifton import __version__, annotation_cache, extract_sequence, logger
 from lifton.annotation_validator import (
+    AnnotationScanResult,
+    scan_annotation,
     validate_annotation_file,
     print_validation_report,
     print_db_build_error,
     print_db_build_success,
 )
 from lifton.exceptions import LiftOnInputError
+
+
+def is_annotation_database_file(path) -> bool:
+    """Return whether *path* has a SQLite or DuckDB file signature.
+
+    This is a cheap outer-pipeline guard only. :class:`Annotation` still opens
+    the database and validates the expected feature schema before accepting it.
+    """
+    try:
+        with open(os.fspath(path), "rb") as handle:
+            header = handle.read(16)
+    except (OSError, TypeError, ValueError):
+        return False
+    return header.startswith(b"SQLite format 3\x00") or header[8:12] == b"DUCK"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -53,6 +70,7 @@ class Annotation:
         auto_convert_gtf: bool = True,
         *,
         backend: "Optional[str]" = None,
+        scan_result: "Optional[AnnotationScanResult]" = None,
     ):
         # ── Phase 7: polymorphic on input type ────────────────────────────────
         # ``source`` may be either a filesystem path (str/PathLike) OR an
@@ -79,17 +97,18 @@ class Annotation:
         if self._is_blob:
             self.file_name = "<in-memory blob>"
         else:
-            self.file_name  = source
+            self.file_name = os.fspath(source)
         self.merge_strategy = merge_strategy
         self.id_spec        = id_spec
         self.force          = force
         self.verbose        = verbose
         self.auto_convert_gtf = auto_convert_gtf
+        self.infer_genes = infer_genes
+        self.infer_transcripts = infer_transcripts
+        self.cache_status = "not_applicable"
         # Phase 15a (V5.7) — capture every `##` / `#!` directive in
         # input order so the writer can preserve them.
         self.directives: list[str] = []
-        if not self._is_blob:
-            self._capture_directives(self.file_name)
 
         # ── Blob branch — build an in-memory FeatureDB and stop ───────────────
         if self._is_blob:
@@ -104,21 +123,31 @@ class Annotation:
                 force=True,
                 verbose=verbose,
             )
+            self.cache_status = "in_memory"
             return
 
-        # ── 0. Check if the file is already a gffutils database ───────────────
-        if os.path.exists(self.file_name) and os.path.getsize(self.file_name) > 0:
-            try:
-                # If this succeeds, it's a valid SQLite DB matching gffutils schema
-                self._db_connection = gffutils.FeatureDB(self.file_name)
-                if self.verbose:
-                    logger.log_success(f"Loaded existing gffutils DB directly from {self.file_name}")
-                return
-            except Exception:
-                pass  # It's not a DB file; proceed to parse as GFF3/GTF
+        # ── 0. Direct database inputs bypass all text parsing/validation ───────
+        if self._open_direct_database():
+            return
+        supplied_scan_matches = (
+            scan_result is not None
+            and os.path.abspath(os.fspath(scan_result.file_path))
+            == os.path.abspath(self.file_name)
+        )
+        self.scan_result = (
+            scan_result if supplied_scan_matches
+            else scan_annotation(self.file_name)
+        )
+        self.directives = list(self.scan_result.directives)
 
         # ── 1. Detect file format ─────────────────────────────────────────────
-        file_format = self._detect_file_format()
+        if self.scan_result.file_format == "GTF":
+            file_format = "GTF format"
+        elif self.scan_result.file_format == "unknown":
+            file_format = "Unknown format"
+        else:
+            file_format = "GFF format"
+        self._detected_file_format = file_format
 
         if file_format == "GTF format":
             self._handle_gtf_input(self.file_name, infer_genes, infer_transcripts)
@@ -188,6 +217,58 @@ class Annotation:
     def db_connection(self):
         return self._db_connection
 
+    def _open_direct_database(self) -> bool:
+        """Open a database supplied as the primary input path.
+
+        Direct database inputs are authoritative inputs, not derived sidecar
+        caches, and therefore do not require a source manifest.  Detection is
+        intentionally completed before format detection, directive scanning,
+        and annotation text validation.
+        """
+        try:
+            if not os.path.isfile(self.file_name) or os.path.getsize(self.file_name) == 0:
+                return False
+        except OSError:
+            return False
+
+        direct = None
+        try:
+            direct = gffutils.FeatureDB(self.file_name)
+            # Force a schema query; construction alone can accept unrelated
+            # SQLite files that do not contain gffutils tables.
+            direct.execute("SELECT 1 FROM features LIMIT 1").fetchone()
+        except Exception:
+            if direct is not None:
+                try:
+                    direct.conn.close()
+                except Exception:
+                    pass
+            direct = None
+        if direct is not None:
+            self.backend = "gffutils"
+            self.cache_status = "direct_database"
+            self._db_connection = direct
+            self.directives = list(getattr(direct, "directives", []))
+            if self.verbose:
+                logger.log_success(f"Loaded existing gffutils DB directly from {self.file_name}")
+            return True
+
+        if (self.backend == "gffbase"
+                or self.file_name.lower().endswith(".duckdb")
+                or is_annotation_database_file(self.file_name)):
+            from lifton import gffbase_adapter as _adapter
+
+            direct = _adapter.open_database_path(self.file_name)
+            if direct is not None:
+                self.backend = "gffbase"
+                self.cache_status = "direct_database"
+                self._db_connection = direct
+                self.directives = list(getattr(direct, "directives", []))
+                if self.verbose:
+                    logger.log_success(f"Loaded existing gffbase DB directly from {self.file_name}")
+                return True
+        return False
+
 
     # ─────────────────────────────────────────────────────────────────────────
     # Step 1: format detection & GTF handling
@@ -226,6 +307,9 @@ class Annotation:
                 if converted_format == "GFF format":
                     logger.log_success(f"GTF converted to GFF3: {converted}")
                     self.file_name = converted
+                    self.scan_result = scan_annotation(converted)
+                    self.directives = list(self.scan_result.directives)
+                    self._detected_file_format = "GFF format"
                 else:
                     logger.log_warning(
                         f"Converted file {converted!r} may not be valid GFF3. "
@@ -268,25 +352,16 @@ class Annotation:
             self.file_name,
             max_duplicate_examples=20,
             check_orphan_parents=True,
+            scan_result=self.scan_result,
         )
 
         # Always print the report if there are warnings or errors
         if result.errors or result.warnings:
             print_validation_report(result)
 
-        # Hard stop on truly fatal conditions (file missing, empty, unreadable)
-        fatal_keywords = [
-            "not found",
-            "not readable",
-            "empty",
-            "no valid 9-column",
-            "not a regular file",
-        ]
-        truly_fatal = any(
-            any(kw in err.lower() for kw in fatal_keywords)
-            for err in result.errors
-        )
-        if truly_fatal:
+        # Scan errors describe unusable or unstable input; duplicate IDs and
+        # orphan parents remain warnings and are handled by the DB fallback.
+        if result.errors:
             logger.log_error(
                 f"Cannot build annotation database. "
                 f"Please fix the issues in {self.file_name!r} and re-run."
@@ -299,6 +374,88 @@ class Annotation:
     # Step 3: database building
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _parser_cache_settings(self) -> dict:
+        """Describe parsing choices shared by both database backends."""
+        return {
+            "auto_convert_gtf": bool(self.auto_convert_gtf),
+            "detected_format": getattr(self, "_detected_file_format", "GFF format"),
+            "gtf_transform": "suffix_transcript_id" if self.infer_genes else None,
+        }
+
+    def _gffutils_manifest(self) -> dict:
+        settings = {
+            "parser_contract_version": annotation_cache.PARSER_CONTRACT_VERSION,
+            "parser": self._parser_cache_settings(),
+            "inference": {
+                "genes": bool(self.infer_genes),
+                "transcripts": bool(self.infer_transcripts),
+            },
+            "merge_strategy": self.merge_strategy,
+            "id_spec": self.id_spec,
+        }
+        return annotation_cache.build_manifest(
+            self.file_name,
+            backend="gffutils",
+            backend_version=gffutils.__version__,
+            schema_version=annotation_cache.schema_digest(gffutils.constants.SCHEMA),
+            tool_version=__version__,
+            settings=settings,
+            source=self.scan_result.source_fingerprint,
+        )
+
+    def _refresh_scan_if_source_changed(self) -> None:
+        """Fail closed if the source changed after its validated scan.
+
+        Format inference, validation findings, directives, and cache manifests
+        all come from ``self.scan_result``. Silently replacing that result at
+        this point would let newly swapped bytes bypass format handling and
+        preflight validation, so callers must restart construction instead.
+        """
+
+        try:
+            current = os.stat(self.file_name)
+        except OSError as exc:
+            raise LiftOnInputError(
+                "Annotation became unavailable after preflight validation: "
+                f"{self.file_name!r}. Re-run LiftOn with a stable input file."
+            ) from exc
+        scanned = self.scan_result
+        current_key = (
+            current.st_dev,
+            current.st_ino,
+            current.st_size,
+            current.st_mtime_ns,
+        )
+        scanned_key = (
+            scanned.source_device,
+            scanned.source_inode,
+            scanned.size,
+            scanned.source_mtime_ns,
+        )
+        if current_key != scanned_key:
+            raise LiftOnInputError(
+                "Annotation changed after preflight validation and before its "
+                f"database was selected or built: {self.file_name!r}. "
+                "Refusing to use unvalidated replacement bytes; re-run LiftOn "
+                "with a stable input file."
+            )
+
+    def _try_open_gffutils_cache(self, db_path: str, expected: dict):
+        if not annotation_cache.cache_matches(db_path, expected):
+            return None
+        feature_db = None
+        try:
+            feature_db = gffutils.FeatureDB(db_path)
+            feature_db.execute("SELECT 1 FROM features LIMIT 1").fetchone()
+            return feature_db
+        except Exception:
+            if feature_db is not None:
+                try:
+                    feature_db.conn.close()
+                except Exception:
+                    pass
+            return None
+
     def _get_db_connection(self):
         """
         Try to open an existing FeatureDB; if that fails, build one.
@@ -310,30 +467,97 @@ class Annotation:
         """
         if self.backend == "gffbase":
             from lifton import gffbase_adapter as _adapter
-            db = _adapter.open_existing_db(self.file_name)
-            if db is None:
-                db = _adapter.build_database(
-                    file_name=self.file_name,
-                    infer_genes=self.infer_genes,
-                    infer_transcripts=self.infer_transcripts,
-                    merge_strategy=self.merge_strategy,
-                    id_spec=self.id_spec,
-                    force=True,
-                    verbose=self.verbose,
-                )
+
+            self._refresh_scan_if_source_changed()
+            adapter_args = {
+                "infer_genes": self.infer_genes,
+                "infer_transcripts": self.infer_transcripts,
+                "merge_strategy": self.merge_strategy,
+                "id_spec": self.id_spec,
+                "parser_settings": self._parser_cache_settings(),
+            }
+            db = None
+            if not self.force:
+                db = _adapter.open_existing_db(self.file_name, **adapter_args)
+            if db is not None:
+                self.cache_status = "hit"
+                self._db_connection = db
+                return
+
+            db_path = _adapter.db_path_for(self.file_name)
+            with annotation_cache.cache_lock(db_path):
+                # A peer may have completed the rebuild while we waited.
+                self._refresh_scan_if_source_changed()
+                adapter_args["parser_settings"] = self._parser_cache_settings()
+                if not self.force:
+                    db = _adapter.open_existing_db(self.file_name, **adapter_args)
+                if db is None:
+                    self.cache_status = "rebuilt"
+                    db = _adapter.build_database(
+                        file_name=self.file_name,
+                        force=True,
+                        verbose=self.verbose,
+                        **adapter_args,
+                    )
+                else:
+                    self.cache_status = "hit"
             self._db_connection = db
             return
 
         db_path = self.file_name + "_db"
-        try:
-            feature_db = gffutils.FeatureDB(db_path)
-            if self.verbose:
-                logger.log_success(f"Opened existing gffutils DB: {db_path}")
-            self._db_connection = feature_db
-        except Exception:
-            self._db_connection = self._build_database()
+        self._refresh_scan_if_source_changed()
+        expected = self._gffutils_manifest()
+        if not self.force:
+            feature_db = self._try_open_gffutils_cache(db_path, expected)
+            if feature_db is not None:
+                if self.verbose:
+                    logger.log_success(f"Opened existing gffutils DB: {db_path}")
+                self._db_connection = feature_db
+                self.cache_status = "hit"
+                return
 
-    def _build_database(self) -> gffutils.FeatureDB:
+        with annotation_cache.cache_lock(db_path):
+            # Recheck the validated source identity after acquiring the lock.
+            self._refresh_scan_if_source_changed()
+            if not self.force:
+                expected = self._gffutils_manifest()
+                feature_db = self._try_open_gffutils_cache(db_path, expected)
+                if feature_db is not None:
+                    self._db_connection = feature_db
+                    self.cache_status = "hit"
+                    return
+            self.cache_status = "rebuilt"
+            self._db_connection = self._build_database(expected)
+
+    def _build_database(self, expected_manifest=None) -> gffutils.FeatureDB:
+        """Build into a temporary SQLite file and atomically publish it."""
+        db_path = self.file_name + "_db"
+        expected = expected_manifest or self._gffutils_manifest()
+        temporary = annotation_cache.temporary_db_path(db_path)
+        built = None
+        try:
+            built = self._build_database_at(temporary)
+            built.conn.close()
+            built = None
+            if annotation_cache.source_fingerprint(self.file_name) != expected["source"]:
+                raise OSError(
+                    f"Annotation changed while its database was being built: {self.file_name}"
+                )
+            os.replace(temporary, db_path)
+            annotation_cache.write_manifest_atomic(db_path, expected)
+            return gffutils.FeatureDB(db_path)
+        finally:
+            if built is not None:
+                try:
+                    built.conn.close()
+                except Exception:
+                    pass
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+
+    def _build_database_at(self, db_path: str) -> gffutils.FeatureDB:
         """
         Build a gffutils database with 3 progressively more permissive strategies.
 
@@ -346,9 +570,8 @@ class Annotation:
         disable_genes       = not self.infer_genes
         disable_transcripts = not self.infer_transcripts
 
-        # V5.3: pre-scan the input for duplicate ID rows so we can WARN
-        # the user before gffutils silently auto-renames them. The scan
-        # is O(n) — single pass, regex-free.
+        # Reuse the constructor's consolidated scan; do not read large
+        # annotations again merely to repeat duplicate-ID detection.
         self._warn_on_duplicate_ids(self.file_name)
 
         # ── Strategy 1: user's chosen merge_strategy ─────────────────────────
@@ -365,10 +588,10 @@ class Annotation:
         try:
             db = gffutils.create_db(
                 self.file_name,
-                self.file_name + "_db",
+                db_path,
                 merge_strategy=self.merge_strategy,
                 id_spec=self.id_spec,
-                force=self.force,
+                force=True,
                 verbose=self.verbose,
                 disable_infer_transcripts=disable_transcripts,
                 disable_infer_genes=disable_genes,
@@ -395,7 +618,7 @@ class Annotation:
         try:
             db = gffutils.create_db(
                 self.file_name,
-                self.file_name + "_db",
+                db_path,
                 merge_strategy="create_unique",
                 id_spec=self.id_spec,
                 force=True,
@@ -422,7 +645,7 @@ class Annotation:
         try:
             db = gffutils.create_db(
                 self.file_name,
-                self.file_name + "_db",
+                db_path,
                 merge_strategy="merge",
                 id_spec=self.id_spec,
                 force=True,
@@ -478,39 +701,17 @@ class Annotation:
 
     def _get_unique_id_transform(self):
         """
-        Return a transform function that makes every feature ID unique by
-        appending _dup1, _dup2, … to repeated IDs.
+        Return the fallback transform without rewriting logical ``ID`` values.
 
-        The closure also applies the GTF transcript_id transform when needed.
+        ``create_unique`` and ``merge`` may suffix their internal database row
+        keys, but the source GFF3 ``ID`` attribute remains authoritative. This
+        keeps downstream serialization and Parent matching faithful to input.
         """
-        seen_ids: dict = {}
         infer_genes = self.infer_genes
 
         def unique_id_transform(feature):
-            # Apply base GTF transform if needed
             if infer_genes:
                 feature = _transform_func_gtf(feature)
-
-            # Determine the current ID
-            original_id = None
-            if hasattr(feature, "id") and feature.id:
-                original_id = feature.id
-            elif "ID" in feature.attributes and feature.attributes["ID"]:
-                original_id = feature.attributes["ID"][0]
-
-            if not original_id:
-                return feature
-
-            if original_id in seen_ids:
-                seen_ids[original_id] += 1
-                new_id = f"{original_id}_dup{seen_ids[original_id]}"
-                if "ID" in feature.attributes:
-                    feature.attributes["ID"] = [new_id]
-                if hasattr(feature, "id"):
-                    feature.id = new_id
-            else:
-                seen_ids[original_id] = 0
-
             return feature
 
         return unique_id_transform
@@ -741,35 +942,18 @@ class Annotation:
         """V5.3: surface duplicate ``ID=`` rows BEFORE gffutils
         silently auto-renames them via `create_unique`. The user gets
         an actionable warning naming the offending IDs."""
-        seen: dict[str, int] = {}
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                for raw in fh:
-                    if not raw or raw.startswith("#"):
-                        continue
-                    cols = raw.rstrip("\r\n").split("\t")
-                    if len(cols) != 9:
-                        continue
-                    attrs = cols[8]
-                    # Cheap ID extraction — no full parser needed.
-                    for pair in attrs.split(";"):
-                        if pair.startswith("ID="):
-                            ident = pair[3:]
-                            seen[ident] = seen.get(ident, 0) + 1
-                            break
-        except OSError:
-            return
-        dups = sorted(k for k, v in seen.items() if v > 1)
+        scan = getattr(self, "scan_result", None)
+        if scan is None or os.path.abspath(scan.file_path) != os.path.abspath(path):
+            scan = scan_annotation(path)
+        dups = [feature_id for feature_id, _lines in scan.duplicate_ids]
         if dups:
             preview = ", ".join(dups[:5])
             more = f" (+{len(dups) - 5} more)" if len(dups) > 5 else ""
             logger.log_warning(
                 f"Duplicate ID rows detected in {path}: {preview}{more}. "
-                "gffutils will auto-rename collisions using "
-                "`create_unique` (suffixed _1, _2, …); downstream "
-                "lookups against the original IDs may miss the renamed "
-                "rows. To preserve all rows, ensure each feature has a "
-                "unique ID upstream."
+                "the database may suffix internal row keys, while preserving "
+                "the original logical ID attribute. Fix genuine collisions "
+                "upstream for unambiguous hierarchy lookups."
             )
 
 

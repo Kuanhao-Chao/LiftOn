@@ -7,7 +7,7 @@ conventions:
   • Coordinate correctness (start ≤ end, 1-based, non-negative)
   • Strand and phase validity
   • Attribute syntax (key=value, semicolon-separated, required attributes)
-  • Feature hierarchy (gene → mRNA/ncRNA/transcript → exon → CDS)
+  • Feature hierarchy (child-bearing root → transcript → exon → CDS)
   • CDS phase consistency (phase tracks correctly given CDS lengths)
   • Exon / CDS containment within parent transcript
   • Transcript containment within parent gene
@@ -21,9 +21,12 @@ Can be used as:
   • An importable module: from lifton.gff3_validator import validate_gff3_file
 """
 
+from __future__ import annotations
+
 import sys
 import re
 import os
+import gzip
 from dataclasses import dataclass, field
 from collections import defaultdict
 from typing import List, Dict, Optional, Tuple, Set
@@ -35,7 +38,7 @@ from typing import List, Dict, Optional, Tuple, Set
 
 # Valid feature types for the GFF3 hierarchy produced by LiftOn
 GENE_TYPES = {
-    "gene", "pseudogene", "transposable_element",
+    "gene", "pseudogene", "ncRNA_gene", "transposable_element",
     "LiftOn-gene",   # LiftOn synthetic gene feature type
 }
 TRANSCRIPT_TYPES = {
@@ -61,6 +64,42 @@ DISCONTINUOUS_FEATURE_TYPES = {"CDS"}
 # exon/CDS parents so faithfully-lifted pseudogenes (Iteration-5
 # --lift-gene-like) don't trip the exon/CDS parent-type hierarchy checks.
 DIRECT_EXON_PARENT_TYPES = {"pseudogene", "transposable_element"}
+
+
+def _can_be_child_bearing_root(ftype: str) -> bool:
+    """Return whether LiftOn may emit *ftype* as a hierarchy root.
+
+    LiftOn auto-detects parentless, child-bearing locus types instead of
+    limiting roots to ``gene`` (for example ``ncRNA_gene`` and structured
+    mobile elements). Transcript-shaped loci with direct exons are also
+    emitted without a synthetic gene row. Exon and CDS are leaf levels and
+    can therefore never gain root status merely by being parentless.
+    """
+
+    return ftype not in EXON_TYPES | CDS_TYPES
+
+
+def is_transcript_type(ftype: str) -> bool:
+    """Return whether *ftype* names a transcript (middle) hierarchy level.
+
+    The explicit ``TRANSCRIPT_TYPES`` set cannot be complete. LiftOn auto-detects
+    gene-like parent types from the reference (``get_gene_like_feature_types``) and
+    preserves the reference's middle-level type VERBATIM, while the Sequence Ontology
+    transcript namespace is open-ended: Ensembl/GENCODE emit ``pseudogenic_transcript``
+    under ``pseudogene``, RefSeq emits ``misc_RNA``/``pre_miRNA``, and so on. Because
+    ``validate_gff3_structure`` is mandatory and every issue it raises is an ERROR,
+    an unlisted-but-valid type made LiftOn faithfully lift a feature, write valid
+    GFF3, and then reject its OWN output and exit 2 with no annotation.
+
+    So recognise the namespace by shape as well as by name: anything ending in
+    ``RNA`` (``misc_RNA``, ``pre_miRNA``, ``pseudogenic_tRNA``, …) or in
+    ``_transcript`` (``pseudogenic_transcript``, ``unconfirmed_transcript``, …) is a
+    transcript level. Types outside that namespace -- e.g. ``misc_feature`` -- are
+    still rejected, so a genuinely wrong hierarchy keeps failing.
+    """
+    if ftype in TRANSCRIPT_TYPES:
+        return True
+    return ftype.endswith("RNA") or ftype.endswith("_transcript")
 
 # The GFF3 spec permits four strand values: '+', '-', '.' (not stranded), and
 # '?' (stranded but the strand is unknown). '?' is valid and appears on real
@@ -140,6 +179,16 @@ class GFF3Record:
     def parent_id(self) -> str:
         return self.attrs.get("Parent", [""])[0]
 
+    @property
+    def parent_ids(self) -> Tuple[str, ...]:
+        """Return a normalized Parent tuple for duplicate-ID comparisons."""
+
+        return tuple(sorted({
+            parent.strip()
+            for parent in self.attrs.get("Parent", [])
+            if parent.strip()
+        }))
+
 
 @dataclass
 class ValidationResult:
@@ -149,6 +198,8 @@ class ValidationResult:
     comment_lines: int = 0
     issues: List[GFF3Issue] = field(default_factory=list)
     stats: Dict[str, int] = field(default_factory=dict)
+    issue_totals: Dict[str, int] = field(default_factory=dict)
+    severity_totals: Dict[str, int] = field(default_factory=dict)
 
     @property
     def errors(self) -> List[GFF3Issue]:
@@ -160,12 +211,850 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        return len(self.errors) == 0
+        # Some streaming validators cap the number of materialized issue
+        # objects while retaining uncapped severity totals.  In particular,
+        # ``max_issues_per_check=0`` is a useful "counts only" mode and must
+        # not turn a real error into a valid result merely because no detail
+        # object was retained.
+        return (
+            self.severity_totals.get(Severity.ERROR, 0) == 0
+            and len(self.errors) == 0
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _discontinuous_cds_signature(record: GFF3Record) -> tuple | None:
+    """Return the identity shared by valid segments of one CDS feature."""
+
+    if record.ftype != "CDS" or not record.parent_ids:
+        return None
+    return (
+        record.ftype,
+        record.seqid,
+        record.source,
+        record.strand,
+        record.parent_ids,
+    )
+
+
+def _header_before_fasta_offset(handle, offset: int) -> tuple[int, bytes] | None:
+    """Return the header line ending at a FAI sequence offset.
+
+    FAI offsets point to the first base immediately after a FASTA header.  The
+    backward scan is block-bounded in memory and normally examines one short
+    header line.
+    """
+
+    if offset <= 0:
+        return None
+    handle.seek(offset - 1)
+    if handle.read(1) != b"\n":
+        return None
+    search_end = offset - 1
+    cursor = search_end
+    header_start = 0
+    while cursor > 0:
+        block_start = max(0, cursor - 65536)
+        handle.seek(block_start)
+        block = handle.read(cursor - block_start)
+        newline = block.rfind(b"\n")
+        if newline >= 0:
+            header_start = block_start + newline + 1
+            break
+        cursor = block_start
+    handle.seek(header_start)
+    header = handle.read(offset - header_start).rstrip(b"\r\n")
+    if not header.startswith(b">"):
+        return None
+    return header_start, header
+
+
+def _fai_sequence_lengths(path: str) -> Dict[str, int] | None:
+    """Return FAI lengths only when the index agrees with the FASTA layout.
+
+    Modification times alone cannot establish that a sidecar belongs to a
+    FASTA: copied or replaced indexes can be newer than unrelated sequence
+    content.  Validate names, offsets, line geometry, and record boundaries
+    against the actual plain-text FASTA before accepting the fast path.  A
+    rejected sidecar is harmless; :func:`fasta_sequence_lengths` regenerates
+    lengths by streaming the sequence without modifying user files.
+    """
+
+    fasta_path = os.path.realpath(path)
+    index_path = os.fspath(path) + ".fai"
+    # Standard gzip streams do not expose the uncompressed byte offsets stored
+    # by faidx.  Streaming fallback is the only backend-neutral verification.
+    if os.fspath(path).lower().endswith(".gz"):
+        return None
+    try:
+        fasta_stat = os.stat(fasta_path)
+        index_stat = os.stat(index_path)
+    except OSError:
+        return None
+    if index_stat.st_size <= 0 or fasta_stat.st_size <= 0:
+        return None
+    lengths: Dict[str, int] = {}
+    entries: List[Tuple[str, int, int, int, int]] = []
+    try:
+        with open(index_path, "r", encoding="utf-8", errors="strict") as handle:
+            for lineno, raw in enumerate(handle, start=1):
+                columns = raw.rstrip("\r\n").split("\t")
+                if len(columns) < 5:
+                    raise ValueError(
+                        f"FASTA index line {lineno} has fewer than five columns"
+                    )
+                identifier = columns[0]
+                length = int(columns[1])
+                offset = int(columns[2])
+                line_bases = int(columns[3])
+                line_width = int(columns[4])
+                if (
+                    not identifier
+                    or identifier in lengths
+                    or length <= 0
+                    or offset <= 0
+                    or line_bases <= 0
+                    or line_bases > length
+                    or line_width < line_bases
+                    or line_width - line_bases not in (0, 1, 2)
+                ):
+                    raise ValueError(
+                        f"FASTA index line {lineno} has an ambiguous record"
+                    )
+                lengths[identifier] = length
+                entries.append((
+                    identifier, length, offset, line_bases, line_width,
+                ))
+    except (OSError, UnicodeError, ValueError):
+        return None
+    if not entries:
+        return None
+
+    try:
+        with open(fasta_path, "rb") as handle:
+            headers = []
+            for identifier, _length, offset, _bases, _width in entries:
+                header_record = _header_before_fasta_offset(handle, offset)
+                if header_record is None:
+                    return None
+                header_start, header = header_record
+                try:
+                    header_id = header[1:].split(None, 1)[0].decode("utf-8")
+                except (IndexError, UnicodeError):
+                    return None
+                if header_id != identifier:
+                    return None
+                headers.append(header_start)
+
+            if headers != sorted(headers) or len(set(headers)) != len(headers):
+                return None
+            if headers[0] != 0:
+                # The streaming parser permits leading blank lines, but a FAI
+                # with non-record content before its first indexed header is
+                # not a sufficiently strong provenance shortcut.
+                return None
+
+            for index, (_identifier, length, offset,
+                        line_bases, line_width) in enumerate(entries):
+                quotient, remainder = divmod(length, line_bases)
+                if remainder:
+                    final_line_start = offset + quotient * line_width
+                    final_line_bases = remainder
+                else:
+                    final_line_start = offset + (quotient - 1) * line_width
+                    final_line_bases = line_bases
+                sequence_end = final_line_start + final_line_bases
+                record_end = (
+                    headers[index + 1]
+                    if index + 1 < len(headers)
+                    else fasta_stat.st_size
+                )
+                if sequence_end > record_end or record_end - sequence_end > 2:
+                    return None
+                handle.seek(sequence_end)
+                if handle.read(record_end - sequence_end) not in (
+                    b"", b"\n", b"\r\n",
+                ):
+                    return None
+
+                # Verify both ends of the declared fixed-width sequence layout.
+                # This catches indexes copied from similarly sized FASTAs whose
+                # record boundaries happen to align but line geometry does not.
+                handle.seek(offset)
+                first_line = handle.readline()
+                first_sequence = first_line.rstrip(b"\r\n")
+                expected_first = min(length, line_bases)
+                if len(first_sequence) != expected_first:
+                    return None
+                if any(byte in b" \t\r\n" for byte in first_sequence):
+                    return None
+                if length > line_bases and len(first_line) != line_width:
+                    return None
+
+                handle.seek(final_line_start)
+                final_line = handle.readline()
+                final_sequence = final_line.rstrip(b"\r\n")
+                if len(final_sequence) != final_line_bases:
+                    return None
+                if any(byte in b" \t\r\n" for byte in final_sequence):
+                    return None
+    except OSError:
+        return None
+    return lengths
+
+
+def fasta_sequence_lengths(path: str) -> Dict[str, int]:
+    """Return first-token FASTA sequence lengths without materializing bases.
+
+    A structurally verified ``.fai`` sidecar is used when available; otherwise
+    plain-text or gzip-compressed FASTA is streamed. Duplicate or empty
+    identifiers are rejected because either makes target-bound validation
+    ambiguous.
+    """
+
+    indexed = _fai_sequence_lengths(path)
+    if indexed is not None:
+        return indexed
+    opener = gzip.open if os.fspath(path).lower().endswith(".gz") else open
+    lengths: Dict[str, int] = {}
+    current: Optional[str] = None
+    with opener(path, "rt", encoding="utf-8", errors="strict", newline="") as handle:
+        for lineno, raw in enumerate(handle, start=1):
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                identifier = line[1:].split(None, 1)[0] if line[1:].strip() else ""
+                if not identifier:
+                    raise ValueError(f"FASTA line {lineno} has an empty identifier")
+                if identifier in lengths:
+                    raise ValueError(
+                        f"FASTA identifier {identifier!r} is declared more than once"
+                    )
+                lengths[identifier] = 0
+                current = identifier
+                continue
+            if current is None:
+                raise ValueError(
+                    f"FASTA line {lineno} contains sequence before the first header"
+                )
+            lengths[current] += sum(not character.isspace() for character in raw)
+    if not lengths:
+        raise ValueError("FASTA contains no sequence records")
+    empty = [identifier for identifier, length in lengths.items() if length == 0]
+    if empty:
+        raise ValueError(f"FASTA record {empty[0]!r} has no sequence")
+    return lengths
+
+
+def validate_gff3_target_bounds(
+    path: str,
+    target_fasta: str,
+    *,
+    max_issues_per_check: int = 50,
+    strict_sequence_regions: bool = False,
+) -> ValidationResult:
+    """Stream-check GFF3 seqids and coordinates against the target FASTA.
+
+    This independent benchmark gate is intentionally separate from the full
+    hierarchy validator. It keeps only FASTA lengths and declared
+    ``##sequence-region`` intervals in memory, so annotation size does not
+    determine peak memory. Features outside an advisory sequence-region are
+    warnings by default because historical LiftOn output copied source-assembly
+    directives; ``strict_sequence_regions=True`` promotes them to errors.
+    """
+
+    result = ValidationResult(file_path=os.fspath(path))
+    issue_counts: Dict[str, int] = defaultdict(int)
+    feature_counts: Dict[str, int] = defaultdict(int)
+    regions: Dict[str, Tuple[int, int, int]] = {}
+    seqids_with_features: Set[str] = set()
+
+    def add_issue(
+        check: str,
+        lineno: int,
+        message: str,
+        *,
+        feature_id: str = "",
+        severity: str = Severity.ERROR,
+    ) -> None:
+        issue_counts[check] += 1
+        result.issue_totals[check] = issue_counts[check]
+        result.severity_totals[severity] = (
+            result.severity_totals.get(severity, 0) + 1
+        )
+        if issue_counts[check] <= max_issues_per_check:
+            result.issues.append(GFF3Issue(
+                severity, lineno, feature_id, check, message,
+            ))
+
+    try:
+        lengths = fasta_sequence_lengths(target_fasta)
+    except (OSError, UnicodeError, ValueError) as exc:
+        add_issue(
+            "target_fasta_readable",
+            0,
+            f"Cannot derive unambiguous target sequence lengths from "
+            f"{target_fasta}: {exc}",
+        )
+        return result
+
+    try:
+        gff_opener = gzip.open if os.fspath(path).lower().endswith(".gz") else open
+        handle = gff_opener(
+            path, "rt", encoding="utf-8", errors="replace", newline="",
+        )
+    except OSError as exc:
+        add_issue("file_readable", 0, f"Cannot read {path}: {exc}")
+        return result
+
+    with handle:
+        for lineno, raw in enumerate(handle, start=1):
+            result.total_lines += 1
+            line = raw.rstrip("\r\n")
+            if not line.strip():
+                result.comment_lines += 1
+                continue
+            if line.startswith("##sequence-region"):
+                result.comment_lines += 1
+                fields = line.split()
+                if len(fields) != 4:
+                    add_issue(
+                        "sequence_region_format",
+                        lineno,
+                        "Expected '##sequence-region seqid start end'.",
+                    )
+                    continue
+                _directive, seqid, start_text, end_text = fields
+                try:
+                    start = int(start_text)
+                    end = int(end_text)
+                except ValueError:
+                    add_issue(
+                        "sequence_region_coordinate",
+                        lineno,
+                        f"Sequence-region bounds must be integers, got "
+                        f"{start_text!r} and {end_text!r}.",
+                    )
+                    continue
+                if seqid in seqids_with_features:
+                    add_issue(
+                        "sequence_region_order",
+                        lineno,
+                        f"Sequence-region for {seqid!r} appears after a feature "
+                        "on that seqid.",
+                    )
+                if start < 1 or end < start:
+                    add_issue(
+                        "sequence_region_coordinate",
+                        lineno,
+                        f"Sequence-region must satisfy 1 <= start <= end, got "
+                        f"{start}..{end}.",
+                    )
+                target_length = lengths.get(seqid)
+                if target_length is None:
+                    add_issue(
+                        "target_seqid_unknown",
+                        lineno,
+                        f"Sequence-region seqid {seqid!r} is absent from the "
+                        "target FASTA.",
+                    )
+                elif end > target_length:
+                    add_issue(
+                        "sequence_region_out_of_bounds",
+                        lineno,
+                        f"Sequence-region {seqid}:{start}-{end} exceeds target "
+                        f"length {target_length}.",
+                    )
+                previous = regions.get(seqid)
+                if previous is not None and previous[:2] != (start, end):
+                    add_issue(
+                        "sequence_region_conflict",
+                        lineno,
+                        f"Sequence-region {seqid!r} conflicts with line "
+                        f"{previous[2]} ({previous[0]}..{previous[1]}).",
+                    )
+                else:
+                    regions[seqid] = (start, end, lineno)
+                continue
+            if line.startswith("#"):
+                result.comment_lines += 1
+                continue
+
+            columns = line.split("\t")
+            if len(columns) != 9:
+                # The structural/full validators own column-format findings.
+                continue
+            result.data_lines += 1
+            seqid, _source, ftype, start_text, end_text = columns[:5]
+            feature_counts[ftype] += 1
+            seqids_with_features.add(seqid)
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError:
+                continue
+            if start < 1 or start > end:
+                continue
+            target_length = lengths.get(seqid)
+            if target_length is None:
+                add_issue(
+                    "target_seqid_unknown",
+                    lineno,
+                    f"Feature seqid {seqid!r} is absent from the target FASTA.",
+                )
+                continue
+            if end > target_length:
+                add_issue(
+                    "target_coordinate_out_of_bounds",
+                    lineno,
+                    f"Feature {seqid}:{start}-{end} exceeds target length "
+                    f"{target_length}.",
+                )
+            region = regions.get(seqid)
+            if region is not None and not (
+                region[0] <= start <= end <= region[1]
+            ):
+                add_issue(
+                    "sequence_region_containment",
+                    lineno,
+                    f"Feature {seqid}:{start}-{end} is outside declared region "
+                    f"{region[0]}..{region[1]}.",
+                    severity=(
+                        Severity.ERROR
+                        if strict_sequence_regions
+                        else Severity.WARNING
+                    ),
+                )
+
+    result.stats = dict(feature_counts)
+    return result
+
+
+def validate_gff3_structure(
+    path: str,
+    *,
+    max_issues_per_check: int = 50,
+) -> ValidationResult:
+    """Stream publication-critical GFF3 checks without loading hierarchies.
+
+    Memory use is bounded by the ID/signature maps needed for ordered Parent
+    resolution and duplicate detection. :func:`validate_gff3_file` remains the
+    optional full semantic validator.
+    """
+
+    result = ValidationResult(file_path=os.fspath(path))
+    issue_counts: Dict[str, int] = defaultdict(int)
+    # ID -> (line, discontinuous-CDS signature, type, has Parent)
+    seen_ids: Dict[str, Tuple[int, tuple | None, str, bool]] = {}
+    referenced_parent_ids: Set[str] = set()
+    first_content_seen = False
+
+    def add_issue(
+        check: str,
+        lineno: int,
+        message: str,
+        *,
+        feature_id: str = "",
+    ) -> None:
+        issue_counts[check] += 1
+        # Record the UNCAPPED totals as well as the (capped) issue objects.
+        # ``result.issues`` stops growing after ``max_issues_per_check``, so a
+        # file with thousands of errors used to report exactly 50 per check --
+        # and ``ValidationResult.is_valid``'s severity_totals clause, written
+        # precisely to survive that capping, was inert because nothing ever
+        # populated the dict. Updating here covers every return path.
+        result.issue_totals[check] = issue_counts[check]
+        result.severity_totals[Severity.ERROR] = (
+            result.severity_totals.get(Severity.ERROR, 0) + 1
+        )
+        if issue_counts[check] <= max_issues_per_check:
+            result.issues.append(GFF3Issue(
+                Severity.ERROR, lineno, feature_id, check, message,
+            ))
+
+    try:
+        handle = open(path, "r", encoding="utf-8", errors="replace", newline="")
+    except OSError as exc:
+        add_issue("file_readable", 0, f"Cannot read {path}: {exc}")
+        return result
+
+    feature_counts: Dict[str, int] = defaultdict(int)
+    with handle:
+        for lineno, raw in enumerate(handle, start=1):
+            result.total_lines += 1
+            line = raw.rstrip("\r\n")
+            if not line.strip():
+                result.comment_lines += 1
+                continue
+
+            if not first_content_seen:
+                first_content_seen = True
+                if line != "##gff-version 3":
+                    add_issue(
+                        "gff3_header", lineno,
+                        "First non-blank line must be exactly '##gff-version 3'.",
+                    )
+
+            if line.startswith("#"):
+                result.comment_lines += 1
+                continue
+
+            columns = line.split("\t")
+            if len(columns) != 9:
+                add_issue(
+                    "column_count", lineno,
+                    f"Expected 9 tab-separated columns, got {len(columns)}.",
+                )
+                continue
+
+            result.data_lines += 1
+            seqid, source, ftype, start_text, end_text, _score, strand, phase, attrs_text = columns
+            feature_counts[ftype] += 1
+
+            if not seqid or seqid == ".":
+                add_issue("seqid_empty", lineno, "seqid must not be empty or '.'.")
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError:
+                add_issue(
+                    "coord_not_int", lineno,
+                    f"start/end must be integers, got {start_text!r} and {end_text!r}.",
+                )
+            else:
+                if start < 1 or end < 1:
+                    add_issue(
+                        "coord_1based", lineno,
+                        f"coordinates must be >= 1, got start={start}, end={end}.",
+                    )
+                if start > end:
+                    add_issue(
+                        "coord_order", lineno,
+                        f"start ({start}) must be <= end ({end}).",
+                    )
+
+            if strand not in VALID_STRANDS:
+                add_issue(
+                    "strand_valid", lineno,
+                    f"strand must be one of {sorted(VALID_STRANDS)}, got {strand!r}.",
+                )
+            if ftype == "CDS" and phase not in {"0", "1", "2"}:
+                add_issue(
+                    "cds_phase_value", lineno,
+                    f"CDS phase must be 0, 1, or 2, got {phase!r}.",
+                )
+
+            attrs: Dict[str, List[str]] = {}
+            if attrs_text and attrs_text != ".":
+                for part in attrs_text.split(";"):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    if "=" not in part:
+                        add_issue(
+                            "attr_format", lineno,
+                            f"Attribute {part!r} has no '=' separator.",
+                        )
+                        continue
+                    key, value = part.split("=", 1)
+                    key = key.strip()
+                    if not key:
+                        add_issue(
+                            "attr_format", lineno,
+                            f"Attribute {part!r} has an empty key.",
+                        )
+                        continue
+                    values = [item.strip() for item in value.split(",")]
+                    if key == "Parent" and any(not item for item in values):
+                        add_issue(
+                            "parent_empty", lineno,
+                            "Parent must contain one or more non-empty IDs.",
+                        )
+                    attrs[key] = [item for item in values if item]
+
+            feature_id = attrs.get("ID", [""])[0]
+            if ftype in GENE_TYPES | TRANSCRIPT_TYPES and not feature_id:
+                add_issue(
+                    "missing_id", lineno,
+                    f"{ftype!r} feature must have an ID attribute.",
+                )
+
+            parent_ids = attrs.get("Parent", [])
+            if ftype in GENE_TYPES and parent_ids:
+                add_issue(
+                    "gene_has_parent", lineno,
+                    f"Top-level {ftype!r} feature must not have Parent.",
+                    feature_id=feature_id,
+                )
+            # A transcript-shaped locus may itself be a supported top-level
+            # output, but only when a later row actually names it as Parent.
+            # Defer that decision until the stream has been consumed. Exon and
+            # CDS remain mandatory children and are rejected immediately.
+            if (ftype in EXON_TYPES | CDS_TYPES
+                    or (ftype in TRANSCRIPT_TYPES and not feature_id)) \
+                    and not parent_ids:
+                add_issue(
+                    "missing_parent", lineno,
+                    f"{ftype!r} feature must have a Parent attribute.",
+                    feature_id=feature_id,
+                )
+
+            for parent_id in parent_ids:
+                referenced_parent_ids.add(parent_id)
+                parent_info = seen_ids.get(parent_id)
+                if parent_info is None:
+                    add_issue(
+                        "parent_not_declared", lineno,
+                        f"Parent={parent_id!r} has not been declared earlier in the file.",
+                        feature_id=feature_id,
+                    )
+                    continue
+                parent_type = parent_info[2]
+                parent_is_root = (
+                    not parent_info[3]
+                    and _can_be_child_bearing_root(parent_type)
+                )
+                if (ftype in TRANSCRIPT_TYPES
+                        and parent_type not in GENE_TYPES
+                        and not parent_is_root):
+                    add_issue(
+                        "transcript_parent_type", lineno,
+                        f"{ftype!r} Parent={parent_id!r} is "
+                        f"{parent_type!r}, expected a gene-like feature.",
+                        feature_id=feature_id,
+                    )
+                elif (ftype in EXON_TYPES | CDS_TYPES
+                      and not is_transcript_type(parent_type)
+                      and parent_type not in DIRECT_EXON_PARENT_TYPES
+                      and not parent_is_root):
+                    check = (
+                        "exon_parent_type" if ftype in EXON_TYPES
+                        else "cds_parent_type"
+                    )
+                    add_issue(
+                        check, lineno,
+                        f"{ftype!r} Parent={parent_id!r} is "
+                        f"{parent_type!r}, expected a transcript or direct "
+                        "gene-like parent.",
+                        feature_id=feature_id,
+                    )
+
+            if feature_id:
+                record = GFF3Record(
+                    lineno=lineno,
+                    seqid=seqid,
+                    source=source,
+                    ftype=ftype,
+                    start=0,
+                    end=0,
+                    score=".",
+                    strand=strand,
+                    phase=phase,
+                    attrs=attrs,
+                    raw=line,
+                )
+                signature = _discontinuous_cds_signature(record)
+                previous = seen_ids.get(feature_id)
+                if previous is None:
+                    seen_ids[feature_id] = (
+                        lineno, signature, ftype, bool(parent_ids),
+                    )
+                elif signature is None or signature != previous[1]:
+                    add_issue(
+                        "duplicate_id", lineno,
+                        f"Duplicate ID {feature_id!r} (first seen on line {previous[0]}).",
+                        feature_id=feature_id,
+                    )
+
+    for feature_id, (lineno, _signature, ftype, has_parent) in seen_ids.items():
+        if (ftype in TRANSCRIPT_TYPES and not has_parent
+                and feature_id not in referenced_parent_ids):
+            add_issue(
+                "missing_parent", lineno,
+                f"{ftype!r} feature must have a Parent attribute unless it "
+                "is a child-bearing top-level locus.",
+                feature_id=feature_id,
+            )
+
+    if not first_content_seen:
+        add_issue("gff3_header", 0, "File is empty; expected '##gff-version 3'.")
+    if result.data_lines == 0:
+        add_issue("features_present", 0, "The file contains no GFF3 feature records.")
+    result.stats = dict(feature_counts)
+    return result
+
+
+# `_check_hierarchy` emits from three successive loops, so its whole-file output
+# is grouped: everything the per-record loop finds (interleaved, line-ascending),
+# then the per-transcript loop, then the per-gene loop. Driving it one block at a
+# time interleaves those groups, so the streaming path restores the grouping with
+# a STABLE sort on these ranks -- names sharing a rank keep their relative order,
+# which is already line-ascending because blocks are visited in file order.
+# `tests/test_validator_streaming.py` re-derives this from the source and fails if
+# a future rule is added to the wrong loop.
+_HIERARCHY_ISSUE_GROUPS = {
+    "orphan_parent": 0, "gene_has_parent": 0, "transcript_no_parent": 0,
+    "transcript_parent_type": 0, "exon_no_parent": 0, "exon_parent_type": 0,
+    "cds_no_parent": 0, "cds_parent_type": 0,
+    "transcript_has_exons": 1, "mrna_has_cds": 1,
+    "gene_has_transcripts": 2,
+}
+# The other three checks each emit from a single loop, so their per-block order is
+# already the whole-file order.
+
+
+def _validate_streaming(
+    gff3_path: str,
+    result: "ValidationResult",
+    check_hierarchy: bool,
+    check_cds_phase: bool,
+    check_containment: bool,
+    check_lifton_attrs: bool,
+    max_issues_per_check: int,
+) -> "Optional[ValidationResult]":
+    """Validate one contiguous top-level block at a time instead of the whole file.
+
+    The whole-file path materialises a ``GFF3Record`` per row and then walks that
+    list five times. Measured, that is 406 MB for a 92,675-row output where the
+    streaming structural gate uses 36 MB, and **5.64 GB** for a full dog->cat lift
+    (1,815,199 rows). Here memory is bounded by the largest block plus the id map:
+    on that same lift the largest block is 5,244 rows.
+
+    This is exact rather than approximate because LiftOn emits each top-level
+    feature immediately followed by its descendants -- verified on the full
+    dog->cat output: 34,872 blocks, **zero** child rows whose ``Parent`` lies
+    outside their block and zero top-level ids reappearing later. Every check
+    except duplicate-ID detection is therefore block-local.
+
+    Returns ``None`` -- meaning "caller, use the whole-file path" -- the moment a
+    ``Parent`` is seen that the current block does not define. Third-party GFF3
+    handed to the ``gff3-validate`` CLI need not be block-ordered, and those files
+    keep exactly their previous behaviour, at their previous cost.
+
+    THE REPORT MUST NOT MOVE. It feeds the committed benchmark validity figures,
+    so three things stay global: the per-check issue counters (so
+    ``max_issues_per_check`` still caps across the file, not per block), the issue
+    lists kept per check and concatenated at the end in the original order, and
+    duplicate-ID detection, which no block can decide alone.
+    """
+    parser = _GFF3Parser(gff3_path, max_issues_per_check)
+
+    # Per-check issue lists, concatenated at the end in the SAME order the
+    # whole-file path emits them.
+    hierarchy_issues: List[GFF3Issue] = []
+    containment_issues: List[GFF3Issue] = []
+    phase_issues: List[GFF3Issue] = []
+    attr_issues: List[GFF3Issue] = []
+
+    hierarchy_counts: Dict[str, int] = defaultdict(int)
+    containment_counts: Dict[str, int] = defaultdict(int)
+    phase_counts: Dict[str, int] = defaultdict(int)
+    attr_counts: Dict[str, int] = defaultdict(int)
+
+    # id -> (first lineno, discontinuous signature). A signature is a small
+    # tuple, so this holds no records -- the same shape `validate_gff3_structure`
+    # uses for the mandatory gate.
+    seen_ids: Dict[str, Tuple[int, tuple]] = {}
+
+    stats: Dict[str, int] = defaultdict(int)
+    block: List[GFF3Record] = []
+    block_ids: Set[str] = set()
+
+    def flush(records: List[GFF3Record]) -> None:
+        """Run every block-local check over one completed block."""
+        if not records:
+            return
+        id_to_record: Dict[str, GFF3Record] = {}
+        parent_to_children: Dict[str, List[GFF3Record]] = defaultdict(list)
+        for rec in records:
+            fid = rec.feat_id
+            if fid and fid not in id_to_record:
+                id_to_record[fid] = rec
+            pid = rec.parent_id
+            if pid:
+                parent_to_children[pid].append(rec)
+        if check_hierarchy:
+            hierarchy_issues.extend(_check_hierarchy(
+                records, id_to_record, parent_to_children,
+                max_issues_per_check, shared_counts=hierarchy_counts))
+        if check_containment:
+            containment_issues.extend(_check_containment(
+                records, id_to_record, max_issues_per_check,
+                shared_counts=containment_counts))
+        if check_cds_phase:
+            phase_issues.extend(_check_cds_phase(
+                parent_to_children, id_to_record, max_issues_per_check,
+                shared_counts=phase_counts))
+        if check_lifton_attrs:
+            attr_issues.extend(_check_lifton_attrs(
+                records, parent_to_children, max_issues_per_check,
+                shared_counts=attr_counts))
+        for key, value in _compute_stats(records, parent_to_children).items():
+            stats[key] += value
+
+    try:
+        for rec in parser:
+            pid = rec.parent_id
+            if pid and pid not in block_ids:
+                # Not block-ordered. Anything decided so far could be wrong, so
+                # hand the whole file back to the unchanged path.
+                return None
+            if not rec.parent_ids:
+                flush(block)
+                block = []
+                block_ids = set()
+            block.append(rec)
+
+            fid = rec.feat_id
+            if fid:
+                signature = _discontinuous_cds_signature(rec)
+                previous = seen_ids.get(fid)
+                if previous is None:
+                    seen_ids[fid] = (rec.lineno, signature)
+                elif signature is None or signature != previous[1]:
+                    # A real duplicate ID diverges: the whole-file path keeps
+                    # only the FIRST record under that id, so the later one is
+                    # invisible to every lookup and to the per-gene loop. Blocks
+                    # are discarded as they are checked, so that first record is
+                    # no longer available to emulate. Hand the file back rather
+                    # than report it differently -- it is invalid GFF3 anyway,
+                    # and LiftOn's own output contains no duplicate ids.
+                    return None
+                block_ids.add(fid)
+        flush(block)
+    except Exception as exc:
+        result.issues.append(GFF3Issue(
+            Severity.ERROR, 0, "", "parse_error",
+            f"Unexpected error during parsing: {exc}"
+        ))
+        return result
+
+    meta = parser.meta
+    result.total_lines   = meta["total_lines"]
+    result.data_lines    = meta["data_lines"]
+    result.comment_lines = meta["comment_lines"]
+    result.issues.extend(parser.issues)
+
+    if result.data_lines == 0:
+        result.issues.append(GFF3Issue(
+            Severity.ERROR, 0, "", "features_present",
+            "The file contains no GFF3 feature records."
+        ))
+        return result
+
+    hierarchy_issues.sort(
+        key=lambda issue: _HIERARCHY_ISSUE_GROUPS.get(issue.check, 99))
+    result.issues.extend(hierarchy_issues)
+    result.issues.extend(containment_issues)
+    result.issues.extend(phase_issues)
+    result.issues.extend(attr_issues)
+    result.stats = dict(stats)
+    return result
+
 
 def validate_gff3_file(
     gff3_path: str,
@@ -214,6 +1103,16 @@ def validate_gff3_file(
         ))
         return result
 
+    # Try the bounded path first. It returns None when the file turns out not
+    # to be laid out in contiguous top-level blocks, in which case the
+    # whole-file logic below runs unchanged. See `_validate_streaming`.
+    streamed = _validate_streaming(
+        gff3_path, result, check_hierarchy, check_cds_phase, check_containment,
+        check_lifton_attrs, max_issues_per_check,
+    )
+    if streamed is not None:
+        return streamed
+
     # ── Parse pass ───────────────────────────────────────────────────────────
     records: List[GFF3Record] = []
     issue_counts: Dict[str, int] = defaultdict(int)
@@ -231,6 +1130,17 @@ def validate_gff3_file(
     result.data_lines    = meta["data_lines"]
     result.comment_lines = meta["comment_lines"]
     result.issues.extend(parse_issues)
+
+    # A directive-only file is non-empty on disk but is not an annotation.
+    # Treat it as invalid so a failed/empty pipeline cannot report success
+    # merely because it wrote ``##gff-version 3``.
+    if result.data_lines == 0:
+        result.issues.append(GFF3Issue(
+            Severity.ERROR, 0, "", "features_present",
+            "The file contains no GFF3 feature records."
+        ))
+        result.stats = {}
+        return result
 
     # ── Build feature index ──────────────────────────────────────────────────
     id_to_record: Dict[str, GFF3Record] = {}
@@ -250,10 +1160,10 @@ def validate_gff3_file(
                 # (e.g. two genes / a gene and an mRNA colliding on an ID) is a
                 # genuine duplicate-ID error.
                 first = seen_id_recs[fid]
+                first_signature = _discontinuous_cds_signature(first)
                 is_discontinuous_segment = (
-                    rec.ftype in DISCONTINUOUS_FEATURE_TYPES
-                    and rec.ftype == first.ftype
-                    and rec.parent_id == first.parent_id
+                    first_signature is not None
+                    and _discontinuous_cds_signature(rec) == first_signature
                 )
                 if not is_discontinuous_segment:
                     issue_counts["duplicate_id"] += 1
@@ -376,6 +1286,197 @@ def _wrap(text: str, max_width: int) -> List[str]:
 # Parsing
 # ─────────────────────────────────────────────────────────────────────────────
 
+class _GFF3Parser:
+    """Stream ``GFF3Record`` objects while collecting exactly the column-level
+    issues and line counts ``_parse_gff3`` has always returned.
+
+    The loop body below is a verbatim move; only the disposition of each record
+    changed, from ``records.append(rec)`` to ``yield rec``. ``_parse_gff3``
+    itself now just drains this generator, so the in-memory and the streaming
+    validators observe identical issues in identical order by construction.
+    """
+
+    def __init__(self, path: str, max_issues_per_check: int):
+        self.path = path
+        self.max_issues_per_check = max_issues_per_check
+        self.issues: List[GFF3Issue] = []
+        self.meta: dict = {}
+        self._issue_counts: Dict[str, int] = defaultdict(int)
+
+    def __iter__(self):
+        path = self.path
+        max_issues_per_check = self.max_issues_per_check
+        issues = self.issues
+        issue_counts = self._issue_counts
+
+        total_lines = 0
+        data_lines  = 0
+        comment_lines = 0
+
+        _ATTR_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*=')
+
+        with open(path, "r", errors="replace") as fh:
+            for lineno, raw in enumerate(fh, start=1):
+                total_lines += 1
+                line = raw.rstrip("\n\r")
+
+                # ── Comments and directives ──────────────────────────────────────
+                if line.startswith("#") or line.strip() == "":
+                    comment_lines += 1
+                    # Check for required GFF3 header
+                    if lineno == 1 and not line.startswith("##gff-version"):
+                        issue_counts["missing_gff_version"] += 1
+                        if issue_counts["missing_gff_version"] <= max_issues_per_check:
+                            issues.append(GFF3Issue(
+                                Severity.WARNING, 1, "", "gff3_header",
+                                "First line should be '##gff-version 3' directive"
+                            ))
+                    continue
+
+                # ── Column count ─────────────────────────────────────────────────
+                cols = line.split("\t")
+                if len(cols) != 9:
+                    issue_counts["col_count"] += 1
+                    if issue_counts["col_count"] <= max_issues_per_check:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, lineno, "", "column_count",
+                            f"Expected 9 tab-separated columns, got {len(cols)}: {line[:80]}"
+                        ))
+                    continue
+
+                data_lines += 1
+
+                seqid  = cols[COL_SEQID].strip()
+                source = cols[COL_SOURCE].strip()
+                ftype  = cols[COL_TYPE].strip()
+                score  = cols[COL_SCORE].strip()
+                strand = cols[COL_STRAND].strip()
+                phase  = cols[COL_PHASE].strip()
+                attrs_str = cols[COL_ATTRS].strip()
+
+                # ── seqid ────────────────────────────────────────────────────────
+                if not seqid or seqid == ".":
+                    issue_counts["seqid_empty"] += 1
+                    if issue_counts["seqid_empty"] <= max_issues_per_check:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, lineno, "", "seqid_empty",
+                            "seqid (column 1) must not be empty or '.'"
+                        ))
+
+                # ── start / end ──────────────────────────────────────────────────
+                try:
+                    start = int(cols[COL_START])
+                    end   = int(cols[COL_END])
+                except ValueError:
+                    issue_counts["coord_not_int"] += 1
+                    if issue_counts["coord_not_int"] <= max_issues_per_check:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, lineno, "", "coord_not_int",
+                            f"start/end must be integers, got '{cols[COL_START]}' and '{cols[COL_END]}'"
+                        ))
+                    continue
+
+                if start < 1:
+                    issue_counts["coord_negative"] += 1
+                    if issue_counts["coord_negative"] <= max_issues_per_check:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, lineno, "", "coord_1based",
+                            f"start coordinate must be ≥ 1 (GFF3 is 1-based), got {start}"
+                        ))
+
+                if end < start:
+                    issue_counts["coord_order"] += 1
+                    if issue_counts["coord_order"] <= max_issues_per_check:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, lineno, "", "coord_order",
+                            f"start ({start}) must be ≤ end ({end})"
+                        ))
+
+                # ── score ────────────────────────────────────────────────────────
+                if score != ".":
+                    try:
+                        float(score)
+                    except ValueError:
+                        issue_counts["score_invalid"] += 1
+                        if issue_counts["score_invalid"] <= max_issues_per_check:
+                            issues.append(GFF3Issue(
+                                Severity.WARNING, lineno, "", "score_format",
+                                f"score must be a number or '.', got '{score}'"
+                            ))
+
+                # ── strand ───────────────────────────────────────────────────────
+                if strand not in VALID_STRANDS:
+                    issue_counts["strand_invalid"] += 1
+                    if issue_counts["strand_invalid"] <= max_issues_per_check:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, lineno, "", "strand_valid",
+                            f"strand must be '+', '-', or '.', got '{strand}'"
+                        ))
+
+                # ── phase ────────────────────────────────────────────────────────
+                if ftype in CDS_TYPES:
+                    if phase == ".":
+                        issue_counts["cds_phase_dot"] += 1
+                        if issue_counts["cds_phase_dot"] <= max_issues_per_check:
+                            issues.append(GFF3Issue(
+                                Severity.ERROR, lineno, "", "cds_phase_required",
+                                "CDS feature must have an integer phase (0, 1, or 2), not '.'"
+                            ))
+                    else:
+                        try:
+                            ph = int(phase)
+                            if ph not in VALID_PHASES:
+                                raise ValueError()
+                        except ValueError:
+                            issue_counts["cds_phase_invalid"] += 1
+                            if issue_counts["cds_phase_invalid"] <= max_issues_per_check:
+                                issues.append(GFF3Issue(
+                                    Severity.ERROR, lineno, "", "cds_phase_value",
+                                    f"CDS phase must be 0, 1, or 2, got '{phase}'"
+                                ))
+                else:
+                    # For non-CDS, phase must be '.'
+                    if phase != ".":
+                        issue_counts["non_cds_phase"] += 1
+                        if issue_counts["non_cds_phase"] <= max_issues_per_check:
+                            issues.append(GFF3Issue(
+                                Severity.WARNING, lineno, "", "non_cds_phase",
+                                f"Non-CDS feature '{ftype}' has phase '{phase}' (should be '.')"
+                            ))
+
+                # ── Attribute parsing ────────────────────────────────────────────
+                attrs, attr_issues = _parse_attributes(attrs_str, lineno,
+                                                       max_issues_per_check,
+                                                       issue_counts)
+                issues.extend(attr_issues)
+
+                # ── Required ID attribute ────────────────────────────────────────
+                # GFF3 spec: features that are referenced as Parent must have ID
+                # LiftOn always writes ID for gene and transcript features
+                if ftype in GENE_TYPES or ftype in TRANSCRIPT_TYPES:
+                    if "ID" not in attrs:
+                        issue_counts["missing_id"] += 1
+                        if issue_counts["missing_id"] <= max_issues_per_check:
+                            issues.append(GFF3Issue(
+                                Severity.ERROR, lineno, "", "missing_id",
+                                f"'{ftype}' feature must have an ID attribute"
+                            ))
+
+                # ── Build record ─────────────────────────────────────────────────
+                rec = GFF3Record(
+                    lineno=lineno, seqid=seqid, source=source, ftype=ftype,
+                    start=start, end=end, score=score, strand=strand,
+                    phase=phase, attrs=attrs, raw=line,
+                )
+                yield rec
+
+        self.meta = {
+            "total_lines":   total_lines,
+            "data_lines":    data_lines,
+            "comment_lines": comment_lines,
+        }
+
+
 def _parse_gff3(
     path: str,
     max_issues_per_check: int,
@@ -386,177 +1487,9 @@ def _parse_gff3(
 
     Returns (records, issues, meta_dict).
     """
-    records: List[GFF3Record] = []
-    issues: List[GFF3Issue]   = []
-    issue_counts: Dict[str, int] = defaultdict(int)
-
-    total_lines = 0
-    data_lines  = 0
-    comment_lines = 0
-
-    _ATTR_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*=')
-
-    with open(path, "r", errors="replace") as fh:
-        for lineno, raw in enumerate(fh, start=1):
-            total_lines += 1
-            line = raw.rstrip("\n\r")
-
-            # ── Comments and directives ──────────────────────────────────────
-            if line.startswith("#") or line.strip() == "":
-                comment_lines += 1
-                # Check for required GFF3 header
-                if lineno == 1 and not line.startswith("##gff-version"):
-                    issue_counts["missing_gff_version"] += 1
-                    if issue_counts["missing_gff_version"] <= max_issues_per_check:
-                        issues.append(GFF3Issue(
-                            Severity.WARNING, 1, "", "gff3_header",
-                            "First line should be '##gff-version 3' directive"
-                        ))
-                continue
-
-            # ── Column count ─────────────────────────────────────────────────
-            cols = line.split("\t")
-            if len(cols) != 9:
-                issue_counts["col_count"] += 1
-                if issue_counts["col_count"] <= max_issues_per_check:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, lineno, "", "column_count",
-                        f"Expected 9 tab-separated columns, got {len(cols)}: {line[:80]}"
-                    ))
-                continue
-
-            data_lines += 1
-
-            seqid  = cols[COL_SEQID].strip()
-            source = cols[COL_SOURCE].strip()
-            ftype  = cols[COL_TYPE].strip()
-            score  = cols[COL_SCORE].strip()
-            strand = cols[COL_STRAND].strip()
-            phase  = cols[COL_PHASE].strip()
-            attrs_str = cols[COL_ATTRS].strip()
-
-            # ── seqid ────────────────────────────────────────────────────────
-            if not seqid or seqid == ".":
-                issue_counts["seqid_empty"] += 1
-                if issue_counts["seqid_empty"] <= max_issues_per_check:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, lineno, "", "seqid_empty",
-                        "seqid (column 1) must not be empty or '.'"
-                    ))
-
-            # ── start / end ──────────────────────────────────────────────────
-            try:
-                start = int(cols[COL_START])
-                end   = int(cols[COL_END])
-            except ValueError:
-                issue_counts["coord_not_int"] += 1
-                if issue_counts["coord_not_int"] <= max_issues_per_check:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, lineno, "", "coord_not_int",
-                        f"start/end must be integers, got '{cols[COL_START]}' and '{cols[COL_END]}'"
-                    ))
-                continue
-
-            if start < 1:
-                issue_counts["coord_negative"] += 1
-                if issue_counts["coord_negative"] <= max_issues_per_check:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, lineno, "", "coord_1based",
-                        f"start coordinate must be ≥ 1 (GFF3 is 1-based), got {start}"
-                    ))
-
-            if end < start:
-                issue_counts["coord_order"] += 1
-                if issue_counts["coord_order"] <= max_issues_per_check:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, lineno, "", "coord_order",
-                        f"start ({start}) must be ≤ end ({end})"
-                    ))
-
-            # ── score ────────────────────────────────────────────────────────
-            if score != ".":
-                try:
-                    float(score)
-                except ValueError:
-                    issue_counts["score_invalid"] += 1
-                    if issue_counts["score_invalid"] <= max_issues_per_check:
-                        issues.append(GFF3Issue(
-                            Severity.WARNING, lineno, "", "score_format",
-                            f"score must be a number or '.', got '{score}'"
-                        ))
-
-            # ── strand ───────────────────────────────────────────────────────
-            if strand not in VALID_STRANDS:
-                issue_counts["strand_invalid"] += 1
-                if issue_counts["strand_invalid"] <= max_issues_per_check:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, lineno, "", "strand_valid",
-                        f"strand must be '+', '-', or '.', got '{strand}'"
-                    ))
-
-            # ── phase ────────────────────────────────────────────────────────
-            if ftype in CDS_TYPES:
-                if phase == ".":
-                    issue_counts["cds_phase_dot"] += 1
-                    if issue_counts["cds_phase_dot"] <= max_issues_per_check:
-                        issues.append(GFF3Issue(
-                            Severity.ERROR, lineno, "", "cds_phase_required",
-                            "CDS feature must have an integer phase (0, 1, or 2), not '.'"
-                        ))
-                else:
-                    try:
-                        ph = int(phase)
-                        if ph not in VALID_PHASES:
-                            raise ValueError()
-                    except ValueError:
-                        issue_counts["cds_phase_invalid"] += 1
-                        if issue_counts["cds_phase_invalid"] <= max_issues_per_check:
-                            issues.append(GFF3Issue(
-                                Severity.ERROR, lineno, "", "cds_phase_value",
-                                f"CDS phase must be 0, 1, or 2, got '{phase}'"
-                            ))
-            else:
-                # For non-CDS, phase must be '.'
-                if phase != ".":
-                    issue_counts["non_cds_phase"] += 1
-                    if issue_counts["non_cds_phase"] <= max_issues_per_check:
-                        issues.append(GFF3Issue(
-                            Severity.WARNING, lineno, "", "non_cds_phase",
-                            f"Non-CDS feature '{ftype}' has phase '{phase}' (should be '.')"
-                        ))
-
-            # ── Attribute parsing ────────────────────────────────────────────
-            attrs, attr_issues = _parse_attributes(attrs_str, lineno,
-                                                   max_issues_per_check,
-                                                   issue_counts)
-            issues.extend(attr_issues)
-
-            # ── Required ID attribute ────────────────────────────────────────
-            # GFF3 spec: features that are referenced as Parent must have ID
-            # LiftOn always writes ID for gene and transcript features
-            if ftype in GENE_TYPES or ftype in TRANSCRIPT_TYPES:
-                if "ID" not in attrs:
-                    issue_counts["missing_id"] += 1
-                    if issue_counts["missing_id"] <= max_issues_per_check:
-                        issues.append(GFF3Issue(
-                            Severity.ERROR, lineno, "", "missing_id",
-                            f"'{ftype}' feature must have an ID attribute"
-                        ))
-
-            # ── Build record ─────────────────────────────────────────────────
-            rec = GFF3Record(
-                lineno=lineno, seqid=seqid, source=source, ftype=ftype,
-                start=start, end=end, score=score, strand=strand,
-                phase=phase, attrs=attrs, raw=line,
-            )
-            records.append(rec)
-
-    meta = {
-        "total_lines":   total_lines,
-        "data_lines":    data_lines,
-        "comment_lines": comment_lines,
-    }
-    return records, issues, meta
+    parser = _GFF3Parser(path, max_issues_per_check)
+    records = list(parser)
+    return records, parser.issues, parser.meta
 
 
 def _parse_attributes(
@@ -611,23 +1544,36 @@ def _check_hierarchy(
     id_to_record: Dict[str, GFF3Record],
     parent_to_children: Dict[str, List[GFF3Record]],
     max_issues: int,
+    shared_counts: Optional[Dict[str, int]] = None,
 ) -> List[GFF3Issue]:
     """
-    Validate the gene→transcript→exon→CDS parent-child relationship.
+    Validate LiftOn's root→transcript→exon→CDS relationships.
 
     Rules (per NCBI GFF3 spec and LiftOn conventions):
     1. Every Parent reference must point to a known ID.
-    2. Genes must not have a Parent (they are top-level).
-    3. Transcripts must have a gene as Parent.
-    4. Exons must have a transcript as Parent.
-    5. CDS features must have a transcript as Parent.
+    2. Known gene-like features must not have a Parent (they are top-level).
+    3. Transcripts must have a child-bearing root as Parent, unless the
+       transcript is itself a child-bearing root.
+    4. Exons must have a transcript or child-bearing root as Parent.
+    5. CDS features must have a transcript or child-bearing root as Parent.
     6. A transcript must have at least one exon child.
     7. Coding transcripts (mRNA) must have at least one CDS child.
     8. CDS must be a subset of at least one exon of the same transcript.
     """
     issues: List[GFF3Issue] = []
-    issue_counts: Dict[str, int] = defaultdict(int)
+    # A caller driving these checks block by block passes its own counter so
+    # `max_issues` still caps across the file rather than per block.
+    issue_counts: Dict[str, int] = (
+        defaultdict(int) if shared_counts is None else shared_counts)
     all_ids = set(id_to_record.keys())
+
+    def is_child_bearing_root(rec: GFF3Record) -> bool:
+        return (
+            bool(rec.feat_id)
+            and not rec.parent_ids
+            and bool(parent_to_children.get(rec.feat_id))
+            and _can_be_child_bearing_root(rec.ftype)
+        )
 
     for rec in records:
         fid = rec.feat_id
@@ -652,23 +1598,26 @@ def _check_hierarchy(
                     f"but has Parent='{pid}'"
                 ))
 
-        # ── Rule 3: Transcripts must have a gene parent ──────────────────────
+        # ── Rule 3: Transcripts need a root parent or must be the root ───────
         if rec.ftype in TRANSCRIPT_TYPES:
             if not pid:
-                issue_counts["trans_no_parent"] += 1
-                if issue_counts["trans_no_parent"] <= max_issues:
-                    issues.append(GFF3Issue(
-                        Severity.ERROR, rec.lineno, fid, "transcript_no_parent",
-                        f"Transcript-type '{rec.ftype}' has no Parent attribute"
-                    ))
+                if not is_child_bearing_root(rec):
+                    issue_counts["trans_no_parent"] += 1
+                    if issue_counts["trans_no_parent"] <= max_issues:
+                        issues.append(GFF3Issue(
+                            Severity.ERROR, rec.lineno, fid, "transcript_no_parent",
+                            f"Transcript-type '{rec.ftype}' has no Parent "
+                            "attribute and no children"
+                        ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if parent_rec.ftype not in GENE_TYPES:
+                if (parent_rec.ftype not in GENE_TYPES
+                        and not is_child_bearing_root(parent_rec)):
                     issue_counts["trans_wrong_parent"] += 1
                     if issue_counts["trans_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
                             Severity.ERROR, rec.lineno, fid, "transcript_parent_type",
-                            f"Transcript parent must be a gene; "
+                            f"Transcript parent must be a top-level root; "
                             f"'{pid}' has type '{parent_rec.ftype}'"
                         ))
 
@@ -683,14 +1632,15 @@ def _check_hierarchy(
                     ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if (parent_rec.ftype not in TRANSCRIPT_TYPES
-                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES):
+                if (not is_transcript_type(parent_rec.ftype)
+                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES
+                        and not is_child_bearing_root(parent_rec)):
                     issue_counts["exon_wrong_parent"] += 1
                     if issue_counts["exon_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
                             Severity.ERROR, rec.lineno, fid, "exon_parent_type",
                             f"Exon parent '{pid}' has type '{parent_rec.ftype}' "
-                            f"(expected transcript type)"
+                            f"(expected transcript or top-level root)"
                         ))
 
         # ── Rule 5: CDS must have a transcript parent ────────────────────────
@@ -704,14 +1654,15 @@ def _check_hierarchy(
                     ))
             elif pid in id_to_record:
                 parent_rec = id_to_record[pid]
-                if (parent_rec.ftype not in TRANSCRIPT_TYPES
-                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES):
+                if (not is_transcript_type(parent_rec.ftype)
+                        and parent_rec.ftype not in DIRECT_EXON_PARENT_TYPES
+                        and not is_child_bearing_root(parent_rec)):
                     issue_counts["cds_wrong_parent"] += 1
                     if issue_counts["cds_wrong_parent"] <= max_issues:
                         issues.append(GFF3Issue(
                             Severity.ERROR, rec.lineno, fid, "cds_parent_type",
                             f"CDS parent '{pid}' has type '{parent_rec.ftype}' "
-                            f"(expected transcript type)"
+                            f"(expected transcript or top-level root)"
                         ))
 
     # ── Rules 6 & 7: Transcripts must have exons (and mRNA must have CDS) ───
@@ -769,13 +1720,17 @@ def _check_containment(
     records: List[GFF3Record],
     id_to_record: Dict[str, GFF3Record],
     max_issues: int,
+    shared_counts: Optional[Dict[str, int]] = None,
 ) -> List[GFF3Issue]:
     """
     Validate that every child feature is contained within its parent coordinates.
     Also validates that all features on the same seqid share the parent's seqid.
     """
     issues: List[GFF3Issue] = []
-    issue_counts: Dict[str, int] = defaultdict(int)
+    # A caller driving these checks block by block passes its own counter so
+    # `max_issues` still caps across the file rather than per block.
+    issue_counts: Dict[str, int] = (
+        defaultdict(int) if shared_counts is None else shared_counts)
 
     for rec in records:
         pid = rec.parent_id
@@ -828,6 +1783,7 @@ def _check_cds_phase(
     parent_to_children: Dict[str, List[GFF3Record]],
     id_to_record: Dict[str, GFF3Record],
     max_issues: int,
+    shared_counts: Optional[Dict[str, int]] = None,
 ) -> List[GFF3Issue]:
     """
     Validate GFF3 CDS phase values.
@@ -839,7 +1795,10 @@ def _check_cds_phase(
     The first CDS should always have phase 0 for a complete CDS.
     """
     issues: List[GFF3Issue] = []
-    issue_counts: Dict[str, int] = defaultdict(int)
+    # A caller driving these checks block by block passes its own counter so
+    # `max_issues` still caps across the file rather than per block.
+    issue_counts: Dict[str, int] = (
+        defaultdict(int) if shared_counts is None else shared_counts)
 
     for trans_id, children in parent_to_children.items():
         cds_list = [c for c in children if c.ftype in CDS_TYPES]
@@ -889,6 +1848,7 @@ def _check_lifton_attrs(
     records: List[GFF3Record],
     parent_to_children: Dict[str, List[GFF3Record]],
     max_issues: int,
+    shared_counts: Optional[Dict[str, int]] = None,
 ) -> List[GFF3Issue]:
     """
     Validate LiftOn-specific attributes written on transcript features:
@@ -897,7 +1857,10 @@ def _check_lifton_attrs(
       - source column must be 'LiftOn' for features LiftOn wrote
     """
     issues: List[GFF3Issue] = []
-    issue_counts: Dict[str, int] = defaultdict(int)
+    # A caller driving these checks block by block passes its own counter so
+    # `max_issues` still caps across the file rather than per block.
+    issue_counts: Dict[str, int] = (
+        defaultdict(int) if shared_counts is None else shared_counts)
 
     for rec in records:
         fid = rec.feat_id

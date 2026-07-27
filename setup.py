@@ -43,9 +43,9 @@ setuptools.setup(
 		"Programming Language :: Python :: 3.12",
 		"Topic :: Scientific/Engineering :: Bio-Informatics",
 	],
-	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "cigar>=0.1.3", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0',
+	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0',
 	# Phase 6.1 (vendored gffbase) runtime requirements:
-	'duckdb>=1.0', 'pyarrow>=14',
+	'duckdb>=1.0,!=1.5.3,!=1.5.4', 'pyarrow>=14',
 	# Phase 16 Tier 5: mappy unlocks the in-process minimap2 path under
 	# `--native` (lifton/liftoff/native_align.py). Without it, --native
 	# silently degrades to the subprocess path with a stderr warning
@@ -55,17 +55,30 @@ setuptools.setup(
 	'mappy'],
 	# pytest/hypothesis/coverage are test-only; not pulled by a plain install.
 	extras_require={
-		'test': ['pytest>=7.0.0', 'hypothesis>=6.0', 'coverage>=6.0'],
+		'test': [
+			'pytest>=7.0.0',
+			'hypothesis>=6.0',
+			'coverage>=6.0',
+			'flake8>=6.0',
+			'packaging>=21',
+		],
 	},
 	include_package_data=True,
 	package_data={
 		# gffbase ships the pure-Python fallback parser + the Rust extension
 		# SOURCE (no pre-built _native*.so in the tree -> the runtime falls back
-		# to _pyfallback). Only declare files that actually exist.
+		# to _pyfallback). Namespace discovery includes the source-only Rust
+		# directories so setuptools can package them without ambiguity warnings.
 		'lifton.gffbase': ['LICENSE'],
-		'lifton.gffbase._pyfallback': ['*.py'],
 		'lifton.gffbase._rust': ['Cargo.toml', 'Cargo.lock'],
 		'lifton.gffbase._rust.src': ['*.rs'],
+	},
+	# MANIFEST.in keeps the vendored Liftoff tests in the source distribution,
+	# but they are not runtime code and their large fixtures do not ship in the
+	# wheel. Prevent include_package_data from re-adding the test modules as
+	# data files after package discovery excludes their package.
+	exclude_package_data={
+		'lifton.liftoff': ['tests/*', 'tests/**/*'],
 	},
 	# Realistic floor (was '>=3.6'): a runtime dependency, networkx>=3.3,
 	# requires Python>=3.10, so 3.10 is the true minimum (and 3.9 reached EOL in
@@ -73,7 +86,10 @@ setuptools.setup(
 	# and PEP-604 X|None annotations guarded by `from __future__ import
 	# annotations`. The dev env and CI run 3.11 (lifton.yml).
 	python_requires='>=3.10',
-	packages=setuptools.find_packages(),
+	packages=setuptools.find_namespace_packages(
+		include=['lifton', 'lifton.*'],
+		exclude=['lifton.liftoff.tests', 'lifton.liftoff.tests.*'],
+	),
 	entry_points={'console_scripts': [
             'lifton = lifton.lifton:main',
             'gff3-validate = lifton.gff3_validator:_main',

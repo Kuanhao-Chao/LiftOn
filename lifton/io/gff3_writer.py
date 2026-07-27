@@ -30,7 +30,7 @@ from lifton.io.ncbi_gff3_spec import RESERVED_CHARS
 _PCT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
 
 
-def _encode_reserved(value: str) -> str:
+def encode_attribute_value(value: str) -> str:
     """Percent-encode reserved characters per NCBI GFF3 spec.
 
     The encoding is unambiguous: every literal `%` becomes `%25` so a
@@ -54,6 +54,11 @@ def _encode_reserved(value: str) -> str:
     return "".join(out_chars)
 
 
+# Backward-compatible private name retained for focused tests and in-tree
+# callers written before the encoder became shared with vendored Liftoff.
+_encode_reserved = encode_attribute_value
+
+
 def _attr_value_str(values: Any) -> str:
     """Render an attribute's value(s) into the GFF3 wire format.
 
@@ -62,9 +67,9 @@ def _attr_value_str(values: Any) -> str:
     `&`, tab, or newline doesn't break the line structure.
     """
     if isinstance(values, (list, tuple)):
-        encoded = [_encode_reserved(str(v)) for v in values]
+        encoded = [encode_attribute_value(str(v)) for v in values]
         return ",".join(encoded)
-    return _encode_reserved(str(values))
+    return encode_attribute_value(str(values))
 
 
 def _canonical_attr_order(keys):
@@ -109,6 +114,28 @@ def format_directives(directives) -> str:
         seen.add(line)
         out.append(line)
     return "\n".join(out) + "\n"
+
+
+def target_output_directives(directives):
+    """Return only directives that remain true after assembly lift-over.
+
+    Coordinate ranges, species/build pragmas, annotation provenance, and a
+    reference ``##FASTA`` marker describe the *input* assembly. Re-emitting
+    them on target coordinates produces a misleading output header. Ontology
+    declarations are assembly-independent and are therefore retained.
+    """
+    allowed_prefixes = (
+        "##gff-version",
+        "##feature-ontology",
+        "##attribute-ontology",
+        "##source-ontology",
+    )
+    return [
+        str(raw).rstrip("\r\n")
+        for raw in directives or ()
+        if raw is not None
+        and str(raw).rstrip("\r\n").startswith(allowed_prefixes)
+    ]
 
 
 def format_attributes(attributes: Mapping[str, Any]) -> str:

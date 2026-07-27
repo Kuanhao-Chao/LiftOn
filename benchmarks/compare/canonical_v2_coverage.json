@@ -1,0 +1,429 @@
+{
+  "campaign_summary": {
+    "arms": 751,
+    "campaigns": 16,
+    "cases": [
+      {
+        "arms": 3,
+        "cells": 3,
+        "id": "preflight-gates",
+        "ids": 3,
+        "repetitions": 1,
+        "stage": "gates"
+      },
+      {
+        "arms": 16,
+        "cells": 8,
+        "id": "subset-canary",
+        "ids": 2,
+        "repetitions": 4,
+        "stage": "paired-subset-canary"
+      },
+      {
+        "arms": 272,
+        "cells": 136,
+        "id": "subset-legacy",
+        "ids": 34,
+        "repetitions": 4,
+        "stage": "paired-subset"
+      },
+      {
+        "arms": 48,
+        "cells": 24,
+        "id": "subset-truth",
+        "ids": 6,
+        "repetitions": 4,
+        "stage": "paired-subset"
+      },
+      {
+        "arms": 16,
+        "cells": 8,
+        "id": "subset-deep-diagnostic",
+        "ids": 2,
+        "repetitions": 4,
+        "stage": "paired-subset"
+      },
+      {
+        "arms": 16,
+        "cells": 8,
+        "id": "full-canary",
+        "ids": 2,
+        "repetitions": 4,
+        "stage": "paired-full-canary"
+      },
+      {
+        "arms": 136,
+        "cells": 68,
+        "id": "full-legacy",
+        "ids": 17,
+        "repetitions": 4,
+        "stage": "paired-full"
+      },
+      {
+        "arms": 40,
+        "cells": 20,
+        "id": "full-truth",
+        "ids": 5,
+        "repetitions": 4,
+        "stage": "paired-full"
+      },
+      {
+        "arms": 16,
+        "cells": 8,
+        "id": "full-deep-diagnostic",
+        "ids": 2,
+        "repetitions": 4,
+        "stage": "paired-full"
+      },
+      {
+        "arms": 16,
+        "cells": 8,
+        "id": "e2e-canary",
+        "ids": 2,
+        "repetitions": 4,
+        "stage": "paired-e2e-canary"
+      },
+      {
+        "arms": 40,
+        "cells": 20,
+        "id": "e2e-same-species",
+        "ids": 5,
+        "repetitions": 4,
+        "stage": "paired-e2e"
+      },
+      {
+        "arms": 24,
+        "cells": 12,
+        "id": "e2e-cross-existing",
+        "ids": 3,
+        "repetitions": 4,
+        "stage": "paired-e2e"
+      },
+      {
+        "arms": 24,
+        "cells": 12,
+        "id": "e2e-cross-truth",
+        "ids": 3,
+        "repetitions": 4,
+        "stage": "paired-e2e"
+      },
+      {
+        "arms": 16,
+        "cells": 8,
+        "id": "synthetic-truth",
+        "ids": 2,
+        "repetitions": 4,
+        "stage": "paired-subset"
+      },
+      {
+        "arms": 36,
+        "cells": 36,
+        "id": "v2_protocol_thread_scaling_bee",
+        "ids": 1,
+        "repetitions": 6,
+        "stage": "protocol-thread-scaling"
+      },
+      {
+        "arms": 32,
+        "cells": 32,
+        "id": "v2_protocol_io_modes_arabidopsis",
+        "ids": 1,
+        "repetitions": 4,
+        "stage": "protocol-io-modes"
+      }
+    ],
+    "cells": 411
+  },
+  "coverage_sha256": "19191dbbb47e0229a9698dac2d2582561fc39b089098640a370bb62d1efcc4b6",
+  "dimension_counts": {
+    "input_format": {
+      "GFF3": 6,
+      "GTF": 2,
+      "not_applicable": 4
+    },
+    "kind": {
+      "biological": 8,
+      "protocol": 2,
+      "synthetic": 2
+    },
+    "panel": {
+      "cross_e2e": 3,
+      "full": 7,
+      "protocol": 2,
+      "subset": 8,
+      "synthetic": 2,
+      "truth": 8
+    },
+    "truth_policy": {
+      "not_applicable": 4,
+      "ortholog_aware_independent_target_annotation": 8
+    }
+  },
+  "future_backlog": {
+    "items": [
+      {
+        "description": "Polyploid transfer with homeolog-aware truth and copy-number scoring.",
+        "dimension": "genome-topology",
+        "id": "polyploid-homeologs",
+        "priority": "P1"
+      },
+      {
+        "description": "Primary-to-alternate-haplotype or graph-derived assembly transfer.",
+        "dimension": "genome-topology",
+        "id": "alternate-haplotype-pangenome",
+        "priority": "P1"
+      },
+      {
+        "description": "Segmental duplications, recent paralogs, and explicit copy truth.",
+        "dimension": "difficult-biology",
+        "id": "segmental-duplication-paralogy",
+        "priority": "P1"
+      },
+      {
+        "description": "Controlled translocations, fusion, splitting, inversion, and pseudogene cases.",
+        "dimension": "difficult-biology",
+        "id": "gene-rearrangement-truth",
+        "priority": "P1"
+      },
+      {
+        "description": "Noncoding-only, partial, missing-parent, and mixed gene-model inputs.",
+        "dimension": "annotation-content",
+        "id": "noncoding-and-partial-annotations",
+        "priority": "P2"
+      },
+      {
+        "description": "Mitochondrial, chloroplast, and circular-coordinate annotations.",
+        "dimension": "genome-topology",
+        "id": "organelle-and-circular-sequences",
+        "priority": "P2"
+      },
+      {
+        "description": "Compressed, reordered, very large-attribute, and intentionally malformed inputs.",
+        "dimension": "input-robustness",
+        "id": "compressed-streaming-malformed-inputs",
+        "priority": "P2"
+      },
+      {
+        "description": "Cold and warm cache measurements across local storage classes.",
+        "dimension": "performance-protocol",
+        "id": "cold-warm-storage-protocol",
+        "priority": "P2"
+      },
+      {
+        "description": "Pinned Python, DuckDB, spatial-extension, and native-backend combinations.",
+        "dimension": "software-compatibility",
+        "id": "runtime-compatibility-matrix",
+        "priority": "P3"
+      },
+      {
+        "description": "Reproducible comparisons with actively maintained annotation-transfer tools.",
+        "dimension": "comparative-methods",
+        "id": "external-tool-baselines",
+        "priority": "P3"
+      }
+    ],
+    "profile_id": "canonical-v3-backlog",
+    "promotion_requirements": [
+      "immutable source identities and byte hashes",
+      "independent or exact synthetic truth",
+      "declared resource budget and expected runtime",
+      "pre-registered correctness and performance gates"
+    ],
+    "schema_version": 1
+  },
+  "manifest_sha256": "b5683d569edb20963af4b78c7a5601432b51293fabdbc2e75fbea9b95f2ea9ef",
+  "profile_digest": "a1ad051695ad43a29747a91bc24a338d4cc48f0861d73da74c8c502713bc8f87",
+  "profile_id": "canonical-v2",
+  "release_matrix": {
+    "e2e_ids": 11,
+    "full_ids": 22,
+    "repetitions": [
+      4
+    ],
+    "subset_ids": 40,
+    "synthetic_ids": 2
+  },
+  "scenarios": [
+    {
+      "campaigns": [
+        "full-truth",
+        "subset-truth"
+      ],
+      "id": "v2_truth_human_grch38_chm13",
+      "input_format": "GFF3",
+      "kind": "biological",
+      "panels": [
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "full-truth",
+        "subset-truth"
+      ],
+      "id": "v2_dialect_ensembl116_gtf",
+      "input_format": "GTF",
+      "kind": "biological",
+      "panels": [
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "e2e-cross-truth",
+        "full-truth",
+        "subset-truth"
+      ],
+      "id": "v2_dialect_flybase_dmel_dere",
+      "input_format": "GTF",
+      "kind": "biological",
+      "panels": [
+        "cross_e2e",
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "e2e-cross-truth",
+        "full-truth",
+        "subset-truth"
+      ],
+      "id": "v2_dialect_wormbase_celegans_cbriggsae",
+      "input_format": "GFF3",
+      "kind": "biological",
+      "panels": [
+        "cross_e2e",
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "full-truth",
+        "subset-truth"
+      ],
+      "id": "v2_truth_soybean_w82_lee",
+      "input_format": "GFF3",
+      "kind": "biological",
+      "panels": [
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "full-deep-diagnostic",
+        "subset-deep-diagnostic"
+      ],
+      "id": "v2_deep_zebrafish_xenopus",
+      "input_format": "GFF3",
+      "kind": "biological",
+      "panels": [
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "full-deep-diagnostic",
+        "subset-deep-diagnostic"
+      ],
+      "id": "v2_deep_tomato_rice",
+      "input_format": "GFF3",
+      "kind": "biological",
+      "panels": [
+        "full",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "e2e-cross-truth",
+        "subset-truth"
+      ],
+      "id": "v2_truth_rat_mouse_e2e",
+      "input_format": "GFF3",
+      "kind": "biological",
+      "panels": [
+        "cross_e2e",
+        "subset",
+        "truth"
+      ],
+      "truth_policy": "ortholog_aware_independent_target_annotation"
+    },
+    {
+      "campaigns": [
+        "synthetic-truth"
+      ],
+      "id": "v2_synth_chr22_fragmented",
+      "input_format": null,
+      "kind": "synthetic",
+      "panels": [
+        "synthetic"
+      ],
+      "truth_policy": null
+    },
+    {
+      "campaigns": [
+        "synthetic-truth"
+      ],
+      "id": "v2_synth_chr22_sv",
+      "input_format": null,
+      "kind": "synthetic",
+      "panels": [
+        "synthetic"
+      ],
+      "truth_policy": null
+    },
+    {
+      "campaigns": [
+        "e2e-canary",
+        "e2e-same-species",
+        "full-legacy",
+        "subset-legacy",
+        "v2_protocol_thread_scaling_bee"
+      ],
+      "id": "v2_protocol_thread_scaling_bee",
+      "input_format": null,
+      "kind": "protocol",
+      "panels": [
+        "protocol"
+      ],
+      "truth_policy": null
+    },
+    {
+      "campaigns": [
+        "e2e-same-species",
+        "full-canary",
+        "full-legacy",
+        "subset-legacy",
+        "v2_protocol_io_modes_arabidopsis"
+      ],
+      "id": "v2_protocol_io_modes_arabidopsis",
+      "input_format": null,
+      "kind": "protocol",
+      "panels": [
+        "protocol"
+      ],
+      "truth_policy": null
+    }
+  ],
+  "schema_version": 1
+}

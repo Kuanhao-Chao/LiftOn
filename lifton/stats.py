@@ -1,6 +1,25 @@
+import os
 import sys
 from collections import defaultdict
 from lifton import logger
+
+
+class _Tee:
+    """Write the same text to several streams at once (GitHub issue #50: the
+    run summary goes to BOTH stderr and stats/summary.txt)."""
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, data):
+        for s in self._streams:
+            s.write(data)
+
+    def flush(self):
+        for s in self._streams:
+            try:
+                s.flush()
+            except Exception:
+                pass
 
 def print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=False, fw_feature_type=None):
     """
@@ -98,8 +117,25 @@ def print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extr
             fw_feature_type.write(f"{ftype}\t{b['reference']}\t{b['lifted']}\t"
                                   f"{b['missed']}\t{b['extra']}\t{b['target']}\t{pct:.5f}\n")
 
+    # GH #50: persist the summary block (below) to stats/summary.txt as well as
+    # stderr. Derive the stats dir from a side-car writer's path so no new argument
+    # or caller change is needed; tee stderr for the duration of the block.
+    _summary_fh = None
+    _stats_dir = os.path.dirname(getattr(fw_mapped_feature, "name", "") or "")
+    if _stats_dir:
+        try:
+            _summary_fh = open(os.path.join(_stats_dir, "summary.txt"), "w")
+        except OSError:
+            _summary_fh = None
+    _prev_stderr = sys.stderr
+    if _summary_fh is not None:
+        sys.stderr = _Tee(_prev_stderr, _summary_fh)
+
     print("\n\n*********************************************", file=sys.stderr)
-    print(f"* Total features in reference\t\t: {len(ref_features_dict.keys())-1}", file=sys.stderr)
+    reference_feature_count = sum(
+        1 for feature_id in ref_features_dict if feature_id != "LiftOn-gene"
+    )
+    print(f"* Total features in reference\t\t: {reference_feature_count}", file=sys.stderr)
     print(f"* Lifted feature\t\t\t: {LIFTED_FEATURES} ({LIFTED_SINGLE_CODING_FEATURES + LIFTED_EXTRA_CODING_FEATURES} + {LIFTED_SINGLE_NONCODING_FEATURES + LIFTED_EXTRA_NONCODING_FEATURES} + {LIFTED_SINGLE_OTHER_FEATURES + LIFTED_EXTRA_OTHER_FEATURES})", file=sys.stderr)
     print(f"\t* Protein-coding feature\t: {LIFTED_SINGLE_CODING_FEATURES + LIFTED_EXTRA_CODING_FEATURES}", file=sys.stderr)
     print(f"\t* Non-coding feature\t\t: {LIFTED_SINGLE_NONCODING_FEATURES + LIFTED_EXTRA_NONCODING_FEATURES}", file=sys.stderr)
@@ -121,4 +157,9 @@ def print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extr
         b = by_type[ftype]
         pct = (100.0 * b["lifted"] / b["reference"]) if b["reference"] else 0.0
         print(f"\t* {ftype}\t: {b['lifted']}/{b['reference']} ({pct:.1f}%)", file=sys.stderr)
-    print(f"*********************************************")
+    print("*********************************************", file=sys.stderr)
+
+    # GH #50: restore stderr and finalise summary.txt.
+    sys.stderr = _prev_stderr
+    if _summary_fh is not None:
+        _summary_fh.close()

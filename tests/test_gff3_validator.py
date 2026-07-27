@@ -173,6 +173,7 @@ class TestParentResolution:
         findings = GFF3Validator().validate(gff_shared_exon_isoforms)
         rules = {f.rule for f in findings if f.severity == "error"}
         assert "dangling_parent" not in rules
+        assert "unencoded_reserved_char" not in rules
 
 
 class TestAttributeEncoding:
@@ -192,6 +193,52 @@ class TestAttributeEncoding:
         findings = GFF3Validator().validate(fp)
         rules = {f.rule for f in findings if f.severity == "error"}
         assert "unencoded_reserved_char" not in rules
+
+    @pytest.mark.parametrize("key", sorted(MULTI_VALUE_ATTRS))
+    def test_comma_separates_official_multi_value_attributes(
+            self, tmp_path, key):
+        fp = tmp_path / f"multi-{key}.gff3"
+        fp.write_text(
+            "##gff-version 3\n"
+            f"chr1\tt\tgene\t1\t10\t.\t+\t.\tID=g;{key}=a,b\n"
+        )
+
+        findings = GFF3Validator().validate(fp)
+
+        assert "unencoded_reserved_char" not in {
+            finding.rule for finding in findings if finding.severity == "error"
+        }
+
+    def test_comma_is_reserved_outside_multi_value_attributes(self, tmp_path):
+        fp = tmp_path / "commas.gff3"
+        fp.write_text(
+            "##gff-version 3\n"
+            "chr1\tt\tgene\t1\t10\t.\t+\t.\tID=g;custom=a,b\n"
+        )
+
+        findings = GFF3Validator().validate(fp)
+
+        assert "unencoded_reserved_char" in {
+            finding.rule for finding in findings if finding.severity == "error"
+        }
+
+    @pytest.mark.parametrize(
+        ("attributes", "rule"),
+        (("ID=", "empty_id"), ("ID=g;Parent=a,", "empty_parent")),
+    )
+    def test_empty_hierarchy_identifiers_are_errors(
+            self, tmp_path, attributes, rule):
+        fp = tmp_path / f"{rule}.gff3"
+        fp.write_text(
+            "##gff-version 3\n"
+            f"chr1\tt\tgene\t1\t10\t.\t+\t.\t{attributes}\n"
+        )
+
+        findings = GFF3Validator().validate(fp)
+
+        assert rule in {
+            finding.rule for finding in findings if finding.severity == "error"
+        }
 
     def test_attribute_without_equals_is_error(self, tmp_path):
         fp = tmp_path / "no_eq.gff3"

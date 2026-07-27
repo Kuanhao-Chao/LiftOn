@@ -1,0 +1,180 @@
+{
+  "extcompare:t2_human_to_gorilla": {
+    "benchmark": "t2_human_to_gorilla",
+    "mode": "subset_extcompare",
+    "key": "extcompare:t2_human_to_gorilla",
+    "species": "Homo sapiens (GRCh38) -> Gorilla gorilla",
+    "cross_species": true,
+    "divergence_class": "close_cross_species",
+    "scope": "chromosome_subset",
+    "n_reference_coding": 3086,
+    "tools": [
+      "liftoff",
+      "lifton_stable",
+      "lifton_devel",
+      "liftover",
+      "miniprot"
+    ],
+    "evidence_tools": [
+      "miniprot"
+    ],
+    "completeness_coding": {
+      "liftoff": 0.99935,
+      "lifton_stable": 0.99935,
+      "lifton_devel": 0.99935,
+      "liftover": 0.99384,
+      "miniprot": 0.99935
+    },
+    "mean_pi": {
+      "liftoff": 0.96327,
+      "lifton_stable": 0.9742,
+      "lifton_devel": 0.97855,
+      "liftover": 0.91994,
+      "miniprot": 0.96396
+    },
+    "median_pi": {
+      "liftoff": 0.99383,
+      "lifton_stable": 0.99383,
+      "lifton_devel": 0.99383,
+      "liftover": 0.99336,
+      "miniprot": 0.99238
+    },
+    "n_recovered_coding": {
+      "liftoff": 3084,
+      "lifton_stable": 3084,
+      "lifton_devel": 3084,
+      "liftover": 3067,
+      "miniprot": 3084
+    },
+    "validity": {
+      "liftoff": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 100,
+        "valid": false
+      },
+      "lifton_stable": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 5,
+        "valid": false
+      },
+      "lifton_devel": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 1,
+        "valid": true
+      },
+      "liftover": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 150,
+        "valid": true
+      },
+      "miniprot": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 200,
+        "valid": false
+      }
+    },
+    "liftover_feature_lift_rate": {
+      "cds_lift_rate": 0.99384,
+      "n_ref_coding_for_lift": 3086,
+      "n_lifted_coding": 3067
+    },
+    "cat": {
+      "status": "attempted_intractable",
+      "note": "CAT v2 installs + runs 18/21 tasks but its toil sub-workflows (Chaining/GenerateHints) fail opaquely on the RefSeq subset; no column."
+    }
+  },
+  "extcompare:t1_maize_b73_to_mo17": {
+    "benchmark": "t1_maize_b73_to_mo17",
+    "mode": "subset_extcompare",
+    "key": "extcompare:t1_maize_b73_to_mo17",
+    "species": "Zea mays (B73) -> Zea mays (Mo17)",
+    "cross_species": false,
+    "divergence_class": "same_species",
+    "scope": "chromosome_subset",
+    "n_reference_coding": 8527,
+    "tools": [
+      "liftoff",
+      "lifton_stable",
+      "lifton_devel",
+      "liftover",
+      "miniprot"
+    ],
+    "evidence_tools": [
+      "miniprot"
+    ],
+    "completeness_coding": {
+      "liftoff": 0.96106,
+      "lifton_stable": 0.96142,
+      "lifton_devel": 0.9613,
+      "liftover": 0.85458,
+      "miniprot": 0.98522
+    },
+    "mean_pi": {
+      "liftoff": 0.91737,
+      "lifton_stable": 0.94574,
+      "lifton_devel": 0.94987,
+      "liftover": 0.84117,
+      "miniprot": 0.93817
+    },
+    "median_pi": {
+      "liftoff": 0.99552,
+      "lifton_stable": 0.99554,
+      "lifton_devel": 0.99554,
+      "liftover": 0.99587,
+      "miniprot": 0.9945
+    },
+    "n_recovered_coding": {
+      "liftoff": 8195,
+      "lifton_stable": 8198,
+      "lifton_devel": 8197,
+      "liftover": 7287,
+      "miniprot": 8401
+    },
+    "validity": {
+      "liftoff": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 150,
+        "valid": false
+      },
+      "lifton_stable": {
+        "exit": 1,
+        "n_errors": 58,
+        "n_warnings": 148,
+        "valid": false
+      },
+      "lifton_devel": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 114,
+        "valid": true
+      },
+      "liftover": {
+        "exit": 1,
+        "n_errors": 6,
+        "n_warnings": 150,
+        "valid": false
+      },
+      "miniprot": {
+        "exit": 1,
+        "n_errors": 50,
+        "n_warnings": 200,
+        "valid": false
+      }
+    },
+    "liftover_feature_lift_rate": {
+      "cds_lift_rate": 0.85458,
+      "n_ref_coding_for_lift": 8527,
+      "n_lifted_coding": 7287
+    },
+    "cat": {
+      "status": "attempted_intractable",
+      "note": "CAT v2 installs + runs 18/21 tasks but its toil sub-workflows (Chaining/GenerateHints) fail opaquely on the RefSeq subset; no column."
+    }
+  }
+}

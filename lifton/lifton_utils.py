@@ -5,6 +5,7 @@ from lifton.liftoff import liftoff_main
 # Iteration 16: the three pure helpers below moved to the dependency-free
 # leaf module lifton.coreutils to break the lifton_utils <-> lifton_class
 # import cycle. Re-exported here so lifton_utils.<helper> keeps resolving.
+from lifton import coreutils
 from lifton.coreutils import (  # noqa: F401
     custom_bisect_insert,
     get_ID_base,
@@ -48,6 +49,20 @@ def get_truncated_protein(ref_proteins):
     # print("good_protein: ", good_protein)
     # print("bad_protein: ", bad_protein)
     return truncated_proteins
+
+
+def count_truncated_proteins(ref_proteins):
+    """Number of reference proteins that fail ``check_protein_valid``.
+
+    The pipeline only ever reported ``len()`` of the dict :func:`
+    get_truncated_protein` builds, so at human scale it materialised a
+    dictionary of pyfaidx records -- and kept it alive for the whole run --
+    to produce a single integer.
+    """
+    return sum(
+        1 for record in ref_proteins.keys()
+        if not check_protein_valid(str(ref_proteins[record]))
+    )
 
 
 def write_seq_2_file(outdir, ref_seqs, target):
@@ -135,9 +150,14 @@ def exec_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         Returns:
         miniprot_annotation: miniprot annotation file path
     """
-    check_miniprot_installed()
     miniprot_annotation = args.miniprot
     if miniprot_annotation is None or not os.path.exists(miniprot_annotation):
+        # Preflight ONLY when miniprot is actually going to run. Checking before the
+        # -M short-circuit made the documented cached workflow
+        #   lifton -g ref.gff3 -L prior.gff3 -M prior_miniprot.gff3 ...
+        # exit 1 on a machine without miniprot installed, even though the binary is
+        # never invoked. (main() already gates its own preflight the same way.)
+        check_miniprot_installed()
         print("\n**********************")
         print("** Running miniprot **")
         print("**********************")
@@ -281,19 +301,36 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
             # Valid miniprot transcript exists => check if the miniprot transcript is valid
             has_valid_miniprot = True
             miniprot_trans = lifton_class.Lifton_TRANS(m_id, "", "", 0, m_entry, {})
-            exons = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start')
-            for exon in list(exons):
+            # ONE query, not two identical ones: this exact statement used to
+            # run twice per candidate, 7,038 times on drosophila -- 9.6% of every
+            # SQL statement Step 7 issued. The second consumer needs its own
+            # objects because `Lifton_EXON.__init__` rewrites `featuretype`, so
+            # feeding it the exons' features would hand `add_cds` rows already
+            # relabelled 'exon'. Cloning costs ~5 us against a SQL round-trip.
+            children = list(m_feature_db.children(
+                m_entry, featuretype=('CDS', 'stop_codon'), order_by='start'))
+            for exon in children:
                 miniprot_trans.add_exon(exon)
-            cdss = m_feature_db.children(m_entry, featuretype=('CDS', 'stop_codon'), order_by='start') 
             cds_num = 0
-            for cds in list(cdss):
+            for cds in children:
                 cds_num += 1
-                miniprot_trans.add_cds(cds)
+                miniprot_trans.add_cds(coreutils.clone_feature(cds))
             tmp_m_lifton_aln = align.lifton_parasail_align(miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
-            if m_lifton_aln == None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
+            if tmp_m_lifton_aln is None:
+                # `lifton_parasail_align` returns None when it cannot build a protein
+                # alignment -- e.g. a miniprot mRNA with no CDS/stop_codon children, so
+                # the coding sequence (and therefore `protein_seq`) is empty. The old
+                # code assigned it and then read `.identity`, raising AttributeError;
+                # the caller catches that per-locus, so ONE unusable miniprot candidate
+                # silently dropped the ENTIRE Liftoff gene from the output even though
+                # its DNA lift was fine. Skip the candidate instead.
+                continue
+            if m_lifton_aln is None or tmp_m_lifton_aln.identity > lifton_status.miniprot:
                 m_lifton_aln = tmp_m_lifton_aln
                 lifton_status.miniprot = m_lifton_aln.identity
-    return m_lifton_aln, has_valid_miniprot
+    # Only advertise a valid miniprot alignment when one was actually produced: callers
+    # gate `chaining_algorithm(...)` on this flag and would dereference a None alignment.
+    return m_lifton_aln, (has_valid_miniprot and m_lifton_aln is not None)
 
 
 def _parent_type(ref_db, parent_id):
@@ -501,11 +538,6 @@ def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_re
     return ref_features_reverse_dict[ref_trans_id], ref_trans_id
 
 
-def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status):
-    final_status = ";".join(lifton_status.status)
-    fw_score.write(f"{transcript_id}\t{lifton_status.eval_dna}\t{lifton_status.eval_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
-
-
 def print_lifton_status(transcript_id, transcript, lifton_status, DEBUG=False):
     final_status = ";".join(lifton_status.status)
     logger.log(f"{transcript_id}\t{lifton_status.liftoff}\t{lifton_status.miniprot}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{lifton_status.annotation}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n", debug=DEBUG)
@@ -517,6 +549,7 @@ def write_lifton_status(fw_score, transcript_id, transcript, lifton_status):
 
 
 def write_lifton_eval_status(fw_score, transcript_id, transcript, lifton_status):
+    """Write the established five-column evaluation record."""
     final_status = ";".join(lifton_status.status)
     fw_score.write(f"{transcript_id}\t{lifton_status.lifton_dna}\t{lifton_status.lifton_aa}\t{final_status}\t{transcript.seqid}:{transcript.start}-{transcript.end}\n")
 

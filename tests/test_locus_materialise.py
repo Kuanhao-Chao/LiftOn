@@ -19,11 +19,13 @@ from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest import mock
 
+import gffutils
 import pytest
 
 from lifton import locus_pipeline, parallel
 from lifton.locus_pipeline import (
     LocusResult,
+    HierarchyBatchLoader,
     MaterialisedLocus,
     StepContext,
     consume,
@@ -69,13 +71,86 @@ class _FakeLDB:
         return iter(self._by_type.get(featuretype, []))
 
 
+class _RecordingBatchedLDB:
+    """Small hierarchy backend that records only set-based DB reads."""
+    __module__ = "lifton.gffbase.interface"
+
+    def __init__(self, direct_children):
+        self._direct_children = direct_children
+        self.batch_calls = []
+
+    @staticmethod
+    def _id(feature):
+        return getattr(feature, "id", feature)
+
+    def _select(self, anchor, *, featuretype=None, level=None,
+                order_by=None):
+        anchor_id = self._id(anchor)
+        direct = list(self._direct_children.get(anchor_id, ()))
+        if level == 1:
+            candidates = direct
+        else:
+            candidates = []
+            pending = direct
+            visited = set()
+            while pending:
+                child = pending.pop(0)
+                child_id = self._id(child)
+                if child_id in visited:
+                    continue
+                visited.add(child_id)
+                candidates.append(child)
+                pending.extend(self._direct_children.get(child_id, ()))
+        if featuretype is not None:
+            accepted = (
+                set(featuretype) if isinstance(featuretype, tuple)
+                else {featuretype}
+            )
+            candidates = [
+                child for child in candidates
+                if child.featuretype in accepted
+            ]
+        if order_by == "start":
+            candidates.sort(key=lambda child: (child.start, child.id))
+        return tuple(candidates)
+
+    def children(self, anchor, *, featuretype=None, level=None,
+                 order_by=None):
+        return iter(self._select(
+            anchor, featuretype=featuretype, level=level,
+            order_by=order_by,
+        ))
+
+    def children_batched_features(self, anchors, *, featuretype=None,
+                                  level=None, order_by=None):
+        anchor_ids = tuple(self._id(anchor) for anchor in anchors)
+        self.batch_calls.append(
+            (anchor_ids, featuretype, level, order_by)
+        )
+        return {
+            anchor_id: self._select(
+                anchor_id, featuretype=featuretype, level=level,
+                order_by=order_by,
+            )
+            for anchor_id in anchor_ids
+        }
+
+
 def _build_ctx_for_materialise(monkeypatch=None):
     locus = SimpleNamespace(id="gene1", start=100, end=200, seqid="chr1",
                             strand="+")
-    exon1 = SimpleNamespace(id="exon1", start=100, end=150)
-    exon2 = SimpleNamespace(id="exon2", start=160, end=200)
-    cds1 = SimpleNamespace(id="cds1", start=100, end=150)
-    cds2 = SimpleNamespace(id="cds2", start=160, end=200)
+    exon1 = SimpleNamespace(
+        id="exon1", start=100, end=150, featuretype="exon",
+    )
+    exon2 = SimpleNamespace(
+        id="exon2", start=160, end=200, featuretype="exon",
+    )
+    cds1 = SimpleNamespace(
+        id="cds1", start=100, end=150, featuretype="CDS",
+    )
+    cds2 = SimpleNamespace(
+        id="cds2", start=160, end=200, featuretype="CDS",
+    )
     l_db = _FakeLDB({
         "exon": [exon1, exon2],
         "CDS": [cds1, cds2],
@@ -146,7 +221,12 @@ class TestMaterialiseLocus:
         assert len(payload.exon_children) == 2
         assert len(payload.cds_children) == 2
         assert len(payload.cds_stop_children) == 2
-        assert len(payload.children_l1) == 4
+        # This fixture's locus has DIRECT level-1 exons, i.e. it is transcript-shaped
+        # ("terminal"), so the runtime consumes its exons + CDS and never asks for its
+        # level-1 children -- the walker therefore does not spend that query. This
+        # matches `_walk_and_cache_features_batched`, which likewise assigns
+        # `children_l1 = [] if direct_exons else ...`.
+        assert payload.children_l1 == []
 
     def test_populates_ref_attrs(self, monkeypatch):
         ctx, locus = _build_ctx_for_materialise(monkeypatch)
@@ -187,6 +267,132 @@ class TestMaterialiseLocus:
         assert all(tid == threading.current_thread().ident
                    for tid in thread_ids_seen)
         assert payload.exon_children
+
+    def test_batched_walk_queries_only_runtime_reachable_branches(self):
+        gene = SimpleNamespace(
+            id="gene1", start=1, end=500, featuretype="gene",
+        )
+        tx1 = SimpleNamespace(
+            id="tx1", start=10, end=200, featuretype="mRNA",
+        )
+        tx2 = SimpleNamespace(
+            id="tx2", start=250, end=490, featuretype="mRNA",
+        )
+        exon1 = SimpleNamespace(
+            id="exon1", start=10, end=90, featuretype="exon",
+        )
+        cds1 = SimpleNamespace(
+            id="cds1", start=20, end=80, featuretype="CDS",
+        )
+        stop1 = SimpleNamespace(
+            id="stop1", start=81, end=83, featuretype="stop_codon",
+        )
+        exon2 = SimpleNamespace(
+            id="exon2", start=250, end=490, featuretype="exon",
+        )
+        cds2 = SimpleNamespace(
+            id="cds2", start=260, end=480, featuretype="CDS",
+        )
+        db = _RecordingBatchedLDB({
+            "gene1": (tx1, tx2),
+            "tx1": (exon1, cds1, stop1),
+            "tx2": (exon2, cds2),
+        })
+        ctx = StepContext(
+            ref_db=_FakeRefDB({}), l_feature_db=db, m_feature_db=None,
+            ref_id_2_m_id_trans_dict={}, tree_dict={},
+            tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
+            ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
+            args=SimpleNamespace(native=True, threads=8),
+        )
+
+        payload = materialise_locus(0, gene, ctx)
+
+        # One exon probe plus one branch-specific query at each hierarchy
+        # depth. No all-exon fallback, gene-level CDS query, or leaf probes.
+        assert db.batch_calls == [
+            (("gene1",), "exon", 1, "start"),
+            (("gene1",), None, 1, None),
+            (("tx1", "tx2"), "exon", 1, "start"),
+            (
+                ("tx1", "tx2"),
+                ("CDS", "stop_codon"),
+                None,
+                "start",
+            ),
+        ]
+        assert list(payload.feature_cache) == ["gene1", "tx1", "tx2"]
+        assert [child.id for child in payload.cds_children] == [
+            "cds1", "cds2",
+        ]
+        assert [child.id for child in payload.cds_stop_children] == [
+            "cds1", "stop1", "cds2",
+        ]
+
+        def traversal_bytes(hierarchy_db):
+            rows = []
+
+            def walk(feature):
+                direct_exons = list(hierarchy_db.children(
+                    feature, featuretype="exon", level=1,
+                    order_by="start",
+                ))
+                if direct_exons:
+                    all_exons = hierarchy_db.children(
+                        feature, featuretype="exon", order_by="start",
+                    )
+                    cds_stop = hierarchy_db.children(
+                        feature, featuretype=("CDS", "stop_codon"),
+                        order_by="start",
+                    )
+                    rows.append(
+                        f"{feature.id}|exons="
+                        f"{','.join(child.id for child in all_exons)}|cds="
+                        f"{','.join(child.id for child in cds_stop)}\n"
+                    )
+                    return
+                rows.append(f"{feature.id}|container\n")
+                for child in hierarchy_db.children(feature, level=1):
+                    walk(child)
+
+            walk(gene)
+            return "".join(rows).encode()
+
+        proxy = locus_pipeline._LFeatureDbProxy(payload.feature_cache)
+        assert traversal_bytes(proxy) == traversal_bytes(db)
+
+
+class TestHierarchyBatchLoader:
+    def test_missing_reference_keeps_valid_sibling_transcripts(self):
+        valid = {
+            "tx1": SimpleNamespace(id="tx1"),
+            "tx2": SimpleNamespace(id="tx2"),
+        }
+
+        class ScalarDB:
+            def __getitem__(self, feature_id):
+                try:
+                    return valid[feature_id]
+                except KeyError:
+                    raise gffutils.exceptions.FeatureNotFoundError(
+                        feature_id
+                    )
+
+        loaded = HierarchyBatchLoader(ScalarDB()).features_many(
+            ["tx1", "missing", "tx2"]
+        )
+
+        assert list(loaded) == ["tx1", "tx2"]
+        assert loaded["tx1"] is valid["tx1"]
+        assert loaded["tx2"] is valid["tx2"]
+
+    def test_unexpected_lookup_error_is_not_suppressed(self):
+        class BrokenDB:
+            def __getitem__(self, _feature_id):
+                raise IndexError("corrupt backend row")
+
+        with pytest.raises(IndexError, match="corrupt backend row"):
+            HierarchyBatchLoader(BrokenDB()).features_many(["tx1"])
 
 
 # ---------------------------------------------------------------------------
@@ -243,9 +449,9 @@ class TestProcessLocusNative:
 # ---------------------------------------------------------------------------
 
 class TestParallelStep7NativeDispatch:
-    def test_parent_pre_materialises_payloads(self, monkeypatch):
-        """The native dispatch path must call materialise_locus for
-        every locus before submitting any worker."""
+    def test_reopenable_dispatch_materialises_lazily_on_workers(
+            self, monkeypatch):
+        """Safe connection-less fixtures take the fused lazy worker path."""
         from lifton import parallel as p_mod, run_liftoff
         seen_payloads = []
         seen_threads = []
@@ -292,9 +498,10 @@ class TestParallelStep7NativeDispatch:
         stats = {"coding": {}, "non-coding": {}, "other": {}}
         n = parallel.parallel_step7(["gene"], db, ctx, fw, stats, threads=4)
         assert n == 5
-        # All 5 payloads pre-materialised on the parent (this) thread.
+        # Every payload is materialised, but no whole-root parent snapshot is
+        # required before the executor starts.
         assert len(seen_payloads) == 5
-        assert all(tid == threading.current_thread().ident for tid in seen_threads)
+        assert all(tid != threading.current_thread().ident for tid in seen_threads)
         # Output preserved in submission order.
         assert fw.getvalue() == "0\n1\n2\n3\n4\n"
 

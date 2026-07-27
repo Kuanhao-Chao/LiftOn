@@ -9,8 +9,9 @@
 #
 # Why ship the facade NOW
 # ───────────────────────
-# 1. LiftOn call sites can be wired against the binding-shaped API
-#    today; swapping a real PyO3 binding in later is one-line.
+# 1. Integrations can use the binding-shaped API today. The main CLI keeps
+#    its guarded direct-stream subprocess until a real PyO3 binding is
+#    available; swapping that backend later does not change this API.
 # 2. The subprocess invocation is amortised across all reference
 #    proteins (one fork per Index, not one fork per protein), which
 #    is already much closer to the per-process cost of a real
@@ -27,10 +28,8 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
-import sys
-import tempfile
+from io import BytesIO
 from typing import Iterator, List, Optional
 
 from .types import GFF3Bundle, GFF3Hit
@@ -89,6 +88,7 @@ class MiniprotIndex:
         # built by the shared _build_miniprot_command helper below).
         self.threads = threads
         self._cached_bundle: Optional[GFF3Bundle] = None
+        self._cached_raw_bytes: Optional[bytes] = None
 
         # If the real PyO3 binding ever appears, prefer it.
         self._native = None
@@ -103,18 +103,30 @@ class MiniprotIndex:
     # Public API (mirrors the eventual pyminiprot.Index)
     # ------------------------------------------------------------------
 
-    def align_all(self, ref_proteins_path: Optional[str] = None) -> GFF3Bundle:
+    def align_all(
+        self,
+        ref_proteins_path: Optional[str] = None,
+        *,
+        raw_only: bool = False,
+    ) -> GFF3Bundle:
         """Run miniprot ONCE against an entire reference-proteins FASTA
-        and return the parsed :class:`GFF3Bundle`. The bundle is
-        cached on the Index instance so repeated calls are O(1).
+        and return a :class:`GFF3Bundle`. The default mode parses and caches
+        ``GFF3Hit`` objects, preserving the original facade contract.
+
+        ``raw_only=True`` skips UTF-8 decoding, line splitting, and hit
+        construction. Its returned bundle intentionally has no ``hits`` and
+        carries the byte-identical miniprot output in ``raw_bytes``. Raw bytes
+        are cached separately, so a later parsed call avoids another process.
 
         For a real PyO3 binding this would iterate proteins inside the
         process; for the subprocess path we still amortise the fork
         cost across all proteins, so the *call-site* cost model is
         identical.
         """
-        if self._cached_bundle is not None:
+        if not raw_only and self._cached_bundle is not None:
             return self._cached_bundle
+        if raw_only and self._cached_raw_bytes is not None:
+            return GFF3Bundle(raw_bytes=self._cached_raw_bytes)
 
         proteins = ref_proteins_path or self._ref_proteins_path
         if proteins is None:
@@ -123,24 +135,48 @@ class MiniprotIndex:
                 "(either at construction or via this argument)."
             )
 
-        if self._native is not None:                            # pragma: no cover
-            # Real PyO3 binding path (forward-compatible — not exercised today).
+        # A raw-only call may have populated the byte cache without creating
+        # the parsed bundle. Parse that cache on demand without rerunning the
+        # backend.
+        if self._cached_raw_bytes is not None:
             hits: List[GFF3Hit] = []
-            raw = bytearray()
-            for native_hit in self._native.align_file(proteins):
-                line = native_hit.to_gff_line() + "\n"
-                raw.extend(line.encode("utf-8"))
+            for line in self._cached_raw_bytes.decode(
+                "utf-8", errors="replace",
+            ).splitlines():
                 parsed = GFF3Hit.from_gff_line(line)
                 if parsed is not None:
                     hits.append(parsed)
-            self._cached_bundle = GFF3Bundle(hits=hits, raw_bytes=bytes(raw))
+            self._cached_bundle = GFF3Bundle(
+                hits=hits, raw_bytes=self._cached_raw_bytes,
+            )
+            return self._cached_bundle
+
+        if self._native is not None:                            # pragma: no cover
+            # Real PyO3 binding path (forward-compatible — not exercised today).
+            raw = BytesIO()
+            for native_hit in self._native.align_file(proteins):
+                line = native_hit.to_gff_line() + "\n"
+                raw.write(line.encode("utf-8"))
+            stdout_bytes = raw.getvalue()
+            self._cached_raw_bytes = stdout_bytes
+            if raw_only:
+                return GFF3Bundle(raw_bytes=stdout_bytes)
+
+            hits: List[GFF3Hit] = []
+            for line in stdout_bytes.decode(
+                "utf-8", errors="replace",
+            ).splitlines():
+                parsed = GFF3Hit.from_gff_line(line)
+                if parsed is not None:
+                    hits.append(parsed)
+            self._cached_bundle = GFF3Bundle(
+                hits=hits, raw_bytes=stdout_bytes,
+            )
             return self._cached_bundle
 
         # ── Subprocess fallback ─────────────────────────────────────
-        # Iteration 17: build the command via the shared helper so this
-        # native+streaming path scales miniprot's -t with LiftOn's -t exactly
-        # like the plain subprocess path (otherwise `--native --stream` would
-        # silently stay at miniprot's default 4 while plain `--stream` got -tN).
+        # Build the command via the shared helper so facade clients scale
+        # miniprot's -t exactly like the CLI's guarded subprocess path.
         # Lazy import to avoid any import-order coupling with run_miniprot.
         from lifton.run_miniprot import _build_miniprot_command
         cmd = _build_miniprot_command(
@@ -166,7 +202,11 @@ class MiniprotIndex:
                 "produce an Index."
             )
 
-        hits = []
+        self._cached_raw_bytes = stdout_bytes
+        if raw_only:
+            return GFF3Bundle(raw_bytes=stdout_bytes)
+
+        hits: List[GFF3Hit] = []
         for line in stdout_bytes.decode("utf-8", errors="replace").splitlines():
             parsed = GFF3Hit.from_gff_line(line)
             if parsed is not None:
@@ -202,6 +242,101 @@ class MiniprotIndex:
         # which protein triggered which one.
         return iter(self._cached_bundle.hits)
 
+    def align_all_into(
+        self, sink, ref_proteins_path: Optional[str] = None,
+        *, chunk_size: int = 1 << 20,
+    ) -> int:
+        """Stream an all-protein alignment into ``sink`` without caching it.
+
+        ``sink`` may be a callable accepting bytes or an object with a
+        ``write(bytes)`` method.  The return value is the exact stdout byte
+        count.  Existing :meth:`align_all` remains the compatibility API for
+        callers that explicitly need a parsed or raw in-memory bundle.
+        """
+        import threading
+        from lifton.run_miniprot import (
+            _BoundedStderr, _build_miniprot_command, _stop_process,
+            _with_stderr_tail,
+        )
+
+        write = sink if callable(sink) else getattr(sink, "write", None)
+        if not callable(write):
+            raise TypeError("sink must be callable or expose write(bytes)")
+        proteins = ref_proteins_path or self._ref_proteins_path
+        if proteins is None:
+            raise ValueError(
+                "MiniprotIndex.align_all_into requires a ref_proteins_path"
+            )
+        if self._cached_raw_bytes is not None:
+            write(self._cached_raw_bytes)
+            return len(self._cached_raw_bytes)
+
+        if self._native is not None:                            # pragma: no cover
+            byte_count = 0
+            for native_hit in self._native.align_file(proteins):
+                chunk = (native_hit.to_gff_line() + "\n").encode("utf-8")
+                write(chunk)
+                byte_count += len(chunk)
+            return byte_count
+
+        cmd = _build_miniprot_command(
+            self.miniprot_path, self.target_fa, proteins,
+            self.mp_options, self.threads,
+        )
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            bufsize=1 << 20,
+        )
+        stderr_state = _BoundedStderr()
+
+        def _drain_stderr():
+            if proc.stderr is None:
+                return
+            while True:
+                chunk = proc.stderr.read(1 << 16)
+                if not chunk:
+                    return
+                stderr_state.feed(chunk)
+
+        stderr_thread = threading.Thread(
+            target=_drain_stderr, name="lifton-miniprot-facade-stderr",
+            daemon=True,
+        )
+        stderr_thread.start()
+        byte_count = 0
+        try:
+            if proc.stdout is not None:
+                while True:
+                    chunk = proc.stdout.read(max(1, int(chunk_size)))
+                    if not chunk:
+                        break
+                    write(chunk)
+                    byte_count += len(chunk)
+            returncode = proc.wait()
+            stderr_thread.join()
+            if returncode != 0:
+                raise RuntimeError(_with_stderr_tail(
+                    f"miniprot exited with code {returncode}", stderr_state,
+                ))
+            if stderr_state.error_seen:
+                raise RuntimeError(_with_stderr_tail(
+                    "miniprot reported an ERROR during mapping; refusing "
+                    "to publish its stream",
+                    stderr_state,
+                ))
+            return byte_count
+        except BaseException:
+            _stop_process(proc)
+            stderr_thread.join(timeout=5)
+            raise
+        finally:
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except Exception:
+                        pass
+
     @property
     def is_native(self) -> bool:
         """True iff a real ``pyminiprot`` binding is in use."""
@@ -212,6 +347,6 @@ class MiniprotIndex:
         """Forward-compatible accessor for callers that still want the
         full GFF3 blob (for example to feed into the Phase 7
         streaming-adapter ingest path)."""
-        if self._cached_bundle is None:
+        if self._cached_raw_bytes is None:
             raise RuntimeError("Call align_all() before .raw_bytes")
-        return self._cached_bundle.raw_bytes
+        return self._cached_raw_bytes

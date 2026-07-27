@@ -1,0 +1,1109 @@
+{
+  "schema_version": 1,
+  "manifest_id": "lifton_canonical_v2_datasets",
+  "profile_id": "canonical-v2",
+  "description": "Immutable source identities and experiment designs for the twelve canonical-v2 LiftOn benchmark expansion families. Downloaded bytes become eligible only after a content-addressed acquisition lock is verified.",
+  "content_addressing": {
+    "algorithm": "sha256",
+    "request_cache_layout": "requests/{request_sha256}",
+    "content_cache_layout": "sha256/{content_sha256_prefix}/{content_sha256}",
+    "lock_schema_version": 1,
+    "byte_pinning_policy": "Identity is fixed here; acquisition locks the downloaded bytes before any benchmark may run."
+  },
+  "sources": [
+    {
+      "id": "ensembl_grch38_release116",
+      "provider": "Ensembl",
+      "release": "116",
+      "transport": "https_files",
+      "identity": {
+        "assembly": "GRCh38",
+        "database": "Ensembl",
+        "release": 116
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "annotation_gtf",
+          "locator": {
+            "url": "https://ftp.ensembl.org/pub/release-116/gtf/homo_sapiens/Homo_sapiens.GRCh38.116.gtf.gz",
+            "filename": "Homo_sapiens.GRCh38.116.gtf.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "url": "https://ftp.ensembl.org/pub/release-116/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz",
+            "filename": "Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "existing_arabidopsis",
+      "provider": "LiftOn canonical registry",
+      "release": "benchmarks.json at campaign freeze",
+      "transport": "existing_registry",
+      "identity": {
+        "registry_path": "benchmarks/compare/benchmarks.json",
+        "benchmark_id": "arabidopsis"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "reference_annotation",
+          "locator": {
+            "registry_key": "ref_gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "reference_genome",
+          "locator": {
+            "registry_key": "ref_genome"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "reference_proteins",
+          "locator": {
+            "registry_key": "ref_proteins"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "target_genome",
+          "locator": {
+            "registry_key": "tgt_genome"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        }
+      ]
+    },
+    {
+      "id": "existing_bee",
+      "provider": "LiftOn canonical registry",
+      "release": "benchmarks.json at campaign freeze",
+      "transport": "existing_registry",
+      "identity": {
+        "registry_path": "benchmarks/compare/benchmarks.json",
+        "benchmark_id": "bee"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "reference_annotation",
+          "locator": {
+            "registry_key": "ref_gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "reference_genome",
+          "locator": {
+            "registry_key": "ref_genome"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "reference_proteins",
+          "locator": {
+            "registry_key": "ref_proteins"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "target_genome",
+          "locator": {
+            "registry_key": "tgt_genome"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        }
+      ]
+    },
+    {
+      "id": "existing_human_mane",
+      "provider": "LiftOn canonical registry",
+      "release": "benchmarks.json at campaign freeze",
+      "transport": "existing_registry",
+      "identity": {
+        "registry_path": "benchmarks/compare/benchmarks.json",
+        "benchmark_id": "human_mane"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "reference_annotation",
+          "locator": {
+            "registry_key": "ref_gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "reference_genome",
+          "locator": {
+            "registry_key": "ref_genome"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        },
+        {
+          "role": "target_genome",
+          "locator": {
+            "registry_key": "tgt_genome"
+          },
+          "expected_sha256": null,
+          "pin_state": "runtime_fingerprint_required"
+        }
+      ]
+    },
+    {
+      "id": "flybase_dmel_fb2026_02",
+      "provider": "FlyBase",
+      "release": "FB2026_02 r6.68",
+      "transport": "https_files",
+      "identity": {
+        "assembly": "Release 6 plus ISO1 MT",
+        "database_release": "FB2026_02",
+        "annotation_release": "r6.68"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "annotation_gtf",
+          "locator": {
+            "url": "https://ftp.flybase.net/releases/FB2026_02/dmel_r6.68/gtf/dmel-all-r6.68.gtf.gz",
+            "filename": "dmel-all-r6.68.gtf.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "url": "https://ftp.flybase.net/releases/FB2026_02/dmel_r6.68/fasta/dmel-all-chromosome-r6.68.fasta.gz",
+            "filename": "dmel-all-chromosome-r6.68.fasta.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "url": "https://ftp.flybase.net/releases/FB2026_02/dmel_r6.68/fasta/dmel-all-translation-r6.68.fasta.gz",
+            "filename": "dmel-all-translation-r6.68.fasta.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "lis_soybean_lee_gnm1",
+      "provider": "Legume Information System",
+      "release": "Lee.gnm1.BXNC / Lee.gnm1.ann1.6NZV",
+      "transport": "https_files",
+      "identity": {
+        "assembly_collection": "Lee.gnm1.BXNC",
+        "annotation_collection": "Lee.gnm1.ann1.6NZV",
+        "genbank_assembly": "GCA_002905335.2"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "genome",
+          "locator": {
+            "url": "https://data.legumeinfo.org/Glycine/max/genomes/Lee.gnm1.BXNC/glyma.Lee.gnm1.BXNC.genome_main.fna.gz",
+            "filename": "glyma.Lee.gnm1.BXNC.genome_main.fna.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "truth_annotation",
+          "locator": {
+            "url": "https://data.legumeinfo.org/Glycine/max/annotations/Lee.gnm1.ann1.6NZV/glyma.Lee.gnm1.ann1.6NZV.gene_models_main.gff3.gz",
+            "filename": "glyma.Lee.gnm1.ann1.6NZV.gene_models_main.gff3.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_chm13_v2",
+      "provider": "NCBI Datasets",
+      "release": "T2T-CHM13v2.0 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_009914755.1",
+        "assembly": "T2T-CHM13v2.0"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_009914755.1.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_009914755.1/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_009914755.1/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_009914755.1/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_dere_dere_rs2",
+      "provider": "NCBI Datasets",
+      "release": "Drosophila erecta Annotation Release 101",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_003286155.1",
+        "assembly": "DereRS2"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_003286155.1.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_003286155.1/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_003286155.1/GCF_003286155.1_DereRS2_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_003286155.1/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_grch38_p14",
+      "provider": "NCBI Datasets",
+      "release": "GRCh38.p14 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_000001405.40",
+        "assembly": "GRCh38.p14"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_000001405.40.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000001405.40/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000001405.40/GCF_000001405.40_GRCh38.p14_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000001405.40/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_mouse_grcm39",
+      "provider": "NCBI Datasets",
+      "release": "GRCm39 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_000001635.27",
+        "assembly": "GRCm39"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_000001635.27.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000001635.27/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000001635.27/GCF_000001635.27_GRCm39_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000001635.27/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_rat_mratbn7_2",
+      "provider": "NCBI Datasets",
+      "release": "mRatBN7.2 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_015227675.2",
+        "assembly": "mRatBN7.2"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_015227675.2.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_015227675.2/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_015227675.2/GCF_015227675.2_mRatBN7.2_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_015227675.2/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_rice_irgsp_1",
+      "provider": "NCBI Datasets",
+      "release": "IRGSP-1.0 Annotation Release 102",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_001433935.1",
+        "assembly": "IRGSP-1.0"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_001433935.1.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_001433935.1/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_001433935.1/GCF_001433935.1_IRGSP-1.0_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_001433935.1/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_soybean_wm82_v4",
+      "provider": "NCBI Datasets",
+      "release": "Glycine_max_v4.0 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_000004515.6",
+        "assembly": "Glycine_max_v4.0"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_000004515.6.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000004515.6/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000004515.6/GCF_000004515.6_Glycine_max_v4.0_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000004515.6/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_tomato_microtom_slm_r2_1",
+      "provider": "NCBI Datasets",
+      "release": "SLM_r2.1 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_036512215.1",
+        "assembly": "SLM_r2.1"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_036512215.1.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_036512215.1/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_036512215.1/GCF_036512215.1_SLM_r2.1_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_036512215.1/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_xenopus_ucb_xtro_10",
+      "provider": "NCBI Datasets",
+      "release": "UCB_Xtro_10.0 Annotation Release 104",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_000004195.4",
+        "assembly": "UCB_Xtro_10.0"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_000004195.4.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000004195.4/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000004195.4/GCF_000004195.4_UCB_Xtro_10.0_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000004195.4/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "ncbi_zebrafish_grcz11",
+      "provider": "NCBI Datasets",
+      "release": "GRCz11 RefSeq annotation",
+      "transport": "ncbi_datasets",
+      "identity": {
+        "accession": "GCF_000002035.6",
+        "assembly": "GRCz11"
+      },
+      "acquisition": {
+        "include": [
+          "genome",
+          "gff3",
+          "protein"
+        ],
+        "filename": "GCF_000002035.6.zip"
+      },
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000002035.6/genomic.gff"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000002035.6/GCF_000002035.6_GRCz11_genomic.fna"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "archive_member": "ncbi_dataset/data/GCF_000002035.6/protein.faa"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "wormbase_cbriggsae_wbps19",
+      "provider": "WormBase ParaSite",
+      "release": "WBPS19 / PRJNA10731",
+      "transport": "https_files",
+      "identity": {
+        "annotation_release": "WBPS19",
+        "assembly": "CB4",
+        "bioproject": "PRJNA10731"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "url": "https://ftp.ebi.ac.uk/pub/databases/wormbase/parasite/releases/WBPS19/species/caenorhabditis_briggsae/PRJNA10731/caenorhabditis_briggsae.PRJNA10731.WBPS19.annotations.gff3.gz",
+            "filename": "caenorhabditis_briggsae.PRJNA10731.WBPS19.annotations.gff3.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "url": "https://ftp.ebi.ac.uk/pub/databases/wormbase/parasite/releases/WBPS19/species/caenorhabditis_briggsae/PRJNA10731/caenorhabditis_briggsae.PRJNA10731.WBPS19.genomic.fa.gz",
+            "filename": "caenorhabditis_briggsae.PRJNA10731.WBPS19.genomic.fa.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "url": "https://ftp.ebi.ac.uk/pub/databases/wormbase/parasite/releases/WBPS19/species/caenorhabditis_briggsae/PRJNA10731/caenorhabditis_briggsae.PRJNA10731.WBPS19.protein.fa.gz",
+            "filename": "caenorhabditis_briggsae.PRJNA10731.WBPS19.protein.fa.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    },
+    {
+      "id": "wormbase_celegans_wbps19",
+      "provider": "WormBase ParaSite",
+      "release": "WBPS19 / WS290 / PRJNA13758",
+      "transport": "https_files",
+      "identity": {
+        "annotation_release": "WS290",
+        "assembly": "WBcel235",
+        "bioproject": "PRJNA13758"
+      },
+      "acquisition": {},
+      "files": [
+        {
+          "role": "annotation",
+          "locator": {
+            "url": "https://ftp.ebi.ac.uk/pub/databases/wormbase/parasite/releases/WBPS19/species/caenorhabditis_elegans/PRJNA13758/caenorhabditis_elegans.PRJNA13758.WBPS19.annotations.gff3.gz",
+            "filename": "caenorhabditis_elegans.PRJNA13758.WBPS19.annotations.gff3.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "genome",
+          "locator": {
+            "url": "https://ftp.ebi.ac.uk/pub/databases/wormbase/parasite/releases/WBPS19/species/caenorhabditis_elegans/PRJNA13758/caenorhabditis_elegans.PRJNA13758.WBPS19.genomic.fa.gz",
+            "filename": "caenorhabditis_elegans.PRJNA13758.WBPS19.genomic.fa.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        },
+        {
+          "role": "protein",
+          "locator": {
+            "url": "https://ftp.ebi.ac.uk/pub/databases/wormbase/parasite/releases/WBPS19/species/caenorhabditis_elegans/PRJNA13758/caenorhabditis_elegans.PRJNA13758.WBPS19.protein.fa.gz",
+            "filename": "caenorhabditis_elegans.PRJNA13758.WBPS19.protein.fa.gz"
+          },
+          "expected_sha256": null,
+          "pin_state": "identity_pinned_bytes_pending"
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "v2_truth_human_grch38_chm13",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "truth"
+      ],
+      "description": "Same-species mammalian transfer scored against an annotation created independently on the complete CHM13 assembly.",
+      "inputs": {
+        "reference_annotation": "ncbi_grch38_p14:annotation",
+        "reference_genome": "ncbi_grch38_p14:genome",
+        "reference_proteins": "ncbi_grch38_p14:protein",
+        "target_genome": "ncbi_chm13_v2:genome",
+        "target_truth": "ncbi_chm13_v2:annotation"
+      },
+      "design": {
+        "reference_label": "Homo sapiens GRCh38.p14",
+        "target_label": "Homo sapiens T2T-CHM13v2.0",
+        "input_format": "GFF3",
+        "reference_scope": "whole_genome_with_chr22_subset",
+        "target_scope": "whole_genome_with_chr22_subset",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_dialect_ensembl116_gtf",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "truth"
+      ],
+      "description": "Direct raw Ensembl release 116 GTF ingestion without pre-conversion, transferred from GRCh38 to CHM13.",
+      "inputs": {
+        "reference_annotation": "ensembl_grch38_release116:annotation_gtf",
+        "reference_genome": "ensembl_grch38_release116:genome",
+        "target_genome": "ncbi_chm13_v2:genome",
+        "target_truth": "ncbi_chm13_v2:annotation"
+      },
+      "design": {
+        "reference_label": "Homo sapiens Ensembl 116 on GRCh38",
+        "target_label": "Homo sapiens T2T-CHM13v2.0",
+        "input_format": "GTF",
+        "reference_scope": "whole_genome_with_chr22_subset",
+        "target_scope": "whole_genome_with_chr22_subset",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_dialect_flybase_dmel_dere",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "cross_e2e",
+        "truth"
+      ],
+      "description": "Raw FlyBase hierarchy and naming stress test transferred from D. melanogaster to independently annotated D. erecta.",
+      "inputs": {
+        "reference_annotation": "flybase_dmel_fb2026_02:annotation_gtf",
+        "reference_genome": "flybase_dmel_fb2026_02:genome",
+        "reference_proteins": "flybase_dmel_fb2026_02:protein",
+        "target_genome": "ncbi_dere_dere_rs2:genome",
+        "target_truth": "ncbi_dere_dere_rs2:annotation"
+      },
+      "design": {
+        "reference_label": "Drosophila melanogaster FlyBase FB2026_02 r6.68",
+        "target_label": "Drosophila erecta DereRS2",
+        "input_format": "GTF",
+        "reference_scope": "whole_genome",
+        "target_scope": "whole_genome",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_dialect_wormbase_celegans_cbriggsae",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "cross_e2e",
+        "truth"
+      ],
+      "description": "WormBase hierarchy, noncoding, operon, and trans-splicing stress test between two independently annotated Caenorhabditis genomes.",
+      "inputs": {
+        "reference_annotation": "wormbase_celegans_wbps19:annotation",
+        "reference_genome": "wormbase_celegans_wbps19:genome",
+        "reference_proteins": "wormbase_celegans_wbps19:protein",
+        "target_genome": "wormbase_cbriggsae_wbps19:genome",
+        "target_truth": "wormbase_cbriggsae_wbps19:annotation"
+      },
+      "design": {
+        "reference_label": "Caenorhabditis elegans WBPS19 WS290",
+        "target_label": "Caenorhabditis briggsae WBPS19 CB4",
+        "input_format": "GFF3",
+        "reference_scope": "whole_genome",
+        "target_scope": "whole_genome",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_truth_soybean_w82_lee",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "truth"
+      ],
+      "description": "Repairs the historical empty soybean cell and evaluates cultivar transfer against the LIS Lee gene set.",
+      "inputs": {
+        "reference_annotation": "ncbi_soybean_wm82_v4:annotation",
+        "reference_genome": "ncbi_soybean_wm82_v4:genome",
+        "reference_proteins": "ncbi_soybean_wm82_v4:protein",
+        "target_genome": "lis_soybean_lee_gnm1:genome",
+        "target_truth": "lis_soybean_lee_gnm1:truth_annotation"
+      },
+      "design": {
+        "reference_label": "Glycine max Williams 82 v4.0",
+        "target_label": "Glycine max Lee gnm1",
+        "input_format": "GFF3",
+        "reference_scope": "whole_genome",
+        "target_scope": "whole_genome",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_deep_zebrafish_xenopus",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "truth"
+      ],
+      "description": "Deep non-human vertebrate transfer from zebrafish to Western clawed frog.",
+      "inputs": {
+        "reference_annotation": "ncbi_zebrafish_grcz11:annotation",
+        "reference_genome": "ncbi_zebrafish_grcz11:genome",
+        "reference_proteins": "ncbi_zebrafish_grcz11:protein",
+        "target_genome": "ncbi_xenopus_ucb_xtro_10:genome",
+        "target_truth": "ncbi_xenopus_ucb_xtro_10:annotation"
+      },
+      "design": {
+        "reference_label": "Danio rerio GRCz11",
+        "target_label": "Xenopus tropicalis UCB_Xtro_10.0",
+        "input_format": "GFF3",
+        "reference_scope": "whole_genome",
+        "target_scope": "whole_genome",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_deep_tomato_rice",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "full",
+        "truth"
+      ],
+      "description": "Very-distant plant transfer from a dicot reference annotation to an independently annotated monocot genome.",
+      "inputs": {
+        "reference_annotation": "ncbi_tomato_microtom_slm_r2_1:annotation",
+        "reference_genome": "ncbi_tomato_microtom_slm_r2_1:genome",
+        "reference_proteins": "ncbi_tomato_microtom_slm_r2_1:protein",
+        "target_genome": "ncbi_rice_irgsp_1:genome",
+        "target_truth": "ncbi_rice_irgsp_1:annotation"
+      },
+      "design": {
+        "reference_label": "Solanum lycopersicum Micro-Tom SLM_r2.1",
+        "target_label": "Oryza sativa Japonica IRGSP-1.0",
+        "input_format": "GFF3",
+        "reference_scope": "whole_genome",
+        "target_scope": "whole_genome",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_truth_rat_mouse_e2e",
+      "kind": "biological",
+      "panels": [
+        "subset",
+        "cross_e2e",
+        "truth"
+      ],
+      "description": "Reverse-direction rodent end-to-end case with an independent GRCm39 target annotation.",
+      "inputs": {
+        "reference_annotation": "ncbi_rat_mratbn7_2:annotation",
+        "reference_genome": "ncbi_rat_mratbn7_2:genome",
+        "reference_proteins": "ncbi_rat_mratbn7_2:protein",
+        "target_genome": "ncbi_mouse_grcm39:genome",
+        "target_truth": "ncbi_mouse_grcm39:annotation"
+      },
+      "design": {
+        "reference_label": "Rattus norvegicus mRatBN7.2",
+        "target_label": "Mus musculus GRCm39",
+        "input_format": "GFF3",
+        "reference_scope": "whole_genome",
+        "target_scope": "whole_genome",
+        "truth_policy": "ortholog_aware_independent_target_annotation"
+      }
+    },
+    {
+      "id": "v2_synth_chr22_fragmented",
+      "kind": "synthetic",
+      "panels": [
+        "synthetic"
+      ],
+      "description": "Exact coordinate-truth benchmark after eight fixed intergenic cuts of the MANE GRCh38 chr22 reference.",
+      "inputs": {
+        "reference_annotation": "existing_human_mane:reference_annotation",
+        "reference_genome": "existing_human_mane:reference_genome"
+      },
+      "design": {
+        "base_benchmark": "human_mane",
+        "chromosome": "chr22",
+        "coordinate_system": "1-based-inclusive",
+        "operations": [
+          {
+            "type": "fragment",
+            "cut_selection": "fixed_intergenic",
+            "cut_after": [
+              17290898,
+              22364968,
+              27189473,
+              34494491,
+              41032950,
+              45086965,
+              47832626,
+              49262605
+            ]
+          }
+        ],
+        "breakpoint_policy": "Cuts are intergenic; every source model remains exactly scorable after deterministic coordinate remapping."
+      }
+    },
+    {
+      "id": "v2_synth_chr22_sv",
+      "kind": "synthetic",
+      "panels": [
+        "synthetic"
+      ],
+      "description": "Exact structural-variant truth for loss, strand reversal, tandem copy recovery, and insertion robustness.",
+      "inputs": {
+        "reference_annotation": "existing_human_mane:reference_annotation",
+        "reference_genome": "existing_human_mane:reference_genome"
+      },
+      "design": {
+        "base_benchmark": "human_mane",
+        "chromosome": "chr22",
+        "seed": "lifton-canonical-v2-20260718",
+        "coordinate_system": "1-based-inclusive",
+        "operations": [
+          {
+            "type": "delete",
+            "start": 18177398,
+            "end": 18516337
+          },
+          {
+            "type": "invert",
+            "start": 36140323,
+            "end": 38318084
+          },
+          {
+            "type": "tandem_duplicate",
+            "start": 41092592,
+            "end": 44331714,
+            "copies": 2
+          },
+          {
+            "type": "insert",
+            "after": 45086965,
+            "length": 100000,
+            "generator": "sha256_counter_dna_v1"
+          }
+        ],
+        "breakpoint_policy": "Models crossing a structural breakpoint are reported separately and excluded from exact-recovery denominators; retained, deleted, inverted, and duplicated models have explicit expected copy and strand states."
+      }
+    },
+    {
+      "id": "v2_protocol_thread_scaling_bee",
+      "kind": "protocol",
+      "panels": [
+        "protocol"
+      ],
+      "description": "Order-balanced real-data thread scaling with strict output identity.",
+      "inputs": {
+        "reference_annotation": "existing_bee:reference_annotation",
+        "reference_genome": "existing_bee:reference_genome",
+        "reference_proteins": "existing_bee:reference_proteins",
+        "target_genome": "existing_bee:target_genome"
+      },
+      "design": {
+        "benchmark_id": "bee",
+        "variable": "threads",
+        "values": [
+          1,
+          2,
+          4,
+          8,
+          16,
+          32
+        ],
+        "repetitions": 6,
+        "order_design": "fixed_balanced",
+        "correctness_requirement": "byte_and_semantic_identity"
+      }
+    },
+    {
+      "id": "v2_protocol_io_modes_arabidopsis",
+      "kind": "protocol",
+      "panels": [
+        "protocol"
+      ],
+      "description": "All safe, streaming, in-memory, native, and combined execution modes on one biological input.",
+      "inputs": {
+        "reference_annotation": "existing_arabidopsis:reference_annotation",
+        "reference_genome": "existing_arabidopsis:reference_genome",
+        "reference_proteins": "existing_arabidopsis:reference_proteins",
+        "target_genome": "existing_arabidopsis:target_genome"
+      },
+      "design": {
+        "benchmark_id": "arabidopsis",
+        "variable": "execution_mode",
+        "values": [
+          "safe",
+          "stream",
+          "inmemory_liftoff",
+          "native",
+          "stream+inmemory_liftoff",
+          "stream+native",
+          "inmemory_liftoff+native",
+          "fast"
+        ],
+        "repetitions": 4,
+        "order_design": "fixed_balanced",
+        "correctness_requirement": "byte_and_semantic_identity"
+      }
+    }
+  ]
+}
