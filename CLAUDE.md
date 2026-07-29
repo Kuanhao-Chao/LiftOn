@@ -49,6 +49,12 @@ profile-driven performance pass. Suite ~1610. Three things worth carrying forwar
   left for its own pass because a cheaper clone must reproduce gffutils `Feature`
   semantics exactly.
 - **`LIFTON_NO_CDS_ATTR_CARRY=1`** reproduces the pre-2026-07-25 CDS attribute shape.
+- **Adding a file under `benchmarks/`: `git add` it BEFORE regenerating the inventory.**
+  `benchmarks/inventory.py` discovers artifacts with `git ls-files`, so an untracked new
+  file is invisible to the generator *and* to `test_benchmark_inventory` — both agree it
+  does not exist, the test passes, and the moment you commit the file the committed
+  inventory becomes stale. Correct order: `git add <file>` → register a pattern in
+  `benchmarks/inventory_rules.json` → `python -m benchmarks.inventory` → commit.
 - **A column-9-only change has a stronger gate than a mean-PI A/B**: require columns 1-8
   byte-identical on every row, which for a CDS *is* its coordinates, strand and phase, so
   the protein provably cannot move. `benchmarks/compare/cds_attr_parity_ab.py` implements
