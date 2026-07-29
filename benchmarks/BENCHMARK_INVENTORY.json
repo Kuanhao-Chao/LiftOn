@@ -173,13 +173,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "1d1a0e793bd94cd6e38afc9f26616d58d07611db5f919310ebbc8145c3cc7b03",
-      "bytes": 283004,
+      "aggregate_sha256": "b6b59da2d3eeff42cd133b7df5d40334135a11346d7775be6225f58cb0ef9cd0",
+      "bytes": 285576,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
-      "file_count": 25,
+      "file_count": 26,
       "id": "diagnostic_headroom",
       "superseded_by": null
     },
@@ -2420,6 +2420,16 @@
       "sha256": "bd8ba8a4de58348222c411573a7f8d100984fe86c37f0acb0d09067972ca7b86"
     },
     {
+      "bytes": 2572,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/sql_attribution.tsv",
+      "sha256": "3ac95093ef4a0aa6529e526fe5ffdcc2fc5ee096fb0c448c730e02d1a6966666"
+    },
+    {
       "bytes": 4603,
       "claim_eligible": false,
       "classification": "diagnostic",
@@ -2954,7 +2964,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "484306fc7af6ac001d20859275e28c9f03720eaf7400440e61b3a7202175e458",
+  "inventory_sha256": "406576c0ad24753d04755c1997831d3a376ed4bc406e3478644f92eb370fee69",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3002,15 +3012,15 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "69c21400f8f1965d7adbc2c3b118441fb4321c663385ef2f6d0fcdeda2bf59ef",
-    "bytes": 12405561,
+    "aggregate_sha256": "1f0c2b84b813b521ba106392c4166c1c8f5674b69dd7692cc6df29367a0169b4",
+    "bytes": 12408133,
     "classification_counts": {
       "canonical": 61,
-      "diagnostic": 25,
+      "diagnostic": 26,
       "historical": 135,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 239
+    "file_count": 240
   }
 }

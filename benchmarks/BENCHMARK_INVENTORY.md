@@ -2,10 +2,10 @@
 
 This inventory is generated deterministically from Git-tracked benchmark files and explicitly managed provenance files. Local run trees are excluded from release evidence.
 
-- Curated files: **239** (12,405,561 bytes)
+- Curated files: **240** (12,408,133 bytes)
 - Registered benchmark IDs: **35**
 - Frozen artifacts verified: **1**
-- Inventory digest: `484306fc7af6ac001d20859275e28c9f03720eaf7400440e61b3a7202175e458`
+- Inventory digest: `406576c0ad24753d04755c1997831d3a376ed4bc406e3478644f92eb370fee69`
 
 ## Classifications
 
@@ -16,7 +16,7 @@ This inventory is generated deterministically from Git-tracked benchmark files a
 | `canonical_release_tooling` | canonical | supporting | no | 17 | — |
 | `canonical_v2_provenance` | canonical | supporting | no | 16 | — |
 | `canonical_tier_full_results` | canonical | complete | yes | 11 | — |
-| `diagnostic_headroom` | diagnostic | complete | no | 25 | — |
+| `diagnostic_headroom` | diagnostic | complete | no | 26 | — |
 | `historical_ab_experiments` | historical | superseded | no | 73 | canonical_release_baseline |
 | `historical_v1_review` | historical | superseded | no | 62 | canonical_release_baseline |
 | `obsolete_legacy_runners` | obsolete | retired | no | 17 | canonical_release_tooling |
