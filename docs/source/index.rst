@@ -77,8 +77,8 @@ LiftOn's tutorial
 .. image:: https://img.shields.io/badge/License-GPLv3-yellow.svg
     :target: https://img.shields.io/badge/License-GPLv3-yellow.svg
 
-.. image:: https://img.shields.io/badge/version-v1.0.10.1-blue
-    :target: https://img.shields.io/badge/version-v1.0.10.1-blue
+.. image:: https://img.shields.io/badge/version-v1.0.10-blue
+    :target: https://img.shields.io/badge/version-v1.0.10-blue
 
 .. image:: https://static.pepy.tech/personalized-badge/lifton?period=total&units=abbreviation&left_color=grey&right_color=blue&left_text=PyPi%20downloads
     :target: https://pepy.tech/project/lifton

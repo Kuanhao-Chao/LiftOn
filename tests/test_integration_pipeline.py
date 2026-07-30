@@ -417,7 +417,7 @@ def test_skipped_locus_publishes_unless_strict_completeness(
     The staged GFF3 has already passed the mandatory structural validation, so it is
     well-formed; withholding a whole genome because one locus failed is not useful.
     LiftOn therefore publishes by default and reports `partial_success`, recording every
-    skipped locus in the manifest. `--strict-completeness` restores the pre-v1.0.10.1
+    skipped locus in the manifest. `--strict-completeness` restores the pre-v1.0.10
     behaviour of blocking, and `--allow-partial-output` overrides that in turn.
     """
     from lifton import parallel

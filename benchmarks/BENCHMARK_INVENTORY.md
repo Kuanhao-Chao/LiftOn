@@ -2,10 +2,10 @@
 
 This inventory is generated deterministically from Git-tracked benchmark files and explicitly managed provenance files. Local run trees are excluded from release evidence.
 
-- Curated files: **240** (12,408,133 bytes)
+- Curated files: **240** (12,408,127 bytes)
 - Registered benchmark IDs: **35**
 - Frozen artifacts verified: **1**
-- Inventory digest: `406576c0ad24753d04755c1997831d3a376ed4bc406e3478644f92eb370fee69`
+- Inventory digest: `266f9e782d4ccc5ad11aa4a5bb504fe615b64f12a71149256b5e6b640448cac7`
 
 ## Classifications
 
@@ -44,7 +44,7 @@ The expansion fixes **18** source packages (15 remote and 3 existing-registry pa
 ## Evidence Policy
 
 - `canonical` files may support a claim only when the family is also marked claim-eligible.
-- `diagnostic` and `historical` results explain design decisions but must not be pooled into the v1.0.10.1 release campaign.
+- `diagnostic` and `historical` results explain design decisions but must not be pooled into the v1.0.10 release campaign.
 - `obsolete` files are retained solely for reproducibility of older reviews.
 - `ineligible` files are incomplete, mutable, local, or otherwise unsuitable as publication evidence.
 - `benchmarks/compare/fourway_results.json` is byte-frozen; the scanner fails if its SHA-256 changes.

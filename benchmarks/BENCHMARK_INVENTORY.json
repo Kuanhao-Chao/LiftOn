@@ -140,8 +140,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "21ff2fbbb5dbc47d22dd15081f1fde5a5777e45073d2836cc60da0f547640f72",
-      "bytes": 610884,
+      "aggregate_sha256": "37d286780e79be14c7fca7fc6d3413dce7c213acd2d502046cc3e609a25aa132",
+      "bytes": 610880,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "5f39ecd96ebde76eb925926beea62ed6df63f6932e4de24ba4c658b4c09118ce",
-      "bytes": 476581,
+      "aggregate_sha256": "36bbfdcb54e8cc9e0294ce995f5a5631ca02352eeddc293e696ab93d1c485994",
+      "bytes": 476579,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -2316,14 +2316,14 @@
       "sha256": "ab8dcc706582983cf14890ba3c51a707df729d7b5c180946bdbc5216c7c77359"
     },
     {
-      "bytes": 155098,
+      "bytes": 155094,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/release_report.py",
-      "sha256": "39067e4633bb4a5619c9d4ebe28716efa58a0c4c7716f06e0bb3a924f32ce8ae"
+      "sha256": "a30b83e8a560f204fefa3c1a2591dd37e85dafdc0d91db621010555f7ca26f82"
     },
     {
       "bytes": 38770,
@@ -2780,14 +2780,14 @@
       "sha256": "82569fbae7015e3e1dded3dbbfe9fb53c27d61c4ff4b73f22f3960eea72e15d1"
     },
     {
-      "bytes": 21211,
+      "bytes": 21209,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": null,
       "path": "benchmarks/inventory.py",
-      "sha256": "6ebd107ac0ded7dba4a1eab44431b0e15737a8c6a5c77c4bd400a65449086a1f"
+      "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
       "bytes": 10319,
@@ -2964,7 +2964,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "406576c0ad24753d04755c1997831d3a376ed4bc406e3478644f92eb370fee69",
+  "inventory_sha256": "266f9e782d4ccc5ad11aa4a5bb504fe615b64f12a71149256b5e6b640448cac7",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3012,8 +3012,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "1f0c2b84b813b521ba106392c4166c1c8f5674b69dd7692cc6df29367a0169b4",
-    "bytes": 12408133,
+    "aggregate_sha256": "7d49a7d5f2fa11a66f4609a896f49ec7a8112e6b472e6ae2f395ffd931866303",
+    "bytes": 12408127,
     "classification_counts": {
       "canonical": 61,
       "diagnostic": 26,

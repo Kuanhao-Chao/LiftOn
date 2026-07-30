@@ -21,7 +21,7 @@ LiftOn
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.10.1
+      v1.0.10
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial]
                   [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S] [-min_miniprot MIN_MINIPROT]
