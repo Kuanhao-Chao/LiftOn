@@ -67,17 +67,40 @@ act — as it should be.
 
 ## Verification performed for this release
 
-See the release-preparation session for the full log. Summary of the gates:
+Run at `f243d25`, on the `lifton_devel` environment with `PYTHONHASHSEED=0`.
 
-- `flake8 . --select=E9,F63,F7,F82` — clean
-- Full `pytest tests/` suite
-- The 24-cell byte-identity matrix, green with no golden edit
-- `make test-fault` — injected write, validation, cache and subprocess failures
-- `python -m build`, `twine check`, and the wheel installed into a clean venv
-  (`lifton -V` prints `v1.0.10`)
-- The chr22 shell example against real minimap2/miniprot, then `gff3-validate`
-  on its output
-- The drosophila byte anchors, with cached `-L`/`-M` at `-t 1`
+| gate | result |
+|---|---|
+| `flake8 . --select=E9,F63,F7,F82` | 0 |
+| `pytest tests/` | **1684 passed, 2 skipped** |
+| 24-cell byte-identity matrix | 11 passed, **green with no golden edit** |
+| `pytest -m fault` | 4 passed |
+| `python -m build` + `twine check` | both artifacts PASSED |
+| wheel in a clean venv | installs from PyPI deps; `lifton -V` prints `v1.0.10`; `gff3-validate` present |
+| chr22 example, real minimap2 + miniprot | exit 0; gene 878/890 (98.7 %), pseudogene 358/370 (96.8 %) |
+| `gff3-validate` on that output | **VALID — 0 errors**, 59 warnings, 77,788 data rows |
+| drosophila CDS-parity gate | 1/1 PASS: cols 1-8 mismatch 0, 0 attributes lost or changed, CDS coverage 0.05996 → 1.0, `protein_identity` changed on 0 of 7,141 transcripts, validity 0 → 0, size +30.21 % |
+
+**The release commits move zero output bytes — proven, not inferred.** They touch
+`lifton/` in only three places: `__version__`, and two comment lines. To confirm
+that rather than argue it, both drosophila arms were re-run against a detached
+worktree at the pre-release commit `2a7b848` (via `LIFTON_AB_PYTHONPATH`, which
+`cds_attr_parity_ab.py` exists to support) and byte-compared:
+
+```
+off: IDENTICAL  30af81a10ecb19fdaf132b83d971ccf8  (29,382,201 B, LIFTON_NO_CDS_ATTR_CARRY=1)
+on : IDENTICAL  946d1ceaf9528a0715fc8821a77e1330  (38,257,407 B, default)
+```
+
+Those are the anchors to reproduce; every field of the regenerated
+`cds_attr_parity_ab.json` drosophila cell also matches the committed one exactly.
+
+One thing that looks wrong in a manifest but is not: the chr22 run recorded
+`software.dependencies.lifton: 1.0.8` while `software.lifton` correctly read
+`v1.0.10`. The `dependencies` map comes from `importlib.metadata`, and this
+development environment still carries a `lifton-1.0.8.dist-info` from an old
+editable install. A real wheel install reports `1.0.10` from both — verified in
+the clean smoke venv. Re-run `pip install -e .` to refresh the dev environment.
 
 ## Publishing (not done — requires sign-off)
 
