@@ -32,7 +32,7 @@ try:
             r"__version__\s*=\s*['\"]v?(?P<v>[^'\"]+)['\"]", _init_fh.read()
         ).group('v')
 except Exception:
-    release = '1.0.10.1'
+    release = '1.0.10'
 version = release
 
 copyright = '2024, Kuan-Hao Chao'

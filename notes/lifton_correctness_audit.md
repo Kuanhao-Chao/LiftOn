@@ -1,4 +1,4 @@
-# LiftOn full-repository correctness audit (2026-07, `devel` @ v1.0.10.1)
+# LiftOn full-repository correctness audit (2026-07, `devel` @ `0a0d547`)
 
 Three parallel code-verified audits over the whole repository — the core algorithmic
 path; the ten newest subsystems; the test/perf/memory landscape — against `devel` at

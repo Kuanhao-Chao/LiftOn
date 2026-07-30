@@ -3536,7 +3536,7 @@ def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
         else ("PASS" if verdict["passed"] else "FAIL")
     )
     lines = [
-        "# LiftOn v1.0.10.1 Release Evaluation",
+        "# LiftOn v1.0.10 Release Evaluation",
         "",
         f"**Verdict:** {verdict_text}  ",
         f"**Candidate:** `{manifest['candidate_sha']}`  ",
@@ -3800,7 +3800,7 @@ def _validate_publication_destination(
         or not isinstance(metrics.get("verdict"), Mapping)
         or not isinstance(metrics["verdict"].get("passed"), bool)
         or not (output_dir / "REPORT.md").read_text().startswith(
-            "# LiftOn v1.0.10.1 Release Evaluation\n"
+            "# LiftOn v1.0.10 Release Evaluation\n"
         )
     ):
         raise ValueError(

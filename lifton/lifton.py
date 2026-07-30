@@ -177,7 +177,7 @@ def _record_pipeline_failure(args, phase, error, *, details=None,
       publication.
 
     Defaults to ``fatal`` so existing hard failures keep blocking. ``--strict-completeness``
-    restores the pre-v1.0.10.1 behaviour of blocking on *any* failure.
+    restores the pre-v1.0.10 behaviour of blocking on *any* failure.
     """
     details = dict(details or {})
     message = safe_exception_text(error, details.get("traceback"))
@@ -1832,7 +1832,7 @@ def run_all_lifton_steps(args):
     # mandatory structural validation above, so it is well-formed, and withholding a
     # whole genome because a handful of loci were skipped is not useful. They are still
     # recorded in the manifest and the run is reported as `partial_success`.
-    # --strict-completeness restores the pre-v1.0.10.1 "any failure blocks" behaviour.
+    # --strict-completeness restores the pre-v1.0.10 "any failure blocks" behaviour.
     if getattr(args, "strict_completeness", False):
         blocking = list(failures)
     else:

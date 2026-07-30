@@ -483,7 +483,7 @@ def render_markdown(inventory: Mapping[str, Any]) -> str:
         "- `canonical` files may support a claim only when the family is also "
         "marked claim-eligible.",
         "- `diagnostic` and `historical` results explain design decisions but "
-        "must not be pooled into the v1.0.10.1 release campaign.",
+        "must not be pooled into the v1.0.10 release campaign.",
         "- `obsolete` files are retained solely for reproducibility of older "
         "reviews.",
         "- `ineligible` files are incomplete, mutable, local, or otherwise "
