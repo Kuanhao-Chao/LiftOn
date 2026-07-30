@@ -169,32 +169,47 @@ Run the following command to make sure LiftOn is properly installed:
                     [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT]
                     [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO]
                     [-gap_extend GE] [-polish] [-cds] [-time] [--validate-output]
-                    [--validate-verbose] [--strict-gff] [--stream] [--inmemory-liftoff]
-                    [--locus-pipeline] [--native] [--serial-aligners] [--legacy-merge]
-                    [--full-dp-align] [--gene-only] [--no-miniprot-rescue]
-                    [--no-auto-convert-gtf] -g GFF [-P FASTA] [-T FASTA] [-L gff]
-                    [-M gff] target reference
+                    [--validate-verbose] [--allow-partial-output] [--strict-completeness]
+                    [--strict-gff] [--stream] [--inmemory-liftoff] [--locus-pipeline]
+                    [--step7-max-inflight N] [--step8-max-inflight N]
+                    [--evaluation-max-inflight N] [--native] [--serial-aligners]
+                    [--parallel-aligners] [--optimize] [--legacy-merge] [--full-dp-align]
+                    [--fast-align] [--gene-only] [--lift-gene-like] [--no-miniprot-rescue]
+                    [--miniprot-rescue] [--miniprot-cross-locus-rescue]
+                    [--no-miniprot-candidate] [--miniprot-candidate]
+                    [--no-adaptive-rescue-floor] [--adaptive-rescue-floor] -g GFF
+                    [-P FASTA] [-T FASTA] [-L gff] [-M gff]
+                    [--merge-strategy {create_unique,merge,error,warning,replace}]
+                    [--id-spec ID_SPEC] [--force] [--verbose] [-ad SOURCE]
+                    [--no-auto-convert-gtf]
+                    target reference
 
       Lift features from one genome assembly to another.
 
       Run `lifton -h` for the complete option list. The full, current flag
       reference -- every option's default, which flags CHANGE the output vs. the
       byte-identical fast-paths, and the kept no-op aliases -- is documented in
-      the User Manual / Function manual page. The most-used v1.0.9 options:
+      the User Manual / Function manual page. The most-used v1.0.10 options:
 
         Output-changing defaults (each ships with an opt-out flag):
           (default) lift all gene-like types ......... --gene-only
           (default) miniprot-only rescue ............. --no-miniprot-rescue
+          (default) adaptive rescue floor ............ --no-adaptive-rescue-floor
+          (default) miniprot merge candidate ......... --no-miniprot-candidate
           (default) best-of-outcome merge ............ --legacy-merge
           (default) banded / windowed alignment ...... --full-dp-align
 
         Byte-identical fast-paths (output unchanged; pinned by the 24-cell matrix):
           --threads N --locus-pipeline, --stream, --inmemory-liftoff, --native,
           --serial-aligners
+          Memory bounds: --step7-max-inflight / --step8-max-inflight /
+          --evaluation-max-inflight (default 2 x --threads)
 
         Validation:
           --strict-gff (reference, input side),
           --validate-output / --validate-verbose (emitted GFF3)
+          --strict-completeness (refuse to publish if any locus was skipped),
+          --allow-partial-output (publish after a blocking failure)
 
         Core mapping thresholds (unchanged):
           -a 0.5 (coverage), -s 0.5 (sequence identity), -overlap 0.1,

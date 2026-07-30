@@ -4,6 +4,95 @@
 Changelog
 ===========
 
+v1.0.10
+--------
+
+Incremental release (2026-07-30). Consolidates everything that accumulated
+behind the v1.0.10 tag: the originally staged v1.0.10 work, a batch of
+GitHub-issue fixes, a full-repository correctness audit, and a CDS-attribute
+parity fix. Neither v1.0.10 nor the intermediate v1.0.10.1 was ever published,
+so **v1.0.9 is the baseline for every comparison below**. As in v1.0.9, every
+output-affecting default ships with an opt-out flag. See the project
+``CHANGELOG.md`` for the full list.
+
+**Changed (output-affecting defaults — results differ vs v1.0.9):**
+
+- **A third best-of-outcome merge candidate.** Alongside {chained merge +
+  ORF-rescue, Liftoff + ORF-rescue}, LiftOn now scores miniprot's *native*
+  CDS-only model and adopts it only when its ORF-rescued protein identity is
+  *strictly* higher than the two-way winner — so per-transcript identity never
+  decreases — and never for an antisense hit. Pass ``--no-miniprot-candidate``
+  to restore the two-way merge.
+
+- **A divergence-adaptive miniprot-only rescue floor.** The rescue pass used a
+  fixed protein-identity floor of 0.50; that floor is now lowered toward 0.30 as
+  the DNA lift's gene recall drops, recovering more genuinely missing genes at
+  large evolutionary distance while staying inert on same- and close-species
+  lifts. Pass ``--no-adaptive-rescue-floor`` to restore the fixed floor.
+
+- **Richer, spec-valid CDS rows.** Rebuilt CDS lines lost the reference's
+  descriptive attributes (``Dbxref``, ``product``, ``protein_id``, ``gene``,
+  ``locus_tag``, ...) and carried no ``ID`` at all. They now inherit those
+  attributes and share one ``ID=cds-<transcript>`` — the spec's discontinuous-CDS
+  form. Coordinates and the encoded protein are untouched; output grows 12–43%.
+  ``LIFTON_NO_CDS_ATTR_CARRY=1`` and ``LIFTON_NO_CONTAINMENT_NORMALIZE=1``
+  reproduce the previous bytes.
+
+- **Coding transcripts are harmonized to ``mRNA``.** The DNA-lift path preserved
+  the reference featuretype — often the generic ``transcript`` — while the
+  miniprot path emitted ``mRNA``, so one output labelled the same kind of feature
+  two ways. ``LIFTON_NO_MRNA_HARMONIZE=1`` preserves the reference type.
+
+**Fixed (reported issues):**
+
+- ``no such column: <id>`` from the DNA lift on strict SQLite builds (GH #35),
+  which is why the same input worked on one machine and failed on another.
+- A single unresolvable alignment killing an entire chromosome (GH #39).
+- Mixed-strand output from an antisense merge (GH #33).
+- UTR indels reported as frameshifts on close pairs (GH #46).
+- CDS emitted with no ``ID`` (GH #32, GH #8) and coding transcripts typed
+  inconsistently (GH #28).
+- Header-only Liftoff output from an invalid or LFS-pointer minimap2 index
+  (GH #57), and a ``--stream`` ingest crash on DuckDB 1.5.3/1.5.4 (GH #56).
+- minimap2 is now preflight-checked at startup and documented as a requirement
+  (GH #43, GH #11); the run summary is also written to ``stats/summary.txt``
+  (GH #50).
+
+**Fixed (robustness):**
+
+- **A skipped locus no longer withholds the whole annotation.** One bad gene in
+  a 60,000-gene genome used to produce exit 2 and only a ``*.partial.gff3``.
+  Per-locus failures now publish, report ``partial_success``, and are recorded
+  in ``run_manifest.json``; ``--strict-completeness`` restores the old behaviour.
+- Write-funnel crashes on gene-like/organellar children and on inverted
+  (``start > end``) coordinates, which aborted a whole-genome write.
+- Three-level hierarchies (``gene → primary_transcript → miRNA → exon``) are
+  lifted instead of silently dropped, and LiftOn no longer rejects its own valid
+  Ensembl/GENCODE-shaped output.
+
+**Added:**
+
+- **Auditable run manifests and transactional output** —
+  ``lifton_output/run_manifest.json`` records sanitized arguments, SHA-256 input
+  fingerprints, tool versions, phase timings, counts, validation and failures;
+  the GFF3 is staged and published atomically only on success.
+- **Always-on structural output validation** before publication, recorded in the
+  run manifest and not bypassable by ``--allow-partial-output``.
+- **Content-addressed annotation caches** that rebuild when their manifest no
+  longer matches the source, parser settings, backend, or LiftOn version.
+
+**Performance (byte-neutral):**
+
+- **GFF3 validation is bounded** — one contiguous top-level block at a time
+  instead of the whole file: 5.64 GB → 267 MB on a full dog→cat lift (21× less
+  memory, 1.9× faster), with identical reports.
+- **Step 7 is ~21% faster** on *Drosophila* at ``-t 8`` (redundant leaf queries
+  removed, vectorized identity counters, a pruning ordered gate), with
+  byte-identical output and flat peak memory.
+- **Features are cloned rather than deep-copied** (33.06 µs → 5.00 µs per rich
+  CDS), and per-stage in-flight bounds (``--step7-max-inflight`` and siblings)
+  cap the memory a parallel run can hold.
+
 v1.0.9
 -------
 

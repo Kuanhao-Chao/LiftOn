@@ -29,13 +29,16 @@ LiftOn
                   [-f TYPES] [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT]
                   [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO] [-gap_extend GE]
                   [-polish] [-cds] [-time] [--validate-output] [--validate-verbose]
-                  [--allow-partial-output] [--strict-gff] [--stream] [--inmemory-liftoff]
-                  [--locus-pipeline] [--step7-max-inflight N] [--step8-max-inflight N]
-                  [--evaluation-max-inflight N] [--native] [--serial-aligners]
-                  [--parallel-aligners] [--optimize] [--legacy-merge] [--full-dp-align] [--fast-align]
-                  [--gene-only] [--lift-gene-like] [--no-miniprot-rescue] [--miniprot-rescue]
-                  [--merge-strategy STRATEGY] [--id-spec ID_SPEC] [--force] [--verbose]
-                  [--no-auto-convert-gtf] -g GFF [-P FASTA] [-T FASTA] [-L gff] [-M gff] [-ad SOURCE]
+                  [--allow-partial-output] [--strict-completeness] [--strict-gff] [--stream]
+                  [--inmemory-liftoff] [--locus-pipeline] [--step7-max-inflight N]
+                  [--step8-max-inflight N] [--evaluation-max-inflight N] [--native]
+                  [--serial-aligners] [--parallel-aligners] [--optimize] [--legacy-merge]
+                  [--full-dp-align] [--fast-align] [--gene-only] [--lift-gene-like]
+                  [--no-miniprot-rescue] [--miniprot-rescue] [--miniprot-cross-locus-rescue]
+                  [--no-miniprot-candidate] [--miniprot-candidate] [--no-adaptive-rescue-floor]
+                  [--adaptive-rescue-floor] [--merge-strategy STRATEGY] [--id-spec ID_SPEC] [--force]
+                  [--verbose] [--no-auto-convert-gtf] -g GFF [-P FASTA] [-T FASTA] [-L gff] [-M gff]
+                  [-ad SOURCE]
                   target reference
 
       Lift features from one genome assembly to another
@@ -140,11 +143,28 @@ LiftOn
       --native              enable experimental native compatibility hooks; combine with LIFTON_NATIVE_LIFTOFF_ALIGN=1 to opt into mappy, while miniprot and bounded locus workers retain their proven paths
       --serial-aligners     opt OUT of the (default) concurrent Liftoff||miniprot overlap; run them sequentially
 
-      * Output-changing flags (opt-outs that RESTORE pre-v1.0.9 behaviour):
+      * Output-changing flags (opt-outs that RESTORE earlier behaviour):
       --legacy-merge        restore the pre-promotion UNCONDITIONAL Liftoff/miniprot merge (default = verified best-of-outcome merge)
       --full-dp-align       restore the exact giant-only full-DP alignment (default = band-everything anchor-windowed alignment)
       --gene-only           restore the pre-v1.0.9 gene-only lift (default = lift all auto-detected gene-like top-level types)
       --no-miniprot-rescue  disable the (default-ON) miniprot-only rescue pass for genes the DNA lift missed entirely
+      --no-miniprot-candidate
+                              opt OUT of the (default-ON) 3rd best-of-outcome candidate: miniprot's NATIVE CDS-only model, kept only when its ORF-rescued protein identity is STRICTLY better than
+                              the 2-way winner, so per-transcript identity is non-decreasing. Env LIFTON_MINIPROT_CANDIDATE=0 also disables it
+      --no-adaptive-rescue-floor
+                              restore the FIXED 0.50 miniprot-only-rescue floor (default = lower the floor toward 0.30 as the DNA lift's gene recall drops, inert on same/close-species). Env
+                              LIFTON_RESCUE_ADAPTIVE_FLOOR=0 also disables it
+
+      * Experimental, opt-in:
+      --miniprot-cross-locus-rescue
+                              replace a WEAKLY lifted coding gene (best emitted protein identity < LIFTON_CROSS_LOCUS_MAX_LIFTOFF, default 0.5) with a clean miniprot model on a DIFFERENT chromosome,
+                              tagged lifton_rescue=cross_locus. Off by default
+
+      * Completeness / publication:
+      --strict-completeness
+                              refuse to publish if ANY locus was skipped (default = publish, report the run as "partial_success", and record every skipped locus in run_manifest.json)
+      --allow-partial-output
+                              publish the staged output even when a failure would otherwise block publication
 
       * Deprecated NO-OP aliases (kept for backward compatibility; have no effect):
       --parallel-aligners   no-op (concurrent Step 4 is now default; use --serial-aligners to opt out)
@@ -152,6 +172,9 @@ LiftOn
       --fast-align          no-op (band-everything alignment is now default; use --full-dp-align to opt out)
       --lift-gene-like      no-op (gene-like lift is now default; use --gene-only to opt out)
       --miniprot-rescue     no-op (miniprot-only rescue is now default; use --no-miniprot-rescue to opt out)
+      --miniprot-candidate  no-op (the miniprot-only candidate is now default; use --no-miniprot-candidate to opt out)
+      --adaptive-rescue-floor
+                              no-op (the adaptive rescue floor is now default; use --no-adaptive-rescue-floor to opt out)
 
       Alignments:
       -mm2_options =STR     space delimited minimap2 parameters. By default ="-a --end-bonus 5 --eqx -N 50 -p 0.5"
@@ -172,35 +195,44 @@ LiftOn
 
 |
 
-What's new in v1.0.9
----------------------------------
+Output-changing defaults and their opt-outs
+--------------------------------------------
 
-Several v1.0.9 flags toggle behaviour that was introduced or promoted since
-v1.0.8. The tables below summarise, for each flag, whether it **CHANGES the
-output annotation** or is **BYTE-NEUTRAL** (same output bytes, different I/O or
+Several defaults toggle behaviour that was introduced or promoted after v1.0.8.
+The tables below summarise, for each flag, whether it **CHANGES the output
+annotation** or is **BYTE-NEUTRAL** (same output bytes, different I/O or
 scheduling), and which flag restores the older behaviour.
 
-**Output-changing defaults (results differ vs v1.0.8 — opt-out restores old behaviour):**
+**Output-changing defaults (opt-out restores the older behaviour):**
 
 .. list-table::
    :header-rows: 1
    :widths: 22 18 60
 
-   * - Default behaviour (v1.0.9)
+   * - Default behaviour
      - Opt-out flag
      - Effect
-   * - Gene-like lift (lifts pseudogenes / ``ncRNA_gene`` / mobile elements, not just ``gene``)
+   * - Gene-like lift (lifts pseudogenes / ``ncRNA_gene`` / mobile elements, not just ``gene``) — *v1.0.9*
      - ``--gene-only``
      - CHANGES output (adds features). ``--lift-gene-like`` is a deprecated no-op alias.
-   * - Best-of-outcome Liftoff/miniprot merge
+   * - Best-of-outcome Liftoff/miniprot merge — *v1.0.9*
      - ``--legacy-merge``
      - CHANGES output. Keeps the higher-identity of {merge, Liftoff} per transcript. ``--optimize`` is a deprecated no-op alias.
-   * - Band-everything / windowed alignment
+   * - Band-everything / windowed alignment — *v1.0.9*
      - ``--full-dp-align``
      - CHANGES output on divergent inputs only (identity-exact same-species). ``--fast-align`` is a deprecated no-op alias.
-   * - Miniprot-only rescue (default-ON)
+   * - Miniprot-only rescue — *v1.0.9*
      - ``--no-miniprot-rescue``
      - CHANGES output (adds ``lifton_rescue=miniprot_only`` genes the DNA lift missed). ``--miniprot-rescue`` is a deprecated no-op alias. Env ``LIFTON_MINIPROT_RESCUE=0/1`` force-disables/enables.
+   * - Third merge candidate: miniprot's native CDS-only model — *v1.0.10*
+     - ``--no-miniprot-candidate``
+     - CHANGES output, non-decreasing per transcript: adopted only when its ORF-rescued protein identity is STRICTLY better than the two-way winner, and never for an antisense hit. ``--miniprot-candidate`` is a deprecated no-op alias. Env ``LIFTON_MINIPROT_CANDIDATE=0/1``.
+   * - Divergence-adaptive miniprot-only rescue floor — *v1.0.10*
+     - ``--no-adaptive-rescue-floor``
+     - CHANGES output (adds genes at large evolutionary distance). Lowers the 0.50 identity floor toward 0.30 as the DNA lift's gene recall drops; inert on same/close-species. ``--adaptive-rescue-floor`` is a deprecated no-op alias. Env ``LIFTON_RESCUE_ADAPTIVE_FLOOR=0/1``.
+   * - Coding transcripts harmonized to ``mRNA``; every CDS carries an ``ID`` and the reference's descriptive attributes — *v1.0.10*
+     - ``LIFTON_NO_MRNA_HARMONIZE=1`` / ``LIFTON_NO_CDS_ATTR_CARRY=1`` / ``LIFTON_NO_CONTAINMENT_NORMALIZE=1``
+     - CHANGES column 3 and column 9 only; coordinates and the encoded protein are untouched. Output grows 12–43%.
 
 **Byte-neutral performance flags (identical output, faster / lighter):**
 
