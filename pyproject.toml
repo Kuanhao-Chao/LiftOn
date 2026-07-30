@@ -6,8 +6,11 @@
 # NOTE: setuptools is capped <81 on purpose — `cigar` 0.1.3's sdist imports
 # `pkg_resources`, which setuptools 81 removed. Raising this ceiling re-breaks
 # the cigar build (CI pre-builds cigar with setuptools<81 for the same reason).
+# A dependabot PR raised it to >=83,<84 on `main`; it was reverted here when
+# main merged into devel. Do not raise it until `cigar` stops importing
+# `pkg_resources` (see AGENTS.md, "Security & Configuration Tips").
 [build-system]
-requires = ["setuptools>=83.0.0,<84", "wheel"]
+requires = ["setuptools>=61,<81", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]

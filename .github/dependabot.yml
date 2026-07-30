@@ -9,9 +9,11 @@
 #                      gh-action-pypi-publish, etc.).
 #
 # NOTE: pyproject.toml deliberately caps setuptools<81 (cigar 0.1.3's sdist
-# imports the removed pkg_resources). If Dependabot opens a PR raising that
-# ceiling, it WILL re-break the cigar build — review/close such PRs unless the
-# cigar pin has been resolved upstream.
+# imports the removed pkg_resources). A PR raising that ceiling WILL re-break
+# the cigar build. This warning alone was not enough — PR #55 raised it to
+# >=83,<84 and was merged — so setuptools is now in the `ignore` list below,
+# and tests/test_packaging_metadata.py asserts the cap independently. Drop
+# both guards only once cigar stops importing pkg_resources upstream.
 version: 2
 updates:
   - package-ecosystem: "pip"
@@ -22,6 +24,9 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    ignore:
+      # See the note above: the <81 cap is load-bearing for the cigar build.
+      - dependency-name: "setuptools"
 
   - package-ecosystem: "github-actions"
     directory: "/"

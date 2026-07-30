@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import re
 import runpy
+import tomllib
 from pathlib import Path
 
 from packaging.requirements import Requirement
@@ -99,6 +100,28 @@ def test_duckdb_release_exclusions_match_environment():
         assert Version("1.5.4") not in duckdb.specifier
         assert Version("1.5.5") in duckdb.specifier
         assert Version("14") in requirements["pyarrow"].specifier
+
+
+def test_build_backend_still_caps_setuptools_below_81():
+    """`cigar` 0.1.3's sdist imports `pkg_resources`, removed in setuptools 81.
+
+    The cap is documented in pyproject.toml, AGENTS.md and .github/dependabot.yml,
+    and it still regressed: dependabot PR #55 raised it to >=83,<84 and was
+    merged into `main`. Assert it, so the next attempt fails a test instead of
+    the cigar build.
+    """
+    build_system = tomllib.loads(
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+    )["build-system"]
+    setuptools_requirement = next(
+        Requirement(requirement)
+        for requirement in build_system["requires"]
+        if Requirement(requirement).name.lower() == "setuptools"
+    )
+
+    assert Version("80.9.0") in setuptools_requirement.specifier
+    assert Version("81") not in setuptools_requirement.specifier
+    assert Version("83.0.0") not in setuptools_requirement.specifier
 
 
 def test_development_environment_is_relocatable_and_complete():
