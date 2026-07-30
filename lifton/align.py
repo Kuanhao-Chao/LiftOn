@@ -1,8 +1,8 @@
 import os
 import parasail
 from Bio.Seq import Seq
-from cigar import Cigar
 from lifton import get_id_fraction, lifton_class, windowed_align
+from lifton.coreutils import parse_cigar_items
 from lifton.exceptions import LiftOnAlignmentError
 
 
@@ -358,7 +358,7 @@ def lifton_parasail_align(lifton_trans, db_entry, fai, ref_proteins, ref_trans_i
     alignment_ref = extracted_parasail_res.traceback.ref
     cigar = extracted_parasail_res.cigar
     decoded_cigar = cigar.decode.decode()
-    cigar_ls = list(Cigar(decoded_cigar).items())
+    cigar_ls = list(parse_cigar_items(decoded_cigar))
     # Step 6: Change the CDS protein boundaries based on CIGAR string.
     cigar_accum_len = 0
     cdss_protein_aln_boundary = cdss_protein_boundary.copy()

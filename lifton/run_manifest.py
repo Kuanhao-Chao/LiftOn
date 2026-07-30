@@ -51,7 +51,6 @@ DEFAULT_DEPENDENCIES = (
     "lifton",
     "numpy",
     "biopython",
-    "cigar",
     "parasail",
     "intervaltree",
     "interlap",

@@ -102,13 +102,34 @@ def test_duckdb_release_exclusions_match_environment():
         assert Version("14") in requirements["pyarrow"].specifier
 
 
-def test_build_backend_still_caps_setuptools_below_81():
-    """`cigar` 0.1.3's sdist imports `pkg_resources`, removed in setuptools 81.
+def test_cigar_is_not_a_dependency():
+    """`cigar` 0.1.3 cannot be installed in a clean environment.
 
-    The cap is documented in pyproject.toml, AGENTS.md and .github/dependabot.yml,
-    and it still regressed: dependabot PR #55 raised it to >=83,<84 and was
-    merged into `main`. Assert it, so the next attempt fails a test instead of
-    the cigar build.
+    Its setup.py calls `ez_setup.use_setuptools()`, which downloads a setuptools
+    egg from a URL that no longer serves one, so `pip install lifton` died with
+    `tarfile.ReadError: not a gzip file` for anyone without a cached wheel. It
+    was the only dependency that could not build, LiftOn used exactly one call
+    from it, and that call now lives in `coreutils.parse_cigar_items`.
+
+    Re-adding it would silently break installation for every new user, so assert
+    it stays out of both the runtime requirements and the pinned environment.
+    """
+    runtime = {
+        Requirement(requirement).name.lower()
+        for requirement in _setup_keyword("install_requires")
+    }
+    assert "cigar" not in runtime
+    assert "cigar" not in _pip_environment_requirements()
+
+    align_source = (ROOT / "lifton" / "align.py").read_text(encoding="utf-8")
+    assert "from cigar import" not in align_source
+
+
+def test_build_backend_requires_a_modern_setuptools_floor():
+    """The former `setuptools<81` ceiling existed only for `cigar`.
+
+    With that dependency gone the cap went with it, but the floor still matters:
+    setup.py relies on `find_namespace_packages` and PEP 517 metadata.
     """
     build_system = tomllib.loads(
         (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
@@ -119,9 +140,9 @@ def test_build_backend_still_caps_setuptools_below_81():
         if Requirement(requirement).name.lower() == "setuptools"
     )
 
-    assert Version("80.9.0") in setuptools_requirement.specifier
-    assert Version("81") not in setuptools_requirement.specifier
-    assert Version("83.0.0") not in setuptools_requirement.specifier
+    assert Version("60.0.0") not in setuptools_requirement.specifier
+    assert Version("61") in setuptools_requirement.specifier
+    assert Version("81") in setuptools_requirement.specifier
 
 
 def test_development_environment_is_relocatable_and_complete():

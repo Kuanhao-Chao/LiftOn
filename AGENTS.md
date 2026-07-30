@@ -27,4 +27,4 @@ Follow the established `type(scope): imperative summary` pattern, for example `f
 
 ## Security & Configuration Tips
 
-Do not commit secrets, local environments, generated outputs, or large datasets. Preserve the intentional `setuptools<81` build cap until the `cigar` compatibility issue is resolved.
+Do not commit secrets, local environments, generated outputs, or large datasets. Before adding a runtime dependency, confirm it installs in a clean environment with `pip install --no-cache-dir`: LiftOn shipped for years depending on `cigar` 0.1.3, whose sdist cannot build at all on a machine without a cached wheel.
