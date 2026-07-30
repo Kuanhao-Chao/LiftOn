@@ -1,5 +1,5 @@
 {
-  "_comment": "Phase 16 — biological benchmark dataset registry. URLs pull from the official JHU CCB FTP mirror that backs https://ccb.jhu.edu/lifton/content/same_species_liftover/index.html. The harness appends per-run -g, -o, and the positional <target.fa> <ref.fa>.",
+  "_comment": "Phase 16 — biological benchmark dataset registry. URLs pull from the official JHU CCB FTP mirror that backs https://khchao.com/LiftOn/content/same_species_liftover/index.html. The harness appends per-run -g, -o, and the positional <target.fa> <ref.fa>.",
 
   "datasets": [
     {
@@ -49,7 +49,7 @@
     },
 
     {
-      "_note": "Cross-species website examples (close + distant). URLs mirror https://ccb.jhu.edu/lifton/content/{close,distant}_species_liftover/. Added for registry parity; the comparison harness reuses on-disk copies under /ccb/salz2/jheinz3/shared/lifton/cross_species/ rather than refetching.",
+      "_note": "Cross-species website examples (close + distant). URLs mirror https://khchao.com/LiftOn/content/{close,distant}_species_liftover/. Added for registry parity; the comparison harness reuses on-disk copies under /ccb/salz2/jheinz3/shared/lifton/cross_species/ rather than refetching.",
       "id": "human_to_chimp",
       "species": "Human GRCh38 -> Chimpanzee (NHGRI_mPanTro3-v1.1)",
       "reference_fa": "ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_ref/GCF_000001405.40_GRCh38.p14_genomic.fna",

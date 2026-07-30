@@ -1,3 +1,3 @@
 # LiftOn-documentation
 
-Check out the full user manual [here](http://ccb.jhu.edu/lifton) 📒
+Check out the full user manual [here](https://khchao.com/LiftOn) 📒

@@ -3,7 +3,7 @@
 **Goal.** Drive LiftOn toward *higher accuracy* (it must beat both Liftoff and miniprot),
 *higher speed*, and *greater robustness*, while guaranteeing **full-feature lift-over** with
 **completeness tracking**, and replicating **every published CCB experiment**
-(<https://ccb.jhu.edu/lifton/>). Every algorithmic change is validated automatically by a
+(<https://khchao.com/LiftOn/>). Every algorithmic change is validated automatically by a
 regression + benchmark loop before it can land.
 
 This document is the architecture and implementation strategy. Live numbers are in the

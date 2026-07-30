@@ -1,6 +1,6 @@
 # LiftOn website-example coverage matrix
 
-Audit of the 8 examples on https://ccb.jhu.edu/lifton/ against the subset registry (`benchmarks.json`), the full-genome FTP registry (`datasets.json`), and on-disk inputs.
+Audit of the 8 examples on https://khchao.com/LiftOn/ against the subset registry (`benchmarks.json`), the full-genome FTP registry (`datasets.json`), and on-disk inputs.
 
 | # | website example | class | subset id | in benchmarks.json | full id | in datasets.json | ref inputs on disk | subset built (S/L/M) |
 |---|---|---|---|---|---|---|---|---|
