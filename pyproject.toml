@@ -8,7 +8,7 @@
 # (its parsing lives in lifton/coreutils.py), so the cap is gone with it and
 # LiftOn builds against current setuptools.
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=83.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
