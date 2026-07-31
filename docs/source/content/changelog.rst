@@ -225,7 +225,7 @@ v1.0.0
 -------
 
 - Initial release of LiftOn
-- Release via the documentation (http://ccb.jhu.edu/lifton)
+- Release via the documentation (https://khchao.com/LiftOn)
 - Released via the paper (bioRxiv coming soon!)
 
 

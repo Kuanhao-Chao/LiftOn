@@ -13,7 +13,7 @@ version: 1.0.10
 date-released: "2026-07-30"
 license: GPL-3.0-or-later
 repository-code: "https://github.com/Kuanhao-Chao/LiftOn"
-url: "https://ccb.jhu.edu/lifton/"
+url: "https://khchao.com/LiftOn/"
 keywords:
   - genome annotation
   - lift-over

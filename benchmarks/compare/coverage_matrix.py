@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Audit coverage of the 8 examples on https://ccb.jhu.edu/lifton/ against the two
+"""Audit coverage of the 8 examples on https://khchao.com/LiftOn/ against the two
 benchmark registries (subset `benchmarks.json` + full-genome `datasets.json`) and
 the on-disk inputs. Emits `coverage_matrix.md`.
 
@@ -68,7 +68,7 @@ def _yn(b):
 
 def main():
     L = ["# LiftOn website-example coverage matrix\n",
-         "Audit of the 8 examples on https://ccb.jhu.edu/lifton/ against the subset registry "
+         "Audit of the 8 examples on https://khchao.com/LiftOn/ against the subset registry "
          "(`benchmarks.json`), the full-genome FTP registry (`datasets.json`), and on-disk inputs.\n"]
 
     L.append("| # | website example | class | subset id | in benchmarks.json | full id | in datasets.json | ref inputs on disk | subset built (S/L/M) |")
