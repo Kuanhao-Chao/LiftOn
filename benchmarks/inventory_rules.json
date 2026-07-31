@@ -207,6 +207,7 @@
         "benchmarks/compare/merge_full_runs.py",
         "benchmarks/compare/profiling.py",
         "benchmarks/compare/report_figures.py",
+        "benchmarks/compare/report_tables.py",
         "benchmarks/compare/v1_0_8_vs_devel_report.*",
         "benchmarks/compare/version_compare*",
         "benchmarks/compare/version_report.py",
