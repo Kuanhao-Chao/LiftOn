@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -172,6 +173,21 @@ def _env_os():
 # running a single lift
 # ---------------------------------------------------------------------------
 
+def bench_rescue_on() -> bool:
+    """True when this arm should run devel at its SHIPPED default (rescue ON).
+
+    The four-way baselines pin ``--no-miniprot-rescue`` so the devel column stays
+    comparable with v1.0.8, which has no rescue at all. That makes the published
+    tables an *engine* comparison rather than a description of what a user gets
+    out of the box, so a separate arm measures the shipped default and is
+    reported as its own column. Off by default: an unset environment reproduces
+    the frozen protocol exactly.
+    """
+    return os.environ.get("LIFTON_BENCH_RESCUE_ON", "").strip().lower() in (
+        "1", "true", "yes",
+    )
+
+
 def _build_argv(version, paths, anndb, threads, L, M, out_gff, devel_fast):
     spec = VERSIONS[version]
     argv = [spec["bin"], "-t", str(threads), "-copies", "-ad", anndb,
@@ -192,13 +208,18 @@ def _build_argv(version, paths, anndb, threads, L, M, out_gff, devel_fast):
         # correct. (Restore the in-memory flags once bug #2 is fixed.)
         argv += ["--locus-pipeline"]
     argv += list(spec["extra_flags"])
-    if version.startswith("devel"):
+    if version.startswith("devel") and not bench_rescue_on():
         # Iteration 23: the miniprot-only rescue is now default-ON. Pin the FROZEN
         # fourway baselines explicitly OFF so the committed fourway_results.json
         # stays apples-to-apples (the rescue-ON recall gain is reported as a
         # separate arm via benchmarks/compare/miniprot_rescue_ab.py, NOT folded
         # into / re-baselined against the 4-way devel column). stable (v1.0.8)
         # has no such flag, so this is scoped to devel/devel_legacy.
+        #
+        # LIFTON_BENCH_RESCUE_ON=1 lifts the pin so a separate arm can measure the
+        # SHIPPED default. Never set it for a run whose numbers go into the frozen
+        # four-way column -- that column's whole point is comparability with
+        # v1.0.8, which has no rescue at all.
         argv += ["--no-miniprot-rescue"]
     argv += ["-o", str(out_gff), str(paths["tgt_fa"]), str(paths["ref_fa"])]
     return argv

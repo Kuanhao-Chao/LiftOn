@@ -26,7 +26,8 @@ Run (repo root, lifton_devel env):
 Writes benchmarks/compare/devel_refresh/<pair_id>.json
 """
 from __future__ import annotations
-import json, os, sys
+import datetime as _dt
+import json, os, subprocess, sys
 from pathlib import Path
 
 from . import evaluator, fourway_compare as fc, version_compare as vc
@@ -35,6 +36,7 @@ from .profiling import run_profiled
 HERE = Path(__file__).resolve().parent
 WORK = HERE / "work"
 OUT_DIR = HERE / "devel_refresh"
+OUT_DIR_DEFAULT = HERE / "devel_refresh_default"
 
 ALL_PAIRS = [
     "arabidopsis", "bee", "rice", "t1_maize_b73_to_mo17", "t1_tomato_microtom_to_heinz",
@@ -60,7 +62,49 @@ def _cached_inputs(bid):
     return L, M, T, P
 
 
-def run_devel_refresh(bid, threads=8, threads_eval=8, log=print):
+def campaign_provenance():
+    """Host and build identity for a measurement, so campaigns can be compared.
+
+    The previously frozen `fourway_results.json` recorded none of this, so when
+    the report's wall-clock and peak-memory tables needed refreshing there was no
+    way to tell whether the old numbers came from this machine or another one --
+    which forced re-measuring *both* arms rather than just the changed one.
+    Recording it costs nothing and removes that ambiguity next time.
+    """
+    import platform
+    import socket
+
+    def _git(worktree):
+        try:
+            return subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+                capture_output=True, text=True, timeout=15,
+            ).stdout.strip()[:12] or None
+        except Exception:
+            return None
+
+    mem_gib = None
+    try:
+        mem_gib = round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+                        / (1024 ** 3), 1)
+    except Exception:
+        pass
+
+    return {
+        "host": socket.gethostname(),
+        "cpu_count": os.cpu_count(),
+        "total_mem_gib": mem_gib,
+        "platform": platform.platform(),
+        "python": platform.python_version(),
+        "sha": {
+            "devel": _git(vc.VERSIONS["devel"]["worktree"]),
+            "stable": _git(vc.VERSIONS["stable"]["worktree"]),
+        },
+        "measured_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def run_devel_refresh(bid, threads=8, threads_eval=8, log=print, rescue_on=False):
     bench = fc._bench(bid)
     anndb = bench.get("annotation_database", "RefSeq")
     paths = fc._full_paths(bid)
@@ -69,9 +113,12 @@ def run_devel_refresh(bid, threads=8, threads_eval=8, log=print):
             raise RuntimeError(f"full input missing: {k}={p}")
     L, M, T, P = _cached_inputs(bid)
 
-    out_dir = WORK / bid / "_devel_refresh"
+    # The shipped-default arm gets its own work + output trees so it can never
+    # overwrite the pinned arm that feeds the frozen four-way column.
+    suffix = "_default" if rescue_on else ""
+    out_dir = WORK / bid / f"_devel_refresh{suffix}"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_gff = out_dir / "devel_refresh.gff3"
+    out_gff = out_dir / f"devel_refresh{suffix}.gff3"
 
     # Mirror version_compare._build_argv's devel-fast full-genome protocol
     # EXACTLY (order + flags), adding only -L/-M/-T/-P for the cached bypass.
@@ -79,7 +126,13 @@ def run_devel_refresh(bid, threads=8, threads_eval=8, log=print):
         vc.VERSIONS["devel"]["bin"], "-t", str(threads), "-copies",
         "-ad", anndb, "-g", str(paths["ref_gff"]),
         "-L", str(L), "-M", str(M), "-T", str(T), "-P", str(P),
-        "--locus-pipeline", "--no-miniprot-rescue",
+        "--locus-pipeline",
+    ]
+    if not rescue_on:
+        # Pinned arm: matches the frozen four-way protocol, comparable to v1.0.8.
+        # The rescue-on arm omits this so it measures the SHIPPED default.
+        argv += ["--no-miniprot-rescue"]
+    argv += [
         "-o", str(out_gff), str(paths["tgt_fa"]), str(paths["ref_fa"]),
     ]
     log(f"[{bid}] invoking: {' '.join(argv)}")
@@ -101,9 +154,12 @@ def run_devel_refresh(bid, threads=8, threads_eval=8, log=print):
     validity = vc.validate_gff(out_gff, log=log)
 
     result = {"bid": bid, "out_gff": str(out_gff), "eval_dir": str(eval_dir),
-             "summary": summary, "validity": validity}
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / f"{bid}.json").write_text(json.dumps(result, indent=2, default=str))
+             "summary": summary, "validity": validity,
+             "arm": "shipped_default" if rescue_on else "pinned_no_rescue",
+             "argv": argv, "provenance": campaign_provenance()}
+    out_root = OUT_DIR_DEFAULT if rescue_on else OUT_DIR
+    out_root.mkdir(parents=True, exist_ok=True)
+    (out_root / f"{bid}.json").write_text(json.dumps(result, indent=2, default=str))
     log(f"[{bid}] DONE: completeness_coding={summary.get('completeness_coding')} "
         f"mean_pi={summary.get('mean_pi')} validity_errors={validity.get('n_errors')}")
     return result
@@ -115,16 +171,35 @@ def dataclasses_asdict(pr):
 
 
 def main(argv=None):
-    argv = argv if argv is not None else sys.argv[1:]
-    pairs = argv if argv else ALL_PAIRS
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__ and __doc__.splitlines()[0])
+    ap.add_argument("pairs", nargs="*", help="pair ids (default: all 17)")
+    ap.add_argument("--rescue-on", action="store_true",
+                    help="measure the SHIPPED default (miniprot-only rescue ON). "
+                         "Writes to devel_refresh_default/ so the pinned arm that "
+                         "feeds the frozen four-way column is never overwritten.")
+    ap.add_argument("-t", "--threads", type=int, default=8)
+    ap.add_argument("--threads-eval", type=int, default=8)
+    args = ap.parse_args(argv if argv is not None else sys.argv[1:])
+
+    pairs = args.pairs or ALL_PAIRS
+    out_root = OUT_DIR_DEFAULT if args.rescue_on else OUT_DIR
+    failures = []
     for bid in pairs:
         try:
-            run_devel_refresh(bid)
+            run_devel_refresh(bid, threads=args.threads,
+                              threads_eval=args.threads_eval,
+                              rescue_on=args.rescue_on)
         except Exception as e:
             print(f"[{bid}] FAILED: {e}", file=sys.stderr)
-            (OUT_DIR / f"{bid}.FAILED.txt").parent.mkdir(parents=True, exist_ok=True)
-            (OUT_DIR / f"{bid}.FAILED.txt").write_text(str(e))
+            out_root.mkdir(parents=True, exist_ok=True)
+            (out_root / f"{bid}.FAILED.txt").write_text(str(e))
+            failures.append(bid)
+    if failures:
+        print(f"FAILED pairs ({len(failures)}): {failures}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

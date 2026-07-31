@@ -195,8 +195,8 @@
       "superseded_by": "canonical_release_baseline"
     },
     {
-      "aggregate_sha256": "96e4297072a9e0d6489e36a33115821eb901f1f81990e254d74a58c0c578d738",
-      "bytes": 6529178,
+      "aggregate_sha256": "f190fd689fcd047a66a34d12235d634dab7170e401b643774d68838073cb4dec",
+      "bytes": 6530175,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
@@ -206,8 +206,8 @@
       "superseded_by": "canonical_release_baseline"
     },
     {
-      "aggregate_sha256": "6e29ccae2ff8fdcb0da1a711685db77214c7417883be427fb223be17ff774006",
-      "bytes": 70430,
+      "aggregate_sha256": "87377786bf6fd1005ac78c0b39f921e023b5b63f61c756972f2ffd924c60081a",
+      "bytes": 73610,
       "claim_eligible": false,
       "classification": "obsolete",
       "completion_state": "retired",
@@ -856,14 +856,14 @@
       "sha256": "559ef88c1f9f4e87484f92f7924a8df11df97d541e868020a869ce6f31d41658"
     },
     {
-      "bytes": 6068,
+      "bytes": 9248,
       "claim_eligible": false,
       "classification": "obsolete",
       "completion_state": "retired",
       "family": "obsolete_legacy_runners",
       "json_schema": null,
       "path": "benchmarks/compare/devel_refresh.py",
-      "sha256": "7931ddaf3725dc4cc784e1d156d2499660b0f104d217f5376113c5b02be31fec"
+      "sha256": "83ecdc6afd1835cae76ed0a19de98bdd4638c7cb48e54cc995da6ef2a6ae5df7"
     },
     {
       "bytes": 5847,
@@ -2712,14 +2712,14 @@
       "sha256": "f5acee5331060801318ad874a1a350da903c96aab9204d1da5c8f977be94ee38"
     },
     {
-      "bytes": 21559,
+      "bytes": 22556,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": null,
       "path": "benchmarks/compare/version_compare.py",
-      "sha256": "566b9abf60271ba471c89cdc784fe4ba54f7a029bdb0ca7073d10f4c9e8d139e"
+      "sha256": "6743e15e50b858a045e4e25ea9870f65ee80e75aa10191fb7d8d9fe34c3dd5d5"
     },
     {
       "bytes": 97863,
@@ -2964,7 +2964,7 @@
     "benchmarks/results_rerun/**",
     "benchmarks/compare/*.run.log"
   ],
-  "inventory_sha256": "f2e0be6461aba4079ba5322d0265a5178e4cfac4dfeedf1e0b78600350e4256a",
+  "inventory_sha256": "6a30d74bf8d3d0ad5267c1749a62a70102ec68344010fb2e08b50b48032d2817",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3012,8 +3012,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "77812b7fc81d28a591126e041aa6036a3f3ab9db8708ce88ab5e8408b88210b0",
-    "bytes": 12408122,
+    "aggregate_sha256": "103a26ae693a487523f2a074a5b5d23bc8f17b1fb4a28cd2a80bc9066613a67a",
+    "bytes": 12412299,
     "classification_counts": {
       "canonical": 61,
       "diagnostic": 26,
