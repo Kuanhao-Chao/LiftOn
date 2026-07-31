@@ -13,6 +13,32 @@ they are shared pure helpers with no LiftOn dependencies, so they belong in the
 leaf rather than in whichever module happened to need them first.
 """
 
+from itertools import groupby
+
+
+def parse_cigar_items(cigar_string):
+    """Yield ``(length, operation)`` pairs from a CIGAR string.
+
+    This replaces the single call LiftOn made into the third-party ``cigar``
+    package (``list(Cigar(s).items())`` in :mod:`lifton.align`), which was
+    dropped as a dependency: ``cigar`` 0.1.3 (2015, unmaintained) ships only an
+    sdist whose ``setup.py`` calls ``ez_setup.use_setuptools()``, downloading a
+    setuptools egg from a URL that no longer serves one. Any ``pip install
+    lifton`` without a cached wheel therefore died with
+    ``tarfile.ReadError: not a gzip file``.
+
+    The upstream generator also ran ``raise StopIteration`` on a ``*`` CIGAR,
+    which PEP 479 turned into a ``RuntimeError`` on Python >= 3.7; this returns
+    instead. Behaviour is otherwise identical, including yielding ``(0, None)``
+    for the unavailable-alignment CIGAR ``*``.
+    """
+    if cigar_string == "*":
+        yield (0, None)
+        return
+    groups = groupby(cigar_string, lambda character: character.isdigit())
+    for _, digits in groups:
+        yield int("".join(digits)), "".join(next(groups)[1])
+
 
 def custom_bisect_insert(sorted_list, element_to_insert):
     """

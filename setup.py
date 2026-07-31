@@ -43,7 +43,7 @@ setuptools.setup(
 		"Programming Language :: Python :: 3.12",
 		"Topic :: Scientific/Engineering :: Bio-Informatics",
 	],
-	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "cigar>=0.1.3", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0',
+	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0',
 	# Phase 6.1 (vendored gffbase) runtime requirements:
 	'duckdb>=1.0,!=1.5.3,!=1.5.4', 'pyarrow>=14',
 	# Phase 16 Tier 5: mappy unlocks the in-process minimap2 path under

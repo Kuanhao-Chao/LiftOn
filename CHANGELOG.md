@@ -121,6 +121,18 @@ byte-identity matrix stays green.
 
 ### Fixed (reported issues)
 
+- **`pip install lifton` failed in any clean environment.** LiftOn depended on
+  `cigar` 0.1.3 — unmaintained since 2015, distributed as an sdist only, whose
+  `setup.py` calls `ez_setup.use_setuptools()` to *download* a setuptools egg
+  from a URL that no longer serves one. Every fresh install without a cached
+  wheel therefore died with
+  `tarfile.ReadError: file could not be opened successfully: not a gzip file`.
+  LiftOn used exactly one call from that package; it is now parsed in-tree
+  (`coreutils.parse_cigar_items`, byte-for-byte equivalent and without the
+  upstream generator's PEP 479 `raise StopIteration` bug) and the dependency is
+  removed. This also retires the `setuptools<81` build cap, which existed only
+  to work around the same package. Affected every prior release, not just this
+  one.
 - **`no such column: <id>` from the DNA lift on some machines (GH #35).** The
   vendored Liftoff built its `id IN (...)` clauses by double-quoting each value,
   which SQL reads as an *identifier*, not a string. Modern SQLite rejects it;
@@ -318,9 +330,9 @@ byte-identity matrix stays green.
 
 - `make test-fault` runs deterministic injected-failure coverage;
   `make test-fault-stress` opts into the longer repeated stress cases.
-- The `setuptools<81` build cap is now enforced by
-  `tests/test_packaging_metadata.py` and excluded from Dependabot, after a
-  version-bump PR removed it and re-broke the `cigar` build.
+- The `cigar` dependency is gone, so the `setuptools<81` build cap it required
+  is gone with it, and `tests/test_packaging_metadata.py` now asserts `cigar`
+  stays out of the requirements instead.
 
 ## [1.0.9] - 2026-06-21
 

@@ -3,14 +3,12 @@
 # lifton/__init__.py). This block only makes `python -m build` deterministic
 # and pins the build backend.
 #
-# NOTE: setuptools is capped <81 on purpose — `cigar` 0.1.3's sdist imports
-# `pkg_resources`, which setuptools 81 removed. Raising this ceiling re-breaks
-# the cigar build (CI pre-builds cigar with setuptools<81 for the same reason).
-# A dependabot PR raised it to >=83,<84 on `main`; it was reverted here when
-# main merged into devel. Do not raise it until `cigar` stops importing
-# `pkg_resources` (see AGENTS.md, "Security & Configuration Tips").
+# The former `setuptools<81` cap existed only for the `cigar` dependency, whose
+# sdist imported the removed `pkg_resources`. `cigar` was dropped in v1.0.10
+# (its parsing lives in lifton/coreutils.py), so the cap is gone with it and
+# LiftOn builds against current setuptools.
 [build-system]
-requires = ["setuptools>=61,<81", "wheel"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
