@@ -1,42 +1,74 @@
+# ============================================================================
+# Build the Sphinx documentation and publish it to GitHub Pages.
+#
+# The docs are served at https://khchao.com/LiftOn/ — `khchao.com` is the custom
+# domain on the Kuanhao-Chao.github.io user site, so every project Pages site is
+# served under it automatically. They previously lived at ccb.jhu.edu/lifton and
+# were published by a manual rsync; this workflow replaces that.
+#
+# Originally contributed by @dpuiu in #58, as part of the CCB migration of
+# software documentation to GitHub Pages.
+#
+# THE PYTHON VERSION IS LOAD-BEARING: docs/requirements.txt pins Sphinx 9.1.0,
+# which requires Python >= 3.12. Lowering it fails dependency resolution
+# outright (`No matching distribution found for Sphinx==9.1.0`).
+# ============================================================================
 name: Build and Deploy Sphinx
 
 on:
-  # to run this workflow automatically uncomment the following 2 lines
   push:
     branches: [main]
+    # Only rebuild when something that reaches the rendered docs changes.
+    # conf.py derives the displayed version from lifton/__init__.py, so a
+    # release bump has to rebuild too.
+    paths:
+      - 'docs/**'
+      - 'lifton/__init__.py'
+      - '.github/workflows/docs.yml'
 
-  # run this workflow manually from the Actions tab
-  workflow_dispatch:
+  # Run manually from the Actions tab.
+  workflow_dispatch: {}
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Pages has a single deployment target, so let a newer commit supersede an
+# in-flight build instead of queueing behind it.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
+          # >= 3.12 — see the header note.
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
 
       - name: Install dependencies
         working-directory: docs
         run: |
           pip install -U pip
-          pip install -r requirements.txt || true
+          # No `|| true`: a dependency that fails to install yields a degraded
+          # or broken site, which should fail the job loudly rather than
+          # quietly publishing whatever happened to resolve.
+          pip install -r requirements.txt
 
       - name: Build Sphinx site
         working-directory: docs
-        run: |
-          pwd -P
-          make html
+        run: make html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -46,6 +78,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       pages: write
@@ -53,7 +86,9 @@ jobs:
 
     environment:
       name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4

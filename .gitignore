@@ -32,6 +32,10 @@ comparison/mouse_to_rat_results/fasta/
 comparison/mouse_to_rat_results/lifton_output/
 dictionary/annotations/
 *.txt
+# ...but the docs build genuinely needs its pinned requirements tracked. Without
+# this negation the blanket *.txt above swallows it, and it can only be added
+# with `git add -f` -- easy to forget, and the Pages build fails without it.
+!docs/requirements.txt
 
 # Generated minimap2 indexes
 *.mmi
