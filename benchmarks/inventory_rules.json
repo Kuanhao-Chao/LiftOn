@@ -12,6 +12,8 @@
     "benchmarks/BENCHMARK_INVENTORY.md"
   ],
   "ineligible_local_patterns": [
+    "benchmarks/compare/*.run.log",
+    "benchmarks/compare/_rebench_*/**",
     "benchmarks/compare/_rerun_fulls/**",
     "benchmarks/compare/_rescore_fulls/**",
     "benchmarks/compare/_runs/**",
@@ -19,11 +21,10 @@
     "benchmarks/compare/figures/*_rerun/**",
     "benchmarks/compare/work/**",
     "benchmarks/logs/**",
-    "benchmarks/results_rerun/**",
-    "benchmarks/compare/*.run.log"
+    "benchmarks/results_rerun/**"
   ],
   "frozen_artifacts": {
-    "benchmarks/compare/fourway_results.json": "17144b5c6a55a6336d9266b7757ca9c1b3f9dd4fdb9a55a4dc80cfd991764331"
+    "benchmarks/compare/fourway_results.json": "1ac3ba952c26e07d9f8e535e476e497b878595ca298a6620fafb70a83d88518f"
   },
   "families": [
     {
@@ -199,6 +200,7 @@
         "benchmarks/compare/blog_figures.py",
         "benchmarks/compare/coverage_matrix.*",
         "benchmarks/compare/devel_refresh/*.json",
+        "benchmarks/compare/devel_refresh_default/*.json",
         "benchmarks/compare/extcompare*",
         "benchmarks/compare/figures/blog/*.png",
         "benchmarks/compare/figures/extcompare/*.png",

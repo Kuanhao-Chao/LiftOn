@@ -1,7 +1,7 @@
 {
   "bid": "t4_drosophila_to_bee",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh/eval",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
     "benchmark": "t4_drosophila_to_bee",
@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 30799,
     "n_reference_coding": 30799,
-    "n_tool_features": 2623,
+    "n_tool_features": 3512,
     "n_unmapped_id": 0,
-    "n_recovered_any": 2604,
-    "n_recovered_coding": 2604,
-    "completeness_all": 0.08455,
-    "completeness_coding": 0.08455,
+    "n_recovered_any": 3493,
+    "n_recovered_coding": 3493,
+    "completeness_all": 0.11341,
+    "completeness_coding": 0.11341,
     "completeness_by_type": {
       "region": {
         "n_reference": 1870,
@@ -32,10 +32,10 @@
       },
       "gene": {
         "n_reference": 17559,
-        "n_recovered": 2586,
-        "pct_recovered": 0.14727,
+        "n_recovered": 3475,
+        "pct_recovered": 0.1979,
         "n_extra_copies": 22,
-        "n_tool_features": 2608
+        "n_tool_features": 3497
       },
       "lnc_RNA": {
         "n_reference": 2362,
@@ -49,21 +49,21 @@
         "n_recovered": 1195,
         "pct_recovered": 0.00627,
         "n_extra_copies": 0,
-        "n_tool_features": 18818
+        "n_tool_features": 24467
       },
       "mRNA": {
         "n_reference": 30799,
-        "n_recovered": 2604,
-        "pct_recovered": 0.08455,
+        "n_recovered": 3493,
+        "pct_recovered": 0.11341,
         "n_extra_copies": 19,
-        "n_tool_features": 2623
+        "n_tool_features": 3512
       },
       "CDS": {
         "n_reference": 163306,
         "n_recovered": 984,
         "pct_recovered": 0.00603,
         "n_extra_copies": 368,
-        "n_tool_features": 17875
+        "n_tool_features": 23521
       },
       "primary_transcript": {
         "n_reference": 266,
@@ -158,53 +158,53 @@
       },
       "_overall_": {
         "n_reference": 60889,
-        "n_recovered": 5336,
-        "pct_recovered": 0.08763,
+        "n_recovered": 7114,
+        "pct_recovered": 0.11684,
         "n_extra_copies": 0,
-        "n_tool_features": 5377
+        "n_tool_features": 7155
       }
     },
-    "completeness_feature_total": 0.08763,
+    "completeness_feature_total": 0.11684,
     "n_extra_copies": 19,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.49674,
-      "median": 0.48477,
-      "pct_identical": 0.00307,
-      "n": 2602
+      "mean": 0.51825,
+      "median": 0.50262,
+      "pct_identical": 0.00258,
+      "n": 3491
     },
     "dna_identity": {
-      "mean": 0.44204,
-      "median": 0.46521,
+      "mean": 0.43475,
+      "median": 0.45842,
       "pct_identical": 0.0,
-      "n": 2604
+      "n": 3493
     },
     "protein_identity_hist": [
       66,
       105,
       189,
       443,
-      593,
-      470,
-      350,
-      177,
-      127,
-      82
+      912,
+      705,
+      497,
+      292,
+      179,
+      103
     ],
     "structural": {
-      "orf_valid_frac": 0.17012,
-      "orf_start_frac": 0.34217,
-      "orf_stop_frac": 0.38095,
-      "intron_chain_exact_frac": 0.04762,
-      "exon_sn_mean": 0.24268,
-      "exon_sp_mean": 0.12245,
-      "n_scored": 2604
+      "orf_valid_frac": 0.16061,
+      "orf_start_frac": 0.33524,
+      "orf_stop_frac": 0.38391,
+      "intron_chain_exact_frac": 0.04523,
+      "exon_sn_mean": 0.23182,
+      "exon_sp_mean": 0.12159,
+      "n_scored": 3493
     },
     "profile": {
-      "wall_clock_seconds": 166.53,
-      "peak_rss_mb": 1347.1640625
+      "wall_clock_seconds": 184.35,
+      "peak_rss_mb": 1213.31640625
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 0,
@@ -212,7 +212,7 @@
     "n_warnings": 52,
     "valid": true
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -231,9 +231,8 @@
     "-P",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_drosophila_to_bee/_devel_refresh_default/devel_refresh_default.gff3",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/very_distant_cross_species/t4_drosophila_to_bee/tgt.fna",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/very_distant_cross_species/t4_drosophila_to_bee/ref.fna"
   ],
@@ -247,6 +246,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T08:08:45+00:00"
+    "measured_at": "2026-08-01T08:17:59+00:00"
   }
 }

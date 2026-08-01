@@ -1,7 +1,7 @@
 {
   "bid": "t2_mouse_to_caroli",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh/eval",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
     "benchmark": "t2_mouse_to_caroli",
@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 96192,
     "n_reference_coding": 96192,
-    "n_tool_features": 93692,
+    "n_tool_features": 93705,
     "n_unmapped_id": 375,
-    "n_recovered_any": 93206,
-    "n_recovered_coding": 93206,
-    "completeness_all": 0.96896,
-    "completeness_coding": 0.96896,
+    "n_recovered_any": 93219,
+    "n_recovered_coding": 93219,
+    "completeness_all": 0.96909,
+    "completeness_coding": 0.96909,
     "completeness_by_type": {
       "region": {
         "n_reference": 61,
@@ -25,10 +25,10 @@
       },
       "gene": {
         "n_reference": 40200,
-        "n_recovered": 37096,
-        "pct_recovered": 0.92279,
+        "n_recovered": 37109,
+        "pct_recovered": 0.92311,
         "n_extra_copies": 122,
-        "n_tool_features": 37243
+        "n_tool_features": 37256
       },
       "snRNA": {
         "n_reference": 1000,
@@ -42,21 +42,21 @@
         "n_recovered": 1511314,
         "pct_recovered": 0.96206,
         "n_extra_copies": 0,
-        "n_tool_features": 1520599
+        "n_tool_features": 1520644
       },
       "mRNA": {
         "n_reference": 96192,
-        "n_recovered": 93206,
-        "pct_recovered": 0.96896,
+        "n_recovered": 93219,
+        "pct_recovered": 0.96909,
         "n_extra_copies": 111,
-        "n_tool_features": 93692
+        "n_tool_features": 93705
       },
       "CDS": {
         "n_reference": 1194622,
         "n_recovered": 1145840,
         "pct_recovered": 0.95917,
         "n_extra_copies": 562,
-        "n_tool_features": 1153627
+        "n_tool_features": 1153672
       },
       "pseudogene": {
         "n_reference": 10365,
@@ -375,26 +375,26 @@
       },
       "_overall_": {
         "n_reference": 211608,
-        "n_recovered": 175495,
-        "pct_recovered": 0.82934,
+        "n_recovered": 175521,
+        "pct_recovered": 0.82946,
         "n_extra_copies": 0,
-        "n_tool_features": 175769
+        "n_tool_features": 175795
       }
     },
-    "completeness_feature_total": 0.82934,
+    "completeness_feature_total": 0.82946,
     "n_extra_copies": 111,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.95252,
+      "mean": 0.9525,
       "median": 0.98824,
-      "pct_identical": 0.11842,
-      "n": 92842
+      "pct_identical": 0.1184,
+      "n": 92855
     },
     "dna_identity": {
-      "mean": 0.93689,
+      "mean": 0.93684,
       "median": 0.96629,
       "pct_identical": 3e-05,
-      "n": 93206
+      "n": 93219
     },
     "protein_identity_hist": [
       309,
@@ -402,26 +402,26 @@
       340,
       411,
       716,
-      897,
-      1084,
-      1402,
-      2703,
-      84624
+      899,
+      1085,
+      1404,
+      2704,
+      84631
     ],
     "structural": {
-      "orf_valid_frac": 0.922,
-      "orf_start_frac": 0.96778,
-      "orf_stop_frac": 0.95454,
-      "intron_chain_exact_frac": 0.76991,
-      "exon_sn_mean": 0.84328,
-      "exon_sp_mean": 0.85588,
-      "n_scored": 93206
+      "orf_valid_frac": 0.92195,
+      "orf_start_frac": 0.96774,
+      "orf_stop_frac": 0.95452,
+      "intron_chain_exact_frac": 0.76988,
+      "exon_sn_mean": 0.84326,
+      "exon_sp_mean": 0.85585,
+      "n_scored": 93219
     },
     "profile": {
-      "wall_clock_seconds": 3782.0,
-      "peak_rss_mb": 3172.59765625
+      "wall_clock_seconds": 3932.0,
+      "peak_rss_mb": 3140.25390625
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 0,
@@ -429,7 +429,7 @@
     "n_warnings": 154,
     "valid": true
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -448,9 +448,8 @@
     "-P",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_mouse_to_caroli/_devel_refresh_default/devel_refresh_default.gff3",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_mouse_to_caroli/tgt.fna",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_mouse_to_caroli/ref.fna"
   ],
@@ -464,6 +463,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T07:28:56+00:00"
+    "measured_at": "2026-08-01T07:32:47+00:00"
   }
 }

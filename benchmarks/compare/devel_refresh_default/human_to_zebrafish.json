@@ -1,20 +1,20 @@
 {
-  "bid": "t4_human_to_xenopus",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_devel_refresh/eval",
+  "bid": "human_to_zebrafish",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
-    "benchmark": "t4_human_to_xenopus",
-    "species": "Homo sapiens (GRCh38) -> Xenopus tropicalis (frog)",
+    "benchmark": "human_to_zebrafish",
+    "species": "Human GRCh38 chr20 -> Zebrafish (mammal->fish)",
     "cross_species": true,
     "n_reference_total": 144415,
     "n_reference_coding": 144329,
-    "n_tool_features": 12995,
-    "n_unmapped_id": 13,
-    "n_recovered_any": 12736,
-    "n_recovered_coding": 12736,
-    "completeness_all": 0.08819,
-    "completeness_coding": 0.08824,
+    "n_tool_features": 10341,
+    "n_unmapped_id": 2,
+    "n_recovered_any": 9706,
+    "n_recovered_coding": 9706,
+    "completeness_all": 0.06721,
+    "completeness_coding": 0.06725,
     "completeness_by_type": {
       "region": {
         "n_reference": 709,
@@ -25,38 +25,38 @@
       },
       "pseudogene": {
         "n_reference": 19247,
-        "n_recovered": 277,
-        "pct_recovered": 0.01439,
+        "n_recovered": 242,
+        "pct_recovered": 0.01257,
         "n_extra_copies": 0,
-        "n_tool_features": 277
+        "n_tool_features": 241
       },
       "transcript": {
         "n_reference": 14988,
-        "n_recovered": 663,
-        "pct_recovered": 0.04424,
+        "n_recovered": 225,
+        "pct_recovered": 0.01501,
         "n_extra_copies": 0,
-        "n_tool_features": 663
+        "n_tool_features": 225
       },
       "exon": {
         "n_reference": 2300886,
-        "n_recovered": 124716,
-        "pct_recovered": 0.0542,
+        "n_recovered": 34093,
+        "pct_recovered": 0.01482,
         "n_extra_copies": 0,
-        "n_tool_features": 155730
+        "n_tool_features": 100094
       },
       "gene": {
         "n_reference": 47782,
-        "n_recovered": 4506,
-        "pct_recovered": 0.0943,
-        "n_extra_copies": 986,
-        "n_tool_features": 5492
+        "n_recovered": 6960,
+        "pct_recovered": 0.14566,
+        "n_extra_copies": 1881,
+        "n_tool_features": 8842
       },
       "primary_transcript": {
         "n_reference": 2139,
-        "n_recovered": 54,
-        "pct_recovered": 0.02525,
+        "n_recovered": 36,
+        "pct_recovered": 0.01683,
         "n_extra_copies": 0,
-        "n_tool_features": 54
+        "n_tool_features": 36
       },
       "miRNA": {
         "n_reference": 3218,
@@ -81,31 +81,31 @@
       },
       "lnc_RNA": {
         "n_reference": 32088,
-        "n_recovered": 322,
-        "pct_recovered": 0.01003,
+        "n_recovered": 148,
+        "pct_recovered": 0.00461,
         "n_extra_copies": 0,
-        "n_tool_features": 322
+        "n_tool_features": 148
       },
       "mRNA": {
         "n_reference": 144415,
-        "n_recovered": 12736,
-        "pct_recovered": 0.08819,
-        "n_extra_copies": 246,
-        "n_tool_features": 12995
+        "n_recovered": 9706,
+        "pct_recovered": 0.06721,
+        "n_extra_copies": 633,
+        "n_tool_features": 10341
       },
       "CDS": {
         "n_reference": 1835542,
-        "n_recovered": 117808,
-        "pct_recovered": 0.06418,
-        "n_extra_copies": 288,
-        "n_tool_features": 145803
+        "n_recovered": 31136,
+        "pct_recovered": 0.01696,
+        "n_extra_copies": 217,
+        "n_tool_features": 95929
       },
       "snRNA": {
         "n_reference": 172,
-        "n_recovered": 44,
-        "pct_recovered": 0.25581,
+        "n_recovered": 39,
+        "pct_recovered": 0.22674,
         "n_extra_copies": 0,
-        "n_tool_features": 44
+        "n_tool_features": 39
       },
       "silencer": {
         "n_reference": 4917,
@@ -200,10 +200,10 @@
       },
       "tRNA": {
         "n_reference": 688,
-        "n_recovered": 404,
-        "pct_recovered": 0.58721,
+        "n_recovered": 397,
+        "pct_recovered": 0.57703,
         "n_extra_copies": 0,
-        "n_tool_features": 404
+        "n_tool_features": 397
       },
       "promoter": {
         "n_reference": 439,
@@ -263,9 +263,9 @@
       },
       "V_gene_segment": {
         "n_reference": 664,
-        "n_recovered": 11,
-        "pct_recovered": 0.01657,
-        "n_extra_copies": 2,
+        "n_recovered": 1,
+        "pct_recovered": 0.00151,
+        "n_extra_copies": 0,
         "n_tool_features": 0
       },
       "response_element": {
@@ -361,8 +361,8 @@
       },
       "J_gene_segment": {
         "n_reference": 128,
-        "n_recovered": 0,
-        "pct_recovered": 0.0,
+        "n_recovered": 1,
+        "pct_recovered": 0.00781,
         "n_extra_copies": 0,
         "n_tool_features": 0
       },
@@ -487,10 +487,10 @@
       },
       "scRNA": {
         "n_reference": 4,
-        "n_recovered": 1,
-        "pct_recovered": 0.25,
+        "n_recovered": 3,
+        "pct_recovered": 0.75,
         "n_extra_copies": 0,
-        "n_tool_features": 1
+        "n_tool_features": 3
       },
       "RNase_P_RNA": {
         "n_reference": 2,
@@ -522,61 +522,61 @@
       },
       "_overall_": {
         "n_reference": 580908,
-        "n_recovered": 19018,
-        "pct_recovered": 0.03274,
+        "n_recovered": 17758,
+        "pct_recovered": 0.03057,
         "n_extra_copies": 0,
-        "n_tool_features": 20252
+        "n_tool_features": 20272
       }
     },
-    "completeness_feature_total": 0.03274,
-    "n_extra_copies": 246,
+    "completeness_feature_total": 0.03057,
+    "n_extra_copies": 633,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.72018,
-      "median": 0.76758,
-      "pct_identical": 0.00205,
-      "n": 12196
+      "mean": 0.5844,
+      "median": 0.61969,
+      "pct_identical": 0.00156,
+      "n": 9591
     },
     "dna_identity": {
-      "mean": 0.39277,
-      "median": 0.40174,
+      "mean": 0.33431,
+      "median": 0.33443,
       "pct_identical": 0.0,
-      "n": 12736
+      "n": 9706
     },
     "protein_identity_hist": [
-      338,
-      147,
-      175,
-      264,
-      711,
-      1098,
-      1576,
-      2672,
-      2910,
-      2305
+      633,
+      411,
+      218,
+      569,
+      1079,
+      1512,
+      1757,
+      1569,
+      1211,
+      632
     ],
     "structural": {
-      "orf_valid_frac": 0.46584,
-      "orf_start_frac": 0.60616,
-      "orf_stop_frac": 0.68397,
-      "intron_chain_exact_frac": 0.18876,
-      "exon_sn_mean": 0.31489,
-      "exon_sp_mean": 0.39661,
-      "n_scored": 12736
+      "orf_valid_frac": 0.29744,
+      "orf_start_frac": 0.46404,
+      "orf_stop_frac": 0.51937,
+      "intron_chain_exact_frac": 0.15619,
+      "exon_sn_mean": 0.25782,
+      "exon_sp_mean": 0.37659,
+      "n_scored": 9706
     },
     "profile": {
-      "wall_clock_seconds": 1783.91,
-      "peak_rss_mb": 2660.8515625
+      "wall_clock_seconds": 1436.91,
+      "peak_rss_mb": 2626.16796875
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 0,
     "n_errors": 0,
-    "n_warnings": 154,
+    "n_warnings": 152,
     "valid": true
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -585,21 +585,20 @@
     "-ad",
     "RefSeq",
     "-g",
-    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/very_distant_cross_species/t4_human_to_xenopus/ref.gff",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/human/NCBI_RefSeq_no_rRNA.gff",
     "-L",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
     "-M",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
     "-T",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
     "-P",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t4_human_to_xenopus/_devel_refresh/devel_refresh.gff3",
-    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/very_distant_cross_species/t4_human_to_xenopus/tgt.fna",
-    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/very_distant_cross_species/t4_human_to_xenopus/ref.fna"
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/human_to_zebrafish/_devel_refresh_default/devel_refresh_default.gff3",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/zebrafish_to_medaka/ref.fna",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/human/GCF_000001405.40_GRCh38.p14_genomic.fna"
   ],
   "provenance": {
     "host": "salz11.idies.jhu.edu",
@@ -611,6 +610,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T08:37:09+00:00"
+    "measured_at": "2026-08-01T07:58:38+00:00"
   }
 }

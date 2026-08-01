@@ -118,8 +118,8 @@
   },
   "families": [
     {
-      "aggregate_sha256": "06527e72544b9e086a9465e3d1fbe28640ce808e5a4a937f026b67acdb1b9e6c",
-      "bytes": 3629337,
+      "aggregate_sha256": "b3b58624cf0271915022e848cf47fdd14604ee39834449384d8308f41443aee2",
+      "bytes": 3729739,
       "claim_eligible": true,
       "classification": "canonical",
       "completion_state": "complete",
@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "1b0f5314bed715bce994f7a6cd4f9bc5075a743d3fcebd6701edb9cd490a52ce",
-      "bytes": 476626,
+      "aggregate_sha256": "efd9231a6031be91929ad4ac3c68494ab6ce4405fa12b390515f96c744ec3457",
+      "bytes": 476725,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -195,13 +195,13 @@
       "superseded_by": "canonical_release_baseline"
     },
     {
-      "aggregate_sha256": "fc56db58c6770490e2e0c0525eb7396b2f6f699d06fcc526148ec15ab5920149",
-      "bytes": 6539550,
+      "aggregate_sha256": "f1d03c5f0263c1e73d41d13f68aa40de038a4c10fa79ba2047e986027d4319e0",
+      "bytes": 6747947,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "description": "Reports, refresh records, external comparisons, and figures supporting earlier technical reviews.",
-      "file_count": 63,
+      "file_count": 80,
       "id": "historical_v1_review",
       "superseded_by": "canonical_release_baseline"
     },
@@ -866,242 +866,480 @@
       "sha256": "83ecdc6afd1835cae76ed0a19de98bdd4638c7cb48e54cc995da6ef2a6ae5df7"
     },
     {
-      "bytes": 5847,
+      "bytes": 7321,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "1af00e31454139d5f246d105f5f442c962a3e9c6971b31e6434d991c5812f6eb",
-        "top_level_count": 5
+        "shape_sha256": "ae984b94f454f5af9907fc2ebf75868089f57c3a5b429d1687f10a9ae6691832",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/arabidopsis.json",
-      "sha256": "b9200cec1208e51687101e76de0d1c2ce39deb826085230514f52faec1899cdd"
+      "sha256": "88bdee6ea6379ee57084cef619c6f41fd61c889b87a4e11c412bf1ea639c3443"
     },
     {
-      "bytes": 5873,
+      "bytes": 7336,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "1af00e31454139d5f246d105f5f442c962a3e9c6971b31e6434d991c5812f6eb",
-        "top_level_count": 5
+        "shape_sha256": "ae984b94f454f5af9907fc2ebf75868089f57c3a5b429d1687f10a9ae6691832",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/arabidopsis_to_rice.json",
-      "sha256": "1676426c460a68426746d4f038c66bd6aeb571765e8ee4ae96b2d4cd20db60a2"
+      "sha256": "d9740b52a47db1f49db1ba068e9fa29b1761c26027729ab0e4d57af3d4afd682"
     },
     {
-      "bytes": 4898,
+      "bytes": 6322,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "1c341629674b0d7a064b190ec52f6c7e2e7afc60bdc13cb183c86a5de03d0e35",
-        "top_level_count": 5
+        "shape_sha256": "853d39d06b129d00b982af2d941624db4752ffe94392e8e2fddd59840ea9a599",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/bee.json",
-      "sha256": "1dbe9afc83e79c2f4c031d34e31773a4a4aa8614a749f85788151e52bdfba445"
+      "sha256": "730588a74a291f24e75ca71d5fcb758cc1426fbd70e02f951049bcccbc730b82"
     },
     {
-      "bytes": 5484,
+      "bytes": 6989,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "9dcfb059da0333a9cfc25e2e5d1ce2a5184572d50b439196ea9dd60f4fedad46",
-        "top_level_count": 5
+        "shape_sha256": "25e2b0c8877b02c1b9baed90e26c8192d92b90cc71977eae1f7a68d929101fc3",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/drosophila.json",
-      "sha256": "5fccda451ac8f6a480b092cb57f0dfe3de61634e8a541e7ab6658625fbfc237b"
+      "sha256": "e4b7e79f40851115e4be3e49fe9f75d624da512c632ce9f419df61c367adf067"
     },
     {
-      "bytes": 14909,
+      "bytes": 16439,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
-        "top_level_count": 5
+        "shape_sha256": "0106324376c9b44f8b2d17e60651df73c0f39aa1de86b35208fb1250328cda37",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/human_to_zebrafish.json",
-      "sha256": "c26217d77190f52d9d5805af2f6fe09033c749022445c60b5e3cc22ddad08607"
+      "sha256": "076897e7d01e8e51301d69a6fcceb2e1b304386df57d6b49baeedbecc38519d8"
     },
     {
-      "bytes": 4909,
+      "bytes": 6338,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "a6f0b73236bc266d8db691e3f39fc6f532a07e354be3c1459451b09a5ed4358f",
-        "top_level_count": 5
+        "shape_sha256": "334cf83c090fd40a9730d8cfe3c103de45e6188f752af4a28b9f6c9c24f6dea3",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/rice.json",
-      "sha256": "16d6e688ce50122c3e061980b52aec14e80edee5a08cf0eb10a279dff766af68"
+      "sha256": "cba21efbaf0b3eca3fe493a1fc55c40046589b01385cd2770365d7f81ddb9d3a"
     },
     {
-      "bytes": 5744,
+      "bytes": 7323,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "3534bf5b0510b744bbd6612f5b26a6bea022ef6290d5754709e7af553af4745f",
-        "top_level_count": 5
+        "shape_sha256": "f514c86babf0869b67cba419021738c9076345f4754363bbe4794ba3d0723115",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t1_maize_b73_to_mo17.json",
-      "sha256": "0aeb05cff43f1303150d1c33e1370313808825efe2dfa2a75b154e84480ff951"
+      "sha256": "569de46db682e305c322d9ef81948b2f9abcf24326b0425a8d5c7814069da22a"
     },
     {
-      "bytes": 5080,
+      "bytes": 6707,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "110343e85031b4b535bd3bbbc16c5b860bb0ffa0ceb41e01aacf9454b04f30b6",
-        "top_level_count": 5
+        "shape_sha256": "eba10e091e7ab6f6f8af0358476ef3a5c024507d464b7ea46d41fe27ade2d817",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t1_tomato_microtom_to_heinz.json",
-      "sha256": "dd2ba6f36ee833ff2d5eee34015dcdc2e6bdc74510ef7717c2fdb612eabead42"
+      "sha256": "3269ae3ca693744a268bd474a6399aa1e5c6b622af1f6412e68176a980e7c0d1"
     },
     {
-      "bytes": 14990,
+      "bytes": 16580,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
-        "top_level_count": 5
+        "shape_sha256": "0106324376c9b44f8b2d17e60651df73c0f39aa1de86b35208fb1250328cda37",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t2_human_to_gorilla.json",
-      "sha256": "c35156ecdb779af89dd50927f2b86f2f57cb86a2da93db263828b018a4e21c09"
+      "sha256": "877a73946402af200395ca3891de7fd0ede7756a4bf275482605a40d963b5743"
     },
     {
-      "bytes": 11083,
+      "bytes": 12660,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "9e1169b972909f7ad9bf646fb946098d8e18b094d65e5971b5862b0ee6c6834a",
-        "top_level_count": 5
+        "shape_sha256": "a48c302c713114e925a9fc7a8e5677da4f803f8ec9cd4bc0bb286f8c2cfecb1b",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t2_mouse_to_caroli.json",
-      "sha256": "d3b986e981df0e7280830a6e1066cf45a59b3cbb8b7b92d8decb42a031c5c5a9"
+      "sha256": "b767ff5939c879ddaf6227bd24c962f5d0e706ce9dc98db24cb092e5d3ef1199"
     },
     {
-      "bytes": 5043,
+      "bytes": 6628,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "110343e85031b4b535bd3bbbc16c5b860bb0ffa0ceb41e01aacf9454b04f30b6",
-        "top_level_count": 5
+        "shape_sha256": "eba10e091e7ab6f6f8af0358476ef3a5c024507d464b7ea46d41fe27ade2d817",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t2_tomato_to_potato.json",
-      "sha256": "aad8dbeecb20e4c924cae47e032fbc104c9ef09dd18211075edb3f724fe7fcbd"
+      "sha256": "271d1071e04ec8412f4fd4abf606dcaa45d541b0eb104b43056f9448a86c36c9"
     },
     {
-      "bytes": 6061,
+      "bytes": 7601,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "253815733eb5b6f7f4625cbb2db82e37e3fefc52d9cc49aee78ce56d6e254aa6",
-        "top_level_count": 5
+        "shape_sha256": "19d39d75486c8e392f2882b79fe9827eaec652691d9512148fa6dd73702dddb7",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t3_dog_to_cat.json",
-      "sha256": "72ff58fa9a05d8c57c1e2a3c1b656838f906fa564b2171c0f0813cc4e2dbc791"
+      "sha256": "8ba42654933898a4e8b4ebc9ca438878cde089a8d8bdfd1020aa1b060886a32e"
     },
     {
-      "bytes": 15006,
+      "bytes": 16596,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
-        "top_level_count": 5
+        "shape_sha256": "0106324376c9b44f8b2d17e60651df73c0f39aa1de86b35208fb1250328cda37",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t3_human_to_macaque.json",
-      "sha256": "7e8a1b368d6c6c2a53b879c4a457a3b76a3c8b467f633a5956fdb7530ae7eb2c"
+      "sha256": "58ee8cb0b07c69aa6a55f47f644dbae90f3b1ba27cd8d5465f152252cffce32a"
     },
     {
-      "bytes": 15023,
+      "bytes": 16623,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
-        "top_level_count": 5
+        "shape_sha256": "0106324376c9b44f8b2d17e60651df73c0f39aa1de86b35208fb1250328cda37",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t3_human_to_marmoset.json",
-      "sha256": "075f0dd3cc0218c1ea1d97c58f80b6f292e6a0020a431010cea3ddbcb764fe0e"
+      "sha256": "cfa6523f9cc31b273109a02dbd454bc06f3085b338ce2c9096b54240d3f36a23"
     },
     {
-      "bytes": 5499,
+      "bytes": 7124,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "9dcfb059da0333a9cfc25e2e5d1ce2a5184572d50b439196ea9dd60f4fedad46",
-        "top_level_count": 5
+        "shape_sha256": "25e2b0c8877b02c1b9baed90e26c8192d92b90cc71977eae1f7a68d929101fc3",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t4_drosophila_to_bee.json",
-      "sha256": "9f3a78f8f81e86b78fc6a9ce0447f549704ed1bdd3b1bffa78f79bfe3e085293"
+      "sha256": "bd3ebeae68af2e8b06ba8c91868814e8e86d1ef45e4f6734b5bbe27d968ea5e0"
     },
     {
-      "bytes": 14941,
+      "bytes": 16553,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
-        "top_level_count": 5
+        "shape_sha256": "0106324376c9b44f8b2d17e60651df73c0f39aa1de86b35208fb1250328cda37",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t4_human_to_chicken.json",
-      "sha256": "518a9ad1c30bab9d2fcc9139189eab8938e9efcf66df739d787d9da50ab3993d"
+      "sha256": "c304936f804ff313a4ccd3f5d40113fac6f04f7defd8c78b447444e34f9fc1d7"
     },
     {
-      "bytes": 14926,
+      "bytes": 16540,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "cbaf9be11c714052e19ef2b9296702d193391d39819dfc2a50a992b13eb79d22",
-        "top_level_count": 5
+        "shape_sha256": "0106324376c9b44f8b2d17e60651df73c0f39aa1de86b35208fb1250328cda37",
+        "top_level_count": 8
       },
       "path": "benchmarks/compare/devel_refresh/t4_human_to_xenopus.json",
-      "sha256": "d82032a8c8df3e27a441bc70d0a7869ffb6976b727904203cae2a910f011d49d"
+      "sha256": "9cbd994827cc21e4971b7fc05b2c9ae6a71fdd584385918143439125a300204c"
+    },
+    {
+      "bytes": 7338,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "6a8d5e12950bc9ed44ded99f67b07fd1ba0ee2eb8bcf2d96ce2afe495485223e",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/arabidopsis.json",
+      "sha256": "dceafca278202e85606cb0d5d7b9dc7352ffa59df3496a6c73e54ed18cf04bd2"
+    },
+    {
+      "bytes": 7357,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "6a8d5e12950bc9ed44ded99f67b07fd1ba0ee2eb8bcf2d96ce2afe495485223e",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/arabidopsis_to_rice.json",
+      "sha256": "3ac28f9d3add814764c47290430db9e3e9cfdc170bdca41e33aca06df2eb0d67"
+    },
+    {
+      "bytes": 6337,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "62b76e212e5e072bbc93c8d673acb307573e60e8b4833976936b7b9284d63847",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/bee.json",
+      "sha256": "78d26265f8c289de10a7c80790c83bbd36d7112888e7ed5ddf3f47ca723ff871"
+    },
+    {
+      "bytes": 7011,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "5b14d90172896547fbb25560a610e11de6fd1509ccd9963b0694316ded9dfc06",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/drosophila.json",
+      "sha256": "97d7c8a3ea7b23621d5eeb65a1cb1ec5f61ad4191e425df2d52be390ad06c522"
+    },
+    {
+      "bytes": 16464,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "22efb1260eb545ea0600d990433fe4bb96c3e234a715843c349ef433848b8693",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/human_to_zebrafish.json",
+      "sha256": "54a5d5380b8c1143f2f21f532052b4964de33dc0be348de41ce34afd1786041c"
+    },
+    {
+      "bytes": 6359,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "2118d86795f20f2251e410fb3741abfa8cda883f8d0a31e9079f3a5bce80b7d8",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/rice.json",
+      "sha256": "a808f562f9032ded85c475c21705ceb81461857e3ec0a618549105e5cc892a80"
+    },
+    {
+      "bytes": 7343,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "3af86a9c4b64c74a124a194d26514a7165a5fdd8040cd39ab16ba944eef6ccbe",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t1_maize_b73_to_mo17.json",
+      "sha256": "27ea1dfded77ec90f85183933b6cce8bbe325b9ecf8070af3a747c920b451612"
+    },
+    {
+      "bytes": 6726,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "b6fc57c28e0d46bb61046c894f681999fda704d7c58e21526d9e1ae374b0e136",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t1_tomato_microtom_to_heinz.json",
+      "sha256": "7a8f01f3f4d2126fba0d1ae3a98e912c697ab01a96ccb479923eceeb7c54b1c0"
+    },
+    {
+      "bytes": 16601,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "22efb1260eb545ea0600d990433fe4bb96c3e234a715843c349ef433848b8693",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t2_human_to_gorilla.json",
+      "sha256": "ccd65937586d0103f6c3d1cfaf7253a12bc5da1a6c52288f0541808ccacb4c9a"
+    },
+    {
+      "bytes": 12679,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "16dde16cabece35627c3db340846c671c0faa926a760f5519bc3e10e44ac8e4a",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t2_mouse_to_caroli.json",
+      "sha256": "053293a6b520c7b7a4cf243de2bd188c47b0d318b46630bad08aacd58e6406d5"
+    },
+    {
+      "bytes": 6645,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "b6fc57c28e0d46bb61046c894f681999fda704d7c58e21526d9e1ae374b0e136",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t2_tomato_to_potato.json",
+      "sha256": "308c0e6bf63dee2a38963c86515d5d9db026db7dda83c69ed85321c285815fa3"
+    },
+    {
+      "bytes": 7624,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "171c7a43ba4cb760ed16787c0de45cce8d52fa14a7ba7d694d27baef7cbb1be1",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t3_dog_to_cat.json",
+      "sha256": "0bf816955b93a39bc721df4acf68f97e1164b5c286f288279d5f3456ed29aba2"
+    },
+    {
+      "bytes": 16610,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "22efb1260eb545ea0600d990433fe4bb96c3e234a715843c349ef433848b8693",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t3_human_to_macaque.json",
+      "sha256": "57c367f3b0d216bd06117dfe6a53c7ed671da074c1727b7e605e42773547b930"
+    },
+    {
+      "bytes": 16643,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "22efb1260eb545ea0600d990433fe4bb96c3e234a715843c349ef433848b8693",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t3_human_to_marmoset.json",
+      "sha256": "4acea1d9db25447e66df1b6c1308de01b96c4da3e746161a9762d9bcadb09715"
+    },
+    {
+      "bytes": 7144,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "5b14d90172896547fbb25560a610e11de6fd1509ccd9963b0694316ded9dfc06",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t4_drosophila_to_bee.json",
+      "sha256": "35c12c25e8b90d64786f7fd403d51a987e7d0d102a044eef494566b2a7083a72"
+    },
+    {
+      "bytes": 16578,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "22efb1260eb545ea0600d990433fe4bb96c3e234a715843c349ef433848b8693",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t4_human_to_chicken.json",
+      "sha256": "e2dfe0e3c314602c38604887538e5a3b4bcbbccd272f4a2e84b069682459f332"
+    },
+    {
+      "bytes": 16564,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_v1_review",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "22efb1260eb545ea0600d990433fe4bb96c3e234a715843c349ef433848b8693",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/devel_refresh_default/t4_human_to_xenopus.json",
+      "sha256": "4a4587d1d648b616735a2e1367b1dcc5e42465baa8de7ecb666566688b9023c0"
     },
     {
       "bytes": 2891,
@@ -1610,18 +1848,18 @@
       "sha256": "a04f282f0d6edae1be8f95f79d44aca0da574142742a0e8fac214f886662f620"
     },
     {
-      "bytes": 1284205,
+      "bytes": 1384607,
       "claim_eligible": true,
       "classification": "canonical",
       "completion_state": "complete",
       "family": "canonical_release_baseline",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "16966c459ad7197ca78b85fb551a9cf33bce918d7aaf119f0a100bd036dbba2e",
+        "shape_sha256": "93c983430eeb10953aa88883f9c7a89cc9dcefa088ec964cedf2e443ca059066",
         "top_level_count": 51
       },
       "path": "benchmarks/compare/fourway_results.json",
-      "sha256": "17144b5c6a55a6336d9266b7757ca9c1b3f9dd4fdb9a55a4dc80cfd991764331"
+      "sha256": "1ac3ba952c26e07d9f8e535e476e497b878595ca298a6620fafb70a83d88518f"
     },
     {
       "bytes": 844,
@@ -2732,7 +2970,7 @@
       "sha256": "6743e15e50b858a045e4e25ea9870f65ee80e75aa10191fb7d8d9fe34c3dd5d5"
     },
     {
-      "bytes": 97863,
+      "bytes": 97873,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
@@ -2743,7 +2981,7 @@
         "top_level_count": 10
       },
       "path": "benchmarks/compare/version_compare.results.json",
-      "sha256": "80e0a6e90548b5b0fd299f9421b5cd576cb06ef9bbc54447710fcdfdc0050cc2"
+      "sha256": "6b3df9216fd1b00124c0ab691467aaa53b9b0125fe140804cab5d7a5c7028319"
     },
     {
       "bytes": 11445,
@@ -2800,18 +3038,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 10366,
+      "bytes": 10465,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "09c3ada125ae45289b7f97ad2c42ddaf8ff86f5219de28be53087336c69e7b2e",
+        "shape_sha256": "a239ef39bdd82a8d4bcf0656f9f38ef941b1488d528b0f3a4c8ae6cedf6cb564",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "7cb19a59f1218d1cf4c158dd346c1a66fc6f57f8a3b2c40097c3cf39b0ac9c3d"
+      "sha256": "0a2ee91bdac9931abdcde1485e6832a47ff717badfa7235a4cae2f429c6e6e9e"
     },
     {
       "bytes": 34428,
@@ -2955,7 +3193,7 @@
   "frozen_artifacts": [
     {
       "path": "benchmarks/compare/fourway_results.json",
-      "sha256": "17144b5c6a55a6336d9266b7757ca9c1b3f9dd4fdb9a55a4dc80cfd991764331",
+      "sha256": "1ac3ba952c26e07d9f8e535e476e497b878595ca298a6620fafb70a83d88518f",
       "verified": true
     }
   ],
@@ -2964,6 +3202,8 @@
     "benchmarks/BENCHMARK_INVENTORY.md"
   ],
   "ineligible_local_patterns": [
+    "benchmarks/compare/*.run.log",
+    "benchmarks/compare/_rebench_*/**",
     "benchmarks/compare/_rerun_fulls/**",
     "benchmarks/compare/_rescore_fulls/**",
     "benchmarks/compare/_runs/**",
@@ -2971,10 +3211,9 @@
     "benchmarks/compare/figures/*_rerun/**",
     "benchmarks/compare/work/**",
     "benchmarks/logs/**",
-    "benchmarks/results_rerun/**",
-    "benchmarks/compare/*.run.log"
+    "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "f5a977a1c5e4acca7e743e38f4c53895b900ef967fd64f69467c7eb970ddff45",
+  "inventory_sha256": "04c00fef2dff58143d35bce47f50a97bbe67cd1a418d720e9bc377f54a38532b",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3018,19 +3257,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "6be88a564ba1b7b0cf2d70c564de18958c91114398ad23b91969eaf4c4e1fbaa",
+  "rules_sha256": "67528f106789152fd030e31c33a63d45cf746696c75b79b9be71fadebce13051",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "96fe1c5c327606e512e28034e0b77c497bd09b9005943ab7d7ace09d6671121e",
-    "bytes": 12421721,
+    "aggregate_sha256": "c8a8fa9b8b8dbe17e2528c66b7d807072c331b2c29654f8df91c1efbbdb2515f",
+    "bytes": 12730619,
     "classification_counts": {
       "canonical": 61,
       "diagnostic": 26,
-      "historical": 136,
+      "historical": 153,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 241
+    "file_count": 258
   }
 }

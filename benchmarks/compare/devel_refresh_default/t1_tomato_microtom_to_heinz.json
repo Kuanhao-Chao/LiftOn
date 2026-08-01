@@ -1,7 +1,7 @@
 {
   "bid": "t1_tomato_microtom_to_heinz",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh/eval",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
     "benchmark": "t1_tomato_microtom_to_heinz",
@@ -180,10 +180,10 @@
       "n_scored": 44160
     },
     "profile": {
-      "wall_clock_seconds": 743.31,
-      "peak_rss_mb": 2018.83984375
+      "wall_clock_seconds": 732.99,
+      "peak_rss_mb": 2200.91796875
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 1,
@@ -191,7 +191,7 @@
     "n_warnings": 125,
     "valid": false
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -210,9 +210,8 @@
     "-P",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t1_tomato_microtom_to_heinz/_devel_refresh_default/devel_refresh_default.gff3",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/same_species/t1_tomato_microtom_to_heinz/tgt.fna",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/same_species/t1_tomato_microtom_to_heinz/ref.fna"
   ],
@@ -226,6 +225,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T05:59:40+00:00"
+    "measured_at": "2026-08-01T05:58:21+00:00"
   }
 }

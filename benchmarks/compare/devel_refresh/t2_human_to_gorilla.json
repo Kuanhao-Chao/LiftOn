@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 144415,
     "n_reference_coding": 144329,
-    "n_tool_features": 129308,
-    "n_unmapped_id": 119,
-    "n_recovered_any": 128876,
-    "n_recovered_coding": 128811,
-    "completeness_all": 0.8924,
-    "completeness_coding": 0.89248,
+    "n_tool_features": 129776,
+    "n_unmapped_id": 591,
+    "n_recovered_any": 128875,
+    "n_recovered_coding": 128810,
+    "completeness_all": 0.89239,
+    "completeness_coding": 0.89247,
     "completeness_by_type": {
       "region": {
         "n_reference": 709,
@@ -42,14 +42,14 @@
         "n_recovered": 2059666,
         "pct_recovered": 0.89516,
         "n_extra_copies": 83,
-        "n_tool_features": 2063398
+        "n_tool_features": 2063364
       },
       "gene": {
         "n_reference": 47782,
-        "n_recovered": 41551,
-        "pct_recovered": 0.8696,
-        "n_extra_copies": 432,
-        "n_tool_features": 42089
+        "n_recovered": 41550,
+        "pct_recovered": 0.86957,
+        "n_extra_copies": 429,
+        "n_tool_features": 42085
       },
       "primary_transcript": {
         "n_reference": 2139,
@@ -88,17 +88,17 @@
       },
       "mRNA": {
         "n_reference": 144415,
-        "n_recovered": 128876,
-        "pct_recovered": 0.8924,
-        "n_extra_copies": 313,
-        "n_tool_features": 129308
+        "n_recovered": 128875,
+        "pct_recovered": 0.89239,
+        "n_extra_copies": 310,
+        "n_tool_features": 129776
       },
       "CDS": {
         "n_reference": 1835542,
-        "n_recovered": 224663,
-        "pct_recovered": 0.1224,
-        "n_extra_copies": 0,
-        "n_tool_features": 1641939
+        "n_recovered": 1638787,
+        "pct_recovered": 0.89281,
+        "n_extra_copies": 204,
+        "n_tool_features": 1641897
       },
       "snRNA": {
         "n_reference": 172,
@@ -266,7 +266,7 @@
         "n_recovered": 445,
         "pct_recovered": 0.67018,
         "n_extra_copies": 56,
-        "n_tool_features": 393
+        "n_tool_features": 0
       },
       "response_element": {
         "n_reference": 20,
@@ -357,14 +357,14 @@
         "n_recovered": 31,
         "pct_recovered": 0.70455,
         "n_extra_copies": 0,
-        "n_tool_features": 29
+        "n_tool_features": 1
       },
       "J_gene_segment": {
         "n_reference": 128,
         "n_recovered": 60,
         "pct_recovered": 0.46875,
         "n_extra_copies": 2,
-        "n_tool_features": 53
+        "n_tool_features": 2
       },
       "origin_of_replication": {
         "n_reference": 87,
@@ -522,26 +522,26 @@
       },
       "_overall_": {
         "n_reference": 580908,
-        "n_recovered": 233036,
-        "pct_recovered": 0.40116,
+        "n_recovered": 233034,
+        "pct_recovered": 0.40115,
         "n_extra_copies": 0,
-        "n_tool_features": 234005
+        "n_tool_features": 233997
       }
     },
-    "completeness_feature_total": 0.40116,
-    "n_extra_copies": 313,
+    "completeness_feature_total": 0.40115,
+    "n_extra_copies": 310,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.97709,
+      "mean": 0.9771,
       "median": 0.99351,
       "pct_identical": 0.17443,
-      "n": 128739
+      "n": 128738
     },
     "dna_identity": {
       "mean": 0.97952,
       "median": 0.98727,
       "pct_identical": 0.0003,
-      "n": 128876
+      "n": 128875
     },
     "protein_identity_hist": [
       111,
@@ -549,31 +549,68 @@
       167,
       266,
       430,
-      661,
-      718,
-      733,
+      660,
+      719,
+      732,
       1428,
       123988
     ],
     "structural": {
-      "orf_valid_frac": 0.95426,
-      "orf_start_frac": 0.98425,
+      "orf_valid_frac": 0.95422,
+      "orf_start_frac": 0.9842,
       "orf_stop_frac": 0.97828,
-      "intron_chain_exact_frac": 0.89341,
-      "exon_sn_mean": 0.9263,
+      "intron_chain_exact_frac": 0.89342,
+      "exon_sn_mean": 0.92631,
       "exon_sp_mean": 0.93026,
-      "n_scored": 128811
+      "n_scored": 128810
     },
     "profile": {
-      "wall_clock_seconds": 5998.0,
-      "peak_rss_mb": 14945.078125
+      "wall_clock_seconds": 5210.0,
+      "peak_rss_mb": 3705.07421875
     },
     "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_human_to_gorilla/_devel_refresh/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 0,
     "n_errors": 0,
-    "n_warnings": 151,
+    "n_warnings": 150,
     "valid": true
+  },
+  "arm": "pinned_no_rescue",
+  "argv": [
+    "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "-t",
+    "8",
+    "-copies",
+    "-ad",
+    "RefSeq",
+    "-g",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_human_to_gorilla/ref.gff",
+    "-L",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_human_to_gorilla/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "-M",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_human_to_gorilla/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "-T",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_human_to_gorilla/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "-P",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_human_to_gorilla/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "--locus-pipeline",
+    "--no-miniprot-rescue",
+    "-o",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_human_to_gorilla/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_human_to_gorilla/tgt.fna",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_human_to_gorilla/ref.fna"
+  ],
+  "provenance": {
+    "host": "salz11.idies.jhu.edu",
+    "cpu_count": 128,
+    "total_mem_gib": 1007.2,
+    "platform": "Linux-5.14.0-503.15.1.el9_5.x86_64-x86_64-with-glibc2.34",
+    "python": "3.11.15",
+    "sha": {
+      "devel": "7fc84192d850",
+      "stable": "e503643d8346"
+    },
+    "measured_at": "2026-08-01T08:04:09+00:00"
   }
 }

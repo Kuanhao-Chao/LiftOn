@@ -1,7 +1,7 @@
 {
   "bid": "rice",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh/eval",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
     "benchmark": "rice",
@@ -180,10 +180,10 @@
       "n_scored": 42527
     },
     "profile": {
-      "wall_clock_seconds": 652.53,
-      "peak_rss_mb": 2032.53125
+      "wall_clock_seconds": 644.33,
+      "peak_rss_mb": 1979.3671875
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 1,
@@ -191,7 +191,7 @@
     "n_warnings": 102,
     "valid": false
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -210,9 +210,8 @@
     "-P",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/rice/_devel_refresh_default/devel_refresh_default.gff3",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/rice/ASM3414082v1_genomic.fna",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/rice/IRGSP_genomic.fna"
   ],
@@ -226,6 +225,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T05:57:20+00:00"
+    "measured_at": "2026-08-01T05:56:13+00:00"
   }
 }

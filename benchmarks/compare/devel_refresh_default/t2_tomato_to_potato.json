@@ -1,7 +1,7 @@
 {
   "bid": "t2_tomato_to_potato",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh/eval",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
     "benchmark": "t2_tomato_to_potato",
@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 44391,
     "n_reference_coding": 44391,
-    "n_tool_features": 42569,
+    "n_tool_features": 42589,
     "n_unmapped_id": 13,
-    "n_recovered_any": 41265,
-    "n_recovered_coding": 41265,
-    "completeness_all": 0.92958,
-    "completeness_coding": 0.92958,
+    "n_recovered_any": 41285,
+    "n_recovered_coding": 41285,
+    "completeness_all": 0.93003,
+    "completeness_coding": 0.93003,
     "completeness_by_type": {
       "region": {
         "n_reference": 14,
@@ -25,10 +25,10 @@
       },
       "gene": {
         "n_reference": 40021,
-        "n_recovered": 30969,
-        "pct_recovered": 0.77382,
+        "n_recovered": 30989,
+        "pct_recovered": 0.77432,
         "n_extra_copies": 1352,
-        "n_tool_features": 32308
+        "n_tool_features": 32328
       },
       "lnc_RNA": {
         "n_reference": 5503,
@@ -42,21 +42,21 @@
         "n_recovered": 315599,
         "pct_recovered": 0.843,
         "n_extra_copies": 0,
-        "n_tool_features": 321538
+        "n_tool_features": 321602
       },
       "mRNA": {
         "n_reference": 44391,
-        "n_recovered": 41265,
-        "pct_recovered": 0.92958,
+        "n_recovered": 41285,
+        "pct_recovered": 0.93003,
         "n_extra_copies": 1291,
-        "n_tool_features": 42569
+        "n_tool_features": 42589
       },
       "CDS": {
         "n_reference": 275535,
         "n_recovered": 246996,
         "pct_recovered": 0.89642,
         "n_extra_copies": 616,
-        "n_tool_features": 252490
+        "n_tool_features": 252554
       },
       "transcript": {
         "n_reference": 3583,
@@ -137,26 +137,26 @@
       },
       "_overall_": {
         "n_reference": 105498,
-        "n_recovered": 82386,
-        "pct_recovered": 0.78092,
+        "n_recovered": 82426,
+        "pct_recovered": 0.7813,
         "n_extra_copies": 0,
-        "n_tool_features": 85029
+        "n_tool_features": 85069
       }
     },
-    "completeness_feature_total": 0.78092,
+    "completeness_feature_total": 0.7813,
     "n_extra_copies": 1291,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.85923,
-      "median": 0.94959,
-      "pct_identical": 0.01197,
-      "n": 40840
+      "mean": 0.85916,
+      "median": 0.94955,
+      "pct_identical": 0.01199,
+      "n": 40860
     },
     "dna_identity": {
-      "mean": 0.84042,
-      "median": 0.9003,
+      "mean": 0.8403,
+      "median": 0.90024,
       "pct_identical": 0.00061,
-      "n": 41265
+      "n": 41285
     },
     "protein_identity_hist": [
       764,
@@ -164,26 +164,26 @@
       849,
       659,
       743,
-      755,
-      928,
-      1292,
+      763,
+      932,
+      1294,
       3852,
-      30074
+      30080
     ],
     "structural": {
-      "orf_valid_frac": 0.82445,
-      "orf_start_frac": 0.92325,
-      "orf_stop_frac": 0.8742,
-      "intron_chain_exact_frac": 0.59905,
-      "exon_sn_mean": 0.66297,
-      "exon_sp_mean": 0.70484,
-      "n_scored": 41265
+      "orf_valid_frac": 0.82415,
+      "orf_start_frac": 0.92302,
+      "orf_stop_frac": 0.874,
+      "intron_chain_exact_frac": 0.59893,
+      "exon_sn_mean": 0.66284,
+      "exon_sp_mean": 0.7047,
+      "n_scored": 41285
     },
     "profile": {
-      "wall_clock_seconds": 828.65,
-      "peak_rss_mb": 1967.5625
+      "wall_clock_seconds": 890.42,
+      "peak_rss_mb": 1976.265625
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 0,
@@ -191,7 +191,7 @@
     "n_warnings": 158,
     "valid": true
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -210,9 +210,8 @@
     "-P",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t2_tomato_to_potato/_devel_refresh_default/devel_refresh_default.gff3",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_tomato_to_potato/tgt.fna",
     "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/close_cross_species/t2_tomato_to_potato/ref.fna"
   ],
@@ -226,6 +225,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T06:20:55+00:00"
+    "measured_at": "2026-08-01T06:18:53+00:00"
   }
 }

@@ -1,7 +1,7 @@
 {
   "bid": "arabidopsis",
-  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh/devel_refresh.gff3",
-  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh/eval",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh_default/eval",
   "summary": {
     "tool": "lifton_devel",
     "benchmark": "arabidopsis",
@@ -215,10 +215,10 @@
       "n_scored": 48207
     },
     "profile": {
-      "wall_clock_seconds": 707.02,
-      "peak_rss_mb": 2049.18359375
+      "wall_clock_seconds": 695.16,
+      "peak_rss_mb": 2003.078125
     },
-    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh/eval/lifton_devel.transcripts.tsv"
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 1,
@@ -226,7 +226,7 @@
     "n_warnings": 151,
     "valid": false
   },
-  "arm": "pinned_no_rescue",
+  "arm": "shipped_default",
   "argv": [
     "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
     "-t",
@@ -245,9 +245,8 @@
     "-P",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
     "--locus-pipeline",
-    "--no-miniprot-rescue",
     "-o",
-    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis/_devel_refresh_default/devel_refresh_default.gff3",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/arabidopsis/ASM2311539v1_genomic.fna",
     "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/arabidopsis/TAIR10.fna"
   ],
@@ -261,6 +260,6 @@
       "devel": "7fc84192d850",
       "stable": "e503643d8346"
     },
-    "measured_at": "2026-08-01T05:59:36+00:00"
+    "measured_at": "2026-08-01T05:58:19+00:00"
   }
 }
