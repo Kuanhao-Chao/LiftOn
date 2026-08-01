@@ -56,19 +56,19 @@
       "devel_legacy": 2126
     },
     "wall_s": {
-      "stable": 288.44,
-      "devel": 150.61,
-      "devel_legacy": 223.5
+      "stable": 192.91,
+      "devel": 108.1,
+      "devel_legacy": 154.53
     },
     "peak_rss_mb": {
-      "stable": 10649.3,
-      "devel": 494.0,
-      "devel_legacy": 2460.6
+      "stable": 10684.1,
+      "devel": 423.9,
+      "devel_legacy": 2456.9
     },
     "cpu_s": {
-      "stable": 263.1,
-      "devel": 145.9,
-      "devel_legacy": 203.8
+      "stable": 199.2,
+      "devel": 105.4,
+      "devel_legacy": 152.4
     },
     "validity": {
       "stable": {
@@ -285,9 +285,9 @@
         },
         "CDS": {
           "n_reference": 26986,
-          "n_recovered": 1871,
-          "pct_recovered": 0.06933,
-          "n_extra_copies": 0,
+          "n_recovered": 23615,
+          "pct_recovered": 0.87508,
+          "n_extra_copies": 107,
           "n_tool_features": 23763
         },
         "transcript": {
@@ -434,16 +434,16 @@
         },
         "exon": {
           "n_reference": 36459,
-          "n_recovered": 32252,
-          "pct_recovered": 0.88461,
+          "n_recovered": 32250,
+          "pct_recovered": 0.88456,
           "n_extra_copies": 0,
-          "n_tool_features": 32482
+          "n_tool_features": 32463
         },
         "CDS": {
           "n_reference": 26986,
-          "n_recovered": 1118,
-          "pct_recovered": 0.04143,
-          "n_extra_copies": 0,
+          "n_recovered": 23646,
+          "pct_recovered": 0.87623,
+          "n_extra_copies": 143,
           "n_tool_features": 23792
         },
         "transcript": {
@@ -596,12 +596,12 @@
     "neutral_mean_pi": {
       "stable": 0.9221,
       "devel": 0.92581,
-      "devel_legacy": 0.92212
+      "devel_legacy": 0.92313
     },
     "neutral_median_pi": {
       "stable": 0.95793,
       "devel": 0.958,
-      "devel_legacy": 0.95794
+      "devel_legacy": 0.958
     },
     "neutral_pct_identical": {
       "stable": 0.04758,
@@ -611,12 +611,12 @@
     "self_mean_pi": {
       "stable": 0.92143,
       "devel": 0.92507,
-      "devel_legacy": 0.92104
+      "devel_legacy": 0.922
     },
     "self_vs_neutral_bias": {
       "stable": 0.000106,
       "devel": 3.2e-05,
-      "devel_legacy": 7.6e-05
+      "devel_legacy": 3.3e-05
     },
     "completeness_coding": {
       "stable": 0.98345,
@@ -639,19 +639,19 @@
       "devel_legacy": 7131
     },
     "wall_s": {
-      "stable": 292.64,
-      "devel": 290.46,
-      "devel_legacy": 282.51
+      "stable": 232.99,
+      "devel": 207.15,
+      "devel_legacy": 207.03
     },
     "peak_rss_mb": {
-      "stable": 2399.3,
-      "devel": 504.2,
-      "devel_legacy": 2483.5
+      "stable": 2377.4,
+      "devel": 457.2,
+      "devel_legacy": 2423.3
     },
     "cpu_s": {
-      "stable": 274.2,
-      "devel": 271.1,
-      "devel_legacy": 261.4
+      "stable": 224.6,
+      "devel": 191.3,
+      "devel_legacy": 193.3
     },
     "validity": {
       "stable": {
@@ -669,7 +669,7 @@
       "devel_legacy": {
         "exit": 0,
         "n_errors": 0,
-        "n_warnings": 80,
+        "n_warnings": 79,
         "valid": true
       }
     },
@@ -847,9 +847,9 @@
         },
         "CDS": {
           "n_reference": 37963,
-          "n_recovered": 2182,
-          "pct_recovered": 0.05748,
-          "n_extra_copies": 0,
+          "n_recovered": 37273,
+          "pct_recovered": 0.98182,
+          "n_extra_copies": 60,
           "n_tool_features": 37393
         },
         "pseudogene": {
@@ -978,14 +978,14 @@
           "n_recovered": 43197,
           "pct_recovered": 0.97631,
           "n_extra_copies": 0,
-          "n_tool_features": 43431
+          "n_tool_features": 43369
         },
         "CDS": {
           "n_reference": 37963,
-          "n_recovered": 1761,
-          "pct_recovered": 0.04639,
-          "n_extra_copies": 0,
-          "n_tool_features": 37501
+          "n_recovered": 37320,
+          "pct_recovered": 0.98306,
+          "n_extra_copies": 107,
+          "n_tool_features": 37473
         },
         "pseudogene": {
           "n_reference": 44,
@@ -1091,15 +1091,15 @@
     "recovered_lost_by_devel": 0,
     "delta_devel_legacy_vs_stable": {
       "n_common": 7122,
-      "improved": 8,
-      "regressed": 5,
-      "net_per_transcript": -2e-05
+      "improved": 14,
+      "regressed": 2,
+      "net_per_transcript": 0.000989
     },
     "delta_devel_vs_devel_legacy": {
       "n_common": 7122,
-      "improved": 119,
+      "improved": 103,
       "regressed": 1,
-      "net_per_transcript": 0.003732
+      "net_per_transcript": 0.002723
     }
   },
   "controlled:rice": {
@@ -1159,19 +1159,19 @@
       "devel_legacy": 5850
     },
     "wall_s": {
-      "stable": 153.88,
-      "devel": 130.89,
-      "devel_legacy": 141.06
+      "stable": 128.43,
+      "devel": 112.79,
+      "devel_legacy": 115.99
     },
     "peak_rss_mb": {
-      "stable": 1344.4,
-      "devel": 531.0,
-      "devel_legacy": 1516.2
+      "stable": 1341.0,
+      "devel": 468.7,
+      "devel_legacy": 1489.8
     },
     "cpu_s": {
-      "stable": 139.6,
-      "devel": 117.1,
-      "devel_legacy": 127.8
+      "stable": 125.7,
+      "devel": 102.8,
+      "devel_legacy": 107.0
     },
     "validity": {
       "stable": {
@@ -1318,8 +1318,8 @@
         },
         "CDS": {
           "n_reference": 34421,
-          "n_recovered": 5823,
-          "pct_recovered": 0.16917,
+          "n_recovered": 34405,
+          "pct_recovered": 0.99954,
           "n_extra_copies": 0,
           "n_tool_features": 34419
         },
@@ -1411,8 +1411,8 @@
         },
         "CDS": {
           "n_reference": 34421,
-          "n_recovered": 5823,
-          "pct_recovered": 0.16917,
+          "n_recovered": 34405,
+          "pct_recovered": 0.99954,
           "n_extra_copies": 0,
           "n_tool_features": 34419
         },
@@ -1553,19 +1553,19 @@
       "devel_legacy": 12632
     },
     "wall_s": {
-      "stable": 265.61,
-      "devel": 244.44,
-      "devel_legacy": 249.9
+      "stable": 237.95,
+      "devel": 215.14,
+      "devel_legacy": 217.4
     },
     "peak_rss_mb": {
-      "stable": 1409.8,
-      "devel": 633.9,
-      "devel_legacy": 1536.6
+      "stable": 1366.2,
+      "devel": 506.5,
+      "devel_legacy": 1438.1
     },
     "cpu_s": {
-      "stable": 235.3,
-      "devel": 214.5,
-      "devel_legacy": 220.4
+      "stable": 216.5,
+      "devel": 189.1,
+      "devel_legacy": 192.1
     },
     "validity": {
       "stable": {
@@ -1740,9 +1740,9 @@
         },
         "CDS": {
           "n_reference": 77644,
-          "n_recovered": 12580,
-          "pct_recovered": 0.16202,
-          "n_extra_copies": 0,
+          "n_recovered": 77463,
+          "pct_recovered": 0.99767,
+          "n_extra_copies": 1,
           "n_tool_features": 77494
         },
         "lnc_RNA": {
@@ -1861,9 +1861,9 @@
         },
         "CDS": {
           "n_reference": 77644,
-          "n_recovered": 12575,
-          "pct_recovered": 0.16196,
-          "n_extra_copies": 0,
+          "n_recovered": 77506,
+          "pct_recovered": 0.99822,
+          "n_extra_copies": 5,
           "n_tool_features": 77541
         },
         "lnc_RNA": {
@@ -2031,19 +2031,19 @@
       "devel_legacy": 3122
     },
     "wall_s": {
-      "stable": 252.59,
-      "devel": 142.14,
-      "devel_legacy": 180.95
+      "stable": 178.61,
+      "devel": 104.16,
+      "devel_legacy": 130.83
     },
     "peak_rss_mb": {
-      "stable": 10920.8,
-      "devel": 452.2,
-      "devel_legacy": 2700.4
+      "stable": 10890.4,
+      "devel": 432.9,
+      "devel_legacy": 2638.4
     },
     "cpu_s": {
-      "stable": 245.9,
-      "devel": 135.8,
-      "devel_legacy": 174.5
+      "stable": 184.7,
+      "devel": 100.3,
+      "devel_legacy": 126.8
     },
     "validity": {
       "stable": {
@@ -2211,9 +2211,9 @@
         },
         "CDS": {
           "n_reference": 27750,
-          "n_recovered": 19318,
-          "pct_recovered": 0.69614,
-          "n_extra_copies": 0,
+          "n_recovered": 27461,
+          "pct_recovered": 0.98959,
+          "n_extra_copies": 3,
           "n_tool_features": 27501
         },
         "lnc_RNA": {
@@ -2318,9 +2318,9 @@
         },
         "CDS": {
           "n_reference": 27750,
-          "n_recovered": 18649,
-          "pct_recovered": 0.67204,
-          "n_extra_copies": 0,
+          "n_recovered": 27195,
+          "pct_recovered": 0.98,
+          "n_extra_copies": 14,
           "n_tool_features": 27229
         },
         "lnc_RNA": {

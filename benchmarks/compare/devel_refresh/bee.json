@@ -53,10 +53,10 @@
       },
       "CDS": {
         "n_reference": 226465,
-        "n_recovered": 16467,
-        "pct_recovered": 0.07271,
-        "n_extra_copies": 0,
-        "n_tool_features": 221578
+        "n_recovered": 221108,
+        "pct_recovered": 0.97635,
+        "n_extra_copies": 19,
+        "n_tool_features": 221577
       },
       "lnc_RNA": {
         "n_reference": 3146,
@@ -171,8 +171,8 @@
       22874
     ],
     "structural": {
-      "orf_valid_frac": 0.98592,
-      "orf_start_frac": 0.99362,
+      "orf_valid_frac": 0.98588,
+      "orf_start_frac": 0.99358,
       "orf_stop_frac": 0.99294,
       "intron_chain_exact_frac": 0.92707,
       "exon_sn_mean": 0.94724,
@@ -180,8 +180,8 @@
       "n_scored": 23364
     },
     "profile": {
-      "wall_clock_seconds": 690.79,
-      "peak_rss_mb": 3328.33203125
+      "wall_clock_seconds": 731.5,
+      "peak_rss_mb": 1907.45703125
     },
     "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_devel_refresh/eval/lifton_devel.transcripts.tsv"
   },
@@ -190,5 +190,42 @@
     "n_errors": 0,
     "n_warnings": 95,
     "valid": true
+  },
+  "arm": "pinned_no_rescue",
+  "argv": [
+    "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "-t",
+    "8",
+    "-copies",
+    "-ad",
+    "RefSeq",
+    "-g",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/bee/HAv3.1_genomic.gff",
+    "-L",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "-M",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "-T",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "-P",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "--locus-pipeline",
+    "--no-miniprot-rescue",
+    "-o",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/bee/ASM1932182v1_genomic.fna",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/bee/HAv3.1_genomic.fna"
+  ],
+  "provenance": {
+    "host": "salz11.idies.jhu.edu",
+    "cpu_count": 128,
+    "total_mem_gib": 1007.2,
+    "platform": "Linux-5.14.0-503.15.1.el9_5.x86_64-x86_64-with-glibc2.34",
+    "python": "3.11.15",
+    "sha": {
+      "devel": "7fc84192d850",
+      "stable": "e503643d8346"
+    },
+    "measured_at": "2026-08-01T05:57:47+00:00"
   }
 }

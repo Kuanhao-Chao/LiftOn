@@ -8,6 +8,41 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
+## [1.0.11] - 2026-08-01
+
+A single-fix release. v1.0.10 could not ingest some annotations that v1.0.8
+handled, aborting the run outright; if you lift plant genomes, or any annotation
+produced with `-copies`, upgrade.
+
+### Fixed
+
+- **`UNIQUE constraint failed: features.id` on annotations containing copy
+  features.** `gffutils` disambiguates a repeated `cds-X` by renaming it to
+  `cds-X_1` — which is exactly the suffix Liftoff's `-copies` mode gives extra
+  gene copies. When that generated name already belongs to a real feature the
+  insert fails and LiftOn exits. Two ids in the rice benchmark trigger it, and
+  two is enough to lose a whole genome.
+
+  v1.0.8 recovered because its fallback renamed repeats into a `_dup<n>`
+  namespace that cannot collide. v1.0.10 replaced that with a no-op to stop
+  rewriting logical `ID`s — a sound goal, since renaming the segments of one
+  discontinuous CDS splits a single feature in two — but it left the fallback
+  identical to the strategy that had just failed.
+
+  LiftOn now renames only ids that are *both* repeated and whose `<id>_<n>`
+  already exists in the file, using facts the preflight scan already collects.
+  On the rice input that is 2 ids; the other 4,677 shared CDS ids, which are
+  legitimate discontinuous CDS, are left untouched. Measured across the
+  benchmark corpus: v1.0.8 ingests 34 of 34 inputs, v1.0.10 ingested 31, and
+  v1.0.11 is back to 34. Same error class as GH #47, #12 and #7.
+
+- **A defect in the database-build fallback is no longer reported as a bad
+  input file.** The strategy handlers catch `Exception` so a malformed
+  annotation falls through to the next strategy; that breadth also swallowed
+  programming errors raised inside the fallback itself, which then surfaced as
+  "DB build failed" with no way to tell the two apart. `NameError`,
+  `AttributeError`, `TypeError` and `ImportError` now propagate.
+
 ## [1.0.10] - 2026-07-30
 
 This release consolidates everything that accumulated behind the v1.0.10 tag: the

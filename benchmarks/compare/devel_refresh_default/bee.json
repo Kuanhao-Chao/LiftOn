@@ -1,0 +1,230 @@
+{
+  "bid": "bee",
+  "out_gff": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_devel_refresh_default/devel_refresh_default.gff3",
+  "eval_dir": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_devel_refresh_default/eval",
+  "summary": {
+    "tool": "lifton_devel",
+    "benchmark": "bee",
+    "species": "Honey bee HAv3.1 -> ASM1932182v1",
+    "cross_species": false,
+    "n_reference_total": 23471,
+    "n_reference_coding": 23471,
+    "n_tool_features": 23411,
+    "n_unmapped_id": 0,
+    "n_recovered_any": 23365,
+    "n_recovered_coding": 23365,
+    "completeness_all": 0.99548,
+    "completeness_coding": 0.99548,
+    "completeness_by_type": {
+      "region": {
+        "n_reference": 177,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "gene": {
+        "n_reference": 12356,
+        "n_recovered": 12296,
+        "pct_recovered": 0.99514,
+        "n_extra_copies": 90,
+        "n_tool_features": 12386
+      },
+      "transcript": {
+        "n_reference": 949,
+        "n_recovered": 933,
+        "pct_recovered": 0.98314,
+        "n_extra_copies": 0,
+        "n_tool_features": 933
+      },
+      "exon": {
+        "n_reference": 267977,
+        "n_recovered": 265266,
+        "pct_recovered": 0.98988,
+        "n_extra_copies": 0,
+        "n_tool_features": 265824
+      },
+      "mRNA": {
+        "n_reference": 23471,
+        "n_recovered": 23365,
+        "pct_recovered": 0.99548,
+        "n_extra_copies": 46,
+        "n_tool_features": 23411
+      },
+      "CDS": {
+        "n_reference": 226465,
+        "n_recovered": 221108,
+        "pct_recovered": 0.97635,
+        "n_extra_copies": 19,
+        "n_tool_features": 221598
+      },
+      "lnc_RNA": {
+        "n_reference": 3146,
+        "n_recovered": 3123,
+        "pct_recovered": 0.99269,
+        "n_extra_copies": 0,
+        "n_tool_features": 3123
+      },
+      "primary_transcript": {
+        "n_reference": 238,
+        "n_recovered": 238,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 238
+      },
+      "miRNA": {
+        "n_reference": 248,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "tRNA": {
+        "n_reference": 218,
+        "n_recovered": 217,
+        "pct_recovered": 0.99541,
+        "n_extra_copies": 0,
+        "n_tool_features": 217
+      },
+      "snoRNA": {
+        "n_reference": 14,
+        "n_recovered": 14,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 14
+      },
+      "snRNA": {
+        "n_reference": 26,
+        "n_recovered": 26,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 26
+      },
+      "pseudogene": {
+        "n_reference": 42,
+        "n_recovered": 33,
+        "pct_recovered": 0.78571,
+        "n_extra_copies": 0,
+        "n_tool_features": 33
+      },
+      "cDNA_match": {
+        "n_reference": 1671,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "rRNA": {
+        "n_reference": 57,
+        "n_recovered": 55,
+        "pct_recovered": 0.96491,
+        "n_extra_copies": 0,
+        "n_tool_features": 55
+      },
+      "guide_RNA": {
+        "n_reference": 1,
+        "n_recovered": 1,
+        "pct_recovered": 1.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 1
+      },
+      "sequence_feature": {
+        "n_reference": 1,
+        "n_recovered": 0,
+        "pct_recovered": 0.0,
+        "n_extra_copies": 0,
+        "n_tool_features": 0
+      },
+      "_overall_": {
+        "n_reference": 42615,
+        "n_recovered": 40301,
+        "pct_recovered": 0.9457,
+        "n_extra_copies": 0,
+        "n_tool_features": 40437
+      }
+    },
+    "completeness_feature_total": 0.9457,
+    "n_extra_copies": 46,
+    "dna_basis": "transcript",
+    "protein_identity": {
+      "mean": 0.99051,
+      "median": 1.0,
+      "pct_identical": 0.7028,
+      "n": 23365
+    },
+    "dna_identity": {
+      "mean": 0.99437,
+      "median": 0.99879,
+      "pct_identical": 0.30002,
+      "n": 23365
+    },
+    "protein_identity_hist": [
+      9,
+      13,
+      13,
+      20,
+      26,
+      137,
+      93,
+      83,
+      96,
+      22875
+    ],
+    "structural": {
+      "orf_valid_frac": 0.98583,
+      "orf_start_frac": 0.99354,
+      "orf_stop_frac": 0.99294,
+      "intron_chain_exact_frac": 0.92703,
+      "exon_sn_mean": 0.94724,
+      "exon_sp_mean": 0.9511,
+      "n_scored": 23365
+    },
+    "profile": {
+      "wall_clock_seconds": 749.73,
+      "peak_rss_mb": 1898.203125
+    },
+    "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_devel_refresh_default/eval/lifton_devel.transcripts.tsv"
+  },
+  "validity": {
+    "exit": 0,
+    "n_errors": 0,
+    "n_warnings": 95,
+    "valid": true
+  },
+  "arm": "shipped_default",
+  "argv": [
+    "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "-t",
+    "8",
+    "-copies",
+    "-ad",
+    "RefSeq",
+    "-g",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/bee/HAv3.1_genomic.gff",
+    "-L",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "-M",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "-T",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "-P",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "--locus-pipeline",
+    "-o",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/bee/_devel_refresh_default/devel_refresh_default.gff3",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/bee/ASM1932182v1_genomic.fna",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/data/bee/HAv3.1_genomic.fna"
+  ],
+  "provenance": {
+    "host": "salz11.idies.jhu.edu",
+    "cpu_count": 128,
+    "total_mem_gib": 1007.2,
+    "platform": "Linux-5.14.0-503.15.1.el9_5.x86_64-x86_64-with-glibc2.34",
+    "python": "3.11.15",
+    "sha": {
+      "devel": "7fc84192d850",
+      "stable": "e503643d8346"
+    },
+    "measured_at": "2026-08-01T05:58:35+00:00"
+  }
+}

@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 52177,
     "n_reference_coding": 48265,
-    "n_tool_features": 7856,
-    "n_unmapped_id": 0,
-    "n_recovered_any": 7193,
-    "n_recovered_coding": 7155,
-    "completeness_all": 0.13786,
-    "completeness_coding": 0.14824,
+    "n_tool_features": 7860,
+    "n_unmapped_id": 7,
+    "n_recovered_any": 7189,
+    "n_recovered_coding": 7151,
+    "completeness_all": 0.13778,
+    "completeness_coding": 0.14816,
     "completeness_by_type": {
       "region": {
         "n_reference": 7,
@@ -25,31 +25,31 @@
       },
       "gene": {
         "n_reference": 33468,
-        "n_recovered": 7266,
-        "pct_recovered": 0.2171,
-        "n_extra_copies": 754,
-        "n_tool_features": 8020
+        "n_recovered": 7262,
+        "pct_recovered": 0.21698,
+        "n_extra_copies": 755,
+        "n_tool_features": 8010
       },
       "mRNA": {
         "n_reference": 52177,
-        "n_recovered": 7193,
-        "pct_recovered": 0.13786,
-        "n_extra_copies": 663,
-        "n_tool_features": 7856
+        "n_recovered": 7189,
+        "pct_recovered": 0.13778,
+        "n_extra_copies": 664,
+        "n_tool_features": 7860
       },
       "exon": {
         "n_reference": 324848,
         "n_recovered": 4801,
         "pct_recovered": 0.01478,
         "n_extra_copies": 0,
-        "n_tool_features": 47873
+        "n_tool_features": 47859
       },
       "CDS": {
         "n_reference": 286264,
-        "n_recovered": 342,
-        "pct_recovered": 0.00119,
-        "n_extra_copies": 0,
-        "n_tool_features": 46449
+        "n_recovered": 4130,
+        "pct_recovered": 0.01443,
+        "n_extra_copies": 87,
+        "n_tool_features": 46435
       },
       "lnc_RNA": {
         "n_reference": 3878,
@@ -172,58 +172,95 @@
       },
       "_overall_": {
         "n_reference": 99587,
-        "n_recovered": 15026,
-        "pct_recovered": 0.15088,
+        "n_recovered": 15018,
+        "pct_recovered": 0.1508,
         "n_extra_copies": 0,
-        "n_tool_features": 16443
+        "n_tool_features": 16437
       }
     },
-    "completeness_feature_total": 0.15088,
-    "n_extra_copies": 663,
+    "completeness_feature_total": 0.1508,
+    "n_extra_copies": 664,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.55068,
+      "mean": 0.55066,
       "median": 0.55061,
       "pct_identical": 0.00098,
-      "n": 7146
+      "n": 7142
     },
     "dna_identity": {
-      "mean": 0.4673,
+      "mean": 0.46728,
       "median": 0.47603,
       "pct_identical": 0.0,
-      "n": 7193
+      "n": 7189
     },
     "protein_identity_hist": [
       138,
       112,
       224,
       728,
-      1483,
-      1747,
-      1347,
-      816,
+      1482,
+      1746,
+      1346,
+      815,
       366,
       185
     ],
     "structural": {
-      "orf_valid_frac": 0.14857,
-      "orf_start_frac": 0.31936,
-      "orf_stop_frac": 0.37778,
-      "intron_chain_exact_frac": 0.22278,
-      "exon_sn_mean": 0.30432,
-      "exon_sp_mean": 0.31059,
-      "n_scored": 7155
+      "orf_valid_frac": 0.14865,
+      "orf_start_frac": 0.3194,
+      "orf_stop_frac": 0.37799,
+      "intron_chain_exact_frac": 0.22277,
+      "exon_sn_mean": 0.30435,
+      "exon_sp_mean": 0.31063,
+      "n_scored": 7151
     },
     "profile": {
-      "wall_clock_seconds": 153.45,
-      "peak_rss_mb": 1300.6796875
+      "wall_clock_seconds": 274.35,
+      "peak_rss_mb": 1338.671875
     },
     "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_devel_refresh/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
     "exit": 1,
-    "n_errors": 35,
+    "n_errors": 1,
     "n_warnings": 137,
     "valid": false
+  },
+  "arm": "pinned_no_rescue",
+  "argv": [
+    "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "-t",
+    "8",
+    "-copies",
+    "-ad",
+    "RefSeq",
+    "-g",
+    "/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.gff",
+    "-L",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "-M",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "-T",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "-P",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "--locus-pipeline",
+    "--no-miniprot-rescue",
+    "-o",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/arabidopsis_to_rice/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz2/jheinz3/shared/lifton/rice/IRGSP_genomic.fna",
+    "/ccb/salz2/jheinz3/shared/lifton/arabadop/TAIR10.fna"
+  ],
+  "provenance": {
+    "host": "salz11.idies.jhu.edu",
+    "cpu_count": 128,
+    "total_mem_gib": 1007.2,
+    "platform": "Linux-5.14.0-503.15.1.el9_5.x86_64-x86_64-with-glibc2.34",
+    "python": "3.11.15",
+    "sha": {
+      "devel": "7fc84192d850",
+      "stable": "e503643d8346"
+    },
+    "measured_at": "2026-08-01T07:10:30+00:00"
   }
 }
