@@ -4,6 +4,30 @@
 Changelog
 ===========
 
+v1.0.11
+--------
+
+Single-fix release (2026-08-01). v1.0.10 could not build a database from some
+annotations that earlier versions handled, aborting the run outright. If you lift
+plant genomes, or any annotation produced with ``-copies``, upgrade.
+
+**Fixed:**
+
+- **``UNIQUE constraint failed: features.id`` on annotations containing copy
+  features.** ``gffutils`` disambiguates a repeated ``cds-X`` by renaming it to
+  ``cds-X_1`` — exactly the suffix Liftoff's ``-copies`` mode gives extra gene
+  copies. Where that generated name already belonged to a real feature the insert
+  failed and LiftOn exited. LiftOn now renames only ids that are *both* repeated
+  and whose ``<id>_<n>`` already exists, leaving legitimate discontinuous CDS —
+  which share an id by design — untouched. Measured across the benchmark corpus:
+  v1.0.8 ingests 34 of 34 inputs, v1.0.10 ingested 31, v1.0.11 ingests 34. Same
+  error class as GH #47, #12 and #7.
+
+- **A defect in the database-build fallback is no longer reported as a bad input
+  file.** ``NameError``, ``AttributeError``, ``TypeError`` and ``ImportError``
+  raised inside the fallback now propagate instead of being reported as a failed
+  build.
+
 v1.0.10
 --------
 
