@@ -18,7 +18,6 @@ System requirements
    * numpy >= 1.22.0
    * gffutils >= 0.10.1
    * biopython>=1.76
-   * cigar >= 0.1.3
    * parasail>=1.2.4
    * intervaltree>=3.1.0
    * networkx>=3.3
@@ -160,7 +159,7 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.10
+      v1.0.11
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE]
                     [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A]
@@ -189,7 +188,7 @@ Run the following command to make sure LiftOn is properly installed:
       Run `lifton -h` for the complete option list. The full, current flag
       reference -- every option's default, which flags CHANGE the output vs. the
       byte-identical fast-paths, and the kept no-op aliases -- is documented in
-      the User Manual / Function manual page. The most-used v1.0.10 options:
+      the User Manual / Function manual page. The most-used v1.0.11 options:
 
         Output-changing defaults (each ships with an opt-out flag):
           (default) lift all gene-like types ......... --gene-only

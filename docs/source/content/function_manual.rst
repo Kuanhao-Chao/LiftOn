@@ -21,7 +21,7 @@ LiftOn
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.10
+      v1.0.11
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial]
                   [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S] [-min_miniprot MIN_MINIPROT]
@@ -224,13 +224,13 @@ scheduling), and which flag restores the older behaviour.
    * - Miniprot-only rescue — *v1.0.9*
      - ``--no-miniprot-rescue``
      - CHANGES output (adds ``lifton_rescue=miniprot_only`` genes the DNA lift missed). ``--miniprot-rescue`` is a deprecated no-op alias. Env ``LIFTON_MINIPROT_RESCUE=0/1`` force-disables/enables.
-   * - Third merge candidate: miniprot's native CDS-only model — *v1.0.10*
+   * - Third merge candidate: miniprot's native CDS-only model — *v1.0.11*
      - ``--no-miniprot-candidate``
      - CHANGES output, non-decreasing per transcript: adopted only when its ORF-rescued protein identity is STRICTLY better than the two-way winner, and never for an antisense hit. ``--miniprot-candidate`` is a deprecated no-op alias. Env ``LIFTON_MINIPROT_CANDIDATE=0/1``.
-   * - Divergence-adaptive miniprot-only rescue floor — *v1.0.10*
+   * - Divergence-adaptive miniprot-only rescue floor — *v1.0.11*
      - ``--no-adaptive-rescue-floor``
      - CHANGES output (adds genes at large evolutionary distance). Lowers the 0.50 identity floor toward 0.30 as the DNA lift's gene recall drops; inert on same/close-species. ``--adaptive-rescue-floor`` is a deprecated no-op alias. Env ``LIFTON_RESCUE_ADAPTIVE_FLOOR=0/1``.
-   * - Coding transcripts harmonized to ``mRNA``; every CDS carries an ``ID`` and the reference's descriptive attributes — *v1.0.10*
+   * - Coding transcripts harmonized to ``mRNA``; every CDS carries an ``ID`` and the reference's descriptive attributes — *v1.0.11*
      - ``LIFTON_NO_MRNA_HARMONIZE=1`` / ``LIFTON_NO_CDS_ATTR_CARRY=1`` / ``LIFTON_NO_CONTAINMENT_NORMALIZE=1``
      - CHANGES column 3 and column 9 only; coordinates and the encoded protein are untouched. Output grows 12–43%.
 
