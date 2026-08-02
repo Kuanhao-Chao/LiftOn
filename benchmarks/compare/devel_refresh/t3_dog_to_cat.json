@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 62347,
     "n_reference_coding": 62347,
-    "n_tool_features": 61277,
-    "n_unmapped_id": 8,
-    "n_recovered_any": 61107,
-    "n_recovered_coding": 61107,
-    "completeness_all": 0.98011,
-    "completeness_coding": 0.98011,
+    "n_tool_features": 61345,
+    "n_unmapped_id": 89,
+    "n_recovered_any": 61105,
+    "n_recovered_coding": 61105,
+    "completeness_all": 0.98008,
+    "completeness_coding": 0.98008,
     "completeness_by_type": {
       "region": {
         "n_reference": 147,
@@ -32,17 +32,17 @@
       },
       "exon": {
         "n_reference": 1009715,
-        "n_recovered": 934326,
-        "pct_recovered": 0.92534,
+        "n_recovered": 934322,
+        "pct_recovered": 0.92533,
         "n_extra_copies": 0,
-        "n_tool_features": 950427
+        "n_tool_features": 950371
       },
       "gene": {
         "n_reference": 35509,
-        "n_recovered": 32120,
-        "pct_recovered": 0.90456,
-        "n_extra_copies": 251,
-        "n_tool_features": 32371
+        "n_recovered": 32119,
+        "pct_recovered": 0.90453,
+        "n_extra_copies": 239,
+        "n_tool_features": 32358
       },
       "lnc_RNA": {
         "n_reference": 24231,
@@ -53,17 +53,17 @@
       },
       "mRNA": {
         "n_reference": 62347,
-        "n_recovered": 61107,
-        "pct_recovered": 0.98011,
-        "n_extra_copies": 162,
-        "n_tool_features": 61277
+        "n_recovered": 61105,
+        "pct_recovered": 0.98008,
+        "n_extra_copies": 151,
+        "n_tool_features": 61345
       },
       "CDS": {
         "n_reference": 772925,
-        "n_recovered": 42933,
-        "pct_recovered": 0.05555,
-        "n_extra_copies": 0,
-        "n_tool_features": 739929
+        "n_recovered": 725838,
+        "pct_recovered": 0.93908,
+        "n_extra_copies": 689,
+        "n_tool_features": 739862
       },
       "tRNA": {
         "n_reference": 436,
@@ -140,14 +140,14 @@
         "n_recovered": 66,
         "pct_recovered": 0.88,
         "n_extra_copies": 7,
-        "n_tool_features": 66
+        "n_tool_features": 1
       },
       "C_gene_segment": {
         "n_reference": 16,
         "n_recovered": 16,
         "pct_recovered": 1.0,
         "n_extra_copies": 1,
-        "n_tool_features": 16
+        "n_tool_features": 0
       },
       "SRP_RNA": {
         "n_reference": 1,
@@ -179,58 +179,95 @@
       },
       "_overall_": {
         "n_reference": 143892,
-        "n_recovered": 124571,
-        "pct_recovered": 0.86573,
+        "n_recovered": 124568,
+        "pct_recovered": 0.8657,
         "n_extra_copies": 0,
-        "n_tool_features": 124992
+        "n_tool_features": 124966
       }
     },
-    "completeness_feature_total": 0.86573,
-    "n_extra_copies": 162,
+    "completeness_feature_total": 0.8657,
+    "n_extra_copies": 151,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.87306,
+      "mean": 0.87307,
       "median": 0.93558,
       "pct_identical": 0.03971,
-      "n": 60896
+      "n": 60894
     },
     "dna_identity": {
-      "mean": 0.83038,
-      "median": 0.86625,
+      "mean": 0.8304,
+      "median": 0.86626,
       "pct_identical": 0.0,
-      "n": 61107
+      "n": 61105
     },
     "protein_identity_hist": [
       541,
-      748,
+      747,
       591,
       613,
-      859,
-      1148,
-      1812,
+      860,
+      1147,
+      1811,
       4293,
-      11657,
-      38634
+      11659,
+      38632
     ],
     "structural": {
-      "orf_valid_frac": 0.80251,
-      "orf_start_frac": 0.89877,
-      "orf_stop_frac": 0.88703,
+      "orf_valid_frac": 0.80231,
+      "orf_start_frac": 0.89852,
+      "orf_stop_frac": 0.88708,
       "intron_chain_exact_frac": 0.52513,
-      "exon_sn_mean": 0.64813,
-      "exon_sp_mean": 0.66973,
-      "n_scored": 61107
+      "exon_sn_mean": 0.64811,
+      "exon_sp_mean": 0.66979,
+      "n_scored": 61105
     },
     "profile": {
-      "wall_clock_seconds": 2666.85,
-      "peak_rss_mb": 7755.80859375
+      "wall_clock_seconds": 2335.56,
+      "peak_rss_mb": 2830.828125
     },
     "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_devel_refresh/eval/lifton_devel.transcripts.tsv"
   },
   "validity": {
-    "exit": 1,
-    "n_errors": 11,
-    "n_warnings": 177,
-    "valid": false
+    "exit": 0,
+    "n_errors": 0,
+    "n_warnings": 176,
+    "valid": true
+  },
+  "arm": "pinned_no_rescue",
+  "argv": [
+    "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "-t",
+    "8",
+    "-copies",
+    "-ad",
+    "RefSeq",
+    "-g",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/distant_cross_species/t3_dog_to_cat/ref.gff",
+    "-L",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "-M",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "-T",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "-P",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "--locus-pipeline",
+    "--no-miniprot-rescue",
+    "-o",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/t3_dog_to_cat/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/distant_cross_species/t3_dog_to_cat/tgt.fna",
+    "/ccb/salz3/kh.chao/lifton_benchmark_data/tiers/distant_cross_species/t3_dog_to_cat/ref.fna"
+  ],
+  "provenance": {
+    "host": "salz11.idies.jhu.edu",
+    "cpu_count": 128,
+    "total_mem_gib": 1007.2,
+    "platform": "Linux-5.14.0-503.15.1.el9_5.x86_64-x86_64-with-glibc2.34",
+    "python": "3.11.15",
+    "sha": {
+      "devel": "7fc84192d850",
+      "stable": "e503643d8346"
+    },
+    "measured_at": "2026-08-01T07:02:49+00:00"
   }
 }

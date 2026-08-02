@@ -9,12 +9,12 @@
     "cross_species": true,
     "n_reference_total": 30799,
     "n_reference_coding": 30799,
-    "n_tool_features": 30040,
+    "n_tool_features": 30035,
     "n_unmapped_id": 0,
-    "n_recovered_any": 29974,
-    "n_recovered_coding": 29974,
-    "completeness_all": 0.97321,
-    "completeness_coding": 0.97321,
+    "n_recovered_any": 29973,
+    "n_recovered_coding": 29973,
+    "completeness_all": 0.97318,
+    "completeness_coding": 0.97318,
     "completeness_by_type": {
       "region": {
         "n_reference": 1870,
@@ -32,10 +32,10 @@
       },
       "gene": {
         "n_reference": 17559,
-        "n_recovered": 16447,
-        "pct_recovered": 0.93667,
-        "n_extra_copies": 123,
-        "n_tool_features": 16570
+        "n_recovered": 16446,
+        "pct_recovered": 0.93661,
+        "n_extra_copies": 119,
+        "n_tool_features": 16565
       },
       "lnc_RNA": {
         "n_reference": 2362,
@@ -49,21 +49,21 @@
         "n_recovered": 183083,
         "pct_recovered": 0.95996,
         "n_extra_copies": 0,
-        "n_tool_features": 184790
+        "n_tool_features": 184779
       },
       "mRNA": {
         "n_reference": 30799,
-        "n_recovered": 29974,
-        "pct_recovered": 0.97321,
-        "n_extra_copies": 66,
-        "n_tool_features": 30040
+        "n_recovered": 29973,
+        "pct_recovered": 0.97318,
+        "n_extra_copies": 62,
+        "n_tool_features": 30035
       },
       "CDS": {
         "n_reference": 163306,
-        "n_recovered": 7148,
-        "pct_recovered": 0.04377,
-        "n_extra_copies": 0,
-        "n_tool_features": 159857
+        "n_recovered": 158273,
+        "pct_recovered": 0.96918,
+        "n_extra_copies": 139,
+        "n_tool_features": 159846
       },
       "primary_transcript": {
         "n_reference": 266,
@@ -158,26 +158,26 @@
       },
       "_overall_": {
         "n_reference": 60889,
-        "n_recovered": 50040,
-        "pct_recovered": 0.82182,
+        "n_recovered": 50038,
+        "pct_recovered": 0.82179,
         "n_extra_copies": 0,
-        "n_tool_features": 50229
+        "n_tool_features": 50219
       }
     },
-    "completeness_feature_total": 0.82182,
-    "n_extra_copies": 66,
+    "completeness_feature_total": 0.82179,
+    "n_extra_copies": 62,
     "dna_basis": "transcript",
     "protein_identity": {
-      "mean": 0.92217,
-      "median": 0.95599,
+      "mean": 0.92218,
+      "median": 0.956,
       "pct_identical": 0.04578,
-      "n": 29946
+      "n": 29945
     },
     "dna_identity": {
-      "mean": 0.87697,
+      "mean": 0.877,
       "median": 0.90283,
       "pct_identical": 0.0,
-      "n": 29974
+      "n": 29973
     },
     "protein_identity_hist": [
       55,
@@ -185,24 +185,24 @@
       52,
       56,
       102,
-      272,
+      271,
       538,
       1498,
       4428,
       22903
     ],
     "structural": {
-      "orf_valid_frac": 0.90091,
+      "orf_valid_frac": 0.90094,
       "orf_start_frac": 0.96921,
-      "orf_stop_frac": 0.94705,
-      "intron_chain_exact_frac": 0.6172,
-      "exon_sn_mean": 0.69796,
-      "exon_sp_mean": 0.70444,
-      "n_scored": 29974
+      "orf_stop_frac": 0.94709,
+      "intron_chain_exact_frac": 0.61719,
+      "exon_sn_mean": 0.69795,
+      "exon_sp_mean": 0.70443,
+      "n_scored": 29973
     },
     "profile": {
-      "wall_clock_seconds": 663.28,
-      "peak_rss_mb": 3291.953125
+      "wall_clock_seconds": 720.29,
+      "peak_rss_mb": 1868.71875
     },
     "transcripts_tsv": "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/drosophila/_devel_refresh/eval/lifton_devel.transcripts.tsv"
   },
@@ -211,5 +211,42 @@
     "n_errors": 0,
     "n_warnings": 133,
     "valid": true
+  },
+  "arm": "pinned_no_rescue",
+  "argv": [
+    "/home/kh.chao/miniconda3/envs/lifton_devel/bin/lifton",
+    "-t",
+    "8",
+    "-copies",
+    "-ad",
+    "RefSeq",
+    "-g",
+    "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.gff",
+    "-L",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/drosophila/_fourway_full/devel/lifton_output/liftoff/liftoff.gff3",
+    "-M",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/drosophila/_fourway_full/devel/lifton_output/miniprot/miniprot.gff3",
+    "-T",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/drosophila/_fourway_full/devel/lifton_output/intermediate_files/transcripts.fa",
+    "-P",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/drosophila/_fourway_full/devel/lifton_output/intermediate_files/proteins.fa",
+    "--locus-pipeline",
+    "--no-miniprot-rescue",
+    "-o",
+    "/ccb/salz3/kh.chao/LiftOn/benchmarks/compare/work/drosophila/_devel_refresh/devel_refresh.gff3",
+    "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.erecta_genomic_bk.fna",
+    "/ccb/salz2/jheinz3/shared/lifton/cross_species/drosophila/d.menogaster_genomic.fna"
+  ],
+  "provenance": {
+    "host": "salz11.idies.jhu.edu",
+    "cpu_count": 128,
+    "total_mem_gib": 1007.2,
+    "platform": "Linux-5.14.0-503.15.1.el9_5.x86_64-x86_64-with-glibc2.34",
+    "python": "3.11.15",
+    "sha": {
+      "devel": "7fc84192d850",
+      "stable": "e503643d8346"
+    },
+    "measured_at": "2026-08-01T06:13:40+00:00"
   }
 }

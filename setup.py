@@ -26,7 +26,7 @@ setuptools.setup(
 	keywords=["genome annotation", "liftover", "lift-over", "bioinformatics",
 		"genomics", "miniprot", "minimap2", "gff3", "comparative genomics"],
 	project_urls={
-		"Documentation": "https://ccb.jhu.edu/lifton/",
+		"Documentation": "https://khchao.com/LiftOn/",
 		"Source": "https://github.com/Kuanhao-Chao/Lifton",
 		"Bug Tracker": "https://github.com/Kuanhao-Chao/Lifton/issues",
 		"Publication": "https://doi.org/10.1101/gr.279620.124",

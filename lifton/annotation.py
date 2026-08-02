@@ -557,6 +557,20 @@ class Annotation:
             except FileNotFoundError:
                 pass
 
+    @staticmethod
+    def _reraise_if_our_bug(exc: BaseException) -> None:
+        """Let a defect in our own fallback code out instead of burying it.
+
+        The strategy handlers below catch ``Exception`` so a malformed input
+        falls through to the next strategy. That breadth also swallows plain
+        coding errors *in the fallback itself* -- a NameError in the transform
+        is reported as "DB build failed", indistinguishable from a bad file,
+        and the build then fails for a reason nobody can see. These types are
+        never how an annotation file misbehaves, so re-raise them.
+        """
+        if isinstance(exc, (NameError, AttributeError, TypeError, ImportError)):
+            raise exc
+
     def _build_database_at(self, db_path: str) -> gffutils.FeatureDB:
         """
         Build a gffutils database with 3 progressively more permissive strategies.
@@ -600,6 +614,7 @@ class Annotation:
             print_db_build_success(self.file_name, self.merge_strategy)
             return db
         except Exception as exc1:
+            self._reraise_if_our_bug(exc1)
             exc1_str = str(exc1)
             print_db_build_error(self.file_name, self.merge_strategy, exc1)
 
@@ -635,6 +650,7 @@ class Annotation:
             )
             return db
         except Exception as exc2:
+            self._reraise_if_our_bug(exc2)
             print_db_build_error(self.file_name, "create_unique + unique-ID transform", exc2)
 
         # ── Strategy 3: merge + unique-ID transform ────────────────────────────
@@ -661,6 +677,7 @@ class Annotation:
             )
             return db
         except Exception as exc3:
+            self._reraise_if_our_bug(exc3)
             print_db_build_error(self.file_name, "merge + unique-ID transform", exc3)
             self._fatal_db_error(exc3, "all 3 strategies")
 
@@ -699,19 +716,97 @@ class Annotation:
             return None
         return _transform_func_gtf
 
-    def _get_unique_id_transform(self):
-        """
-        Return the fallback transform without rewriting logical ``ID`` values.
+    def _contaminated_ids(self) -> set:
+        """Repeated ids whose gffutils rename would land on a real feature.
 
-        ``create_unique`` and ``merge`` may suffix their internal database row
-        keys, but the source GFF3 ``ID`` attribute remains authoritative. This
-        keeps downstream serialization and Parent matching faithful to input.
+        ``create_unique`` disambiguates a repeated ``cds-X`` by renaming it to
+        ``cds-X_1``, ``cds-X_2``, … But ``_<n>`` is exactly the suffix Liftoff's
+        ``-copies`` mode gives extra gene copies, so on a copies-bearing
+        annotation that generated key can already belong to a different feature
+        and the insert dies with ``UNIQUE constraint failed: features.id``.
+
+        An id is *contaminated* when it is repeated AND some ``<id>_<n>`` also
+        exists in the file. Both facts come from the preflight scan that has
+        already run, so this costs no extra pass: repeated ids are the
+        discontinuous-CDS groups plus any genuine duplicates, and
+        ``copy_suffix_ids`` is the complete set of ``_<digits>``-suffixed ids.
+
+        Measured on the rice benchmark: exactly two ids qualify -- and two is
+        enough to abort a whole genome.
+        """
+        scan = getattr(self, "scan_result", None)
+        if scan is None:
+            return set()
+        repeated = set(getattr(scan, "discontinuous_cds_ids", ()))
+        repeated |= set(scan.duplicate_id_map)
+        if not repeated:
+            return set()
+        contaminated = set()
+        for suffixed in getattr(scan, "copy_suffix_ids", ()):
+            base = suffixed.rsplit("_", 1)[0]
+            if base in repeated:
+                contaminated.add(base)
+        return contaminated
+
+    def _get_unique_id_transform(self):
+        """Disambiguate only the ids gffutils cannot rename safely.
+
+        Reached only after the primary build has already failed.
+
+        This used to rename every repeat to ``<id>_dup<n>``. That worked, but
+        rewrote logical ids wholesale -- including the several segments of one
+        discontinuous CDS, which legitimately share an id. Removing the rename
+        outright (d7fa1d9) protected those ids but left the fallback with
+        nothing to fall back to: it became identical to the strategy that had
+        just failed, so three plant genomes v1.0.8 lifts stopped building.
+
+        The middle ground is to rename only within :meth:`_contaminated_ids`.
+        For such an id every repeat is renamed, not just the colliding one --
+        pulling a single occurrence out of the stream would shift gffutils'
+        per-id autoincrement counter and it would simply generate the colliding
+        key for the next repeat instead. Every other id, discontinuous CDS
+        included, is passed through untouched.
         """
         infer_genes = self.infer_genes
+        contaminated = self._contaminated_ids()
+        existing = set(getattr(getattr(self, "scan_result", None),
+                               "copy_suffix_ids", ()))
+        seen: dict = {}
+        assigned: set = set()
+
+        if contaminated:
+            logger.log_warning(
+                f"{len(contaminated)} feature ID(s) collide with the "
+                "'_<n>' copy-suffix namespace gffutils uses to disambiguate "
+                "duplicates; renaming their repeats to '_dup<n>' for the "
+                "database build. Other IDs are unchanged."
+            )
 
         def unique_id_transform(feature):
             if infer_genes:
                 feature = _transform_func_gtf(feature)
+            if not contaminated:
+                return feature
+
+            raw = feature.attributes.get("ID") if feature.attributes else None
+            original_id = raw[0] if raw else None
+            if not original_id or original_id not in contaminated:
+                return feature
+
+            occurrence = seen.get(original_id, 0)
+            seen[original_id] = occurrence + 1
+            if occurrence == 0:
+                return feature          # first sighting keeps the real id
+
+            suffix = 1
+            while (f"{original_id}_dup{suffix}" in existing
+                   or f"{original_id}_dup{suffix}" in assigned):
+                suffix += 1
+            new_id = f"{original_id}_dup{suffix}"
+            assigned.add(new_id)
+            feature.attributes["ID"] = [new_id]
+            if hasattr(feature, "id"):
+                feature.id = new_id
             return feature
 
         return unique_id_transform
