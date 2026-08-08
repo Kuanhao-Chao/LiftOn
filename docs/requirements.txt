@@ -40,7 +40,7 @@ Sphinx==9.1.0
 sphinx-autodoc-typehints==3.5.2
 sphinx-basic-ng==1.0.0b2
 sphinx-jinja2-compat==0.4.1
-sphinx-panels==0.4.1
+sphinx-panels==0.6.0
 sphinx-prompt==1.10.2
 sphinx-tabs==3.5.0
 sphinx-toolbox==4.3.0
