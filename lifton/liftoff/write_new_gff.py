@@ -29,8 +29,9 @@ def write_new_gff(lifted_features, args, feature_db):
     parents.sort(key=lambda x: (x.seqid, x.start, x.end, x.id))
     final_parent_list = finalize_parent_features(parents, args)
     final_parent_list.sort(key=lambda x: (x.seqid, x.start))
+    child_groups = prepare_parent_child_groups(lifted_features, final_parent_list)
     for final_parent in final_parent_list:
-        child_features = lifted_features[final_parent.attributes["copy_id"][0]]
+        child_features = child_groups[final_parent.attributes["copy_id"][0]]
         parent_child_dict = build_parent_dict(child_features, final_parent)
         write_feature([final_parent], f, child_features, parent_child_dict, out_type)
 
@@ -44,6 +45,113 @@ def finalize_parent_features(parents, args):
         add_attributes(parent, copy_num, args)
         final_parent_list.append(parent)
     return final_parent_list
+
+
+def _attribute_values(feature, name):
+    values = getattr(feature, "attributes", {}).get(name, [])
+    if isinstance(values, (list, tuple)):
+        return [str(value) for value in values]
+    return [str(values)] if values else []
+
+
+def _parent_aliases(parent):
+    aliases = {str(parent.id)}
+    for name in ("ID", "copy_id", "copy_num_ID"):
+        aliases.update(_attribute_values(parent, name))
+    return aliases
+
+
+def _direct_child_roots(features, parent):
+    aliases = _parent_aliases(parent)
+    return [
+        feature for feature in features
+        if feature is not parent
+        and aliases.intersection(_attribute_values(feature, "Parent"))
+    ]
+
+
+def _feature_branch(features, root):
+    branch = [root]
+    frontier = {str(root.id)}
+    selected = {id(root)}
+    while True:
+        additions = [
+            feature for feature in features
+            if id(feature) not in selected
+            and frontier.intersection(_attribute_values(feature, "Parent"))
+        ]
+        if not additions:
+            return branch
+        for feature in additions:
+            branch.append(feature)
+            selected.add(id(feature))
+            frontier.add(str(feature.id))
+
+
+def _parent_family_candidates(parent, parents, seqid):
+    return [
+        candidate for candidate in parents
+        if candidate.id == parent.id and candidate.seqid == seqid
+    ]
+
+
+def _select_branch_parent(source, root, parents):
+    candidates = _parent_family_candidates(source, parents, root.seqid)
+    if not candidates:
+        raise ValueError(
+            f"cannot resolve cross-seqid child {root.id!r} under parent "
+            f"{source.id!r}: no same-seqid parent exists"
+        )
+    containing = [
+        candidate for candidate in candidates
+        if candidate.start <= root.start and candidate.end >= root.end
+    ]
+    candidates = containing or [
+        candidate for candidate in candidates
+        if candidate.start <= root.end and root.start <= candidate.end
+    ]
+    if len(candidates) != 1:
+        raise ValueError(
+            f"cannot resolve cross-seqid child {root.id!r} under parent "
+            f"{source.id!r}: same-seqid parent is ambiguous"
+        )
+    return candidates[0]
+
+
+def prepare_parent_child_groups(lifted_features, final_parent_list):
+    """Keep each direct child hierarchy with its same-seqid parent copy."""
+    groups = {
+        parent.attributes["copy_id"][0]: list(
+            lifted_features[parent.attributes["copy_id"][0]]
+        )
+        for parent in final_parent_list
+    }
+    parent_by_key = {
+        parent.attributes["copy_id"][0]: parent
+        for parent in final_parent_list
+    }
+    moves = []
+    for source in final_parent_list:
+        source_key = source.attributes["copy_id"][0]
+        source_features = groups[source_key]
+        for root in _direct_child_roots(source_features, source):
+            target = _select_branch_parent(source, root, final_parent_list)
+            target_key = target.attributes["copy_id"][0]
+            if target_key == source_key:
+                continue
+            branch = _feature_branch(source_features, root)
+            root.attributes["Parent"] = [target.id]
+            moves.append((source_key, target_key, branch))
+    for source_key, target_key, branch in moves:
+        branch_ids = {id(feature) for feature in branch}
+        groups[source_key] = [
+            feature for feature in groups[source_key]
+            if id(feature) not in branch_ids
+        ]
+        groups[target_key].extend(branch)
+    if set(groups) != set(parent_by_key):
+        raise ValueError("parent-child groups do not match emitted parents")
+    return groups
 
 
 def add_to_copy_num_dict(parent, copy_num_dict):

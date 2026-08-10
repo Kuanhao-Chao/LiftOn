@@ -117,3 +117,31 @@ def test_child_ids_carry_the_copy_suffix(tmp_path):
     assert "ID=rna1_1;Parent=gene1_1" in text
     # the 1000 copy is copy_0 → bare ids
     assert "ID=rna1;Parent=gene1" in text
+
+
+def test_cross_sequence_child_branch_uses_matching_parent_copy(tmp_path):
+    """A trans-spliced branch must not attach to a different-seqid copy."""
+    first_key = "gene1@chr1:100"
+    second_key = "gene1@chr2:100"
+    first_parent = _feat("gene", "chr1", 100, 200, "gene1", copy_id=first_key)
+    second_parent = _feat("gene", "chr2", 100, 200, "gene1", copy_id=second_key)
+    transcript = _feat("mRNA", "chr2", 100, 200, "rna1", parent="gene1")
+    exon = _feat("exon", "chr2", 100, 200, "exon1", parent="rna1")
+    lifted = {
+        first_key: [first_parent],
+        second_key: [second_parent],
+    }
+    lifted[first_key].extend([transcript, exon])
+
+    out = tmp_path / "trans-spliced.gff3"
+    write_new_gff.write_new_gff(
+        lifted,
+        types.SimpleNamespace(output=str(out), a=0.5, s=0.5),
+        types.SimpleNamespace(dialect={"fmt": "gff3"}),
+    )
+
+    lines = [line for line in out.read_text().splitlines() if line and not line.startswith("#")]
+    transcript_line = next(line for line in lines if "\tmRNA\t" in line)
+    assert transcript_line.split("\t")[0] == "chr2"
+    assert "ID=rna1_1;Parent=gene1_1" in transcript_line
+    assert not any("ID=rna1;Parent=gene1" in line for line in lines)

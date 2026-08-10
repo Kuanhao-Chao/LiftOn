@@ -70,9 +70,12 @@ def lifted_features_to_gff3_bytes(lifted_features, args, feature_db,
     parents.sort(key=lambda x: (x.seqid, x.start, x.end, x.id))
     final_parent_list = write_new_gff.finalize_parent_features(parents, args)
     final_parent_list.sort(key=lambda x: (x.seqid, x.start))
+    child_groups = write_new_gff.prepare_parent_child_groups(
+        lifted_features, final_parent_list,
+    )
 
     for final_parent in final_parent_list:
-        child_features = lifted_features[final_parent.attributes["copy_id"][0]]
+        child_features = child_groups[final_parent.attributes["copy_id"][0]]
         parent_child_dict = write_new_gff.build_parent_dict(child_features, final_parent)
         write_new_gff.write_feature(
             [final_parent], buf, child_features, parent_child_dict, out_type,
