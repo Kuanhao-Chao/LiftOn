@@ -22,7 +22,7 @@ latexcodec==3.0.1
 MarkupSafe==3.0.3
 msgpack==1.2.1
 natsort==8.4.0
-packaging==26.2
+packaging==26.3
 platformdirs==4.11.0
 pybtex==0.26.1
 pybtex-docutils==1.0.3
