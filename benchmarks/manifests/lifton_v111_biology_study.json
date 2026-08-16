@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "study_id": "lifton-v1.0.11-biology-first-whole-genome-20260813",
+  "candidate": {
+    "label": "LiftOn v1.0.11",
+    "sha": "c623f0bddc5b5051a3670a3b0064c52cc61bb719"
+  },
+  "reference": {
+    "label": "LiftOn v1.0.8",
+    "sha": "e503643d8346c600fedabcd3a4dff5c0873a4a37"
+  },
+  "execution": {
+    "repetitions": 4,
+    "threads_per_cli": 8,
+    "scheduler_thread_cost": 16,
+    "max_active_cells": 2,
+    "max_worker_threads": 32,
+    "minimum_available_gib": 256,
+    "candidate_mode": "fast",
+    "reference_mode": "fast",
+    "python_hash_seed": 0
+  },
+  "statistics": {
+    "bootstrap_seed": 20260813,
+    "bootstrap_replicates": 10000,
+    "primary_reciprocal_overlap": 0.5,
+    "sensitivity_reciprocal_overlaps": [0.25, 0.8]
+  },
+  "qualification": {
+    "minimum_ortholog_gene_groups": 100,
+    "minimum_ortholog_transcript_groups": 100,
+    "minimum_absolute_locus_f1": 0.5,
+    "minimum_per_pair_target_delta": -0.01,
+    "minimum_aggregate_source_delta_lower_bound": -0.001,
+    "minimum_per_pair_source_delta": -0.01,
+    "maximum_aggregate_performance_ratio": 1.1,
+    "maximum_per_pair_performance_ratio": 1.25,
+    "maximum_concurrent_candidate_rss_gib": 192
+  },
+  "pairs": [
+    {
+      "id": "bee",
+      "public_label": "Honey bee: Amel_HAv3.1 to ASM1932182v1",
+      "biological_class": "same-species assembly transfer",
+      "source_tax_id": 7460,
+      "target_tax_id": 7460,
+      "target_annotation": {
+        "provider": "MAKER",
+        "assembly_accession": "GCA_019321825.1",
+        "assembly_name": "ASM1932182v1",
+        "release": "Sun et al. 2021 published assembly annotation",
+        "release_date": "2021-05-30",
+        "reported_gene_count": 12288,
+        "license": "CC BY 4.0",
+        "landing_page": "https://figshare.com/articles/dataset/Genome_annotation_for_high_royal_jelly-producing_honeybee/14702193",
+        "transport": "figshare",
+        "download_url": "https://ndownloader.figshare.com/files/28236738",
+        "filename": "HRJHB_all_16_chromosomes.gff.zip",
+        "expected_size": 179725911,
+        "expected_md5": "f83d762de58f5d393249a5f867e4ba65",
+        "chromosome_seqid_map": {
+          "HRJHB_LG1": "CM033155.1",
+          "HRJHB_LG2": "CM033156.1",
+          "HRJHB_LG3": "CM033157.1",
+          "HRJHB_LG4": "CM033158.1",
+          "HRJHB_LG5": "CM033159.1",
+          "HRJHB_LG6": "CM033160.1",
+          "HRJHB_LG7": "CM033161.1",
+          "HRJHB_LG8": "CM033162.1",
+          "HRJHB_LG9": "CM033163.1",
+          "HRJHB_LG10": "CM033164.1",
+          "HRJHB_LG11": "CM033165.1",
+          "HRJHB_LG12": "CM033166.1",
+          "HRJHB_LG13": "CM033167.1",
+          "HRJHB_LG14": "CM033168.1",
+          "HRJHB_LG15": "CM033169.1",
+          "HRJHB_LG16": "CM033170.1"
+        },
+        "chromosome_lengths": {
+          "HRJHB_LG1": 28436488,
+          "HRJHB_LG2": 16264477,
+          "HRJHB_LG3": 13627676,
+          "HRJHB_LG4": 13434714,
+          "HRJHB_LG5": 13793192,
+          "HRJHB_LG6": 17509016,
+          "HRJHB_LG7": 14432701,
+          "HRJHB_LG8": 12932171,
+          "HRJHB_LG9": 12473657,
+          "HRJHB_LG10": 12427841,
+          "HRJHB_LG11": 16877218,
+          "HRJHB_LG12": 11437062,
+          "HRJHB_LG13": 11647343,
+          "HRJHB_LG14": 10165807,
+          "HRJHB_LG15": 9726910,
+          "HRJHB_LG16": 6878669
+        }
+      }
+    },
+    {
+      "id": "drosophila",
+      "public_label": "Fruit fly: D. melanogaster to D. erecta DereRS2",
+      "biological_class": "close comparative transfer",
+      "source_tax_id": 7227,
+      "target_tax_id": 7220,
+      "target_annotation": {
+        "provider": "NCBI RefSeq",
+        "assembly_accession": "GCF_003286155.1",
+        "assembly_name": "DereRS2",
+        "release": "NCBI Annotation Release 101",
+        "release_date": "2018-11-01",
+        "reported_gene_count": 14681,
+        "transport": "ncbi_datasets"
+      }
+    },
+    {
+      "id": "t2_human_to_gorilla",
+      "public_label": "Human to western lowland gorilla",
+      "biological_class": "close comparative transfer",
+      "source_tax_id": 9606,
+      "target_tax_id": 9595,
+      "target_annotation": {
+        "provider": "NCBI RefSeq",
+        "assembly_accession": "GCF_029281585.2",
+        "assembly_name": "NHGRI_mGorGor1-v2.1_pri",
+        "release": "GCF_029281585.2-RS_2025_04",
+        "release_date": "2025-04-02",
+        "reported_gene_count": 41169,
+        "transport": "ncbi_datasets"
+      }
+    },
+    {
+      "id": "t2_mouse_to_caroli",
+      "public_label": "House mouse to Mus caroli",
+      "biological_class": "close comparative transfer",
+      "source_tax_id": 10090,
+      "target_tax_id": 10089,
+      "target_annotation": {
+        "provider": "NCBI RefSeq",
+        "assembly_accession": "GCF_900094665.2",
+        "assembly_name": "CAROLI_EIJ_v1.1",
+        "release": "NCBI Annotation Release 101",
+        "release_date": "2019-06-10",
+        "reported_gene_count": 32457,
+        "transport": "ncbi_datasets"
+      }
+    },
+    {
+      "id": "t3_dog_to_cat",
+      "public_label": "Dog to domestic cat",
+      "biological_class": "moderate-divergence veterinary transfer",
+      "source_tax_id": 9615,
+      "target_tax_id": 9685,
+      "target_annotation": {
+        "provider": "NCBI RefSeq",
+        "assembly_accession": "GCF_018350175.1",
+        "assembly_name": "F.catus_Fca126_mat1.0",
+        "release": "NCBI Annotation Release 105",
+        "release_date": "2021-10-27",
+        "reported_gene_count": 39307,
+        "transport": "ncbi_datasets"
+      }
+    },
+    {
+      "id": "t3_human_to_macaque",
+      "public_label": "Human to rhesus macaque",
+      "biological_class": "moderate-divergence biomedical transfer",
+      "source_tax_id": 9606,
+      "target_tax_id": 9544,
+      "target_annotation": {
+        "provider": "NCBI RefSeq",
+        "assembly_accession": "GCF_003339765.1",
+        "assembly_name": "Mmul_10",
+        "release": "NCBI Annotation Release 103",
+        "release_date": "2019-03-24",
+        "reported_gene_count": 40304,
+        "transport": "ncbi_datasets"
+      }
+    },
+    {
+      "id": "t3_human_to_marmoset",
+      "public_label": "Human to common marmoset",
+      "biological_class": "moderate-divergence biomedical transfer",
+      "source_tax_id": 9606,
+      "target_tax_id": 9483,
+      "target_annotation": {
+        "provider": "NCBI RefSeq",
+        "assembly_accession": "GCF_049354715.1",
+        "assembly_name": "calJac240_pri",
+        "release": "GCF_049354715.1-RS_2025_12",
+        "release_date": "2025-12-15",
+        "reported_gene_count": 44333,
+        "transport": "ncbi_datasets"
+      }
+    }
+  ]
+}
