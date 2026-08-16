@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as dt
 import hashlib
 import json
 import math
 import os
+import platform
 import re
 import shutil
 import statistics
@@ -78,6 +80,7 @@ APPROVED_RESOURCE_POLICY = {
 }
 TOOLING_FILE_KEYS = (
     "tooling_build_controller",
+    "tooling_evaluator",
     "tooling_release_evaluation",
     "tooling_release_report",
     "tooling_run_benchmarks",
@@ -102,6 +105,28 @@ _SHA1_RE = re.compile(r"[0-9a-f]{40}")
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
+def _controller_panel_concurrency(
+    controller_evidence: Mapping[str, Any] | None,
+) -> dict[str, int]:
+    limits = dict(PANEL_CONCURRENCY)
+    for record in (controller_evidence or {}).get("roots", []):
+        plan = record.get("plan") or {}
+        policy = plan.get("policy") or {}
+        stage = plan.get("stage")
+        panel = {
+            "paired-subset": "subset",
+            "paired-full": "full",
+            "paired-e2e": "e2e",
+        }.get(stage)
+        if panel is None:
+            continue
+        field = "max_active" if panel == "subset" else "max_full"
+        value = policy.get(field)
+        if isinstance(value, int) and value > 0:
+            limits[panel] = max(limits[panel], value)
+    return limits
+
+
 def _live_artifact_record(path: Path) -> dict[str, Any]:
     """Return a stable cryptographic record, rejecting a concurrent rewrite."""
 
@@ -119,6 +144,55 @@ def _live_artifact_record(path: Path) -> dict[str, Any]:
         "size": after.st_size,
         "mtime_ns": after.st_mtime_ns,
         "sha256": digest,
+    }
+
+
+def _finalization_host_snapshot() -> dict[str, Any]:
+    cpu_model = None
+    physical_ids = set()
+    physical_cores = set()
+    try:
+        processor = {}
+        for line in Path("/proc/cpuinfo").read_text().splitlines() + [""]:
+            if line and ":" in line:
+                key, value = line.split(":", 1)
+                processor[key.strip()] = value.strip()
+                continue
+            if not processor:
+                continue
+            cpu_model = cpu_model or processor.get("model name")
+            physical_id = processor.get("physical id")
+            core_id = processor.get("core id")
+            if physical_id is not None:
+                physical_ids.add(physical_id)
+            if physical_id is not None and core_id is not None:
+                physical_cores.add((physical_id, core_id))
+            processor = {}
+    except OSError:
+        pass
+    memory_gib = None
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemTotal:"):
+                memory_gib = int(line.split()[1]) / (1024 ** 2)
+                break
+    except (OSError, TypeError, ValueError):
+        pass
+    return {
+        "classification": "reconstructed_at_report_finalization",
+        "observed_at": (
+            dt.datetime.now(dt.timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z")
+        ),
+        "hostname": platform.node(),
+        "kernel": platform.release(),
+        "machine": platform.machine(),
+        "cpu_model": cpu_model,
+        "logical_cpus": os.cpu_count(),
+        "sockets": len(physical_ids) or None,
+        "physical_cores": len(physical_cores) or None,
+        "memory_gib": memory_gib,
     }
 
 
@@ -252,6 +326,21 @@ def _e2e_biology_errors(version: Any) -> list[str]:
     except (RuntimeError, TypeError, ValueError) as exc:
         return [str(exc)]
     return []
+
+
+def _e2e_determinism_document(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            key: (
+                "<path>"
+                if key in {"score_file", "transcripts_tsv"}
+                else _e2e_determinism_document(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_e2e_determinism_document(item) for item in value]
+    return value
 
 
 def _load_transcript_metrics(path: Path, n_reference_coding: Any) -> dict[str, Any]:
@@ -597,7 +686,7 @@ def _version_quality(
     summary = version.get("summary")
     if not isinstance(summary, Mapping):
         raise ValueError(f"{pair_path}: {label} evaluator summary is malformed")
-    transcript_path = pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
+    transcript_path = _transcript_metrics_path(pair_path, pair, label)
     transcript = _load_transcript_metrics(
         transcript_path,
         summary.get("n_reference_coding"),
@@ -709,6 +798,33 @@ def _warning_inventory(pair: Mapping[str, Any], label: str) -> Counter[str]:
         for issue in pair["versions"][label]["validation"].get("issues", [])
         if str(issue.get("severity", "")).upper().endswith("WARNING")
     )
+
+
+def _transcript_metrics_path(
+    pair_path: Path,
+    pair: Mapping[str, Any],
+    label: str,
+) -> Path:
+    version = (pair.get("versions") or {}).get(label)
+    overlay = (
+        version.get("evaluation_overlay")
+        if isinstance(version, Mapping) else None
+    )
+    if isinstance(overlay, Mapping):
+        artifacts = version.get("evaluation_artifacts")
+        transcript = (
+            artifacts.get("transcripts_tsv")
+            if isinstance(artifacts, Mapping) else None
+        )
+        raw_path = transcript.get("path") if isinstance(transcript, Mapping) else None
+        if not isinstance(raw_path, str) or not Path(raw_path).is_absolute():
+            raise ValueError(
+                f"{pair_path}: {label} evaluation overlay TSV path is malformed"
+            )
+        return Path(raw_path).resolve()
+    return (
+        pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
+    ).resolve()
 
 
 def _verify_transcript_artifact(
@@ -992,9 +1108,12 @@ def _target_truth_summary(
     return dict(metrics)
 
 
-def _paired_common_pi(pair_path: Path) -> dict[str, Any] | None:
+def _paired_common_pi(
+    pair_path: Path,
+    pair: Mapping[str, Any],
+) -> dict[str, Any] | None:
     paths = {
-        label: pair_path.parent / "evaluation" / f"{label}.transcripts.tsv"
+        label: _transcript_metrics_path(pair_path, pair, label)
         for label in ("candidate", "reference")
     }
     recovered = {}
@@ -1031,8 +1150,9 @@ def _controller_pair_paths(
     root: Path,
     *,
     verify_content: bool = False,
+    allow_incomplete: bool = False,
 ) -> list[Path] | None:
-    """Select only current successful cell artifacts from a controller run."""
+    """Select current successful cell artifacts from a controller run."""
 
     plan_path = root / "plan.json"
     if not plan_path.is_file():
@@ -1070,6 +1190,18 @@ def _controller_pair_paths(
         success_path = cell_dir / ".success"
         try:
             status = json.loads(status_path.read_text())
+        except (OSError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{cell_dir}: controller status is unreadable: {exc}"
+            ) from exc
+        if status.get("state") != "success":
+            if allow_incomplete:
+                continue
+            raise ValueError(
+                f"{cell_dir}: controller cell state is {status.get('state')!r}, "
+                "not 'success'"
+            )
+        try:
             success = json.loads(success_path.read_text())
         except (OSError, TypeError, ValueError) as exc:
             raise ValueError(
@@ -1083,11 +1215,6 @@ def _controller_pair_paths(
         ):
             raise ValueError(
                 f"{cell_dir}: unsupported controller success/status schema"
-            )
-        if status.get("state") != "success":
-            raise ValueError(
-                f"{cell_dir}: controller cell state is {status.get('state')!r}, "
-                "not 'success'"
             )
         fingerprint = cell.get("fingerprint")
         if (
@@ -1323,12 +1450,16 @@ def _controller_pair_paths(
     return selected
 
 
-def load_pairs(roots: Iterable[Path]) -> list[tuple[Path, dict[str, Any]]]:
+def load_pairs(
+    roots: Iterable[Path], *, allow_incomplete: bool = False,
+) -> list[tuple[Path, dict[str, Any]]]:
     pairs = []
     seen = set()
     for root in roots:
         root = Path(root).resolve()
-        controller_paths = _controller_pair_paths(root)
+        controller_paths = _controller_pair_paths(
+            root, allow_incomplete=allow_incomplete,
+        )
         paths = (
             controller_paths
             if controller_paths is not None
@@ -1709,6 +1840,9 @@ def _expected_tooling_paths() -> dict[str, Path]:
     root = Path(build_controller.REPO_ROOT).resolve()
     return {
         "tooling_build_controller": Path(build_controller.__file__).resolve(),
+        "tooling_evaluator": (
+            root / "benchmarks" / "compare" / "evaluator.py"
+        ).resolve(),
         "tooling_release_evaluation": (
             root / "benchmarks" / "compare" / "release_evaluation.py"
         ).resolve(),
@@ -2069,6 +2203,102 @@ def _controller_publication_evidence(
     }
 
 
+def _controller_execution_environment(
+    provenance: Mapping[str, Any],
+) -> dict[str, Any]:
+    runtime = provenance.get("runtime")
+    tools = provenance.get("tools")
+    runtime = runtime if isinstance(runtime, Mapping) else {}
+    tools = tools if isinstance(tools, Mapping) else {}
+    python = runtime.get("python")
+    distributions = runtime.get("distributions")
+    python = python if isinstance(python, Mapping) else {}
+    distributions = (
+        distributions if isinstance(distributions, Mapping) else {}
+    )
+    package_names = (
+        "duckdb", "gffutils", "mappy", "numpy", "parasail",
+        "pyfaidx", "pysam",
+    )
+    tool_names = {
+        "minimap2": "minimap2_bin",
+        "miniprot": "miniprot_bin",
+    }
+    return {
+        "python": python.get("version"),
+        "tools": {
+            label: (tools.get(key) or {}).get("version")
+            for label, key in tool_names.items()
+            if isinstance(tools.get(key), Mapping)
+        },
+        "packages": {
+            name: distributions[name].get("version")
+            for name in package_names
+            if isinstance(distributions.get(name), Mapping)
+        },
+    }
+
+
+def _diagnostic_controller_evidence(
+    roots: Sequence[Path],
+) -> dict[str, Any]:
+    """Record partial controller plans and execution policies for diagnostics."""
+
+    from . import build_controller
+
+    records = []
+    for raw_root in roots:
+        root = Path(raw_root).resolve()
+        plan_path = root / "plan.json"
+        record: dict[str, Any] = {
+            "root": str(root),
+            "plan": None,
+            "errors": [],
+        }
+        if not plan_path.is_file():
+            records.append(record)
+            continue
+        try:
+            plan = json.loads(plan_path.read_text())
+            build_controller.validate_plan_integrity(plan)
+            cells = plan.get("cells", [])
+            counts = Counter()
+            for cell in cells:
+                status_path = Path(cell["cell_dir"]) / "status.json"
+                status = json.loads(status_path.read_text())
+                counts[status.get("state", "unknown")] += 1
+            selected = _controller_pair_paths(root, allow_incomplete=True)
+            controller_state = "unknown"
+            controller_path = root / "controller.json"
+            if controller_path.is_file():
+                controller_state = json.loads(controller_path.read_text()).get(
+                    "state", "unknown"
+                )
+            record["plan"] = {
+                "run_id": plan.get("run_id"),
+                "stage": plan.get("stage"),
+                "fingerprint": plan.get("fingerprint"),
+                "sha256": sha256_file(plan_path),
+                "ids": list(plan.get("ids", [])),
+                "repetitions": (plan.get("paired") or {}).get("repetitions"),
+                "policy": dict(plan.get("policy") or {}),
+                "counts": dict(sorted(counts.items())),
+                "controller_state": controller_state,
+                "successful_pair_results": len(selected or []),
+                "execution_environment": _controller_execution_environment(
+                    plan.get("provenance") or {},
+                ),
+            }
+        except (OSError, TypeError, ValueError, KeyError) as exc:
+            record["errors"].append(str(exc))
+        records.append(record)
+    return {
+        "validated": False,
+        "kind": "diagnostic_controller_roots",
+        "roots": records,
+    }
+
+
 def _controller_artifact_evidence(
     roots: Sequence[Path],
 ) -> dict[str, Any]:
@@ -2370,11 +2600,44 @@ def validate_campaign(
                     raise ValueError(
                         f"{path}: {label} E2E evaluation profile is unsuccessful"
                     )
+                evaluation_method = version.get("evaluation_method")
+                neutral_evaluation = (
+                    evaluation_method == "neutral_evaluator_v1"
+                    or evaluation_profile.get("method") == "neutral_evaluator_v1"
+                )
+                if neutral_evaluation:
+                    if (
+                        evaluation_method != "neutral_evaluator_v1"
+                        or evaluation_profile.get("method")
+                        != "neutral_evaluator_v1"
+                    ):
+                        raise ValueError(
+                            f"{path}: {label} neutral E2E evaluation method "
+                            "is inconsistent"
+                        )
+                    evaluation_summary = version.get("evaluation_summary")
+                    if (
+                        not isinstance(evaluation_summary, Mapping)
+                        or evaluation_summary.get("format")
+                        != "neutral_evaluator_v1"
+                    ):
+                        raise ValueError(
+                            f"{path}: {label} neutral E2E evaluation summary "
+                            "is missing or has the wrong format"
+                        )
+                    required_profile_fields = (
+                        "wall_clock_seconds",
+                        "peak_rss_mb",
+                    )
+                else:
+                    required_profile_fields = (
+                        "wall_clock_seconds",
+                        "peak_rss_mb",
+                        "user_cpu_seconds",
+                        "sys_cpu_seconds",
+                    )
                 for name in (
-                    "wall_clock_seconds",
-                    "peak_rss_mb",
-                    "user_cpu_seconds",
-                    "sys_cpu_seconds",
+                    *required_profile_fields,
                 ):
                     value = evaluation_profile.get(name)
                     minimum = 0.0 if name.endswith("cpu_seconds") else 0.0
@@ -2494,6 +2757,43 @@ def _bootstrap_delta(
 def _median(values: Iterable[float]) -> float | None:
     clean = [float(value) for value in values if _number(value)]
     return statistics.median(clean) if clean else None
+
+
+def _log_ratio_cv(values: Sequence[float]) -> float | None:
+    """Return the geometric CV of positive repetition-level ratios."""
+    clean = [float(value) for value in values if _number(value) and value > 0]
+    if len(clean) < 2:
+        return None
+    logs = [math.log(value) for value in clean]
+    spread = statistics.pstdev(logs)
+    return math.sqrt(math.expm1(spread * spread))
+
+
+def _performance_outliers(cells: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    outliers = []
+    for cell in cells:
+        wall = [float(value) for value in cell.get("wall_ratios", [])]
+        rss = [float(value) for value in cell.get("rss_ratios", [])]
+        wall_geomean = math.exp(statistics.fmean(math.log(value) for value in wall))
+        rss_geomean = math.exp(statistics.fmean(math.log(value) for value in rss))
+        if (
+            wall_geomean > 1.10
+            or rss_geomean > 1.10
+            or max(wall, default=0.0) > 1.25
+            or max(rss, default=0.0) > 1.25
+            or (cell.get("wall_ratio_cv") or 0.0) > 0.15
+            or (cell.get("rss_ratio_cv") or 0.0) > 0.15
+        ):
+            outliers.append({
+                "panel": cell.get("panel"),
+                "benchmark": cell.get("benchmark"),
+                "repetitions": cell.get("repetitions"),
+                "wall_geomean": wall_geomean,
+                "rss_geomean": rss_geomean,
+                "wall_ratio_cv": cell.get("wall_ratio_cv"),
+                "rss_ratio_cv": cell.get("rss_ratio_cv"),
+            })
+    return outliers
 
 
 def _group_cells(
@@ -2714,6 +3014,7 @@ def aggregate_pairs(
         _canonical_quality_baselines()
     )
     policy_map = _campaign_policy_map(campaign)
+    panel_concurrency = _controller_panel_concurrency(controller_evidence)
     grouped = _group_cells(pairs)
     cells = []
     warning_totals = {
@@ -2818,8 +3119,8 @@ def aggregate_pairs(
             for _, pair in rows[:1]:
                 warning_totals[label].update(_warning_inventory(pair, label))
         common_pi_repetitions = [
-            _paired_common_pi(path)
-            for path, _pair in rows
+            _paired_common_pi(path, pair)
+            for path, pair in rows
         ]
         common_pi = _aggregate_common_pi(common_pi_repetitions)
         common_pi_deterministic = len({
@@ -2896,7 +3197,7 @@ def aggregate_pairs(
                         continue
                     try:
                         biology_signatures.add(_canonical_json(
-                            {
+                            _e2e_determinism_document({
                                 "biological_summary": summary.get(
                                     "biological_summary"
                                 ),
@@ -2904,7 +3205,7 @@ def aggregate_pairs(
                                 "evaluation_summary": summary.get(
                                     "evaluation_summary"
                                 ),
-                            },
+                            }),
                             source=first_path,
                             field=f"{label} E2E biology",
                         ))
@@ -2966,12 +3267,16 @@ def aggregate_pairs(
             "reference_wall_seconds_median": statistics.median(
                 reference_wall_seconds
             ),
+            "wall_ratios": wall,
+            "rss_ratios": rss,
             "wall_ratio_median": statistics.median(wall),
             "wall_ratio_min": min(wall),
             "wall_ratio_max": max(wall),
+            "wall_ratio_cv": _log_ratio_cv(wall),
             "rss_ratio_median": statistics.median(rss),
             "rss_ratio_min": min(rss),
             "rss_ratio_max": max(rss),
+            "rss_ratio_cv": _log_ratio_cv(rss),
             "candidate_peak_rss_gib": max(candidate_rss_mb) / 1024.0,
             "candidate": candidate,
             "reference": reference,
@@ -3018,7 +3323,7 @@ def aggregate_pairs(
         reference_wall_total = sum(
             cell["reference_wall_seconds_median"] for cell in selected
         )
-        concurrency = PANEL_CONCURRENCY[panel]
+        concurrency = panel_concurrency[panel]
         memory_cells = sorted(
             selected,
             key=lambda cell: (
@@ -3129,13 +3434,31 @@ def aggregate_pairs(
             ),
         },
         "bootstrap": {"seed": seed, "replicates": replicates},
+        "measurement_semantics": {
+            "wall_clock_seconds": (
+                "Elapsed wall-clock time reported by GNU /usr/bin/time -v for "
+                "the profiled command."
+            ),
+            "peak_rss_mb": (
+                "Maximum resident set size reported by GNU /usr/bin/time -v "
+                "for the profiled command; this is not a sampled simultaneous "
+                "RSS peak for the complete process tree or host."
+            ),
+            "candidate_concurrent_memory_envelope_gib": (
+                "Sum of the largest observed candidate command-level maximum-"
+                "RSS values up to the panel admission-slot limit. This is an "
+                "engineering admission proxy, not a measured host-memory peak "
+                "or a guaranteed process-tree upper bound."
+            ),
+        },
         "policy": {
-            "panel_concurrency": dict(PANEL_CONCURRENCY),
+            "panel_concurrency": panel_concurrency,
             "candidate_concurrent_memory_limit_gib": MEMORY_ENVELOPE_GIB,
         },
         "quality_baseline_artifact": quality_baseline_artifact,
         "cells": cells,
         "panels": panels,
+        "performance_outliers": _performance_outliers(cells),
         "warnings": {
             label: dict(sorted(counter.items()))
             for label, counter in warning_totals.items()
@@ -3147,9 +3470,20 @@ def aggregate_pairs(
 
 def evaluate_verdict(metrics: Mapping[str, Any]) -> dict[str, Any]:
     checks = []
+    reference_diagnostics = []
 
     def add(name: str, passed: bool, actual: Any, limit: Any) -> None:
         checks.append({
+            "name": name,
+            "passed": bool(passed),
+            "actual": actual,
+            "limit": limit,
+        })
+
+    def add_reference_diagnostic(
+        name: str, passed: bool, actual: Any, limit: Any,
+    ) -> None:
+        reference_diagnostics.append({
             "name": name,
             "passed": bool(passed),
             "actual": actual,
@@ -3218,7 +3552,7 @@ def evaluate_verdict(metrics: Mapping[str, Any]) -> dict[str, Any]:
         ),
         len(cells),
     )
-    add(
+    add_reference_diagnostic(
         "all_reference_outputs_valid",
         bool(cells) and all(cell.get("reference_valid") is True for cell in cells),
         sum(cell.get("reference_valid") is True for cell in cells),
@@ -3505,6 +3839,11 @@ def evaluate_verdict(metrics: Mapping[str, Any]) -> dict[str, Any]:
             bool(diagnostic_checks)
             and all(check["passed"] for check in diagnostic_checks)
         ),
+        "reference_diagnostics_passed": (
+            bool(reference_diagnostics)
+            and all(check["passed"] for check in reference_diagnostics)
+        ),
+        "reference_diagnostics": reference_diagnostics,
         "checks": checks,
         "n_passed": sum(check["passed"] for check in checks),
         "n_failed": sum(not check["passed"] for check in checks),
@@ -3519,6 +3858,18 @@ def _format_gib(value: Any) -> str:
     return f"{float(value):.2f} GiB" if _number(value) else "n/a"
 
 
+def _format_ratio_interval(interval: Any, n_cells: Any) -> str:
+    if not isinstance(interval, Mapping):
+        return "n/a"
+    estimate = _format_ratio(interval.get("estimate"))
+    if not _integer(n_cells) or n_cells < 2:
+        return f"{estimate} (descriptive)"
+    return (
+        f"{estimate} [{_format_ratio(interval.get('low'))}, "
+        f"{_format_ratio(interval.get('high'))}]"
+    )
+
+
 def _format_preserved(count: Any, total: Any, rate: Any) -> str:
     if not _integer(count) or not _integer(total) or not _number(rate):
         return "n/a"
@@ -3529,37 +3880,49 @@ def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
     verdict = metrics["verdict"]
     publication = metrics.get("publication") or {}
     diagnostic = publication.get("mode") != "release"
+    panel_concurrency = (
+        metrics.get("policy", {}).get("panel_concurrency")
+        or PANEL_CONCURRENCY
+    )
+    concurrency_text = ", ".join(
+        f"{panel}={panel_concurrency.get(panel, 'n/a')}"
+        for panel in RELEASE_PANELS
+    )
+    diagnostic_text = (
+        "CHECKS PASS" if verdict.get("diagnostic_passed") else "CHECKS FAIL"
+    )
+    if not verdict.get("reference_diagnostics_passed", True):
+        diagnostic_text += "; REFERENCE DIAGNOSTICS FAIL"
     verdict_text = (
         "DIAGNOSTIC ONLY "
-        f"({'CHECKS PASS' if verdict.get('diagnostic_passed') else 'CHECKS FAIL'})"
+        f"({diagnostic_text})"
         if diagnostic
         else ("PASS" if verdict["passed"] else "FAIL")
     )
     lines = [
-        "# LiftOn v1.0.10 Release Evaluation",
+        "# LiftOn v1.0.11 Release Evaluation",
         "",
         f"**Verdict:** {verdict_text}  ",
         f"**Candidate:** `{manifest['candidate_sha']}`  ",
         f"**Reference:** `{manifest['reference_sha']}`",
+        (
+            "**Evaluation:** immutable corrected overlay"
+            if manifest.get("evaluation_overlays")
+            else "**Evaluation:** sealed in-run evaluator artifacts"
+        ),
         "",
         "## Performance",
         "",
         "| Panel | Candidate mode | Reference mode | Cells | Wall GMR (95% CI) | "
         "Total wall | RSS GMR (95% CI) | Worst wall | Worst RSS | "
-        "Concurrent candidate RSS |",
+        "Candidate command-RSS slot-sum proxy |",
         "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for panel, summary in sorted(metrics["panels"].items()):
         wall = summary.get("wall_ratio") or {}
         rss = summary.get("rss_ratio") or {}
-        wall_ci = (
-            f"{_format_ratio(wall.get('estimate'))} "
-            f"[{_format_ratio(wall.get('low'))}, {_format_ratio(wall.get('high'))}]"
-        )
-        rss_ci = (
-            f"{_format_ratio(rss.get('estimate'))} "
-            f"[{_format_ratio(rss.get('low'))}, {_format_ratio(rss.get('high'))}]"
-        )
+        wall_ci = _format_ratio_interval(wall, summary.get("n_cells"))
+        rss_ci = _format_ratio_interval(rss, summary.get("n_cells"))
         modes = summary.get("modes") or {}
         lines.append(
             f"| {panel} | {modes.get('candidate', 'n/a')} | "
@@ -3575,9 +3938,11 @@ def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
         "Ratios below 1.0 favor the candidate. Timings are paired and alternate "
         "reference/candidate execution order. Total wall is the sum of candidate "
         "per-cell median seconds divided by the corresponding reference sum. "
-        "The concurrent RSS envelope conservatively sums the largest four subset "
-        "cell peaks or largest two full/E2E cell peaks and must remain at or below "
-        f"{MEMORY_ENVELOPE_GIB:.0f} GiB.",
+        f"The command-RSS slot-sum proxy uses the largest observed GNU-time "
+        f"maximum-RSS values up to the configured panel slots "
+        f"({concurrency_text}) and must remain at or below "
+        f"{MEMORY_ENVELOPE_GIB:.0f} GiB. It is an admission metric, not a "
+        f"sampled simultaneous process-tree or host-memory peak.",
         (
             "This is an ad-hoc diagnostic aggregation, not a publishable release "
             "verdict. A release PASS requires an explicit complete campaign "
@@ -3674,6 +4039,27 @@ def render_markdown(metrics: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
                 f"- `{check['name']}`: actual `{check['actual']}`, "
                 f"limit `{check['limit']}`"
             )
+    reference_failures = [
+        check for check in verdict.get("reference_diagnostics", [])
+        if not check["passed"]
+    ]
+    lines.extend([
+        "",
+        "## Reference control diagnostics",
+        "",
+        "Reference validity is reported for baseline transparency and does not "
+        "block a candidate-gated release. Reference byte and quality "
+        "determinism remain blocking controls.",
+        "",
+        f"- Status: {'PASS' if verdict.get('reference_diagnostics_passed') else 'FAIL'}",
+    ])
+    if reference_failures:
+        lines.append("- Non-blocking diagnostic failures:")
+        for check in reference_failures:
+            lines.append(
+                f"  - `{check['name']}`: actual `{check['actual']}`, "
+                f"limit `{check['limit']}`"
+            )
     lines.extend([
         "",
         "The publication manifest hashes every controller success marker, "
@@ -3753,6 +4139,8 @@ def _validate_publication_destination(
         "expected_campaign",
         "controller_evidence",
         "publication_evidence",
+        "evaluation_overlays",
+        "finalization_host",
         "quality_baseline_artifact",
         "bootstrap",
         "run_roots",
@@ -3783,6 +4171,11 @@ def _validate_publication_destination(
         or not isinstance(manifest.get("pair_results"), list)
         or not manifest["pair_results"]
         or not isinstance(manifest.get("controller_plans"), list)
+        or not (
+            manifest.get("evaluation_overlays") is None
+            or isinstance(manifest.get("evaluation_overlays"), Mapping)
+        )
+        or not isinstance(manifest.get("finalization_host"), Mapping)
     ):
         raise ValueError(
             f"refusing to replace publication with invalid manifest: "
@@ -3800,7 +4193,7 @@ def _validate_publication_destination(
         or not isinstance(metrics.get("verdict"), Mapping)
         or not isinstance(metrics["verdict"].get("passed"), bool)
         or not (output_dir / "REPORT.md").read_text().startswith(
-            "# LiftOn v1.0.10 Release Evaluation\n"
+            "# LiftOn v1.0.11 Release Evaluation\n"
         )
     ):
         raise ValueError(
@@ -3819,6 +4212,7 @@ def _write_report_once(
     replicates: int = DEFAULT_BOOTSTRAP_REPLICATES,
     expected_campaign: Mapping[str, Any] | None = None,
     diagnostic: bool = False,
+    evaluation_roots: Sequence[Path] = (),
 ) -> dict[str, Any]:
     candidate_sha = _normalized_git_sha(candidate_sha, label="candidate")
     reference_sha = _normalized_git_sha(reference_sha, label="reference")
@@ -3826,10 +4220,9 @@ def _write_report_once(
     normalized_campaign = None
     if diagnostic:
         if expected_campaign is not None:
-            raise ValueError(
-                "diagnostic reports cannot claim an expected release campaign"
-            )
-        pairs = load_pairs(roots)
+            normalized_campaign = _normalize_campaign_spec(expected_campaign)
+        controller_evidence = _diagnostic_controller_evidence(roots)
+        pairs = load_pairs(roots, allow_incomplete=True)
     else:
         if expected_campaign is None:
             raise ValueError(
@@ -3851,16 +4244,41 @@ def _write_report_once(
             pairs.append((path, raw))
     if not pairs:
         raise RuntimeError("no pair_result.json files found")
+    evaluation_evidence = None
+    if evaluation_roots:
+        from . import release_rescore
+
+        pairs, evaluation_evidence = release_rescore.apply_overlays(
+            pairs, evaluation_roots,
+        )
     metrics = aggregate_pairs(
         pairs,
         seed=seed,
         replicates=replicates,
         candidate_sha=candidate_sha,
         reference_sha=reference_sha,
-        expected_campaign=normalized_campaign,
+        expected_campaign=(None if diagnostic else normalized_campaign),
         publication_mode="diagnostic" if diagnostic else "release",
         controller_evidence=controller_evidence,
     )
+    metrics["publication"]["evaluation_overlays"] = evaluation_evidence
+    finalization_host = _finalization_host_snapshot()
+    metrics["environment"] = {
+        "finalization_host": finalization_host,
+    }
+    if diagnostic and normalized_campaign is not None:
+        metrics["campaign"]["planned_campaign"] = normalized_campaign
+        observed_keys = {
+            (pair["panel"], pair["benchmark"], int(pair["repetition"]))
+            for _, pair in pairs
+        }
+        expected_keys = _expected_campaign_keys(normalized_campaign)
+        metrics["campaign"]["missing_keys"] = [
+            list(key) for key in sorted(expected_keys - observed_keys)
+        ]
+        metrics["campaign"]["unexpected_keys"] = [
+            list(key) for key in sorted(observed_keys - expected_keys)
+        ]
     publication_evidence = (
         None if diagnostic else _controller_artifact_evidence(roots)
     )
@@ -3870,9 +4288,11 @@ def _write_report_once(
         "candidate_sha": candidate_sha,
         "reference_sha": reference_sha,
         "publication_mode": "diagnostic" if diagnostic else "release",
-        "expected_campaign": normalized_campaign,
+        "expected_campaign": None if diagnostic else normalized_campaign,
         "controller_evidence": controller_evidence,
         "publication_evidence": publication_evidence,
+        "evaluation_overlays": evaluation_evidence,
+        "finalization_host": finalization_host,
         "quality_baseline_artifact": metrics["quality_baseline_artifact"],
         "bootstrap": {"seed": seed, "replicates": replicates},
         "run_roots": [str(Path(root).resolve()) for root in roots],
@@ -3885,17 +4305,9 @@ def _write_report_once(
                 "repetition": pair["repetition"],
                 "transcript_metrics": {
                     label: {
-                        "path": str(
-                            (
-                                path.parent
-                                / "evaluation"
-                                / f"{label}.transcripts.tsv"
-                            ).resolve()
-                        ),
+                        "path": str(_transcript_metrics_path(path, pair, label)),
                         "sha256": sha256_file(
-                            path.parent
-                            / "evaluation"
-                            / f"{label}.transcripts.tsv"
+                            _transcript_metrics_path(path, pair, label)
                         ),
                     }
                     for label in ("candidate", "reference")
@@ -3958,11 +4370,14 @@ def write_report(
     replicates: int = DEFAULT_BOOTSTRAP_REPLICATES,
     expected_campaign: Mapping[str, Any] | None = None,
     diagnostic: bool = False,
+    evaluation_roots: Sequence[Path] = (),
 ) -> dict[str, Any]:
     """Build and atomically replace a stale-PASS-safe publication directory."""
 
     output_dir = Path(output_dir).resolve()
-    _validate_publication_destination(output_dir, roots)
+    _validate_publication_destination(
+        output_dir, [*roots, *evaluation_roots],
+    )
     parent = output_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
     quarantined = None
@@ -3988,6 +4403,7 @@ def write_report(
             replicates=replicates,
             expected_campaign=expected_campaign,
             diagnostic=diagnostic,
+            evaluation_roots=evaluation_roots,
         )
         directory_fd = os.open(staging, os.O_RDONLY)
         try:
@@ -4030,6 +4446,15 @@ def _positive_int_argument(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-root", action="append", required=True)
+    parser.add_argument(
+        "--evaluation-root",
+        action="append",
+        default=[],
+        help=(
+            "immutable corrected-evaluation overlay; coverage must exactly "
+            "match the selected successful pair results"
+        ),
+    )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--candidate-sha", required=True)
     parser.add_argument("--reference-sha", required=True)
@@ -4076,21 +4501,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             "provide exactly one of --campaign-spec or --campaign-profile "
             "unless --diagnostic is used"
         )
-    if args.diagnostic and campaign_inputs:
+    if args.diagnostic and campaign_inputs > 1:
         parser.error(
-            "campaign specifications cannot be combined with --diagnostic"
+            "provide at most one campaign specification with --diagnostic"
         )
     if args.profile_registry and not args.campaign_profile:
         parser.error("--profile-registry requires --campaign-profile")
     if args.campaign_spec:
         campaign = json.loads(Path(args.campaign_spec).read_text())
     elif args.campaign_profile:
-        campaign = canonical_campaign_spec(
-            profile_id=args.campaign_profile,
-            profile_registry=(
+        from . import campaign_profiles
+
+        profile = campaign_profiles.load_profile(
+            args.campaign_profile,
+            registry=(
                 Path(args.profile_registry)
-                if args.profile_registry else None
+                if args.profile_registry
+                else campaign_profiles.DEFAULT_PROFILE_REGISTRY
             ),
+        )
+        campaign = campaign_profiles.campaign_spec(
+            profile,
+            legacy_v1=False,
         )
     else:
         campaign = None
@@ -4103,6 +4535,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         replicates=args.replicates,
         expected_campaign=campaign,
         diagnostic=args.diagnostic,
+        evaluation_roots=[Path(root) for root in args.evaluation_root],
     )
     if not args.diagnostic and not result["metrics"]["verdict"]["passed"]:
         return 1

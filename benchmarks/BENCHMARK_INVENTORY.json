@@ -140,19 +140,19 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "37d286780e79be14c7fca7fc6d3413dce7c213acd2d502046cc3e609a25aa132",
-      "bytes": 610880,
+      "aggregate_sha256": "b9d748a2af5c69fceb4ac231ba080fa7dff23f99feb67e82816de54c2dcbfb05",
+      "bytes": 987298,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "description": "Current deterministic comparison, evaluation, controller, and publication tooling.",
-      "file_count": 17,
+      "file_count": 29,
       "id": "canonical_release_tooling",
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "efd9231a6031be91929ad4ac3c68494ab6ce4405fa12b390515f96c744ec3457",
-      "bytes": 476725,
+      "aggregate_sha256": "5108bcc4f4c21b9510736baacfa096b143cc858bb54da7e61d55965b1fc37072",
+      "bytes": 497234,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -195,13 +195,13 @@
       "superseded_by": "canonical_release_baseline"
     },
     {
-      "aggregate_sha256": "b0ae431387214227daaf23a859b2b0229c1b8cfc85a5c26135702c6466f15bb6",
-      "bytes": 6729827,
+      "aggregate_sha256": "b0772046fbf038ec425ac3442edd62e5a58b4ec87bd0de700f960f3d2a5a2967",
+      "bytes": 6720741,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "description": "Reports, refresh records, external comparisons, and figures supporting earlier technical reviews.",
-      "file_count": 80,
+      "file_count": 79,
       "id": "historical_v1_review",
       "superseded_by": "canonical_release_baseline"
     },
@@ -584,6 +584,16 @@
       "sha256": "1864f7bab1692dd729601e70ee01072ec3e6a63b8f40a6a0e1e97c8af2a12c4f"
     },
     {
+      "bytes": 5933,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/biology_canary.py",
+      "sha256": "f16c6ba5e58de7bf04aa413294e21e11a5704775576d73711501f336d321bce1"
+    },
+    {
       "bytes": 25043,
       "claim_eligible": false,
       "classification": "historical",
@@ -594,14 +604,14 @@
       "sha256": "11101da3317e5d4d88805397f54d57d9f4a00ff6a4a7213576c95e8b89e96419"
     },
     {
-      "bytes": 172562,
+      "bytes": 188659,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/build_controller.py",
-      "sha256": "5fbdc9ddba577b35fab52c89375317c3c0e566fc1a5ec12c2399a8a3fd69a37a"
+      "sha256": "6f49e65d3f6d72a8f7493c50db70a929eef6e76cad279020313ccee243f5d4ce"
     },
     {
       "bytes": 3366,
@@ -624,28 +634,38 @@
       "sha256": "76a3ba1bcc6f4300c145f477dbbc50c866c4d322168505e3f455ef588e6bc270"
     },
     {
-      "bytes": 11593,
+      "bytes": 12386,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "115a728eea04b50a3de30662a1cb5a13066831df7df939f21dfaa52ee5159e09",
+        "shape_sha256": "5e2b1684f45c66cc2d976f39e30b26e5a09f313734d9c71444458884ecd5f699",
         "top_level_count": 2
       },
       "path": "benchmarks/compare/campaign_profiles.json",
-      "sha256": "677b95d6618a666f4927e5cc24c343cbd622dd8ce38fba20b7536568c540db09"
+      "sha256": "59655511477ebe24860a6e3250b15018a58944f1f82179365c2d4cddcfaa1ede"
     },
     {
-      "bytes": 15318,
+      "bytes": 15454,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": null,
       "path": "benchmarks/compare/campaign_profiles.py",
-      "sha256": "4fef8479bdcd6e04976d94ede8959c8e4dd1ad14abb51944e0e5889dda65ad08"
+      "sha256": "d55ecc9081384767af2880ec63376eab15a62452cf44ff09cb3b0f0ff264445d"
+    },
+    {
+      "bytes": 12848,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/campaign_watch.py",
+      "sha256": "54da264ad06ef59abbd7fbfc4c2dc57d455989c24697bf69af2637c22ae40130"
     },
     {
       "bytes": 10409,
@@ -800,6 +820,16 @@
       "json_schema": null,
       "path": "benchmarks/compare/chaining_headroom.py",
       "sha256": "491e8dc1e63a6972542432de87432fc7978df47f4d18b30345bde9a6f1a47a7f"
+    },
+    {
+      "bytes": 12181,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/continue_campaign.py",
+      "sha256": "35aea6c9042d0003c2d020ebda2f41d9c005b5fc4d19c1623c597e58275b9f4f"
     },
     {
       "bytes": 1720,
@@ -1352,14 +1382,14 @@
       "sha256": "f0f601487b2eb0d0b5ffc4e76bc3cbb1c59247f594e5eeda04401ca08704b0cf"
     },
     {
-      "bytes": 28971,
+      "bytes": 30014,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/evaluator.py",
-      "sha256": "8bbf845db6cfd84ea0c0fb74b59060a989352ea438ac59238bae0bf3803f47cf"
+      "sha256": "477ac640fba3b1a435dd50f5f4ed832e013ddf61537fc249dbe34be1a99c7578"
     },
     {
       "bytes": 4224,
@@ -2480,14 +2510,14 @@
       "sha256": "9d3246efb77a9fb72767f776117537b2dd844d2b8df437544b735e7f875e3d3e"
     },
     {
-      "bytes": 80996,
+      "bytes": 83543,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": null,
       "path": "benchmarks/compare/ortholog_scope.py",
-      "sha256": "ab0cfbeb5d300709103f3b7b47a24a6525113184db578bd12e2459a62793ffa7"
+      "sha256": "f027752036f458f4cc163f66f6c230f370d668609819ed1f39a27fb21957dca3"
     },
     {
       "bytes": 2641,
@@ -2544,44 +2574,84 @@
       "sha256": "9a44e2f4b7ef7dfcc5c98c28752238eec119db51b4f718337f8734e78f2479a2"
     },
     {
-      "bytes": 57342,
+      "bytes": 10466,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/provider_orthologs.py",
+      "sha256": "a892feb8f14dffe77bb91a89ee7bf187d255219061a34be738868388932f5b8b"
+    },
+    {
+      "bytes": 71694,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/release_evaluation.py",
-      "sha256": "ab8dcc706582983cf14890ba3c51a707df729d7b5c180946bdbc5216c7c77359"
+      "sha256": "1400279bcdfcb5da4f4fc04563a8bf0b3ba1f6c85da39b1be8f40eb58b387b1b"
     },
     {
-      "bytes": 155094,
+      "bytes": 171562,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/release_report.py",
-      "sha256": "a30b83e8a560f204fefa3c1a2591dd37e85dafdc0d91db621010555f7ca26f82"
+      "sha256": "94956678729b45ceefc0f165b4ca3f5aeb5f28258aea2104a5a8d3e64a522f78"
     },
     {
-      "bytes": 38770,
+      "bytes": 48667,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/release_report_figures.py",
+      "sha256": "efc79fb3d9ae28f683f38d37665c5ad1c2e55e7035fb17d87d160ca63433349d"
+    },
+    {
+      "bytes": 29264,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/release_rescore.py",
+      "sha256": "72722a6bb4f3e9af23fd109d2f230ee8fe13ec8fcf50c4b87b0b5296aa984b8a"
+    },
+    {
+      "bytes": 12791,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/released_annotation_sensitivity.py",
+      "sha256": "3cccd69f683bcb133248d422e3eabbd5bb11fe31edb946bd767f020c62cdd9dc"
+    },
+    {
+      "bytes": 39059,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "family": "historical_v1_review",
       "json_schema": null,
       "path": "benchmarks/compare/report_figures.py",
-      "sha256": "fd72173798c43f1391bc788dffe5b42bd3c983021e2b398ac45bffb6802bdcf3"
+      "sha256": "475882dcad4ef4c1510f8e57558a6a5f6d620b0e56924306281ee62d6a87eff6"
     },
     {
-      "bytes": 9375,
+      "bytes": 68651,
       "claim_eligible": false,
-      "classification": "historical",
-      "completion_state": "superseded",
-      "family": "historical_v1_review",
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/report_tables.py",
-      "sha256": "e88eee7d116136100c5645ab799c29371283984c27feb505dc82f8de33f173a2"
+      "sha256": "cf2778fd0c13fac2cd470529be85ce4ad3edc937d1e617f479ec05fd04be056a"
     },
     {
       "bytes": 30423,
@@ -2892,14 +2962,14 @@
       "sha256": "d50bf8a0a36f54761452eb69721f7e621059c55040798bf8c49a04a5cd2a0b63"
     },
     {
-      "bytes": 46639,
+      "bytes": 62985,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": null,
       "path": "benchmarks/compare/target_truth.py",
-      "sha256": "1ca06ebd79cc94e385d8382b8b364ab71a89738c98e2eccbef678dc49daca610"
+      "sha256": "25fbc176cc3a82fa54ef5da311a86253ff3be608f402bde7c257139378bd36db"
     },
     {
       "bytes": 28136,
@@ -2994,6 +3064,36 @@
       "sha256": "fe626ae4f491a74c77e9bee03081c7d2ff8567c1e72d8f8f4713d970ff442ce4"
     },
     {
+      "bytes": 35901,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/whole_genome_assets.py",
+      "sha256": "63f17095cb91c727ac74af99b32f4e0da41b42409942443f4641eb75f586b826"
+    },
+    {
+      "bytes": 36132,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/whole_genome_report.py",
+      "sha256": "c433e4f965b94d3fb23bb70f1b9fd8ca6b22bd17296c489b98a087dafa4a18d6"
+    },
+    {
+      "bytes": 43146,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/whole_genome_study.py",
+      "sha256": "ae87c4eba35aaeb882d5da2b1b5c4a0a200014921df356629341dc587a1e096c"
+    },
+    {
       "bytes": 4492,
       "claim_eligible": false,
       "classification": "canonical",
@@ -3038,18 +3138,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 10465,
+      "bytes": 11152,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "a239ef39bdd82a8d4bcf0656f9f38ef941b1488d528b0f3a4c8ae6cedf6cb564",
+        "shape_sha256": "b5fed3ea0fb1a3fe1d479aa9f98532ce827485a579f99ea12f9cbce87a414a71",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "0a2ee91bdac9931abdcde1485e6832a47ff717badfa7235a4cae2f429c6e6e9e"
+      "sha256": "b5a9ce717e8cae72d4e2519117df346787db7d9b74aae66c1e18eb0bf004cfcb"
     },
     {
       "bytes": 34428,
@@ -3074,6 +3174,20 @@
       },
       "path": "benchmarks/manifests/canonical_v2_datasets.json",
       "sha256": "7c5e789860b17e116d7a0004b25a787fd74c7ac0e4554f760f584263e69e0e94"
+    },
+    {
+      "bytes": 6667,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "cc47243b0ee6fc6ed55677fa557525bcfea3fb517c4d5ccb511886d2657112e9",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/manifests/lifton_v111_biology_study.json",
+      "sha256": "f7ee397ebdf7792264f750592bb671af14d798834997d7a4763f1ac233402e69"
     },
     {
       "bytes": 4846,
@@ -3116,14 +3230,14 @@
       "sha256": "641cf7ccc117b38088d6aee31708f5648a17157b4ce36ba8be5cc25337a1289c"
     },
     {
-      "bytes": 50122,
+      "bytes": 55933,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/run_benchmarks.py",
-      "sha256": "7ca1705e1f4a6f3ecbc2d3990e593b63d8b275ff93533af83d990e49b142e1d9"
+      "sha256": "33b7a7d23a718994e9614b837b5efb7d1303790529b7ee8b7f592e4a9b983593"
     },
     {
       "bytes": 1154,
@@ -3213,7 +3327,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "e70135969d616d5b05bf68f4b56b67a05f9cddcfe73aea63f364a39bf3e8c357",
+  "inventory_sha256": "13ae1ee86357ff758162631ae735bff8e67531e0faf86b1f98f6c47f3fea6d41",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3257,19 +3371,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "67528f106789152fd030e31c33a63d45cf746696c75b79b9be71fadebce13051",
+  "rules_sha256": "2c38794b39f59158e6e93bd363827bdf48a5dcd317d87b28544209feb0e57143",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "2b6af7ffb005724e4df14ef228758704119b4c7d6182a4ca6d6e0042a663beaa",
-    "bytes": 12712499,
+    "aggregate_sha256": "f21ac8bab39d41502ad0665d21dc4a2005f1a643b4d490dcac48b930cd131d5b",
+    "bytes": 13100340,
     "classification_counts": {
-      "canonical": 61,
+      "canonical": 73,
       "diagnostic": 26,
-      "historical": 153,
+      "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 258
+    "file_count": 269
   }
 }

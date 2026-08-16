@@ -512,6 +512,10 @@ def _write_controller_run(
             )
     tooling_paths = {
         "tooling_build_controller": Path(build_controller.__file__),
+        "tooling_evaluator": (
+            Path(build_controller.REPO_ROOT)
+            / "benchmarks" / "compare" / "evaluator.py"
+        ),
         "tooling_release_evaluation": (
             Path(build_controller.REPO_ROOT)
             / "benchmarks" / "compare" / "release_evaluation.py"
@@ -663,6 +667,9 @@ def test_release_report_aggregates_pairs_and_writes_publication_set(tmp_path):
     assert panel["candidate_concurrent_memory_envelope_gib"] == pytest.approx(
         100.0 / 1024.0
     )
+    assert "not a sampled simultaneous RSS peak" in result["metrics"][
+        "measurement_semantics"
+    ]["peak_rss_mb"]
     cell = result["metrics"]["cells"][0]
     assert cell["candidate_wall_seconds_median"] == 8.5
     assert cell["reference_wall_seconds_median"] == 10.0
@@ -679,9 +686,68 @@ def test_release_report_aggregates_pairs_and_writes_publication_set(tmp_path):
     )
     report = (output / "REPORT.md").read_text()
     assert "**Verdict:** DIAGNOSTIC ONLY (CHECKS PASS)" in report
+    assert "## Reference control diagnostics" in report
     assert "Total wall" in report
-    assert "Concurrent candidate RSS" in report
+    assert "Candidate command-RSS slot-sum proxy" in report
     assert "`" + "c" * 40 + "`" in report
+
+
+def test_diagnostic_report_records_planned_campaign_without_claiming_complete(
+        tmp_path):
+    runs = tmp_path / "runs"
+    _write_pair(runs, repetition=1, candidate_wall=8.0, reference_wall=10.0)
+    output = tmp_path / "publication"
+
+    result = release_report.write_report(
+        [runs],
+        output,
+        candidate_sha="c" * 40,
+        reference_sha=REFERENCE_SHA,
+        expected_campaign=_campaign_spec(),
+        diagnostic=True,
+        replicates=10,
+    )
+
+    campaign = result["metrics"]["campaign"]
+    assert campaign["matrix_complete"] is False
+    assert campaign["planned_campaign"]["schema_version"] == 1
+    assert result["manifest"]["expected_campaign"] is None
+    assert "DIAGNOSTIC ONLY" in (output / "REPORT.md").read_text()
+
+
+def test_diagnostic_report_records_controller_policy_epochs(tmp_path):
+    roots = _write_release_roots(tmp_path / "runs")
+
+    result = release_report.write_report(
+        roots,
+        tmp_path / "publication",
+        candidate_sha=CANDIDATE_SHA,
+        reference_sha=REFERENCE_SHA,
+        diagnostic=True,
+        replicates=10,
+    )
+
+    evidence = result["metrics"]["publication"]["controller_evidence"]
+    assert evidence["validated"] is False
+    assert len(evidence["roots"]) == 3
+    assert all(root["plan"]["policy"]["max_active"] == 4 for root in evidence["roots"])
+    assert result["manifest"]["controller_evidence"] == evidence
+
+
+def test_memory_envelope_uses_largest_controller_policy_epoch():
+    evidence = {
+        "roots": [
+            {"plan": {"stage": "paired-full", "policy": {"max_full": 2}}},
+            {"plan": {"stage": "paired-full", "policy": {"max_full": 6}}},
+            {"plan": {"stage": "paired-e2e", "policy": {"max_full": 6}}},
+        ],
+    }
+
+    assert release_report._controller_panel_concurrency(evidence) == {
+        "subset": 4,
+        "full": 6,
+        "e2e": 6,
+    }
 
 
 def test_complete_controller_campaign_can_publish_release_pass(tmp_path):
@@ -972,6 +1038,50 @@ def test_valid_e2e_biology_and_two_cell_memory_envelope_pass(tmp_path):
     assert metrics["verdict"]["diagnostic_passed"] is True
 
 
+def test_report_accepts_neutral_e2e_evaluation_profiles(tmp_path):
+    runs = tmp_path / "runs"
+    pair_path = _write_pair(
+        runs, panel="e2e", benchmark="bee", repetition=1,
+        candidate_wall=10.0, reference_wall=10.0,
+        candidate_rss_mb=1024.0, reference_rss_mb=1024.0,
+    )
+    pair = json.loads(pair_path.read_text())
+    for version in pair["versions"].values():
+        version["evaluation_profile"] = {
+            "wall_clock_seconds": 2.0,
+            "peak_rss_mb": 12.0,
+            "exit_code": 0,
+            "method": "neutral_evaluator_v1",
+        }
+        version["evaluation_method"] = "neutral_evaluator_v1"
+        version["evaluation_summary"]["format"] = "neutral_evaluator_v1"
+    pair_path.write_text(json.dumps(pair))
+
+    metrics = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), seed=17, replicates=100,
+    )
+
+    assert metrics["cells"][0]["e2e_biology"]["candidate"]["valid"] is True
+
+
+def test_e2e_determinism_ignores_repetition_specific_score_paths(tmp_path):
+    runs = tmp_path / "runs"
+    for repetition in (1, 2):
+        _write_pair(
+            runs, panel="e2e", benchmark="bee", repetition=repetition,
+            candidate_wall=10.0, reference_wall=10.0,
+            candidate_rss_mb=1024.0, reference_rss_mb=1024.0,
+        )
+
+    metrics = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), seed=17, replicates=100,
+    )
+
+    biology = metrics["cells"][0]["e2e_biology"]
+    assert biology["candidate"]["deterministic"] is True
+    assert biology["reference"]["deterministic"] is True
+
+
 def test_report_rejects_mismatched_cli_provenance_before_publication(tmp_path):
     runs = tmp_path / "runs"
     _write_pair(
@@ -1109,6 +1219,38 @@ def test_controller_discovery_rejects_incomplete_cells(tmp_path):
         release_report.load_pairs([run])
 
 
+def test_diagnostic_controller_discovery_keeps_only_successes(tmp_path):
+    run = tmp_path / "controller-run"
+    failed_cell = run / "cells" / "failed-cell"
+    current = _write_pair(
+        failed_cell / "pair",
+        repetition=1,
+        candidate_wall=8.0,
+        reference_wall=10.0,
+    )
+    fingerprint = "f" * 64
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "plan.json").write_text(json.dumps({
+        "schema_version": build_controller.CONTROLLER_SCHEMA_VERSION,
+        "cells": [{
+            "id": "failed-cell",
+            "kind": "paired_release",
+            "cell_dir": str(failed_cell),
+            "fingerprint": fingerprint,
+            "artifacts": {"result_json": str(current)},
+        }],
+    }))
+    (failed_cell / "status.json").write_text(json.dumps({
+        "schema_version": build_controller.CONTROLLER_SCHEMA_VERSION,
+        "state": "failed",
+        "fingerprint": fingerprint,
+    }))
+
+    assert release_report.load_pairs(
+        [run], allow_incomplete=True,
+    ) == []
+
+
 @pytest.mark.parametrize(
     "changed",
     (
@@ -1212,7 +1354,7 @@ def test_campaign_rejects_mixed_protocols_within_a_panel(tmp_path):
         )
 
 
-def test_reference_validity_and_byte_determinism_are_control_gates(tmp_path):
+def test_reference_validity_is_diagnostic_but_byte_determinism_is_a_gate(tmp_path):
     runs = tmp_path / "runs"
     _write_pair(
         runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
@@ -1235,9 +1377,39 @@ def test_reference_validity_and_byte_determinism_are_control_gates(tmp_path):
         check["name"]: check
         for check in metrics["verdict"]["checks"]
     }
-    assert checks["all_reference_outputs_valid"]["passed"] is False
+    diagnostics = {
+        check["name"]: check
+        for check in metrics["verdict"]["reference_diagnostics"]
+    }
+    assert "all_reference_outputs_valid" not in checks
+    assert diagnostics["all_reference_outputs_valid"]["passed"] is False
+    assert metrics["verdict"]["reference_diagnostics_passed"] is False
     assert checks["reference_outputs_byte_deterministic"]["passed"] is False
     assert metrics["verdict"]["passed"] is False
+
+
+def test_reference_validity_does_not_block_candidate_gated_release(tmp_path):
+    runs = tmp_path / "runs"
+    _write_pair(
+        runs, repetition=1, candidate_wall=8.0, reference_wall=10.0,
+        reference_valid=False,
+    )
+    _write_pair(
+        runs, repetition=2, candidate_wall=8.0, reference_wall=10.0,
+        reference_valid=False,
+    )
+
+    metrics = release_report.aggregate_pairs(
+        release_report.load_pairs([runs]), seed=17, replicates=100,
+    )
+    metrics["publication"] = {
+        "mode": "release",
+        "release_evidence_valid": True,
+    }
+    verdict = release_report.evaluate_verdict(metrics)
+
+    assert verdict["passed"] is True
+    assert verdict["reference_diagnostics_passed"] is False
 
 
 def test_transcript_metrics_count_recovered_rows_with_blank_pi(tmp_path):
@@ -1793,6 +1965,30 @@ def test_report_cli_exit_status_reflects_release_verdict(
     assert release_report.main(argv) == expected
 
 
+def test_report_cli_profile_keeps_profile_digest_in_diagnostic(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_write_report(*args, **kwargs):
+        captured["campaign"] = kwargs["expected_campaign"]
+        return {"metrics": {"verdict": {"passed": False}}, "manifest": {}}
+
+    monkeypatch.setattr(release_report, "write_report", fake_write_report)
+    assert release_report.main([
+        "--runs-root", str(tmp_path / "runs"),
+        "--output-dir", str(tmp_path / "out"),
+        "--candidate-sha", CANDIDATE_SHA,
+        "--reference-sha", REFERENCE_SHA,
+        "--campaign-profile", "canonical-v1",
+        "--diagnostic",
+    ]) == 0
+
+    campaign = captured["campaign"]
+    assert campaign["profile_id"] == "canonical-v1"
+    assert campaign["profile_digest"] == (
+        "825ed8084ee66ddb74bf6d052909282dee551fb09750ad596bfe6bd3ef9baa6f"
+    )
+
+
 @pytest.mark.parametrize(
     ("old", "new"),
     (
@@ -2100,3 +2296,43 @@ def test_output_directory_may_not_overlap_a_run_root(tmp_path):
         )
 
     assert not output.exists()
+
+
+def test_single_cell_ratio_interval_is_labeled_descriptive():
+    interval = {"estimate": 0.8, "low": 0.8, "high": 0.8}
+
+    assert release_report._format_ratio_interval(interval, 1) == (
+        "0.800× (descriptive)"
+    )
+
+
+def test_ratio_variability_uses_geometric_cv_near_one():
+    assert release_report._log_ratio_cv([0.98, 1.02]) < 0.03
+    assert release_report._log_ratio_cv([0.5, 2.0]) > 0.75
+
+
+def test_version_quality_reads_corrected_overlay_tsv(tmp_path):
+    pair_path = _write_pair(
+        tmp_path,
+        repetition=1,
+        candidate_wall=1.0,
+        reference_wall=1.0,
+    )
+    pair = json.loads(pair_path.read_text())
+    transcript = tmp_path / "overlay" / "candidate.transcripts.tsv"
+    _write_tsv(transcript, [0.5, 0.5])
+    candidate = pair["versions"]["candidate"]
+    candidate["summary"]["protein_identity"] = {
+        "n": 2,
+        "mean": 0.5,
+        "median": 0.5,
+    }
+    candidate["evaluation_overlay"] = {"record": "overlay.json"}
+    candidate["evaluation_artifacts"] = {
+        "transcripts_tsv": {"path": str(transcript.resolve())},
+    }
+
+    quality = release_report._version_quality(pair_path, pair, "candidate")
+
+    assert quality["mean_pi"] == 0.5
+    assert quality["covpi"] == 0.5

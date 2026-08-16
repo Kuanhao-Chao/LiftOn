@@ -1,22 +1,24 @@
 #!/usr/bin/env python
-"""report_figures.py — figures for the LiftOn v1.0.10 *technical report*.
+"""Generate figures for the frozen legacy LiftOn comparative study.
 
 Distinct from blog_figures.py: the report (a) EXCLUDES the two full genomes
 v1.0.8 crashed on (arabidopsis*full, rice*full) from every head-to-head
 *comparison* figure — their partial-run metrics are not comparable — while
 keeping a dedicated robustness/recovery figure that shows the crash itself; and
 (b) carries a DEEPER, four-way performance analysis (Liftoff, miniprot, LiftOn
-v1.0.8, LiftOn v1.0.10) plus the v1.0.8->v1.0.10 improvement with wall / RSS / CPU.
+v1.0.8 and the measured candidate) plus their wall / RSS / CPU comparison.
 
 Reuses master_report's data loaders + palette/constants so numbers never drift
 from the report tables. Touches no lifton/ source.
 
 Usage (repo root):
   PYTHONNOUSERSITE=1 python benchmarks/compare/report_figures.py [OUTDIR]
+      [--candidate-label LABEL] [--reference-label LABEL]
 Writes PNGs into benchmarks/compare/figures/report/ by default.
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -30,7 +32,10 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import master_report as mr                # noqa: E402
 
-OUTDIR = Path(sys.argv[1]) if len(sys.argv) > 1 else (HERE / "figures" / "report")
+DEFAULT_OUTDIR = HERE / "figures" / "report"
+OUTDIR = DEFAULT_OUTDIR
+REFERENCE_LABEL = "LiftOn v1.0.8"
+CANDIDATE_LABEL = "LiftOn candidate (7fc8419)"
 
 # a full-genome run "completed" for both versions when neither collapsed below
 # this coding-completeness floor (v1.0.8 crashed arabidopsis at 0.28, rice 0.77)
@@ -38,8 +43,8 @@ _COMPLETE = 0.90
 
 # report-facing tool labels
 LABEL = dict(mr.TOOL_LABEL)
-LABEL["lifton_devel"] = "LiftOn v1.0.10"
-LABEL["lifton_stable"] = "LiftOn v1.0.8"
+LABEL["lifton_devel"] = CANDIDATE_LABEL
+LABEL["lifton_stable"] = REFERENCE_LABEL
 
 # Divergence ramp — a SEQUENTIAL single-hue (purple) ladder so "darker = more
 # divergent" reads at a glance, and deliberately OUTSIDE the categorical tool
@@ -207,7 +212,7 @@ def fig_divergence_ladder(fw):
             vals = [r["mean_pi"].get(t) for r in recs
                     if isinstance(r["mean_pi"].get(t), float)]
             ys.append(sum(vals) / len(vals) if vals else np.nan)
-        # v1.0.8 ≈ v1.0.10 on this axis, so dash it (drawn on top) to stay visible
+        # The reference and candidate overlap on this axis, so dash the reference.
         st = dict(lw=2.3, ms=8, ls="-", zorder=3)
         if t == "lifton_stable":
             st.update(ls=(0, (5, 2)), ms=6, zorder=5)
@@ -264,8 +269,11 @@ def fig_devel_vs_field(fw, vc):
     axB.legend(handles=legend_handles, fontsize=8, loc="upper left",
                framealpha=0.9, title="divergence class", title_fontsize=8)
     _nwin = sum(1 for _, d in pts if d >= 0)
-    _panel_title(axB, "A",
-                 f"LiftOn v1.0.10 beats the best single method on {_nwin}/{len(pts)}")
+    _panel_title(
+        axB,
+        "A",
+        f"{CANDIDATE_LABEL} beats the best single method on {_nwin}/{len(pts)}",
+    )
 
     # (C) controlled per-transcript improved vs regressed vs v1.0.8
     ctrl = sorted([r for r in vc.values() if r.get("arm") == "controlled"
@@ -326,11 +334,7 @@ def fig_completeness(fw):
 # genomes are the POINT here, so they are shown deliberately)
 # --------------------------------------------------------------------------- #
 def fig_robustness(fw):
-    """HEADLINE robustness figure. (A) the FIVE full RefSeq genomes v1.0.8 cannot
-    finish — two it aborts partway (Arabidopsis 28%, rice 77%) and three it
-    produces no scorable output on at all (maize, two tomato pairs) — every one
-    completed by v1.0.10. (B) the gene-like feature types v1.0.8 drops by design
-    that v1.0.10 lifts (full Arabidopsis)."""
+    """Show candidate recovery and feature breadth where v1.0.8 fails."""
     fig = plt.figure(figsize=(12.6, 5.6))
     gs = fig.add_gridspec(1, 2, width_ratios=[1.05, 1.0], wspace=0.32)
     axA = fig.add_subplot(gs[0, 0])
@@ -347,9 +351,9 @@ def fig_robustness(fw):
     w = 0.38
     ymax = max(dev) if dev else 1
     axA.bar(x - w / 2, [s if isinstance(s, int) else 0 for s in sta], w,
-            color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
+            color=mr.TOOL_COLORS["lifton_stable"], label=REFERENCE_LABEL)
     axA.bar(x + w / 2, dev, w, color=mr.TOOL_COLORS["lifton_devel"],
-            label="LiftOn v1.0.10")
+            label=CANDIDATE_LABEL)
     for xi, r, s in zip(x, full, sta):
         dpc = r["completeness_coding"].get("lifton_devel")
         if isinstance(dpc, float):
@@ -374,7 +378,7 @@ def fig_robustness(fw):
     axA.legend(fontsize=8, loc="upper right")
     axA.grid(axis="y", alpha=0.3)
     axA.margins(y=0.18)
-    _panel_title(axA, "A", "v1.0.10 finishes five full RefSeq genomes v1.0.8 cannot")
+    _panel_title(axA, "A", f"{CANDIDATE_LABEL} finishes five genomes v1.0.8 cannot")
 
     arab = next((r for r in mr._fw_recs(fw, "full")
                  if mr._short_key(r["key"]) == "arabidopsis"), None)
@@ -393,9 +397,9 @@ def fig_robustness(fw):
         y = np.arange(len(rows))
         h = 0.38
         axB.barh(y + h / 2, [r[1] for r in rows], h,
-                 color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
+                 color=mr.TOOL_COLORS["lifton_stable"], label=REFERENCE_LABEL)
         axB.barh(y - h / 2, [r[2] for r in rows], h,
-                 color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
+                 color=mr.TOOL_COLORS["lifton_devel"], label=CANDIDATE_LABEL)
         for yi, (ft, ns, nd) in zip(y, rows):
             axB.annotate(f"+{nd-ns:,}", (nd, yi - h / 2), ha="left", va="center",
                          fontsize=8, xytext=(3, 0), textcoords="offset points")
@@ -425,8 +429,8 @@ def fig_validity(fw):
     y = np.arange(len(recs))
     h = 0.38
     fig, ax = plt.subplots(figsize=(9, max(5, 0.5 * len(recs))))
-    ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
-    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
+    ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label=REFERENCE_LABEL)
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label=CANDIDATE_LABEL)
     for yi, s, d in zip(y, sta, dev):
         if d > s:
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
@@ -439,7 +443,7 @@ def fig_validity(fw):
     ax.legend(fontsize=8, loc="lower right")
     ax.grid(axis="x", alpha=0.3)
     ax.margins(x=0.12)
-    ax.set_title("Output validity — LiftOn v1.0.10 vs v1.0.8",
+    ax.set_title(f"Output validity — {CANDIDATE_LABEL} vs {REFERENCE_LABEL}",
                  fontsize=12, fontweight="bold", loc="left")
     return _save(fig, "rfig_validity.png")
 
@@ -479,7 +483,7 @@ def fig_perf_fourway(fw):
           "A.  End-to-end wall-clock — four tools")
     axW.legend(fontsize=8, loc="lower right", ncol=2, framealpha=0.9)
     panel(axR, "peak_rss_mb", "peak resident memory (GB, log scale)",
-          "B.  Peak memory — LiftOn v1.0.10 is lowest of all four", gb=True)
+          f"B.  Peak memory — {CANDIDATE_LABEL} is lowest of all four", gb=True)
     fig.suptitle("Fresh end-to-end runs (each tool does its own alignment) — "
                  f"{len(recs)} subset benchmarks",
                  fontsize=11.5, fontweight="bold", y=1.005)
@@ -487,7 +491,7 @@ def fig_perf_fourway(fw):
 
 
 # --------------------------------------------------------------------------- #
-# PERFORMANCE 2 — the v1.0.8 -> v1.0.10 improvement (controlled arm: cached aligner
+# PERFORMANCE 2 — reference-to-candidate improvement (cached aligner inputs)
 # inputs at -t1, isolates LiftOn's own code). wall / RSS / CPU + gain factors.
 # --------------------------------------------------------------------------- #
 def fig_perf_improvement(vc):
@@ -508,8 +512,8 @@ def fig_perf_improvement(vc):
     def grouped(ax, key, ylabel, title, log, fmt):
         sta = [r[key]["stable"] for r in recs]
         dev = [r[key]["devel"] for r in recs]
-        ax.bar(x - w / 2, sta, w, color=cs, label="LiftOn v1.0.8")
-        ax.bar(x + w / 2, dev, w, color=cd, label="LiftOn v1.0.10")
+        ax.bar(x - w / 2, sta, w, color=cs, label=REFERENCE_LABEL)
+        ax.bar(x + w / 2, dev, w, color=cd, label=CANDIDATE_LABEL)
         # ratio label centered over each pair, above the taller bar (no clipping)
         for xi, s, d in zip(x, sta, dev):
             if d:
@@ -545,7 +549,7 @@ def fig_perf_improvement(vc):
     axF.legend(fontsize=8, loc="upper right")
     axF.grid(axis="y", alpha=0.3)
     axF.margins(y=0.2)
-    axF.set_title("C.  Gain factors (v1.0.8 → v1.0.10)", fontsize=11,
+    axF.set_title(f"C.  Gain factors ({REFERENCE_LABEL} → candidate)", fontsize=11,
                   fontweight="bold", loc="left")
 
     fig.suptitle("Bounded-memory engine: up to 24× less RAM and ~1.9× faster on "
@@ -625,7 +629,7 @@ def fig_full_accuracy(fw):
                          fontsize=7.5, fontweight="bold")
     _nwin = sum(1 for d in deltas if d is not None and d >= 0)
     _panel_title(axB, "B", f"Above the DNA baseline on every genome ({_nwin}/{len(recs)})")
-    fig.suptitle("Whole-genome accuracy: LiftOn v1.0.10 vs the DNA baseline (Liftoff)",
+    fig.suptitle(f"Whole-genome accuracy: {CANDIDATE_LABEL} vs Liftoff",
                  fontsize=12.5, fontweight="bold", y=1.02)
     return _save(fig, "rfig_full_accuracy.png")
 
@@ -682,10 +686,7 @@ def fig_full_completeness(fw):
 
 
 def fig_full_validity(fw):
-    """gff3-validate error counts, v1.0.8 vs the released v1.0.10, on the 17 whole
-    genomes. v1.0.10's containment normalization drives the count to zero on 9 of
-    17 and far below v1.0.8 on every genome both produced; the † plant rows carry
-    only reference-inherited organellar errors the strict validator flags."""
+    """Plot frozen legacy validator counts without assigning a release tag."""
     recs = _full_recs(fw)
     labels = [_flabel(r) + (" †" if mr._short_key(r["key"]) in _REF_INHERITED else "")
               for r in recs]
@@ -700,8 +701,8 @@ def fig_full_validity(fw):
     h = 0.38
     fig, ax = plt.subplots(figsize=(10.2, 6.0))
     _tier_bands(ax, recs)
-    ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label="LiftOn v1.0.8")
-    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
+    ax.barh(y - h / 2, sta, h, color=mr.TOOL_COLORS["lifton_stable"], label=REFERENCE_LABEL)
+    ax.barh(y + h / 2, dev, h, color=mr.TOOL_COLORS["lifton_devel"], label=CANDIDATE_LABEL)
     for yi, s, d in zip(y, sta_raw, dev_raw):
         if isinstance(s, int) and isinstance(d, int):
             ax.annotate(f"{s}→{d}", (max(s, d), yi), ha="left", va="center",
@@ -719,15 +720,15 @@ def fig_full_validity(fw):
                 "CDS-under-gene + duplicate organellar IDs), not introduced by LiftOn",
                 xy=(0.0, -0.16),
                 xycoords="axes fraction", fontsize=9, fontweight="bold", color="#444444")
-    ax.set_title(f"Cleaner output on every whole genome — 0 errors on {n_clean} of "
-                 f"{len(recs)} (v1.0.10 vs v1.0.8)",
+    ax.set_title(f"Legacy validator counts — 0 candidate errors on {n_clean} of "
+                 f"{len(recs)} genomes",
                  fontsize=12, fontweight="bold", loc="left")
     return _save(fig, "rfig_full_validity.png")
 
 
 def fig_full_apples_to_apples(fw):
-    """The honest summary. (A) per genome, the grey bar is v1.0.10's set-mean lead
-    over the better single baseline; the coloured bar is its apples-to-apples lead
+    """Contrast the candidate's set-mean and common-set protein-evidence views.
+    The grey bar is the set-mean lead over the better single baseline; the coloured bar is its apples-to-apples lead
     over miniprot on the transcripts BOTH recover (common-set size n labelled) —
     green through the distant tier, red on four of five very-distant genomes,
     exposing the very-distant set-mean lead as a small-denominator effect.
@@ -772,7 +773,7 @@ def fig_full_apples_to_apples(fw):
     _tier_bands(axB, recs)
     cov_dev = [(r["joint"].get("covpi") or {}).get("lifton_devel", 0) for r in recs]
     cov_mp = [(r["joint"].get("covpi") or {}).get("miniprot", 0) for r in recs]
-    axB.barh(y - h / 2, cov_dev, height=h, color=mr.TOOL_COLORS["lifton_devel"], label="LiftOn v1.0.10")
+    axB.barh(y - h / 2, cov_dev, height=h, color=mr.TOOL_COLORS["lifton_devel"], label=CANDIDATE_LABEL)
     axB.barh(y + h / 2, cov_mp, height=h, color=mr.TOOL_COLORS["miniprot"],
              label="miniprot (protein evidence)")
     axB.set_yticks(y)
@@ -783,16 +784,32 @@ def fig_full_apples_to_apples(fw):
     axB.grid(axis="x", alpha=0.3)
     axB.legend(fontsize=8.5, loc="lower right", framealpha=0.9)
     _panel_title(axB, "B", "Coverage-weighted PI (recall × accuracy)")
-    fig.suptitle("Protein-evidence view: LiftOn v1.0.10 vs the miniprot signal it fuses "
+    fig.suptitle(f"Protein-evidence view: {CANDIDATE_LABEL} vs the miniprot signal it fuses "
                  "(miniprot is evidence, not a rival lift-over tool)",
                  fontsize=11.8, fontweight="bold", y=1.02)
     return _save(fig, "rfig_full_apples_to_apples.png")
 
 
-def main():
+def build_parser():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("outdir", nargs="?", type=Path, default=DEFAULT_OUTDIR)
+    parser.add_argument("--candidate-label", default=CANDIDATE_LABEL)
+    parser.add_argument("--reference-label", default=REFERENCE_LABEL)
+    return parser
+
+
+def main(argv=None):
+    global OUTDIR, CANDIDATE_LABEL, REFERENCE_LABEL
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    OUTDIR = args.outdir
+    CANDIDATE_LABEL = args.candidate_label
+    REFERENCE_LABEL = args.reference_label
+    LABEL["lifton_devel"] = CANDIDATE_LABEL
+    LABEL["lifton_stable"] = REFERENCE_LABEL
     vc, fw, _ = mr._load()
     if not fw or not vc:
-        sys.exit("ERROR: source JSON not found / empty — run the comparison harness first.")
+        parser.error("source JSON not found or empty; run the comparison harness first")
     print(f"OUTDIR = {OUTDIR}")
     # full-genome-focused figures (imported by the website report)
     fig_full_accuracy(fw)
@@ -812,4 +829,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
