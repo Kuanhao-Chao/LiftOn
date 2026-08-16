@@ -42,6 +42,7 @@ LiftOn invocation is skipped (use `--force` to override).
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import importlib.metadata as importlib_metadata
 import importlib.util
@@ -57,7 +58,7 @@ import time
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
@@ -92,6 +93,7 @@ class Dataset:
     cross_species: bool = False
     annotation_database: str = "RefSeq"
     truth_gff: Optional[str] = None
+    truth_source_gff: Optional[str] = None
     ortholog_map: Optional[str] = None
     truth_id_policy: str = "ortholog-map"
 
@@ -184,6 +186,141 @@ class ProfileResult:
     minor_page_faults: Optional[int] = None
     voluntary_context_switches: Optional[int] = None
     involuntary_context_switches: Optional[int] = None
+    peak_process_group_rss_mb: Optional[float] = None
+    peak_process_group_processes: Optional[int] = None
+    process_group_sample_count: Optional[int] = None
+    process_group_sample_interval_seconds: Optional[float] = None
+    process_group_trace_path: Optional[str] = None
+    process_group_trace_sha256: Optional[str] = None
+
+
+PROCESS_GROUP_PROFILE_ENV = "LIFTON_PROFILE_PROCESS_GROUP"
+PROCESS_GROUP_SAMPLE_INTERVAL_SECONDS = 1.0
+
+
+def _process_group_snapshot(
+    process_group: int,
+    *,
+    proc_root: Path = Path("/proc"),
+) -> dict[str, Any]:
+    """Return one Linux process-group RSS sample.
+
+    RSS is deliberately summed across processes. Shared pages may therefore
+    be counted more than once; the trace records that limitation explicitly
+    and is used as a conservative concurrency envelope, not as proportional
+    set size.
+    """
+
+    rss_kib = 0
+    processes = 0
+    for entry in proc_root.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat_text = (entry / "stat").read_text(encoding="utf-8")
+            closing = stat_text.rfind(")")
+            if closing < 0:
+                continue
+            fields = stat_text[closing + 2:].split()
+            if len(fields) < 3 or int(fields[2]) != process_group:
+                continue
+            status_text = (entry / "status").read_text(encoding="utf-8")
+        except (FileNotFoundError, PermissionError, OSError, ValueError):
+            continue
+        vm_rss = None
+        for line in status_text.splitlines():
+            if line.startswith("VmRSS:"):
+                values = line.split()
+                if len(values) >= 2:
+                    try:
+                        vm_rss = int(values[1])
+                    except ValueError:
+                        pass
+                break
+        if vm_rss is None:
+            continue
+        rss_kib += vm_rss
+        processes += 1
+    return {
+        "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat().replace(
+            "+00:00", "Z"
+        ),
+        "timestamp_ns": time.time_ns(),
+        "process_group": process_group,
+        "processes": processes,
+        "rss_kib": rss_kib,
+        "rss_mb": rss_kib / 1024.0,
+        "shared_page_accounting": "rss_sum_may_double_count_shared_pages",
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _run_with_process_group_trace(
+    argv: list[str],
+    *,
+    stdout: Any,
+    stderr: Any,
+    env: Mapping[str, str],
+    cwd: Optional[Path],
+    trace_path: Path,
+    interval_seconds: float = PROCESS_GROUP_SAMPLE_INTERVAL_SECONDS,
+) -> tuple[int, dict[str, Any]]:
+    """Run a command and atomically publish synchronized group-RSS samples."""
+
+    process = subprocess.Popen(
+        argv,
+        stdout=stdout,
+        stderr=stderr,
+        env=dict(env),
+        cwd=str(cwd) if cwd else None,
+    )
+    process_group = os.getpgrp()
+    temporary = trace_path.with_name(f".{trace_path.name}.{os.getpid()}.tmp")
+    peak_rss_mb = 0.0
+    peak_processes = 0
+    samples = 0
+    try:
+        with temporary.open("x", encoding="utf-8", newline="\n") as handle:
+            while True:
+                sample = _process_group_snapshot(process_group)
+                handle.write(json.dumps(sample, sort_keys=True) + "\n")
+                handle.flush()
+                samples += 1
+                peak_rss_mb = max(peak_rss_mb, float(sample["rss_mb"]))
+                peak_processes = max(peak_processes, int(sample["processes"]))
+                try:
+                    returncode = process.wait(timeout=interval_seconds)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+            os.fsync(handle.fileno())
+        os.replace(temporary, trace_path)
+    except Exception:
+        if temporary.exists():
+            temporary.unlink()
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        raise
+    return returncode, {
+        "peak_process_group_rss_mb": peak_rss_mb,
+        "peak_process_group_processes": peak_processes,
+        "process_group_sample_count": samples,
+        "process_group_sample_interval_seconds": interval_seconds,
+        "process_group_trace_path": str(trace_path),
+        "process_group_trace_sha256": _sha256_file(trace_path),
+    }
 
 
 def _platform_time_argv() -> tuple[Optional[list[str]], str]:
@@ -322,21 +459,36 @@ def run_profiled(argv: list[str], *, label: str, log_dir: Path,
     log(f"\n[bench] {label} — invoking:")
     log(f"  {' '.join(argv)}")
     t0 = time.time()
+    group_profile: dict[str, Any] = {}
     try:
         with open(out_path, "wb") as out_fh, open(err_path, "wb") as err_fh:
-            proc = subprocess.run(
-                full_argv,
-                stdout=out_fh, stderr=err_fh,
-                env={**os.environ, **(env or {})},
-                cwd=str(cwd) if cwd else None,
-                check=False,
-            )
+            selected_env = {**os.environ, **(env or {})}
+            if (
+                platform.system() == "Linux"
+                and selected_env.get(PROCESS_GROUP_PROFILE_ENV) == "1"
+            ):
+                rc, group_profile = _run_with_process_group_trace(
+                    full_argv,
+                    stdout=out_fh,
+                    stderr=err_fh,
+                    env=selected_env,
+                    cwd=cwd,
+                    trace_path=log_dir / f"{label}.process-group.jsonl",
+                )
+            else:
+                proc = subprocess.run(
+                    full_argv,
+                    stdout=out_fh, stderr=err_fh,
+                    env=selected_env,
+                    cwd=str(cwd) if cwd else None,
+                    check=False,
+                )
+                rc = proc.returncode
     except FileNotFoundError as exc:
         raise RuntimeError(
             f"could not exec {full_argv[0]!r}: {exc}"
         ) from exc
     wall = time.time() - t0
-    rc = proc.returncode
 
     parsed: dict[str, Any] = {}
     user = 0.0
@@ -394,6 +546,7 @@ def run_profiled(argv: list[str], *, label: str, log_dir: Path,
         involuntary_context_switches=_optional_int(
             parsed.get("involuntary_context_switches")
         ),
+        **group_profile,
     )
 
 
@@ -671,16 +824,29 @@ def validate_biological_result(
                 "evaluated_transcript_records"
             )
 
-    summaries = [("score_summary", "lifton_score_v1")]
+    summaries = [("score_summary", ("lifton_score_v1",))]
     if require_evaluation:
-        summaries.append(("evaluation_summary", "lifton_eval_v1"))
+        summaries.append((
+            "evaluation_summary",
+            ("lifton_eval_v1", "neutral_evaluator_v1"),
+        ))
     for field_name, expected_format in summaries:
         summary = result.get(field_name)
         if not isinstance(summary, dict):
             errors.append(f"{field_name} is missing or not an object")
             continue
-        if summary.get("format") != expected_format:
-            errors.append(f"{field_name}.format is not {expected_format}")
+        if summary.get("format") not in expected_format:
+            errors.append(
+                f"{field_name}.format is not one of {expected_format}"
+            )
+        if (
+            field_name == "evaluation_summary"
+            and summary.get("format") == "neutral_evaluator_v1"
+            and result.get("evaluation_method") != "neutral_evaluator_v1"
+        ):
+            errors.append(
+                "neutral evaluation_summary lacks its evaluation_method marker"
+            )
         records = summary.get("records")
         coding_records = summary.get("coding_records")
         noncoding_records = summary.get("noncoding_records")

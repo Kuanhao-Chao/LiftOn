@@ -262,6 +262,11 @@ def test_full_raw_input_mode_does_not_require_historical_lmtp_cache(
             AssertionError("raw mode consulted historical cache")
         ),
     )
+    monkeypatch.setattr(
+        release_evaluation,
+        "source_cli_options",
+        lambda _source: frozenset(),
+    )
 
     inputs = release_evaluation.resolve_panel_inputs(
         "full",

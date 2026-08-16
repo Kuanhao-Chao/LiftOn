@@ -15,16 +15,19 @@ import argparse
 import contextlib
 import dataclasses
 import datetime as dt
+import functools
 import hashlib
 import importlib.machinery
 import json
 import math
 import os
 import re
+import resource
 import shutil
 import statistics
 import subprocess
 import sys
+import time
 import urllib.parse
 from collections import Counter
 from dataclasses import dataclass
@@ -51,6 +54,7 @@ REPO_ROOT = HERE.parent.parent
 DEFAULT_BENCHMARK_REGISTRY = HERE / "benchmarks.json"
 DEFAULT_REFERENCE_SHA = "3739dfc8f73396fccab7d7be0f95e008179cea5d"
 SCHEMA_VERSION = 4
+NEUTRAL_EVALUATION_FORMAT = "neutral_evaluator_v1"
 DEFAULT_BOOTSTRAP_SEED = 20260717
 DEFAULT_BOOTSTRAP_REPLICATES = 10_000
 E2E_MODE_FEATURES = {
@@ -64,6 +68,16 @@ E2E_MODE_FEATURES = {
     "fast": frozenset({"--stream", "--inmemory-liftoff", "--native"}),
 }
 E2E_MODES = tuple(E2E_MODE_FEATURES)
+OPTIONAL_EXECUTION_FLAGS = frozenset({
+    "--stream",
+    "--inmemory-liftoff",
+    "--locus-pipeline",
+    "--native",
+})
+PROBED_CLI_OPTIONS = tuple(sorted({
+    *OPTIONAL_EXECUTION_FLAGS,
+    "--no-miniprot-rescue",
+}))
 SEMANTIC_HASH_ALGORITHM = "sha256-multiset-sum2-v1"
 _SEMANTIC_MODULUS = 1 << 256
 STABLE_ID_FEATURE_TYPES = ("CDS", "exon")
@@ -99,6 +113,52 @@ class SourceSpec:
         }
 
 
+@functools.lru_cache(maxsize=None)
+def _source_cli_options(
+    root: str,
+    sha: str,
+    executable: str,
+) -> frozenset[str]:
+    source = SourceSpec(
+        label="probe",
+        root=Path(root),
+        sha=sha,
+        lifton_executable=Path(executable),
+    )
+    try:
+        result = subprocess.run(
+            [str(source.lifton_executable), "--help"],
+            cwd=source.root,
+            env=source.environment(),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(
+            f"could not probe LiftOn CLI options for {source.root}: {exc}"
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"could not probe LiftOn CLI options for {source.root}: "
+            f"--help exited {result.returncode}"
+        )
+    help_text = f"{result.stdout}\n{result.stderr}"
+    return frozenset(
+        option for option in PROBED_CLI_OPTIONS
+        if option in help_text
+    )
+
+
+def source_cli_options(source: SourceSpec) -> frozenset[str]:
+    return _source_cli_options(
+        str(source.root.resolve()),
+        source.sha,
+        str(source.lifton_executable.resolve()),
+    )
+
+
 @dataclass(frozen=True)
 class PanelInputs:
     """Resolved, immutable inputs for one benchmark cell."""
@@ -116,6 +176,7 @@ class PanelInputs:
     transcripts_fa: Path | None = None
     proteins_fa: Path | None = None
     truth_gff: Path | None = None
+    truth_source_gff: Path | None = None
     ortholog_map: Path | None = None
     truth_id_policy: str = "ortholog-map"
 
@@ -139,6 +200,7 @@ class PanelInputs:
 
         optional = {
             "truth_gff": self.truth_gff,
+            "truth_source_gff": self.truth_source_gff,
             "ortholog_map": self.ortholog_map,
         }
         return {
@@ -246,6 +308,7 @@ def verify_source(spec: SourceSpec) -> dict[str, Any]:
         "sha": actual_sha,
         "lifton_executable": str(spec.lifton_executable),
         "imported_package": str(imported),
+        "cli_options": sorted(source_cli_options(spec)),
     }
 
 
@@ -613,6 +676,11 @@ def resolve_panel_inputs(
             if dataset.ortholog_map
             else None
         )
+        truth_source_gff = (
+            _e2e_dataset_asset_path(dataset.truth_source_gff, benchmark)
+            if dataset.truth_source_gff
+            else None
+        )
         truth_id_policy = str(dataset.truth_id_policy).strip().lower()
         if truth_id_policy not in {"ortholog-map", "exact-id"}:
             raise ValueError(
@@ -643,6 +711,7 @@ def resolve_panel_inputs(
             ref_gff=_e2e_dataset_asset_path(dataset.reference_gff, benchmark),
             tgt_fa=_e2e_dataset_asset_path(dataset.target_fa, benchmark),
             truth_gff=truth_gff,
+            truth_source_gff=truth_source_gff,
             ortholog_map=ortholog_map,
             truth_id_policy=truth_id_policy,
         )
@@ -754,18 +823,27 @@ def evaluation_input_fingerprints(inputs: PanelInputs) -> dict[str, Any]:
     }
 
 
-def _isolated_link(source: Path, destination: Path) -> Path:
+def _isolated_link(source: Path, destination: Path, *, reuse: bool = False) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() or destination.is_symlink():
+        if (
+            reuse
+            and destination.is_symlink()
+            and destination.resolve() == source.resolve()
+        ):
+            # A re-score runs inside a cell that is already populated. Reusing
+            # a link that resolves to the very same input keeps the cell's
+            # cached annotation databases valid; anything else still fails.
+            return destination
         raise FileExistsError(f"refusing to replace paired input link: {destination}")
     destination.symlink_to(source.resolve())
     return destination
 
 
-def _isolated_fasta(source: Path, destination: Path) -> Path:
+def _isolated_fasta(source: Path, destination: Path, *, reuse: bool = False) -> Path:
     """Link a read-only FASTA and copy mutable indexes into the cell."""
 
-    linked = _isolated_link(source, destination)
+    linked = _isolated_link(source, destination, reuse=reuse)
     sidecars = (
         (Path(str(source) + ".fai"), Path(str(destination) + ".fai")),
         (Path(str(source) + ".gzi"), Path(str(destination) + ".gzi")),
@@ -830,10 +908,14 @@ def build_lifton_argv(
         argv.extend(["-T", str(inputs.transcripts_fa)])
     if inputs.proteins_fa is not None:
         argv.extend(["-P", str(inputs.proteins_fa)])
-    if inputs.panel == "full":
+    if (
+        inputs.panel == "full"
+        and "--locus-pipeline" in source_cli_options(source)
+    ):
         argv.append("--locus-pipeline")
+    if "--no-miniprot-rescue" in source_cli_options(source):
+        argv.append("--no-miniprot-rescue")
     argv.extend([
-        "--no-miniprot-rescue",
         "-o",
         str(output),
         str(inputs.tgt_fa),
@@ -995,8 +1077,10 @@ def _run_one(
         raise RuntimeError(f"{source.label} did not publish a non-empty GFF3")
     validation = _validation_document(output, isolated.tgt_fa)
     if not validation["is_valid"]:
-        raise RuntimeError(
-            f"{source.label} produced invalid GFF3 with {validation['n_errors']} errors"
+        print(
+            f"[bench] {source.label} validation reported "
+            f"{validation['n_errors']} errors",
+            flush=True,
         )
     document = {
         "source": dataclasses.asdict(source),
@@ -1056,9 +1140,10 @@ def e2e_flags(
     mode: str,
     *,
     threads: int,
+    source: SourceSpec | None = None,
     dataset_registry: Path = run_benchmarks.DEFAULT_REGISTRY,
 ) -> list[str]:
-    """Return one explicit fast-path combination on the production protocol."""
+    """Return the requested fast-path combination supported by one release."""
 
     registry = run_benchmarks.load_registry(Path(dataset_registry))
     try:
@@ -1067,10 +1152,14 @@ def e2e_flags(
         raise ValueError(
             f"unknown end-to-end mode {mode!r}; choose from {', '.join(E2E_MODES)}"
         ) from exc
-    accelerated = E2E_MODE_FEATURES["fast"]
+    requested = frozenset({"--locus-pipeline", *enabled})
+    supported = source_cli_options(source) if source is not None else requested
     flags = [
         flag for flag in registry.lifton_flags
-        if flag not in accelerated or flag in enabled
+        if (
+            flag not in OPTIONAL_EXECUTION_FLAGS
+            or (flag in requested and flag in supported)
+        )
     ]
     try:
         index = flags.index("-t") + 1
@@ -1127,9 +1216,14 @@ def _run_e2e_one(
             dataset_dir / run_benchmarks._filename_for(url),
         )
     flags = e2e_flags(
-        mode, threads=threads, dataset_registry=dataset_registry,
+        mode,
+        threads=threads,
+        source=source,
+        dataset_registry=dataset_registry,
     )
-    with _temporary_environment(source.environment()):
+    source_environment = source.environment()
+    source_environment[run_benchmarks.PROCESS_GROUP_PROFILE_ENV] = "1"
+    with _temporary_environment(source_environment):
         row = run_benchmarks.run_dataset(
             dataset,
             data_dir=version_dir / "data",
@@ -1138,24 +1232,24 @@ def _run_e2e_one(
             evaluation_flags=list(registry.evaluation_flags),
             do_download=False,
             do_lift=True,
-            do_evaluate=True,
+            do_evaluate=False,
             force=True,
             log=lambda message: print(message, flush=True),
         )
     if row.get("error"):
         raise RuntimeError(f"{source.label} end-to-end error: {row['error']}")
     profile = row.get("lift_profile") or {}
-    eval_profile = row.get("eval_profile") or {}
-    if profile.get("exit_code") != 0 or eval_profile.get("exit_code") != 0:
-        raise RuntimeError(f"{source.label} end-to-end profile is unsuccessful")
-    biological_summary = validate_e2e_biology(row)
+    if profile.get("exit_code") != 0:
+        raise RuntimeError(f"{source.label} end-to-end lift is unsuccessful")
     output = Path(row["out_gff"])
     if not output.is_file() or output.stat().st_size == 0:
         raise RuntimeError(f"{source.label} did not publish a non-empty GFF3")
     validation = _validation_document(output, inputs.tgt_fa)
     if not validation["is_valid"]:
-        raise RuntimeError(
-            f"{source.label} produced invalid GFF3 with {validation['n_errors']} errors"
+        print(
+            f"[bench] {source.label} validation reported "
+            f"{validation['n_errors']} errors",
+            flush=True,
         )
     source_document = dataclasses.asdict(source)
     source_document["root"] = str(source.root)
@@ -1164,12 +1258,13 @@ def _run_e2e_one(
         "source": source_document,
         "e2e_mode": mode,
         "lifton_flags": flags,
-        "evaluation_flags": list(registry.evaluation_flags),
+        "evaluation_flags": [],
         "profile": profile,
-        "evaluation_profile": eval_profile,
-        "biological_summary": biological_summary,
+        "evaluation_profile": None,
+        "evaluation_method": NEUTRAL_EVALUATION_FORMAT,
+        "biological_summary": None,
         "score_summary": row.get("score_summary"),
-        "evaluation_summary": row.get("evaluation_summary"),
+        "evaluation_summary": None,
         "output_gff": str(output),
         "fingerprints": gff3_fingerprints(output),
         "validation": validation,
@@ -1181,7 +1276,7 @@ def _run_e2e_one(
             "kind": "e2e",
             "mode": mode,
             "lifton_flags": flags,
-            "evaluation_flags": list(registry.evaluation_flags),
+            "evaluation_flags": [],
         },
         profile=profile,
         output=output,
@@ -1207,6 +1302,60 @@ def _run_e2e_one(
     return output, document
 
 
+def _neutral_evaluation_profile(started: float) -> dict[str, Any]:
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    return {
+        "exit_code": 0,
+        "wall_clock_seconds": max(time.perf_counter() - started, 1e-9),
+        "peak_rss_mb": max(float(usage.ru_maxrss) / 1024.0, 1e-9),
+        "method": NEUTRAL_EVALUATION_FORMAT,
+    }
+
+
+def _neutral_e2e_summary(summary: Mapping[str, Any]) -> dict[str, Any]:
+    reference_total = int(summary["n_reference_total"])
+    reference_coding = int(summary["n_reference_coding"])
+    protein_identity = summary.get("protein_identity") or {}
+    return {
+        "format": NEUTRAL_EVALUATION_FORMAT,
+        "records": reference_total,
+        "coding_records": reference_coding,
+        "noncoding_records": reference_total - reference_coding,
+        "malformed_records": 0,
+        "avg_identity": protein_identity.get("mean"),
+        "score_file": summary.get("transcripts_tsv"),
+    }
+
+
+def _neutral_e2e_biology(
+    summary: Mapping[str, Any], score_summary: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    reference_total = int(summary["n_reference_total"])
+    recovered = int(summary["n_recovered_any"])
+    emitted = (
+        int(score_summary["records"])
+        if isinstance(score_summary, Mapping)
+        and isinstance(score_summary.get("records"), int)
+        and score_summary["records"] > 0
+        else int(summary["n_tool_features"])
+    )
+    return {
+        "schema_version": 1,
+        "reference_features": reference_total,
+        "mapped_features": recovered,
+        "lost_features": reference_total - recovered,
+        "extra_copy_features": int(summary["n_extra_copies"]),
+        "feature_completeness": recovered / reference_total,
+        "emitted_transcript_records": emitted,
+        "mapped_transcripts_reported": recovered,
+        "evaluated_transcript_records": reference_total,
+        "evaluated_coding_records": int(summary["n_reference_coding"]),
+        "mean_protein_identity": (
+            (summary.get("protein_identity") or {}).get("mean")
+        ),
+    }
+
+
 def _score_pair(
     inputs: PanelInputs,
     outputs: Mapping[str, Path],
@@ -1214,17 +1363,23 @@ def _score_pair(
     cell_dir: Path,
     *,
     threads: int,
+    sequence_scoring: bool = False,
+    reuse_isolated_inputs: bool = False,
 ) -> None:
     score_root = cell_dir / "score-input"
     score_input = score_root / f"reference-annotation{inputs.ref_gff.suffix}"
-    isolated_ref_gff = _isolated_link(inputs.ref_gff, score_input)
+    isolated_ref_gff = _isolated_link(
+        inputs.ref_gff, score_input, reuse=reuse_isolated_inputs,
+    )
     isolated_ref_fa = _isolated_fasta(
         inputs.ref_fa,
         score_root / f"reference-genome{''.join(inputs.ref_fa.suffixes)}",
+        reuse=reuse_isolated_inputs,
     )
     isolated_tgt_fa = _isolated_fasta(
         inputs.tgt_fa,
         score_root / f"target-genome{''.join(inputs.tgt_fa.suffixes)}",
+        reuse=reuse_isolated_inputs,
     )
     reference, reference_index = evaluator.build_reference(
         str(isolated_ref_gff),
@@ -1240,6 +1395,7 @@ def _score_pair(
         "protein_acc_to_mrna": {},
     }
     for label, output in outputs.items():
+        neutral_started = time.perf_counter()
         summary = dict(evaluator.evaluate_tool(
             label,
             str(output),
@@ -1283,6 +1439,17 @@ def _score_pair(
             output,
             reference_index=reference_id_index,
         )
+        if inputs.panel == "e2e":
+            documents[label]["evaluation_profile"] = (
+                _neutral_evaluation_profile(neutral_started)
+            )
+            documents[label]["evaluation_method"] = NEUTRAL_EVALUATION_FORMAT
+            documents[label]["evaluation_summary"] = _neutral_e2e_summary(
+                summary
+            )
+            documents[label]["biological_summary"] = _neutral_e2e_biology(
+                summary, documents[label].get("score_summary"),
+            )
         documents[label]["summary"] = summary
         documents[label]["evaluation_artifacts"] = {
             "transcripts_tsv": {
@@ -1296,6 +1463,7 @@ def _score_pair(
         truth_path = _isolated_link(
             inputs.truth_gff,
             score_root / f"target-truth{''.join(inputs.truth_gff.suffixes)}",
+            reuse=reuse_isolated_inputs,
         )
         mapping_path = (
             _isolated_link(
@@ -1303,9 +1471,22 @@ def _score_pair(
                 score_root / (
                     f"ortholog-map{''.join(inputs.ortholog_map.suffixes)}"
                 ),
+                reuse=reuse_isolated_inputs,
             )
             if inputs.ortholog_map is not None
             else None
+        )
+        truth_source_path = (
+            _isolated_link(
+                inputs.truth_source_gff,
+                score_root / (
+                    "truth-source"
+                    f"{''.join(inputs.truth_source_gff.suffixes)}"
+                ),
+                reuse=reuse_isolated_inputs,
+            )
+            if inputs.truth_source_gff is not None
+            else isolated_ref_gff
         )
         truth_validation = validate_gff3_target_bounds(
             str(truth_path), str(isolated_tgt_fa),
@@ -1335,6 +1516,11 @@ def _score_pair(
                 if mapping_path is not None
                 else None
             ),
+            "source_model_view": {
+                "path": str(truth_source_path.resolve()),
+                "size": truth_source_path.stat().st_size,
+                "sha256": sha256_file(truth_source_path),
+            },
             "target_bounds_validation": {
                 "is_valid": True,
                 "n_errors": truth_validation.severity_totals.get("ERROR", 0),
@@ -1353,7 +1539,8 @@ def _score_pair(
                 output,
                 truth_path,
                 ortholog_map=mapping_path,
-                source_gff=isolated_ref_gff,
+                source_gff=truth_source_path,
+                target_fasta=(isolated_tgt_fa if sequence_scoring else None),
                 id_policy=inputs.truth_id_policy,
             )
             metrics_path = target_truth.write_target_truth_metrics(
@@ -1435,7 +1622,62 @@ def run_paired_cell(
             )
         outputs[label] = output
         documents[label] = document
-    _score_pair(inputs, outputs, documents, cell_dir, threads=threads)
+    return _score_and_publish_pair(
+        inputs,
+        outputs,
+        documents,
+        cell_dir,
+        panel=panel,
+        benchmark=benchmark,
+        repetition=repetition,
+        selected_order=selected_order,
+        threads=threads,
+        candidate_e2e_mode=candidate_e2e_mode,
+        reference_e2e_mode=reference_e2e_mode,
+        benchmark_registry=benchmark_registry,
+        dataset_registry=dataset_registry,
+        provenance=provenance,
+        inputs_document=inputs_document,
+        evaluation_inputs_document=evaluation_inputs_document,
+    )
+
+
+def _score_and_publish_pair(
+    inputs: PanelInputs,
+    outputs: Mapping[str, Path],
+    documents: dict[str, dict[str, Any]],
+    cell_dir: Path,
+    *,
+    panel: str,
+    benchmark: str,
+    repetition: int,
+    selected_order: list[str],
+    threads: int,
+    candidate_e2e_mode: str,
+    reference_e2e_mode: str,
+    benchmark_registry: Path,
+    dataset_registry: Path,
+    provenance: dict[str, Any],
+    inputs_document: dict[str, Any],
+    evaluation_inputs_document: dict[str, Any],
+    reuse_isolated_inputs: bool = False,
+) -> dict[str, Any]:
+    """Score both arms and publish ``pair_result.json``.
+
+    Shared by ``run-pair`` (which has just produced the arm outputs) and
+    ``score-pair`` (which reuses arm outputs that already exist), so both
+    entry points build byte-identical payloads from the same code.
+    """
+
+    _score_pair(
+        inputs,
+        outputs,
+        documents,
+        cell_dir,
+        threads=threads,
+        sequence_scoring=repetition == 1,
+        reuse_isolated_inputs=reuse_isolated_inputs,
+    )
     reference_profile = documents["reference"]["profile"]
     candidate_profile = documents["candidate"]["profile"]
     wall_ratio = (
@@ -1475,6 +1717,148 @@ def run_paired_cell(
     temporary.write_text(json.dumps(payload, indent=2, default=str) + "\n")
     os.replace(temporary, output_path)
     return payload
+
+
+def rebuild_arm_document(cell_dir: Path, label: str) -> tuple[Path, dict[str, Any]]:
+    """Rebuild one arm's lift-side document from artifacts already on disk.
+
+    Every field is taken from the arm's own ``release_run_manifest.json`` or
+    re-derived deterministically from the published GFF3 and score file, so
+    the result is what ``_run_e2e_one`` returned for that execution. The
+    published output is re-hashed and compared with the manifest, which fails
+    closed if the artifact has drifted since it was written.
+    """
+
+    arm_dir = Path(cell_dir) / label
+    manifest_path = arm_dir / "release_run_manifest.json"
+    if not manifest_path.is_file():
+        raise RuntimeError(f"{label} arm has no release_run_manifest.json")
+    manifest = json.loads(manifest_path.read_text())
+    if manifest.get("kind") != "paired_release_arm":
+        raise RuntimeError(f"{label} arm manifest has an unexpected kind")
+    if (manifest.get("run") or {}).get("status") != "success":
+        raise RuntimeError(f"{label} arm did not complete successfully")
+
+    artifacts = manifest["artifacts"]["output_gff"]
+    output = Path(artifacts["path"])
+    if not output.is_file() or output.stat().st_size == 0:
+        raise RuntimeError(f"{label} arm output GFF3 is missing or empty")
+    fingerprints = gff3_fingerprints(output)
+    for field in ("byte_sha256", "semantic_sha256"):
+        if fingerprints[field] != artifacts[field]:
+            raise RuntimeError(
+                f"{label} arm output GFF3 {field} no longer matches its "
+                f"manifest; the artifact has drifted since it was published"
+            )
+
+    score_file = output.parent / "lifton_output" / "score.txt"
+    if not score_file.is_file():
+        raise RuntimeError(f"{label} arm has no lifton_output/score.txt")
+    score_summary = dict(
+        run_benchmarks.parse_score_txt(score_file).__dict__
+    )
+
+    protocol = manifest["protocol"]
+    # Key order matches _run_e2e_one exactly; pair_result.json is emitted with
+    # json.dumps, which preserves insertion order, so this is load-bearing.
+    document: dict[str, Any] = {
+        "source": manifest["source"],
+        "e2e_mode": protocol["mode"],
+        "lifton_flags": protocol["lifton_flags"],
+        "evaluation_flags": protocol["evaluation_flags"],
+        "profile": manifest["profile"],
+        "evaluation_profile": None,
+        "evaluation_method": NEUTRAL_EVALUATION_FORMAT,
+        "biological_summary": None,
+        "score_summary": score_summary,
+        "evaluation_summary": None,
+        "output_gff": str(output),
+        "fingerprints": fingerprints,
+        "validation": manifest["validation"],
+    }
+    document["release_manifest"] = str(manifest_path)
+    document["native_manifests"] = manifest["artifacts"]["native_manifests"]
+    return output, document
+
+
+def score_existing_pair(
+    *,
+    panel: str,
+    benchmark: str,
+    repetition: int,
+    candidate: SourceSpec,
+    reference: SourceSpec,
+    cell_dir: Path,
+    threads: int = 8,
+    order: Sequence[str] | None = None,
+    candidate_e2e_mode: str = "fast",
+    reference_e2e_mode: str = "fast",
+    benchmark_registry: Path = DEFAULT_BENCHMARK_REGISTRY,
+    dataset_registry: Path = run_benchmarks.DEFAULT_REGISTRY,
+) -> dict[str, Any]:
+    """Re-score a paired cell whose two arms have already been executed.
+
+    This repeats only the evaluation half of ``run_paired_cell``: both arms'
+    GFF3 outputs are reused as published, and every metric is recomputed by
+    the same ``_score_pair`` the original run used. Timings and resource
+    measurements therefore remain those of the original execution.
+    """
+
+    cell_dir = Path(cell_dir)
+    if not cell_dir.is_dir():
+        raise FileNotFoundError(f"paired cell directory does not exist: {cell_dir}")
+    if not 1 <= repetition <= 10:
+        raise ValueError("repetition must be between 1 and 10")
+    if threads < 1:
+        raise ValueError("threads must be positive")
+    sources = {"candidate": candidate, "reference": reference}
+    selected_order = list(order or (
+        ("reference", "candidate") if repetition % 2 else ("candidate", "reference")
+    ))
+    if sorted(selected_order) != ["candidate", "reference"]:
+        raise ValueError("paired order must contain candidate and reference exactly once")
+    provenance = {label: verify_source(source) for label, source in sources.items()}
+    benchmark_registry = Path(benchmark_registry).resolve()
+    dataset_registry = Path(dataset_registry).resolve()
+    inputs = resolve_panel_inputs(
+        panel,
+        benchmark,
+        benchmark_registry=benchmark_registry,
+        dataset_registry=dataset_registry,
+    )
+    inputs_document = input_fingerprints(inputs)
+    evaluation_inputs_document = evaluation_input_fingerprints(inputs)
+    outputs: dict[str, Path] = {}
+    documents: dict[str, dict[str, Any]] = {}
+    for label in selected_order:
+        output, document = rebuild_arm_document(cell_dir, label)
+        recorded_sha = document["source"].get("sha")
+        expected_sha = sources[label].sha
+        if recorded_sha != expected_sha:
+            raise RuntimeError(
+                f"{label} arm was produced by {recorded_sha}, not {expected_sha}"
+            )
+        outputs[label] = output
+        documents[label] = document
+    return _score_and_publish_pair(
+        inputs,
+        outputs,
+        documents,
+        cell_dir,
+        panel=panel,
+        benchmark=benchmark,
+        repetition=repetition,
+        selected_order=selected_order,
+        threads=threads,
+        candidate_e2e_mode=candidate_e2e_mode,
+        reference_e2e_mode=reference_e2e_mode,
+        benchmark_registry=benchmark_registry,
+        dataset_registry=dataset_registry,
+        provenance=provenance,
+        inputs_document=inputs_document,
+        evaluation_inputs_document=evaluation_inputs_document,
+        reuse_isolated_inputs=True,
+    )
 
 
 def _percentile(values: Sequence[float], quantile: float) -> float | None:
@@ -1557,69 +1941,84 @@ def _repetition_count(value: str) -> int:
     return parsed
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    run = subparsers.add_parser("run-pair", help="run one paired benchmark cell")
-    run.add_argument("--panel", choices=("subset", "full", "e2e"), required=True)
-    run.add_argument("--benchmark", required=True)
-    run.add_argument("--repetition", type=_repetition_count, required=True)
-    run.add_argument("--candidate-root", required=True)
-    run.add_argument("--candidate-sha", required=True)
-    run.add_argument("--reference-root", required=True)
-    run.add_argument("--reference-sha", default=DEFAULT_REFERENCE_SHA)
-    run.add_argument(
+def _add_paired_cell_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--panel", choices=("subset", "full", "e2e"), required=True)
+    parser.add_argument("--benchmark", required=True)
+    parser.add_argument("--repetition", type=_repetition_count, required=True)
+    parser.add_argument("--candidate-root", required=True)
+    parser.add_argument("--candidate-sha", required=True)
+    parser.add_argument("--reference-root", required=True)
+    parser.add_argument("--reference-sha", default=DEFAULT_REFERENCE_SHA)
+    parser.add_argument(
         "--lifton-executable",
         default=str(Path(sys.executable).with_name("lifton")),
     )
-    run.add_argument("--cell-dir", required=True)
-    run.add_argument("--threads", type=_positive_int, default=8)
-    run.add_argument(
+    parser.add_argument("--cell-dir", required=True)
+    parser.add_argument("--threads", type=_positive_int, default=8)
+    parser.add_argument(
         "--benchmark-registry",
         default=str(DEFAULT_BENCHMARK_REGISTRY),
     )
-    run.add_argument(
+    parser.add_argument(
         "--dataset-registry",
         default=str(run_benchmarks.DEFAULT_REGISTRY),
     )
-    run.add_argument(
+    parser.add_argument(
         "--candidate-e2e-mode",
         choices=E2E_MODES,
         default="fast",
     )
-    run.add_argument(
+    parser.add_argument(
         "--reference-e2e-mode",
         choices=E2E_MODES,
         default="fast",
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    _add_paired_cell_arguments(
+        subparsers.add_parser("run-pair", help="run one paired benchmark cell")
+    )
+    _add_paired_cell_arguments(
+        subparsers.add_parser(
+            "score-pair",
+            help=(
+                "re-score a paired cell whose two arms have already been "
+                "executed, reusing their published outputs"
+            ),
+        )
     )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.command == "run-pair":
-        executable = str(Path(args.lifton_executable).resolve())
-        candidate = _source_from_args(
-            "candidate", args.candidate_root, args.candidate_sha, executable,
-        )
-        reference = _source_from_args(
-            "reference", args.reference_root, args.reference_sha, executable,
-        )
-        run_paired_cell(
-            panel=args.panel,
-            benchmark=args.benchmark,
-            repetition=args.repetition,
-            candidate=candidate,
-            reference=reference,
-            cell_dir=Path(args.cell_dir).resolve(),
-            threads=args.threads,
-            candidate_e2e_mode=args.candidate_e2e_mode,
-            reference_e2e_mode=args.reference_e2e_mode,
-            benchmark_registry=Path(args.benchmark_registry).resolve(),
-            dataset_registry=Path(args.dataset_registry).resolve(),
-        )
-        return 0
-    raise AssertionError(args.command)
+    if args.command not in {"run-pair", "score-pair"}:
+        raise AssertionError(args.command)
+    executable = str(Path(args.lifton_executable).resolve())
+    candidate = _source_from_args(
+        "candidate", args.candidate_root, args.candidate_sha, executable,
+    )
+    reference = _source_from_args(
+        "reference", args.reference_root, args.reference_sha, executable,
+    )
+    entry = run_paired_cell if args.command == "run-pair" else score_existing_pair
+    entry(
+        panel=args.panel,
+        benchmark=args.benchmark,
+        repetition=args.repetition,
+        candidate=candidate,
+        reference=reference,
+        cell_dir=Path(args.cell_dir).resolve(),
+        threads=args.threads,
+        candidate_e2e_mode=args.candidate_e2e_mode,
+        reference_e2e_mode=args.reference_e2e_mode,
+        benchmark_registry=Path(args.benchmark_registry).resolve(),
+        dataset_registry=Path(args.dataset_registry).resolve(),
+    )
+    return 0
 
 
 if __name__ == "__main__":

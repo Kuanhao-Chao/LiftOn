@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from benchmarks.compare import release_evaluation as release
+from benchmarks.compare.profiling import ProfileResult
 
 
 def _inputs(tmp_path: Path, panel: str) -> release.PanelInputs:
@@ -39,11 +40,18 @@ def _inputs(tmp_path: Path, panel: str) -> release.PanelInputs:
 
 
 def _source(tmp_path: Path) -> release.SourceSpec:
+    executable = tmp_path / "bin" / "lifton"
+    executable.parent.mkdir(parents=True, exist_ok=True)
+    executable.write_text(
+        "#!/bin/sh\nprintf '%s\\n' '--locus-pipeline --no-miniprot-rescue'\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
     return release.SourceSpec(
         label="candidate",
         root=tmp_path,
         sha="a" * 40,
-        lifton_executable=Path("/env/bin/lifton"),
+        lifton_executable=executable,
     )
 
 
@@ -62,6 +70,14 @@ def _clean_source_repo(tmp_path: Path) -> release.SourceSpec:
     package = root / "lifton"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+    executable = root / "bin" / "lifton"
+    executable.parent.mkdir(parents=True)
+    executable.write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'usage: lifton [options]'\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+    (executable.parent / "python").symlink_to(sys.executable)
     (root / ".gitignore").write_text(
         "__pycache__/\n*.py[cod]\nignored_probe.py\n",
         encoding="utf-8",
@@ -69,13 +85,16 @@ def _clean_source_repo(tmp_path: Path) -> release.SourceSpec:
     _git(root, "init", "--quiet")
     _git(root, "config", "user.name", "LiftOn Tests")
     _git(root, "config", "user.email", "lifton-tests@example.invalid")
-    _git(root, "add", ".gitignore", "lifton/__init__.py")
+    _git(
+        root, "add", ".gitignore", "bin/lifton", "bin/python",
+        "lifton/__init__.py",
+    )
     _git(root, "commit", "--quiet", "-m", "fixture")
     return release.SourceSpec(
         label="candidate",
         root=root,
         sha=_git(root, "rev-parse", "HEAD"),
-        lifton_executable=Path(sys.executable).with_name("lifton"),
+        lifton_executable=executable,
     )
 
 
@@ -253,6 +272,84 @@ def test_subset_and_full_commands_pin_the_intended_protocol(tmp_path):
     assert "--no-miniprot-rescue" in full
 
 
+def test_old_source_omits_unsupported_controlled_options(tmp_path):
+    executable = tmp_path / "bin" / "lifton"
+    executable.parent.mkdir(parents=True, exist_ok=True)
+    executable.write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'usage: lifton [options]'\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+    source = release.SourceSpec(
+        label="reference",
+        root=tmp_path,
+        sha="b" * 40,
+        lifton_executable=executable,
+    )
+
+    argv = release.build_lifton_argv(
+        source,
+        _inputs(tmp_path / "inputs", "full"),
+        tmp_path / "output.gff3",
+        threads=8,
+    )
+
+    assert "--no-miniprot-rescue" not in argv
+    assert "--locus-pipeline" not in argv
+
+
+def test_source_option_probe_fails_closed(tmp_path):
+    executable = tmp_path / "bin" / "lifton"
+    executable.parent.mkdir(parents=True, exist_ok=True)
+    executable.write_text("#!/bin/sh\nexit 2\n", encoding="utf-8")
+    executable.chmod(0o755)
+    source = release.SourceSpec(
+        label="broken",
+        root=tmp_path,
+        sha="b" * 40,
+        lifton_executable=executable,
+    )
+
+    with pytest.raises(RuntimeError, match="--help exited 2"):
+        release.source_cli_options(source)
+
+
+def test_run_one_retains_invalid_validation_evidence(tmp_path, monkeypatch):
+    source = _source(tmp_path)
+    inputs = _inputs(tmp_path / "inputs", "subset")
+
+    def fake_profile(argv, *, label, log_dir, env, cwd, log):
+        output = Path(argv[argv.index("-o") + 1])
+        output.write_text(
+            "##gff-version 3\n"
+            "chr1\tLiftOn\tgene\t1\t2\t.\t+\t.\tID=g1\n",
+            encoding="utf-8",
+        )
+        return ProfileResult(
+            wall_clock_seconds=1.0,
+            peak_rss_mb=2.0,
+            user_cpu_seconds=0.5,
+            sys_cpu_seconds=0.1,
+            exit_code=0,
+            stdout_path=str(log_dir / f"{label}.stdout.log"),
+            stderr_path=str(log_dir / f"{label}.stderr.log"),
+            time_log_path=str(log_dir / f"{label}.time.log"),
+        )
+
+    monkeypatch.setattr(release, "run_profiled", fake_profile)
+    monkeypatch.setattr(
+        release,
+        "_validation_document",
+        lambda *_args: {"is_valid": False, "n_errors": 2},
+    )
+
+    _output, document = release._run_one(
+        source, inputs, tmp_path / "version", threads=8,
+    )
+
+    assert document["validation"] == {"is_valid": False, "n_errors": 2}
+
+
 def test_e2e_input_resolution_uses_the_requested_dataset_registry(
         tmp_path, monkeypatch):
     registry = tmp_path / "custom-datasets.json"
@@ -387,7 +484,7 @@ def test_e2e_arm_does_not_stage_optional_published_truth(tmp_path, monkeypatch):
     monkeypatch.setattr(
         release,
         "_validation_document",
-        lambda _path, *_args: {"is_valid": True, "n_errors": 0},
+        lambda _path, *_args: {"is_valid": False, "n_errors": 1},
     )
     captured = {}
 
@@ -421,7 +518,7 @@ def test_e2e_arm_does_not_stage_optional_published_truth(tmp_path, monkeypatch):
     )
     version_dir = tmp_path / "arm"
 
-    release._run_e2e_one(
+    _output, document = release._run_e2e_one(
         _source(tmp_path),
         inputs,
         version_dir,
@@ -437,6 +534,7 @@ def test_e2e_arm_does_not_stage_optional_published_truth(tmp_path, monkeypatch):
         captured["data_dir"] / "demo" / "published.gff3"
     ).exists()
     assert truth.read_text(encoding="utf-8") == "unused truth\n"
+    assert document["validation"] == {"is_valid": False, "n_errors": 1}
 
 
 def test_e2e_independent_truth_requires_materialized_ortholog_map(
@@ -541,7 +639,16 @@ def test_paired_order_alternates_ab_ba(tmp_path, monkeypatch):
             },
         }
 
-    def fake_score(_inputs, _outputs, documents, _cell_dir, *, threads):
+    def fake_score(
+        _inputs,
+        _outputs,
+        documents,
+        _cell_dir,
+        *,
+        threads,
+        sequence_scoring=False,
+        reuse_isolated_inputs=False,
+    ):
         for document in documents.values():
             document["summary"] = {"completeness_coding": 1.0}
 
@@ -634,6 +741,74 @@ def test_neutral_scoring_records_exact_transcript_evidence(tmp_path, monkeypatch
             row["applicable"] is False
             for row in stable_ids["by_type"].values()
         )
+
+
+def test_e2e_neutral_scoring_replaces_legacy_evaluation_contract(
+        tmp_path, monkeypatch):
+    inputs = _inputs(tmp_path / "inputs", "e2e")
+    outputs = {}
+    documents = {}
+    for label in ("candidate", "reference"):
+        output = tmp_path / f"{label}.gff3"
+        output.write_text("##gff-version 3\n", encoding="utf-8")
+        outputs[label] = output
+        documents[label] = {
+            "profile": {
+                "wall_clock_seconds": 1.0,
+                "peak_rss_mb": 2.0,
+            },
+            "score_summary": {
+                "format": "lifton_score_v1",
+                "records": 4,
+                "coding_records": 3,
+                "noncoding_records": 1,
+                "malformed_records": 0,
+            },
+        }
+    monkeypatch.setattr(
+        release.evaluator,
+        "build_reference",
+        lambda *_args, **_kwargs: ({"tx": {"is_coding": True}}, {}),
+    )
+
+    def fake_evaluate(tool, *_args, **kwargs):
+        path = tmp_path / "cell" / "evaluation" / f"{tool}.transcripts.tsv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("ref_mrna_id\trecovered\n", encoding="utf-8")
+        return {
+            "tool": tool,
+            "benchmark": "demo",
+            "n_reference_total": 10,
+            "n_reference_coding": 6,
+            "n_tool_features": 9,
+            "n_recovered_any": 8,
+            "n_recovered_coding": 5,
+            "n_extra_copies": 1,
+            "protein_identity": {"mean": 0.95, "n": 5},
+            "completeness_all": 0.8,
+            "completeness_coding": 5 / 6,
+            "profile": kwargs.get("profile"),
+            "transcripts_tsv": str(path),
+        }
+
+    monkeypatch.setattr(release.evaluator, "evaluate_tool", fake_evaluate)
+
+    release._score_pair(
+        inputs,
+        outputs,
+        documents,
+        tmp_path / "cell",
+        threads=2,
+    )
+
+    for label in ("candidate", "reference"):
+        assert documents[label]["evaluation_method"] == (
+            release.NEUTRAL_EVALUATION_FORMAT
+        )
+        assert documents[label]["evaluation_summary"]["format"] == (
+            release.NEUTRAL_EVALUATION_FORMAT
+        )
+        assert release.validate_e2e_biology(documents[label])["feature_completeness"] == pytest.approx(0.8)
 
 
 def test_neutral_scoring_never_creates_canonical_input_sidecars(
@@ -773,7 +948,8 @@ def test_verify_source_rejects_unversioned_importable_files(
         release.verify_source(source)
 
 
-def test_e2e_flags_offer_fast_and_disk_backed_safe_modes(monkeypatch):
+def test_e2e_flags_offer_fast_and_disk_backed_safe_modes(
+        tmp_path, monkeypatch):
     registry = release.run_benchmarks.Registry(
         datasets=[],
         lifton_flags=[
@@ -789,6 +965,22 @@ def test_e2e_flags_offer_fast_and_disk_backed_safe_modes(monkeypatch):
     safe = release.e2e_flags("safe", threads=2)
     stream = release.e2e_flags("stream", threads=3)
     inmemory_native = release.e2e_flags("inmemory-native", threads=1)
+    legacy_executable = tmp_path / "legacy" / "bin" / "lifton"
+    legacy_executable.parent.mkdir(parents=True)
+    legacy_executable.write_text(
+        "#!/bin/sh\nprintf '%s\\n' 'usage: lifton [options]'\n",
+        encoding="utf-8",
+    )
+    legacy_executable.chmod(0o755)
+    legacy_source = release.SourceSpec(
+        label="legacy",
+        root=legacy_executable.parents[1],
+        sha="b" * 40,
+        lifton_executable=legacy_executable,
+    )
+    legacy_fast = release.e2e_flags(
+        "fast", threads=8, source=legacy_source,
+    )
 
     assert fast[fast.index("-t") + 1] == "4"
     assert {"--stream", "--inmemory-liftoff", "--native"} <= set(fast)
@@ -801,6 +993,9 @@ def test_e2e_flags_offer_fast_and_disk_backed_safe_modes(monkeypatch):
     assert {"--inmemory-liftoff", "--native"} == (
         {"--stream", "--inmemory-liftoff", "--native"} & set(inmemory_native)
     )
+    assert not release.OPTIONAL_EXECUTION_FLAGS & set(legacy_fast)
+    assert legacy_fast[legacy_fast.index("-t") + 1] == "8"
+    assert "-copies" in legacy_fast
     with pytest.raises(ValueError, match="unknown end-to-end mode"):
         release.e2e_flags("turbo", threads=8)
 

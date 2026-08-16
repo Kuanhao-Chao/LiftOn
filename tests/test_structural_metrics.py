@@ -17,6 +17,46 @@ def _seg(start, end):
     return SimpleNamespace(start=start, end=end)
 
 
+class _FeatureDB:
+    def __init__(self, features):
+        self._features = features
+
+    def count_features_of_type(self, feature_type):
+        return sum(feature.featuretype == feature_type for feature in self._features)
+
+    def features_of_type(self, feature_type):
+        return iter(
+            feature for feature in self._features
+            if feature.featuretype == feature_type
+        )
+
+    def all_features(self):
+        return iter(self._features)
+
+
+def _feature(feature_id, feature_type):
+    return SimpleNamespace(id=feature_id, featuretype=feature_type)
+
+
+def test_transcript_types_are_scored_together_without_duplicate_ids():
+    db = _FeatureDB([
+        _feature("tx1", "mRNA"),
+        _feature("tx2", "transcript"),
+        _feature("tx2", "mRNA"),
+    ])
+
+    assert [feature.id for feature in ev._transcript_features(db)] == [
+        "tx1", "tx2",
+    ]
+    result = ev.completeness_by_type(
+        db,
+        {"transcript": {"tx1", "tx2"}},
+        {"tx1", "tx2"},
+    )
+    assert result["transcript"]["n_recovered"] == 2
+    assert result["transcript"]["n_tool_features"] == 3
+
+
 # --------------------------- internal boundaries --------------------------- #
 
 class TestInternalBoundaries:

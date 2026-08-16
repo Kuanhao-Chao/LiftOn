@@ -1,4 +1,4 @@
-"""Neutral, ortholog-scoped scoring against an independent target annotation.
+"""Neutral, ortholog-scoped concordance with a released target annotation.
 
 The target annotation is an evaluation-only input. Callers must run LiftOn
 before invoking this module; no function here builds or executes a LiftOn
@@ -48,6 +48,72 @@ class Model:
 
 
 @dataclass(frozen=True)
+class CdsSegment:
+    seqid: str
+    start: int
+    end: int
+    strand: str
+    phase: int | None
+    translation_table: int
+    partial: bool
+
+
+@dataclass(frozen=True)
+class QuarantinedRecord:
+    """One GFF3 data row that could not be parsed as a structural record.
+
+    Quarantine covers structural unparseability only -- a row whose columns,
+    coordinates or identifier cardinality make it impossible to place in the
+    hierarchy. Such a row was never scored under the previous behaviour
+    either; the parser aborted the entire annotation instead. Recording and
+    skipping it preserves every metric definition while making the defect
+    visible as evidence.
+    """
+
+    lineno: int
+    reason: str
+    feature_type: str
+    feature_id: str
+    detail: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "lineno": self.lineno,
+            "reason": self.reason,
+            "feature_type": self.feature_type,
+            "feature_id": self.feature_id,
+            "detail": self.detail,
+        }
+
+
+QUARANTINE_REASONS = (
+    "column_count",
+    "non_integer_coordinates",
+    "invalid_coordinates",
+    "identifier_cardinality",
+)
+QUARANTINE_RECORD_CAP = 100
+
+
+def quarantine_document(annotation: "Annotation") -> dict[str, Any]:
+    """Summarise the structurally unparseable rows skipped by the parser."""
+
+    records = annotation.quarantined
+    return {
+        "n_quarantined": len(records),
+        "by_reason": {
+            reason: sum(1 for record in records if record.reason == reason)
+            for reason in QUARANTINE_REASONS
+            if any(record.reason == reason for record in records)
+        },
+        "records": [
+            record.as_dict() for record in records[:QUARANTINE_RECORD_CAP]
+        ],
+        "records_truncated": len(records) > QUARANTINE_RECORD_CAP,
+    }
+
+
+@dataclass(frozen=True)
 class MappingEntry:
     source_id: str
     truth_ids: tuple[str, ...]
@@ -66,6 +132,9 @@ class Annotation:
     exons: dict[str, list[tuple[str, int, int, str]]]
     cds: dict[str, list[tuple[str, int, int, str]]]
     transcripts_by_gene: dict[str, list[str]]
+    cds_segments: dict[str, list[CdsSegment]]
+    partial_transcripts: set[str]
+    quarantined: tuple[QuarantinedRecord, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -92,14 +161,25 @@ def _parse_attributes(text: str) -> dict[str, tuple[str, ...]]:
     return attributes
 
 
-def parse_annotation(path: str | Path) -> Annotation:
+def parse_annotation(
+    path: str | Path,
+    *,
+    excluded_gene_ids: Iterable[str] = (),
+    excluded_transcript_ids: Iterable[str] = (),
+) -> Annotation:
     """Parse only the hierarchy and intervals needed by target-truth metrics."""
 
     genes: dict[str, Model] = {}
     transcripts: dict[str, Model] = {}
     exons: dict[str, list[tuple[str, int, int, str]]] = defaultdict(list)
     cds: dict[str, list[tuple[str, int, int, str]]] = defaultdict(list)
+    cds_segments: dict[str, list[CdsSegment]] = defaultdict(list)
     transcripts_by_gene: dict[str, list[str]] = defaultdict(list)
+    partial_transcripts: set[str] = set()
+    quarantined: list[QuarantinedRecord] = []
+    quarantined_ids: set[str] = set()
+    excluded_genes = set(excluded_gene_ids)
+    excluded_transcripts = set(excluded_transcript_ids)
 
     path = Path(path)
     opener = gzip.open if path.name.lower().endswith(".gz") else open
@@ -109,31 +189,68 @@ def parse_annotation(path: str | Path) -> Annotation:
                 continue
             columns = raw.rstrip("\r\n").split("\t")
             if len(columns) != 9:
-                raise ValueError(
-                    f"{path}: line {lineno} has {len(columns)} columns, expected 9"
-                )
+                quarantined.append(QuarantinedRecord(
+                    lineno=lineno,
+                    reason="column_count",
+                    feature_type="",
+                    feature_id="",
+                    detail=f"{len(columns)} columns, expected 9",
+                ))
+                continue
             seqid, _source, feature_type, start_text, end_text, \
-                _score, strand, _phase, attribute_text = columns
-            try:
-                start = int(start_text)
-                end = int(end_text)
-            except ValueError as exc:
-                raise ValueError(
-                    f"{path}: line {lineno} has non-integer coordinates"
-                ) from exc
-            if start < 1 or end < start:
-                raise ValueError(
-                    f"{path}: line {lineno} has invalid coordinates "
-                    f"{start_text}..{end_text}"
-                )
+                _score, strand, phase_text, attribute_text = columns
             attributes = _parse_attributes(attribute_text)
             feature_ids = attributes.get("ID", ())
             parents = attributes.get("Parent", ())
+            record_id = feature_ids[0] if len(feature_ids) == 1 else ""
+
+            def _quarantine(reason: str, detail: str) -> None:
+                quarantined.append(QuarantinedRecord(
+                    lineno=lineno,
+                    reason=reason,
+                    feature_type=feature_type,
+                    feature_id=record_id,
+                    detail=detail,
+                ))
+                if record_id and feature_type in GENE_TYPES | TRANSCRIPT_TYPES:
+                    quarantined_ids.add(record_id)
+
+            try:
+                start = int(start_text)
+                end = int(end_text)
+            except ValueError:
+                _quarantine(
+                    "non_integer_coordinates", f"{start_text}..{end_text}",
+                )
+                continue
+            if start < 1 or end < start:
+                _quarantine(
+                    "invalid_coordinates", f"{start_text}..{end_text}",
+                )
+                continue
+            partial = (
+                any(
+                    value.lower() == "true"
+                    for value in attributes.get("partial", ())
+                )
+                or any(
+                    "." in value
+                    for value in attributes.get("start_range", ())
+                )
+                or any(
+                    "." in value
+                    for value in attributes.get("end_range", ())
+                )
+            )
             if feature_type in GENE_TYPES | TRANSCRIPT_TYPES:
                 if len(feature_ids) != 1:
-                    raise ValueError(
-                        f"{path}: line {lineno} {feature_type} must have one ID"
+                    _quarantine(
+                        "identifier_cardinality",
+                        f"{len(feature_ids)} ID values, expected 1",
                     )
+                    continue
+                if any(parent in quarantined_ids for parent in parents):
+                    continue
                 model = Model(
                     feature_ids[0],
                     seqid,
@@ -143,6 +260,16 @@ def parse_annotation(path: str | Path) -> Annotation:
                     parents,
                     feature_type,
                 )
+                if (
+                    feature_type in GENE_TYPES
+                    and model.identifier in excluded_genes
+                ):
+                    continue
+                if feature_type in TRANSCRIPT_TYPES and (
+                    model.identifier in excluded_transcripts
+                    or any(parent in excluded_genes for parent in parents)
+                ):
+                    continue
                 destination = (
                     genes if feature_type in GENE_TYPES else transcripts
                 )
@@ -153,13 +280,43 @@ def parse_annotation(path: str | Path) -> Annotation:
                     )
                 destination[model.identifier] = model
                 if feature_type in TRANSCRIPT_TYPES:
+                    if partial:
+                        partial_transcripts.add(model.identifier)
                     for parent in parents:
                         transcripts_by_gene[parent].append(model.identifier)
             elif feature_type in {"exon", "CDS"}:
                 interval = (seqid, start, end, strand)
                 destination = exons if feature_type == "exon" else cds
                 for parent in parents:
+                    if parent in excluded_transcripts:
+                        continue
+                    if parent in quarantined_ids:
+                        continue
                     destination[parent].append(interval)
+                    if feature_type == "CDS":
+                        translation_values = attributes.get(
+                            "transl_table", ("1",)
+                        )
+                        try:
+                            translation_table = int(translation_values[0])
+                        except (IndexError, ValueError):
+                            translation_table = -1
+                        phase = (
+                            int(phase_text)
+                            if phase_text in {"0", "1", "2"}
+                            else None
+                        )
+                        cds_segments[parent].append(CdsSegment(
+                            seqid=seqid,
+                            start=start,
+                            end=end,
+                            strand=strand,
+                            phase=phase,
+                            translation_table=translation_table,
+                            partial=partial,
+                        ))
+                        if partial:
+                            partial_transcripts.add(parent)
 
     for values in (*exons.values(), *cds.values()):
         values.sort(key=lambda interval: (
@@ -167,12 +324,22 @@ def parse_annotation(path: str | Path) -> Annotation:
         ))
     for values in transcripts_by_gene.values():
         values.sort()
+    for values in cds_segments.values():
+        values.sort(key=lambda segment: (
+            segment.seqid,
+            segment.start,
+            segment.end,
+            segment.strand,
+        ))
     return Annotation(
         genes=genes,
         transcripts=transcripts,
         exons=dict(exons),
         cds=dict(cds),
         transcripts_by_gene=dict(transcripts_by_gene),
+        cds_segments=dict(cds_segments),
+        partial_transcripts=partial_transcripts,
+        quarantined=tuple(quarantined),
     )
 
 
@@ -1014,16 +1181,266 @@ def _scope_document(
     }
 
 
+_COMPLEMENT = str.maketrans(
+    "ACGTRYMKBDHVNacgtrymkbdhvn",
+    "TGCAYRKMVHDBNtgcayrkmvhdbn",
+)
+
+
+def _reverse_complement(sequence: str) -> str:
+    return sequence.translate(_COMPLEMENT)[::-1]
+
+
+def _coding_sequence(
+    annotation: Annotation,
+    transcript: Model,
+    fasta: Any,
+) -> dict[str, Any]:
+    segments = list(annotation.cds_segments.get(transcript.identifier, ()))
+    if not segments:
+        return {"status": "missing_cds"}
+    seqids = {segment.seqid for segment in segments}
+    strands = {segment.strand for segment in segments}
+    tables = {segment.translation_table for segment in segments}
+    if len(seqids) != 1 or len(strands) != 1:
+        return {"status": "inconsistent_cds_location"}
+    if strands != {transcript.strand} or transcript.strand not in {"+", "-"}:
+        return {"status": "inconsistent_cds_strand"}
+    if len(tables) != 1 or next(iter(tables)) != 1:
+        return {"status": "unsupported_translation_table"}
+    ordered = sorted(
+        segments,
+        key=lambda segment: (segment.start, segment.end),
+        reverse=transcript.strand == "-",
+    )
+    pieces = []
+    try:
+        for segment in ordered:
+            piece = str(fasta[segment.seqid][segment.start - 1:segment.end])
+            if transcript.strand == "-":
+                piece = _reverse_complement(piece)
+            pieces.append(piece.upper())
+    except (KeyError, IndexError, ValueError) as exc:
+        return {"status": "fasta_interval_error", "detail": str(exc)}
+    first_phase = ordered[0].phase
+    if first_phase is None:
+        return {"status": "missing_initial_phase"}
+    sequence = "".join(pieces)[first_phase:]
+    if not sequence:
+        return {"status": "empty_cds"}
+    phase_consistent = True
+    cumulative = len(pieces[0]) - first_phase
+    for segment, piece in zip(ordered[1:], pieces[1:]):
+        expected = (3 - cumulative % 3) % 3
+        if segment.phase is None or segment.phase != expected:
+            phase_consistent = False
+        cumulative += len(piece)
+    partial = (
+        transcript.identifier in annotation.partial_transcripts
+        or any(segment.partial for segment in ordered)
+    )
+    return {
+        "status": "ok",
+        "sequence": sequence,
+        "partial": partial,
+        "phase_consistent": phase_consistent,
+        "translation_table": 1,
+    }
+
+
+def _translate_cds(coding: Mapping[str, Any]) -> dict[str, Any]:
+    from Bio.Seq import Seq
+
+    sequence = str(coding["sequence"])
+    remainder = len(sequence) % 3
+    translated_sequence = (
+        sequence[:len(sequence) - remainder] if remainder else sequence
+    )
+    if not translated_sequence:
+        return {"status": "no_complete_codon"}
+    try:
+        protein = str(Seq(translated_sequence).translate(table=1))
+    except (ValueError, TypeError) as exc:
+        return {"status": "translation_error", "detail": str(exc)}
+    terminal_stop = protein.endswith("*")
+    internal_stop = "*" in protein[:-1]
+    start_ok = sequence[:3] == "ATG"
+    complete_frame = remainder == 0
+    return {
+        "status": "ok",
+        "protein": protein.rstrip("*"),
+        "partial": bool(coding["partial"]),
+        "phase_consistent": bool(coding["phase_consistent"]),
+        "complete_frame": complete_frame,
+        "start_ok": start_ok,
+        "terminal_stop": terminal_stop,
+        "no_internal_stop": not internal_stop,
+        "orf_valid": (
+            complete_frame
+            and start_ok
+            and terminal_stop
+            and not internal_stop
+            and bool(coding["phase_consistent"])
+        ),
+    }
+
+
+def _protein_identity(left: str, right: str) -> float:
+    if left == right:
+        return 1.0
+    if not left or not right:
+        return 0.0
+    from lifton import align
+
+    return float(align.protein_align(left, right).identity)
+
+
+def _target_sequence_metrics(
+    prediction: Annotation,
+    truth: Annotation,
+    matches: Sequence[tuple[Model, Model]],
+    target_fasta: str | Path,
+) -> dict[str, Any]:
+    import pyfaidx
+
+    exact = 0
+    identities = []
+    weighted_identity_numerator = 0.0
+    weighted_identity_denominator = 0
+    reciprocal_coverages = []
+    prediction_orf_valid = 0
+    truth_orf_valid = 0
+    orf_both_valid = 0
+    orf_status_equal = 0
+    orf_denominator = 0
+    phase_consistent = {"prediction": 0, "truth": 0}
+    failures = Counter()
+    truth_eligible = 0
+    prediction_untranslatable = 0
+    fasta = pyfaidx.Fasta(
+        str(target_fasta),
+        as_raw=True,
+        sequence_always_upper=True,
+        read_ahead=0,
+    )
+    try:
+        for prediction_model, truth_model in matches:
+            truth_coding = _coding_sequence(truth, truth_model, fasta)
+            if truth_coding.get("status") != "ok":
+                failures[f"truth.{truth_coding.get('status')}"] += 1
+                continue
+            truth_translation = _translate_cds(truth_coding)
+            if truth_translation.get("status") != "ok":
+                failures[f"truth.{truth_translation.get('status')}"] += 1
+                continue
+            truth_protein = str(truth_translation["protein"])
+            if not truth_protein:
+                failures["truth.empty_protein"] += 1
+                continue
+            truth_eligible += 1
+            prediction_coding = _coding_sequence(
+                prediction, prediction_model, fasta,
+            )
+            if prediction_coding.get("status") != "ok":
+                failures[f"prediction.{prediction_coding.get('status')}"] += 1
+                prediction_untranslatable += 1
+                identities.append(0.0)
+                reciprocal_coverages.append(0.0)
+                weighted_identity_denominator += len(truth_protein)
+                continue
+            prediction_translation = _translate_cds(prediction_coding)
+            if prediction_translation.get("status") != "ok":
+                failures[
+                    f"prediction.{prediction_translation.get('status')}"
+                ] += 1
+                prediction_untranslatable += 1
+                identities.append(0.0)
+                reciprocal_coverages.append(0.0)
+                weighted_identity_denominator += len(truth_protein)
+                continue
+            prediction_protein = str(prediction_translation["protein"])
+            identity = _protein_identity(prediction_protein, truth_protein)
+            identities.append(identity)
+            exact += int(prediction_protein == truth_protein)
+            reciprocal_coverages.append(
+                min(len(prediction_protein), len(truth_protein))
+                / max(len(prediction_protein), len(truth_protein))
+                if prediction_protein and truth_protein else 0.0
+            )
+            weighted_identity_numerator += identity * len(truth_protein)
+            weighted_identity_denominator += len(truth_protein)
+            phase_consistent["prediction"] += int(
+                prediction_translation["phase_consistent"]
+            )
+            phase_consistent["truth"] += int(
+                truth_translation["phase_consistent"]
+            )
+            if not (
+                prediction_translation["partial"]
+                or truth_translation["partial"]
+            ):
+                orf_denominator += 1
+                prediction_valid = bool(prediction_translation["orf_valid"])
+                truth_valid = bool(truth_translation["orf_valid"])
+                prediction_orf_valid += int(prediction_valid)
+                truth_orf_valid += int(truth_valid)
+                orf_both_valid += int(prediction_valid and truth_valid)
+                orf_status_equal += int(prediction_valid == truth_valid)
+    finally:
+        fasta.close()
+    return {
+        "method": "matched-target-cds-protein-v1",
+        "matched_transcripts": len(matches),
+        "truth_eligible": truth_eligible,
+        "prediction_untranslatable": prediction_untranslatable,
+        "failures": dict(sorted(failures.items())),
+        "exact_protein": {
+            "count": exact,
+            "denominator": truth_eligible,
+            "rate": _safe_ratio(exact, truth_eligible),
+        },
+        "protein_identity": {
+            "count": len(identities),
+            "mean": sum(identities) / len(identities) if identities else None,
+            "coverage_weighted": (
+                weighted_identity_numerator / weighted_identity_denominator
+                if weighted_identity_denominator else None
+            ),
+            "mean_reciprocal_length_coverage": (
+                sum(reciprocal_coverages) / len(reciprocal_coverages)
+                if reciprocal_coverages else None
+            ),
+        },
+        "phase_consistent": phase_consistent,
+        "orf": {
+            "denominator_nonpartial": orf_denominator,
+            "prediction_valid": prediction_orf_valid,
+            "truth_valid": truth_orf_valid,
+            "both_valid": orf_both_valid,
+            "status_equal": orf_status_equal,
+            "prediction_valid_rate": _safe_ratio(
+                prediction_orf_valid, orf_denominator,
+            ),
+            "truth_valid_rate": _safe_ratio(truth_orf_valid, orf_denominator),
+            "both_valid_rate": _safe_ratio(orf_both_valid, orf_denominator),
+            "status_agreement_rate": _safe_ratio(
+                orf_status_equal, orf_denominator,
+            ),
+        },
+    }
+
+
 def score_target_truth(
     prediction_gff: str | Path,
     truth_gff: str | Path,
     *,
     ortholog_map: str | Path | None = None,
     source_gff: str | Path | None = None,
+    target_fasta: str | Path | None = None,
     id_policy: str = "ortholog-map",
     minimum_reciprocal_overlap: float = 0.5,
 ) -> dict[str, Any]:
-    """Score a prediction against independent target-coordinate truth."""
+    """Score a prediction against target-annotation coordinates."""
 
     if not 0 < minimum_reciprocal_overlap <= 1:
         raise ValueError("minimum_reciprocal_overlap must be in (0, 1]")
@@ -1031,23 +1448,43 @@ def score_target_truth(
         raise ValueError("id_policy must be 'ortholog-map' or 'exact-id'")
     if id_policy == "ortholog-map" and ortholog_map is None:
         raise ValueError(
-            "independent target-truth scoring requires an explicit non-empty "
+            "target-annotation scoring requires an explicit non-empty "
             "ortholog map; use id_policy='exact-id' only for deliberately "
             "same-ID truth"
         )
     if id_policy == "exact-id" and ortholog_map is not None:
         raise ValueError("exact-id policy cannot be combined with ortholog_map")
-    prediction = parse_annotation(prediction_gff)
-    truth = parse_annotation(truth_gff)
     entries, mapping_document, raw_mapping_document = _load_ortholog_map(
         ortholog_map
     )
+    from . import ortholog_scope
+
+    is_protein_rbh_scope = (
+        isinstance(raw_mapping_document, Mapping)
+        and raw_mapping_document.get("schema_version") == 1
+        and raw_mapping_document.get("method")
+        == "protein-rbh-ortholog-scope-v1"
+    )
+    prediction = parse_annotation(prediction_gff)
+    truth_hierarchy = None
+    if id_policy == "ortholog-map" and is_protein_rbh_scope:
+        try:
+            truth_hierarchy = ortholog_scope.parse_hierarchy(truth_gff)
+        except ortholog_scope.ScopeBuildError as exc:
+            raise ValueError(
+                f"target truth hierarchy is invalid: {exc}"
+            ) from exc
+        truth = parse_annotation(
+            truth_gff,
+            excluded_gene_ids=truth_hierarchy.excluded_genes,
+            excluded_transcript_ids=truth_hierarchy.excluded_transcripts,
+        )
+    else:
+        truth = parse_annotation(truth_gff)
     if id_policy == "ortholog-map" and not entries:
         raise ValueError("ortholog map contains no mapping entries")
     mapping_validation = None
     if id_policy == "ortholog-map" and source_gff is not None:
-        from . import ortholog_scope
-
         try:
             source_hierarchy = ortholog_scope.parse_hierarchy(source_gff)
             entries = _infer_mapping_types_from_ids(
@@ -1063,13 +1500,6 @@ def score_target_truth(
                 source_transcripts=set(source_hierarchy.transcripts),
                 truth_genes=set(truth.genes),
                 truth_transcripts=set(truth.transcripts),
-            )
-            is_protein_rbh_scope = (
-                isinstance(raw_mapping_document, Mapping)
-                and raw_mapping_document.get("schema_version")
-                == ortholog_scope.SCHEMA_VERSION
-                and raw_mapping_document.get("method")
-                == ortholog_scope.METHOD
             )
             if is_protein_rbh_scope:
                 ortholog_scope.validate_mapping_against_annotations(
@@ -1089,8 +1519,6 @@ def score_target_truth(
             id_policy == "ortholog-map"
             and isinstance(raw_mapping_document, Mapping)
         ):
-            from . import ortholog_scope
-
             if (
                 raw_mapping_document.get("schema_version")
                 == ortholog_scope.SCHEMA_VERSION
@@ -1140,6 +1568,11 @@ def score_target_truth(
                 if source_gff is not None
                 else None
             ),
+            "target_fasta": (
+                str(Path(target_fasta).resolve())
+                if target_fasta is not None
+                else None
+            ),
             "mapping": mapping_document,
         },
         "parameters": {
@@ -1152,6 +1585,11 @@ def score_target_truth(
             "mapping_source_scope_validated": (
                 mapping_validation is not None
             ),
+        },
+        "integrity": {
+            "method": "structural-record-quarantine-v1",
+            "prediction": quarantine_document(prediction),
+            "truth": quarantine_document(truth),
         },
         "scope": {
             "gene_groups": len(gene_groups),
@@ -1203,6 +1641,13 @@ def score_target_truth(
             ),
         },
     }
+    if target_fasta is not None:
+        result["target_sequence"] = _target_sequence_metrics(
+            prediction,
+            truth,
+            transcript_matches,
+            target_fasta,
+        )
     return result
 
 
@@ -1231,6 +1676,7 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="source annotation used to validate every mapped source ID",
     )
+    parser.add_argument("--target-fasta", type=Path)
     parser.add_argument(
         "--exact-id",
         action="store_true",
@@ -1270,6 +1716,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         arguments.truth_gff,
         ortholog_map=arguments.ortholog_map,
         source_gff=arguments.source_gff,
+        target_fasta=arguments.target_fasta,
         id_policy="exact-id" if arguments.exact_id else "ortholog-map",
         minimum_reciprocal_overlap=arguments.minimum_reciprocal_overlap,
     )
