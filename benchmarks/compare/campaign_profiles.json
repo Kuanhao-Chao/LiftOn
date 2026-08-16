@@ -386,6 +386,31 @@
           "truth_policy": "equivalence_required"
         }
       ]
+    },
+    {
+      "id": "biology-v1",
+      "description": "Biology-first exact-release comparison across seven raw-input whole-genome annotation transfers with released target-assembly concordance.",
+      "campaigns": [
+        {
+          "id": "whole-genome-transfers",
+          "stage": "paired-e2e",
+          "ids": [
+            "bee",
+            "drosophila",
+            "t2_human_to_gorilla",
+            "t2_mouse_to_caroli",
+            "t3_dog_to_cat",
+            "t3_human_to_macaque",
+            "t3_human_to_marmoset"
+          ],
+          "repetitions": 4,
+          "threads": 8,
+          "candidate_mode": "fast",
+          "reference_mode": "fast",
+          "baseline_policy": "paired_required",
+          "truth_policy": "target_truth_required"
+        }
+      ]
     }
   ]
 }

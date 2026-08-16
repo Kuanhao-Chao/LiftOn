@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from lifton.gff3_validator import GENE_TYPES, TRANSCRIPT_TYPES
+from lifton.gff3_validator import GENE_TYPES
 
 
 SCHEMA_VERSION = 1
@@ -41,7 +41,7 @@ REGISTRY_SCHEMA_VERSION = 1
 MAPPING_FEATURE_TYPES = ("gene", "transcript")
 MAPPING_STATUSES = {"retained", "unscored"}
 _GENE_TYPES_LOWER = {value.lower() for value in GENE_TYPES}
-_TRANSCRIPT_TYPES_LOWER = {value.lower() for value in TRANSCRIPT_TYPES}
+_PROTEIN_TRANSCRIPT_TYPES_LOWER = {"mrna", "transcript"}
 _GTF_ATTRIBUTE_RE = re.compile(
     r"""^\s*([^\s;]+)\s+(?:"([^"]*)"|([^;\s]+))\s*$"""
 )
@@ -58,6 +58,8 @@ class Hierarchy:
     genes: tuple[str, ...]
     transcript_to_gene: Mapping[str, str]
     format_counts: Mapping[str, int]
+    excluded_genes: tuple[str, ...] = ()
+    excluded_transcripts: tuple[str, ...] = ()
 
     @property
     def transcripts(self) -> tuple[str, ...]:
@@ -68,6 +70,10 @@ class Hierarchy:
             "genes": list(self.genes),
             "transcript_to_gene": dict(sorted(self.transcript_to_gene.items())),
             "format_counts": dict(sorted(self.format_counts.items())),
+            "excluded_ambiguous": {
+                "genes": list(self.excluded_genes),
+                "transcripts": list(self.excluded_transcripts),
+            },
         }
 
 
@@ -224,11 +230,26 @@ def _artifact_record(path: Path) -> dict[str, Any]:
 
 
 def _assert_frozen_records(records: Mapping[str, Mapping[str, Any]]) -> None:
+    identity_fields = ("path", "size", "sha256")
     for label, expected in records.items():
         observed = _input_record(expected["path"])
-        if observed != expected:
+        if any(
+            observed.get(field) != expected.get(field)
+            for field in identity_fields
+        ):
+            changed = [
+                field
+                for field in sorted(set(expected) | set(observed))
+                if expected.get(field) != observed.get(field)
+            ]
+            detail = "; ".join(
+                f"{field}: expected {expected.get(field)!r}, "
+                f"observed {observed.get(field)!r}"
+                for field in changed
+            )
             raise ScopeBuildError(
-                f"frozen input changed during ortholog build: {label}"
+                f"frozen input changed during ortholog build: {label} "
+                f"({detail})"
             )
 
 
@@ -377,6 +398,8 @@ def parse_hierarchy(path: str | Path) -> Hierarchy:
     genes: set[str] = set()
     transcript_to_gene: dict[str, str] = {}
     model_records: set[tuple[str, str]] = set()
+    duplicate_genes: set[str] = set()
+    duplicate_transcripts: set[str] = set()
     format_counts = {"gff3": 0, "gtf": 0}
     opener = gzip.open if path.name.lower().endswith(".gz") else open
     with opener(path, "rt", encoding="utf-8", errors="strict") as handle:
@@ -404,7 +427,7 @@ def parse_hierarchy(path: str | Path) -> Hierarchy:
             annotation_format = "gff3" if is_gff3 else "gtf"
             format_counts[annotation_format] += 1
             is_gene = feature_lower in _GENE_TYPES_LOWER
-            is_transcript = feature_lower in _TRANSCRIPT_TYPES_LOWER
+            is_transcript = feature_lower in _PROTEIN_TRANSCRIPT_TYPES_LOWER
             if is_gff3:
                 if is_gene:
                     gene_id = _one_attribute(
@@ -416,9 +439,7 @@ def parse_hierarchy(path: str | Path) -> Hierarchy:
                     )
                     key = ("gene", gene_id)
                     if key in model_records:
-                        raise ScopeBuildError(
-                            f"{path}: duplicate gene ID {gene_id!r}"
-                        )
+                        duplicate_genes.add(gene_id)
                     model_records.add(key)
                     genes.add(gene_id)
                 elif is_transcript:
@@ -438,13 +459,14 @@ def parse_hierarchy(path: str | Path) -> Hierarchy:
                     gene_id = parents[0]
                     key = ("transcript", transcript_id)
                     if key in model_records:
-                        raise ScopeBuildError(
-                            f"{path}: duplicate transcript ID "
-                            f"{transcript_id!r}"
-                        )
+                        duplicate_transcripts.add(transcript_id)
                     model_records.add(key)
                     genes.add(gene_id)
-                    transcript_to_gene[transcript_id] = gene_id
+                    previous = transcript_to_gene.get(transcript_id)
+                    if previous is not None and previous != gene_id:
+                        duplicate_transcripts.add(transcript_id)
+                    else:
+                        transcript_to_gene[transcript_id] = gene_id
                 continue
 
             gene_id = _one_attribute(
@@ -469,24 +491,18 @@ def parse_hierarchy(path: str | Path) -> Hierarchy:
                 continue
             previous = transcript_to_gene.get(transcript_id)
             if previous is not None and previous != gene_id:
-                raise ScopeBuildError(
-                    f"{path}: transcript {transcript_id!r} maps to both "
-                    f"{previous!r} and {gene_id!r}"
-                )
-            transcript_to_gene[transcript_id] = str(gene_id)
+                duplicate_transcripts.add(transcript_id)
+            else:
+                transcript_to_gene[transcript_id] = str(gene_id)
             if is_transcript:
                 key = ("transcript", transcript_id)
                 if key in model_records:
-                    raise ScopeBuildError(
-                        f"{path}: duplicate transcript ID {transcript_id!r}"
-                    )
+                    duplicate_transcripts.add(transcript_id)
                 model_records.add(key)
             if is_gene:
                 key = ("gene", str(gene_id))
                 if key in model_records:
-                    raise ScopeBuildError(
-                        f"{path}: duplicate gene ID {gene_id!r}"
-                    )
+                    duplicate_genes.add(str(gene_id))
                 model_records.add(key)
 
     if not genes or not transcript_to_gene:
@@ -503,12 +519,25 @@ def parse_hierarchy(path: str | Path) -> Hierarchy:
             f"{path}: transcript parent is absent: "
             f"{sorted(missing_parents)[0]!r}"
         )
+    excluded_transcripts = duplicate_transcripts | {
+        transcript_id
+        for transcript_id, gene_id in transcript_to_gene.items()
+        if gene_id in duplicate_genes
+    }
+    transcript_to_gene = {
+        transcript_id: gene_id
+        for transcript_id, gene_id in transcript_to_gene.items()
+        if transcript_id not in excluded_transcripts
+    }
+    genes = set(transcript_to_gene.values()) - duplicate_genes
     return Hierarchy(
         genes=tuple(sorted(genes)),
         transcript_to_gene=dict(sorted(transcript_to_gene.items())),
         format_counts={
             key: value for key, value in sorted(format_counts.items()) if value
         },
+        excluded_genes=tuple(sorted(duplicate_genes)),
+        excluded_transcripts=tuple(sorted(excluded_transcripts)),
     )
 
 
@@ -552,13 +581,18 @@ def normalize_protein_fasta(
     raw_path = Path(raw_path)
     output_path = Path(output_path)
     allowed_ids = set(hierarchy.transcripts)
+    excluded_ids = set(hierarchy.excluded_transcripts)
     sequences: dict[str, str] = {}
+    ignored_ids = []
+    outside_hierarchy_ids = []
+    invalid_ids = []
     for identifier, raw_sequence in _read_fasta(raw_path):
         if identifier not in allowed_ids:
-            raise ScopeBuildError(
-                f"{raw_path}: protein ID {identifier!r} is absent from "
-                "the annotation hierarchy"
-            )
+            if identifier in excluded_ids:
+                ignored_ids.append(identifier)
+                continue
+            outside_hierarchy_ids.append(identifier)
+            continue
         if identifier in sequences:
             raise ScopeBuildError(
                 f"{raw_path}: duplicate protein ID {identifier!r}"
@@ -569,9 +603,8 @@ def normalize_protein_fasta(
             or "*" in sequence
             or any(not ("A" <= residue <= "Z") for residue in sequence)
         ):
-            raise ScopeBuildError(
-                f"{raw_path}: protein {identifier!r} has an invalid sequence"
-            )
+            invalid_ids.append(identifier)
+            continue
         sequences[identifier] = sequence
     if not sequences:
         raise ScopeBuildError(f"{raw_path}: gffread extracted no proteins")
@@ -589,6 +622,11 @@ def normalize_protein_fasta(
         "residues": sum(len(sequence) for sequence in sequences.values()),
         "missing_transcript_proteins": sorted(allowed_ids - set(sequences)),
         "ids": sorted(sequences),
+        "ignored_ambiguous_protein_ids": sorted(ignored_ids),
+        "ignored_outside_hierarchy_protein_ids": sorted(
+            outside_hierarchy_ids
+        ),
+        "excluded_invalid_protein_ids": sorted(invalid_ids),
     }
 
 
@@ -599,6 +637,21 @@ def _protein_summary(statistics: Mapping[str, Any]) -> dict[str, Any]:
         "residues": statistics["residues"],
         "missing_transcript_proteins": len(missing),
         "missing_transcript_ids_sha256": canonical_sha256(missing),
+        "ignored_ambiguous_proteins": len(
+            statistics["ignored_ambiguous_protein_ids"]
+        ),
+        "ignored_outside_hierarchy_proteins": len(
+            statistics["ignored_outside_hierarchy_protein_ids"]
+        ),
+        "ignored_outside_hierarchy_ids_sha256": canonical_sha256(
+            statistics["ignored_outside_hierarchy_protein_ids"]
+        ),
+        "excluded_invalid_proteins": len(
+            statistics["excluded_invalid_protein_ids"]
+        ),
+        "excluded_invalid_protein_ids_sha256": canonical_sha256(
+            statistics["excluded_invalid_protein_ids"]
+        ),
     }
 
 
@@ -1084,9 +1137,21 @@ def build_mapping_document(
         "source_genes": len(source_hierarchy.genes),
         "source_transcripts": len(source_hierarchy.transcripts),
         "source_proteins": len(source_protein_ids),
+        "source_genes_excluded_ambiguous": len(
+            source_hierarchy.excluded_genes
+        ),
+        "source_transcripts_excluded_ambiguous": len(
+            source_hierarchy.excluded_transcripts
+        ),
         "target_genes": len(target_hierarchy.genes),
         "target_transcripts": len(target_hierarchy.transcripts),
         "target_proteins": len(target_protein_ids),
+        "target_genes_excluded_ambiguous": len(
+            target_hierarchy.excluded_genes
+        ),
+        "target_transcripts_excluded_ambiguous": len(
+            target_hierarchy.excluded_transcripts
+        ),
         "rbh_hits_raw": len(hits),
         "rbh_hits_passing": len(passing),
         "transcript_pairs_resolved": len(transcript_selected),

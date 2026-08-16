@@ -407,9 +407,15 @@ def campaign_spec(
             "panel": panel,
             "repetitions": case_repetitions,
         })
-    if set(panels) != {"subset", "full", "e2e"}:
+    expected_panels = (
+        {"e2e"}
+        if profile["id"] == "biology-v1"
+        else {"subset", "full", "e2e"}
+    )
+    if set(panels) != expected_panels:
         raise ValueError(
-            f"profile {profile['id']!r} release cases must cover subset, full, and e2e"
+            f"profile {profile['id']!r} release cases must cover "
+            f"{sorted(expected_panels)}"
         )
     if legacy_v1:
         return {

@@ -75,6 +75,87 @@ def _inputs(tmp_path: Path):
     return source_gff, source_fa, target_gff, target_fa
 
 
+def test_frozen_record_allows_filesystem_metadata_drift(tmp_path):
+    path = _write(tmp_path / "input.fa", ">chr1\nACGT\n")
+    expected = ortholog_scope._input_record(path)
+
+    path.chmod(0o600)
+
+    assert ortholog_scope._input_record(path)["sha256"] == expected["sha256"]
+    ortholog_scope._assert_frozen_records({"source_genome": expected})
+
+
+def test_frozen_record_rejects_byte_drift_with_diagnostics(tmp_path):
+    path = _write(tmp_path / "input.fa", ">chr1\nACGT\n")
+    expected = ortholog_scope._input_record(path)
+    _write(path, ">chr1\nTGCA\n")
+
+    with pytest.raises(
+        ortholog_scope.ScopeBuildError,
+        match=r"source_genome .*sha256: expected",
+    ):
+        ortholog_scope._assert_frozen_records({"source_genome": expected})
+
+
+def test_hierarchy_excludes_ambiguous_multi_part_models(tmp_path):
+    annotation = _write(
+        tmp_path / "multipart.gff3",
+        "##gff-version 3\n"
+        "chr1\tRefSeq\tgene\t1\t50\t.\t+\t.\tID=g1;part=1\n"
+        "chr1\tRefSeq\tgene\t60\t90\t.\t-\t.\tID=g1;part=2\n"
+        "chr1\tRefSeq\tmRNA\t1\t50\t.\t+\t.\tID=t1;Parent=g1\n"
+        "chr1\tRefSeq\tgene\t100\t190\t.\t+\t.\tID=g2\n"
+        "chr1\tRefSeq\tmRNA\t100\t190\t.\t+\t.\tID=t2;Parent=g2\n",
+    )
+
+    hierarchy = ortholog_scope.parse_hierarchy(annotation)
+
+    assert hierarchy.genes == ("g2",)
+    assert hierarchy.transcripts == ("t2",)
+    assert hierarchy.excluded_genes == ("g1",)
+    assert hierarchy.excluded_transcripts == ("t1",)
+
+
+def test_hierarchy_ignores_top_level_non_protein_rnas(tmp_path):
+    annotation = _write(
+        tmp_path / "organellar.gff3",
+        "##gff-version 3\n"
+        "chrM\tRefSeq\ttRNA\t1\t70\t.\t+\t.\tID=trna1\n"
+        "chr1\tRefSeq\tgene\t100\t190\t.\t+\t.\tID=g1\n"
+        "chr1\tRefSeq\tmRNA\t100\t190\t.\t+\t.\tID=t1;Parent=g1\n",
+    )
+
+    hierarchy = ortholog_scope.parse_hierarchy(annotation)
+
+    assert hierarchy.genes == ("g1",)
+    assert hierarchy.transcripts == ("t1",)
+
+
+def test_protein_normalization_excludes_annotation_translation_failures(
+        tmp_path):
+    hierarchy = ortholog_scope.Hierarchy(
+        genes=("g1", "g2"),
+        transcript_to_gene={"t1": "g1", "t2": "g2"},
+        format_counts={"gff3": 2},
+    )
+    raw = _write(
+        tmp_path / "raw.fa",
+        ">t1\nMA*AA\n>t2\nMBBBB*\n>pseudogene-direct-cds\nMCCCC*\n",
+    )
+    output = tmp_path / "normalized.fa"
+
+    statistics = ortholog_scope.normalize_protein_fasta(
+        raw, output, hierarchy,
+    )
+
+    assert output.read_text() == ">t2\nMBBBB\n"
+    assert statistics["excluded_invalid_protein_ids"] == ["t1"]
+    assert statistics["ignored_outside_hierarchy_protein_ids"] == [
+        "pseudogene-direct-cds"
+    ]
+    assert statistics["missing_transcript_proteins"] == ["t1"]
+
+
 def _tools(tmp_path: Path) -> tuple[Path, Path]:
     gffread = _write(tmp_path / "gffread", "fixture executable\n")
     mmseqs = _write(tmp_path / "mmseqs", "fixture executable\n")

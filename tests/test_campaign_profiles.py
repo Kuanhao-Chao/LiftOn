@@ -137,3 +137,26 @@ def test_profile_registry_requires_profile_and_case_together():
     ])
     with pytest.raises(ValueError, match="both"):
         build_controller._campaign_case_from_args(args)
+
+
+def test_biology_profile_freezes_seven_raw_whole_genome_transfers():
+    profile = campaign_profiles.load_profile("biology-v1")
+    case = profile["campaigns"][0]
+    expected = [
+        "bee",
+        "drosophila",
+        "t2_human_to_gorilla",
+        "t2_mouse_to_caroli",
+        "t3_dog_to_cat",
+        "t3_human_to_macaque",
+        "t3_human_to_marmoset",
+    ]
+
+    assert case["stage"] == "paired-e2e"
+    assert case["repetitions"] == 4
+    assert case["threads"] == 8
+    assert case["ids"] == expected
+    assert case["truth_policy"] == "target_truth_required"
+    specification = campaign_profiles.campaign_spec(profile)
+    assert set(specification["panels"]) == {"e2e"}
+    assert specification["panels"]["e2e"]["ids"] == expected
