@@ -23,6 +23,14 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    ignore:
+      # `docs/requirements.txt` is a fully pinned Sphinx toolchain, and Sphinx
+      # 9.1 declares `docutils<0.23,>=0.21`. Bumping docutils on its own makes
+      # the documentation build unresolvable, which is exactly what PR #68 did
+      # -- it merged green and then every Pages deploy failed at install time.
+      # Raise this ceiling only together with the Sphinx pin.
+      - dependency-name: "docutils"
+        versions: [">=0.23"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
