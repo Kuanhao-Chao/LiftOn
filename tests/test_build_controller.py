@@ -100,10 +100,6 @@ def _paired_result_fixture(tmp_path: Path, *, panel: str = "subset"):
         "path": str(input_path.resolve()),
         "size": input_stat.st_size,
         "sha256": controller.sha256_file(input_path),
-        "mtime_ns": input_stat.st_mtime_ns,
-        "ctime_ns": input_stat.st_ctime_ns,
-        "st_dev": input_stat.st_dev,
-        "st_ino": input_stat.st_ino,
     }
     cell = controller._paired_cell(
         "demo",
@@ -361,6 +357,7 @@ def test_default_policy_is_the_approved_shared_host_envelope():
     policy = controller.Policy()
 
     assert policy.threads_per_cell == 8
+    assert policy.scheduler_threads_per_cell is None
     assert policy.max_active == 4
     assert policy.max_full == 2
     assert policy.max_worker_threads == 32
@@ -620,6 +617,8 @@ def test_paired_configuration_requires_exact_sources_and_supports_diagnostic_mod
     assert configuration["candidate"]["sha"] == "a" * 40
     assert configuration["candidate"]["e2e_mode"] == "stream-native"
     assert configuration["reference"]["e2e_mode"] == "inmemory"
+    assert configuration["exclusive"] is False
+    assert configuration["validation_policy"] == "record_invalid"
     with pytest.raises(ValueError, match="exact 40-character"):
         controller.paired_configuration(
             stage="paired-e2e",
@@ -737,10 +736,6 @@ def test_paired_plan_is_immutable_resumable_and_one_cell_per_repetition(
                     "path": str(tmp_path / f"{benchmark}.gff3"),
                     "size": 100,
                     "sha256": "c" * 64,
-                    "mtime_ns": 123,
-                    "ctime_ns": 124,
-                    "st_dev": 1,
-                    "st_ino": 2,
                 },
             }
             for benchmark in benchmark_ids
@@ -782,7 +777,7 @@ def test_paired_plan_is_immutable_resumable_and_one_cell_per_repetition(
     assert plan["ids"] == benchmark_ids
     assert len(plan["cells"]) == 8
     assert {cell["repetition"] for cell in plan["cells"]} == {1, 2, 3, 4}
-    assert all(cell["exclusive"] is True for cell in plan["cells"])
+    assert all(cell["exclusive"] is False for cell in plan["cells"])
     assert all(cell["kind"] == "paired_release" for cell in plan["cells"])
     assert all(
         cell["command"][cell["command"].index("--benchmark-registry") + 1]
@@ -980,7 +975,6 @@ def test_paired_resume_rechecks_source_and_input_provenance(tmp_path, monkeypatc
                 "ref_gff": {
                     "path": str(tmp_path / "ref.gff3"),
                     "size": 10,
-                    "mtime_ns": 20,
                     "sha256": "c" * 64,
                 },
             },
@@ -1066,7 +1060,136 @@ def test_paired_retry_archives_prior_workspace_without_discarding_evidence(tmp_p
         controller._prepare_attempt_workspace(cell, 2)
 
 
-def test_paired_input_sha_is_reused_only_when_full_stat_identity_matches(
+def test_terminal_race_recovery_is_dry_run_by_default(tmp_path, monkeypatch):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    errors = [
+        "worker tmux session disappeared before a final status was written",
+        "orphan cleanup: process identity no longer matches; signal refused",
+    ]
+    controller._write_status(cell, "success", attempts=1, errors=errors)
+    cell_dir = Path(cell["cell_dir"])
+    controller.atomic_write_json(cell_dir / ".success", {
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "completed_at": "2026-08-09T08:00:02Z",
+        "exit": {"returncode": 0},
+        "validation": {},
+    })
+    controller.atomic_write_json(cell_dir / ".failed.json", {
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "failed_at": "2026-08-09T08:00:01Z",
+        "errors": errors,
+        "watchdog": {"reason": "orphaned_worker"},
+    })
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    monkeypatch.setattr(controller, "_worker_identity_matches", lambda _status: False)
+
+    audit_path = run_dir / "administrative-recovery.json"
+    result = controller.recover_terminal_race(
+        run_dir, [cell["id"]], audit_path, apply=False,
+    )
+
+    assert result["applied"] is False
+    assert not audit_path.exists()
+    assert (cell_dir / ".success").exists()
+    assert (cell_dir / ".failed.json").exists()
+    assert controller._read_status(cell)["state"] == "success"
+
+
+def test_terminal_race_recovery_archives_markers_and_makes_cell_retryable(
+        tmp_path, monkeypatch):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    errors = [
+        "worker tmux session disappeared before a final status was written",
+        "orphan cleanup: process identity no longer matches; signal refused",
+    ]
+    controller._write_status(cell, "success", attempts=1, errors=errors)
+    cell_dir = Path(cell["cell_dir"])
+    controller.atomic_write_json(cell_dir / ".success", {
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "completed_at": "2026-08-09T08:00:02Z",
+        "exit": {"returncode": 0},
+        "validation": {},
+    })
+    controller.atomic_write_json(cell_dir / ".failed.json", {
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "failed_at": "2026-08-09T08:00:01Z",
+        "errors": errors,
+        "watchdog": {"reason": "orphaned_worker"},
+    })
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    monkeypatch.setattr(controller, "_worker_identity_matches", lambda _status: False)
+
+    audit_path = run_dir / "administrative-recovery.json"
+    result = controller.recover_terminal_race(
+        run_dir, [cell["id"]], audit_path, apply=True,
+    )
+
+    assert result["applied"] is True
+    assert json.loads(audit_path.read_text())["cells"][0]["state_after"] == "failed"
+    assert not (cell_dir / ".success").exists()
+    assert not (cell_dir / ".failed.json").exists()
+    status = controller._read_status(cell)
+    assert status["state"] == "failed"
+    archive_root = cell_dir / "administrative-recovery"
+    assert len(list(archive_root.glob("*/.success"))) == 1
+    assert len(list(archive_root.glob("*/.failed.json"))) == 1
+    assert len(list(archive_root.glob("*/status.json"))) == 1
+
+
+def test_terminal_race_recovery_restores_original_status_on_audit_failure(
+        tmp_path, monkeypatch):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    errors = [
+        "worker tmux session disappeared before a final status was written",
+        "orphan cleanup: process identity no longer matches; signal refused",
+    ]
+    controller._write_status(cell, "success", attempts=1, errors=errors)
+    cell_dir = Path(cell["cell_dir"])
+    controller.atomic_write_json(cell_dir / ".success", {
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "completed_at": "2026-08-09T08:00:02Z",
+        "exit": {"returncode": 0},
+        "validation": {},
+    })
+    controller.atomic_write_json(cell_dir / ".failed.json", {
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "failed_at": "2026-08-09T08:00:01Z",
+        "errors": errors,
+        "watchdog": {"reason": "orphaned_worker"},
+    })
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    monkeypatch.setattr(controller, "_worker_identity_matches", lambda _status: False)
+    audit_path = run_dir / "administrative-recovery.json"
+    original_atomic_write_json = controller.atomic_write_json
+
+    def fail_audit_write(path, document):
+        if path == audit_path:
+            raise OSError("audit write failed")
+        return original_atomic_write_json(path, document)
+
+    monkeypatch.setattr(controller, "atomic_write_json", fail_audit_write)
+    original_status = json.loads((cell_dir / "status.json").read_text())
+
+    with pytest.raises(OSError, match="audit write failed"):
+        controller.recover_terminal_race(
+            run_dir, [cell["id"]], audit_path, apply=True,
+        )
+
+    assert json.loads((cell_dir / "status.json").read_text()) == original_status
+    assert (cell_dir / ".success").exists()
+    assert (cell_dir / ".failed.json").exists()
+
+
+def test_paired_input_provenance_is_content_addressed_and_race_checked(
         tmp_path, monkeypatch):
     from benchmarks.compare import release_evaluation
 
@@ -1077,11 +1200,7 @@ def test_paired_input_sha_is_reused_only_when_full_stat_identity_matches(
     record = {
         "path": str(input_path.resolve()),
         "size": stat.st_size,
-        "mtime_ns": stat.st_mtime_ns,
-        "ctime_ns": stat.st_ctime_ns,
-        "st_dev": stat.st_dev,
-        "st_ino": stat.st_ino,
-        "sha256": "a" * 64,
+        "sha256": controller.sha256_file(input_path),
     }
     plan = {
         "paired": configuration,
@@ -1097,21 +1216,20 @@ def test_paired_input_sha_is_reused_only_when_full_stat_identity_matches(
         "verify_source",
         lambda source: {"label": source.label, "sha": source.sha},
     )
-    calls = []
-    monkeypatch.setattr(
-        release_evaluation,
-        "sha256_file",
-        lambda path: calls.append(Path(path)) or "b" * 64,
-    )
-
     current = controller._current_paired_provenance(plan)
-    assert calls == []
-    assert current["inputs"]["demo"]["ref_gff"]["sha256"] == "a" * 64
+    assert current["inputs"]["demo"]["ref_gff"] == record
 
-    plan["provenance"]["paired"]["inputs"]["demo"]["ref_gff"]["ctime_ns"] = -1
+    input_path.touch()
     current = controller._current_paired_provenance(plan)
-    assert calls == [input_path]
-    assert current["inputs"]["demo"]["ref_gff"]["sha256"] == "b" * 64
+    assert current["inputs"]["demo"]["ref_gff"] == record
+
+    def rewrite_during_hash(path):
+        Path(path).write_text("changed\n", encoding="utf-8")
+        return "d" * 64
+
+    monkeypatch.setattr(release_evaluation, "sha256_file", rewrite_during_hash)
+    current = controller._current_paired_provenance(plan)
+    assert "changed while it was hashed" in current["inputs"]["demo"]["ref_gff"]["error"]
 
 
 def test_full_cell_redirects_refresh_result_into_run_directory(tmp_path):
@@ -1279,6 +1397,26 @@ def test_launch_policy_enforces_load_memory_threads_and_full_caps():
     )[0] is False
 
 
+def test_launch_policy_uses_declared_scheduler_thread_cost():
+    policy = controller.Policy(
+        max_active=2,
+        max_full=2,
+        max_worker_threads=32,
+        scheduler_threads_per_cell=16,
+    )
+    cell = {
+        "threads": 8,
+        "scheduler_thread_cost": 16,
+        "full_job": True,
+    }
+    healthy = {"load1": 1.0, "available_gib": 900.0}
+
+    assert controller.launch_allowed(cell, [cell], healthy, policy) == (
+        True, "ok",
+    )
+    assert controller.launch_allowed(cell, [cell, cell], healthy, policy)[0] is False
+
+
 def test_isolated_performance_retry_waits_for_an_empty_host_slot():
     policy = controller.Policy()
     retry = {"threads": 8, "full_job": False, "isolated_retry": True}
@@ -1384,6 +1522,180 @@ def test_orphan_cleanup_terminates_the_recorded_process_group(tmp_path, monkeypa
     assert failed["watchdog"]["reason"] == "orphaned_worker"
     assert failed["watchdog"]["cleanup"]["identity_verified"] is True
     assert failed["watchdog"]["cleanup"]["term_sent"] is True
+
+
+@pytest.mark.skipif(not Path("/proc").is_dir(), reason="worker identity is Linux /proc based")
+def test_live_worker_identity_survives_a_missing_tmux_session(tmp_path, monkeypatch):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time;time.sleep(60)"],
+        start_new_session=True,
+    )
+    record = controller._read_proc_stat(process.pid)
+    assert record is not None
+    controller._write_status(
+        cell, "running", attempts=1,
+        worker_pid=process.pid, worker_start_ticks=record["start_ticks"],
+    )
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    try:
+        assert controller._active_cells(plan)
+        controller._mark_orphans(plan, grace_seconds=0)
+        assert controller._read_status(cell)["state"] == "running"
+    finally:
+        os.killpg(process.pid, 9)
+        process.wait(timeout=2)
+
+
+def test_just_launched_cell_counts_as_active_before_its_session_appears(
+    tmp_path, monkeypatch,
+):
+    """A launched worker must never count as neither active nor pending.
+
+    ``tmux new-session -d`` can return before the session is listable and the
+    worker identity is only recorded once the worker starts. While both
+    liveness probes are blind, the cell is still consuming the host. Treating
+    it as inactive is what let seven whole-genome cells run concurrently
+    against ``max_active: 2``.
+    """
+
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    controller._write_status(
+        cell, "running", attempts=1, started_ns=time.time_ns(),
+    )
+
+    assert controller._active_cells(plan), (
+        "a cell launched moments ago must be counted as active"
+    )
+
+    controller._mark_orphans(plan)
+    assert controller._read_status(cell)["state"] == "running", (
+        "a cell inside the launch grace window must not be marked an orphan"
+    )
+
+
+def test_launch_grace_expires_so_orphans_are_still_detected(tmp_path, monkeypatch):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    stale_ns = time.time_ns() - int(
+        (controller.LAUNCH_GRACE_SECONDS + 5.0) * 1e9
+    )
+    controller._write_status(cell, "running", attempts=1, started_ns=stale_ns)
+
+    assert controller._active_cells(plan) == []
+    controller._mark_orphans(plan)
+    assert controller._read_status(cell)["state"] == "failed"
+
+
+def test_admission_never_exceeds_max_active_while_sessions_are_invisible(
+    tmp_path, monkeypatch,
+):
+    """The scheduler's own limit must hold using only what it can observe."""
+
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    controller._write_status(
+        cell, "running", attempts=1, started_ns=time.time_ns(),
+    )
+
+    policy = controller.Policy(max_active=2, max_full=1, max_worker_threads=64)
+    healthy = {"load1": 0.0, "available_gib": 10_000.0}
+    active = controller._active_cells(plan)
+    assert len(active) == 1
+
+    allowed, _ = controller.launch_allowed(cell, active, healthy, policy)
+    assert allowed is True
+    active.append(cell)
+    allowed, reason = controller.launch_allowed(cell, active, healthy, policy)
+    assert allowed is False
+    assert reason == "active-cell limit reached"
+
+
+def test_success_transition_clears_a_racing_failure(tmp_path):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    controller._mark_failed(
+        cell,
+        ["stale orphan failure"],
+        returncode=None,
+        attempt=1,
+        watchdog={"reason": "orphaned_worker"},
+    )
+    success = {
+        "schema_version": controller.CONTROLLER_SCHEMA_VERSION,
+        "cell_id": cell["id"],
+        "fingerprint": cell["fingerprint"],
+        "attempt": 1,
+        "completed_at": controller.utc_now(),
+        "validation": {},
+        "performance": [],
+    }
+
+    controller._mark_success(
+        cell,
+        success,
+        validation={},
+        performance=[],
+    )
+
+    cell_dir = Path(cell["cell_dir"])
+    status = json.loads((cell_dir / "status.json").read_text())
+    assert status["state"] == "success"
+    assert not {"errors", "failed_at", "returncode", "watchdog"} & status.keys()
+    assert (cell_dir / ".success").exists()
+    assert not (cell_dir / ".failed.json").exists()
+
+
+def test_orphan_failure_does_not_overwrite_a_concurrent_success(
+        tmp_path, monkeypatch):
+    run_dir, plan, cell = _minimal_plan(tmp_path)
+    _initialize_run(run_dir, plan)
+    controller._write_status(
+        cell,
+        "running",
+        attempts=1,
+        started_ns=0,
+        command_pid=101,
+        command_pgid=101,
+        command_start_ticks=202,
+    )
+    monkeypatch.setattr(controller, "tmux_has_session", lambda _name: False)
+    monkeypatch.setattr(controller, "_worker_identity_matches", lambda _status: False)
+
+    def finish_successfully(**_kwargs):
+        controller._mark_success(
+            cell,
+            {
+                "schema_version": controller.CONTROLLER_SCHEMA_VERSION,
+                "cell_id": cell["id"],
+                "fingerprint": cell["fingerprint"],
+                "attempt": 1,
+                "completed_at": controller.utc_now(),
+                "validation": {},
+                "performance": [],
+            },
+            validation={},
+            performance=[],
+        )
+        return {}
+
+    monkeypatch.setattr(
+        controller,
+        "_terminate_process_group",
+        finish_successfully,
+    )
+
+    controller._mark_orphans(plan, grace_seconds=0)
+
+    cell_dir = Path(cell["cell_dir"])
+    assert controller._read_status(cell)["state"] == "success"
+    assert (cell_dir / ".success").exists()
+    assert not (cell_dir / ".failed.json").exists()
 
 
 @pytest.mark.skipif(not Path("/proc").is_dir(), reason="orphan identity is Linux /proc based")
@@ -1565,15 +1877,10 @@ def test_paired_result_rejects_tampered_evaluation_input_fingerprint(tmp_path):
         "chr1\tTruth\tgene\t1\t12\t.\t+\t.\tID=truth\n",
         encoding="utf-8",
     )
-    stat = truth.stat()
     frozen = {
         "path": str(truth.resolve()),
-        "size": stat.st_size,
+        "size": truth.stat().st_size,
         "sha256": controller.sha256_file(truth),
-        "mtime_ns": stat.st_mtime_ns,
-        "ctime_ns": stat.st_ctime_ns,
-        "st_dev": stat.st_dev,
-        "st_ino": stat.st_ino,
     }
     cell["evaluation_input_fingerprints"] = {"truth_gff": frozen}
     raw["evaluation_inputs"] = {
@@ -1757,6 +2064,7 @@ def test_paired_artifact_gate_validates_both_fresh_independent_outputs(
 def test_deep_reconcile_preserves_sealed_paired_validator_reports(
         tmp_path, monkeypatch):
     cell, _raw = _paired_result_fixture(tmp_path)
+    cell["paired"]["validation_policy"] = "strict"
     run_dir = tmp_path / "run"
     plan = {
         "schema_version": controller.CONTROLLER_SCHEMA_VERSION,
@@ -1864,6 +2172,39 @@ def test_deep_reconcile_preserves_sealed_paired_validator_reports(
         path: (path.read_bytes(), path.stat().st_mtime_ns)
         for path in validation_paths
     } == sealed_reports
+
+
+def test_reportable_paired_artifact_gate_retains_invalid_validation_evidence(
+        tmp_path, monkeypatch):
+    cell, raw = _paired_result_fixture(tmp_path)
+    for label in ("candidate", "reference"):
+        invalid_validation = {"is_valid": False, "n_errors": 1}
+        raw["versions"][label]["validation"] = invalid_validation
+        manifest = Path(cell["artifacts"][f"{label}_manifest"])
+        document = json.loads(manifest.read_text())
+        document["validation"] = invalid_validation
+        _write_json(manifest, document)
+    _write_json(Path(cell["artifacts"]["result_json"]), raw)
+
+    monkeypatch.setattr(
+        controller,
+        "_run_gff_validator",
+        lambda *_args: (
+            ["full GFF3 validator exited 1"],
+            {
+                "exit_code": 1,
+                "result": {"is_valid": False, "n_errors": 1},
+            },
+        ),
+    )
+
+    errors, validation = controller.validate_artifacts(cell, 0)
+
+    assert errors == []
+    assert all(
+        report["result"] == {"is_valid": False, "n_errors": 1}
+        for report in validation["gff_validation"].values()
+    )
 
 
 def test_e2e_release_manifest_protocol_must_match_pair_result(tmp_path):
