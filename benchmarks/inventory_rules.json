@@ -5,7 +5,9 @@
     "benchmarks/inventory.py",
     "benchmarks/inventory_rules.json",
     "benchmarks/manifest_tools.py",
-    "benchmarks/manifests/canonical_v2_datasets.json"
+    "benchmarks/manifests/canonical_v2_datasets.json",
+    "benchmarks/compare/release_report_figures.py",
+    "benchmarks/compare/release_rescore.py"
   ],
   "output_paths": [
     "benchmarks/BENCHMARK_INVENTORY.json",
@@ -65,8 +67,11 @@
       "superseded_by": null,
       "patterns": [
         "benchmarks/compare/__init__.py",
+        "benchmarks/compare/biology_canary.py",
         "benchmarks/compare/build_controller.py",
         "benchmarks/compare/build_inputs.py",
+        "benchmarks/compare/campaign_watch.py",
+        "benchmarks/compare/continue_campaign.py",
         "benchmarks/compare/enrich_joint_metrics.py",
         "benchmarks/compare/evaluator.py",
         "benchmarks/compare/feature_types.py",
@@ -74,12 +79,21 @@
         "benchmarks/compare/fourway_report.py",
         "benchmarks/compare/id_mapping.py",
         "benchmarks/compare/joint_metrics.py",
+        "benchmarks/compare/provider_orthologs.py",
         "benchmarks/compare/release_evaluation.py",
         "benchmarks/compare/release_report.py",
+        "benchmarks/compare/release_report_figures.py",
+        "benchmarks/compare/release_rescore.py",
+        "benchmarks/compare/released_annotation_sensitivity.py",
+        "benchmarks/compare/report_tables.py",
         "benchmarks/compare/reporter.py",
         "benchmarks/compare/run_compare.py",
         "benchmarks/compare/subset_builder.py",
         "benchmarks/compare/tool_runners.py",
+        "benchmarks/compare/whole_genome_assets.py",
+        "benchmarks/compare/whole_genome_report.py",
+        "benchmarks/compare/whole_genome_study.py",
+        "benchmarks/manifests/lifton_v111_biology_study.json",
         "benchmarks/run_benchmarks.py"
       ]
     },
@@ -209,7 +223,6 @@
         "benchmarks/compare/merge_full_runs.py",
         "benchmarks/compare/profiling.py",
         "benchmarks/compare/report_figures.py",
-        "benchmarks/compare/report_tables.py",
         "benchmarks/compare/v1_0_8_vs_devel_report.*",
         "benchmarks/compare/version_compare*",
         "benchmarks/compare/version_report.py",
