@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import sys
 from pathlib import Path
 
@@ -25,6 +26,50 @@ def _profile(exit_code: int = 0) -> harness.ProfileResult:
         stderr_path="stderr.log",
         time_log_path="time.log",
     )
+
+
+def test_process_group_snapshot_sums_linux_rss(tmp_path):
+    for pid, rss in ((101, 1024), (102, 2048)):
+        process = tmp_path / str(pid)
+        process.mkdir()
+        (process / "stat").write_text(
+            f"{pid} (worker {pid}) S 1 77 77 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+        )
+        (process / "status").write_text(f"Name:\tworker\nVmRSS:\t{rss} kB\n")
+    other = tmp_path / "103"
+    other.mkdir()
+    (other / "stat").write_text(
+        "103 (other) S 1 88 88 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n"
+    )
+    (other / "status").write_text("VmRSS:\t4096 kB\n")
+
+    sample = harness._process_group_snapshot(77, proc_root=tmp_path)
+
+    assert sample["processes"] == 2
+    assert sample["rss_kib"] == 3072
+    assert sample["rss_mb"] == 3.0
+    assert sample["shared_page_accounting"].startswith("rss_sum")
+
+
+def test_opt_in_process_group_profile_publishes_hashed_trace(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr(harness, "_platform_time_argv", lambda: (None, "rusage"))
+    profile = harness.run_profiled(
+        [sys.executable, "-c", "import time; value='x'*1000000; time.sleep(.05)"],
+        label="sample",
+        log_dir=tmp_path,
+        env={harness.PROCESS_GROUP_PROFILE_ENV: "1"},
+        log=lambda _message: None,
+    )
+
+    trace = tmp_path / "sample.process-group.jsonl"
+    assert profile.exit_code == 0
+    assert profile.process_group_sample_count
+    assert profile.peak_process_group_rss_mb > 0
+    assert profile.process_group_trace_path == str(trace)
+    assert profile.process_group_trace_sha256 == hashlib.sha256(
+        trace.read_bytes()
+    ).hexdigest()
 
 
 @pytest.fixture(autouse=True)

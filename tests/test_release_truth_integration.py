@@ -107,7 +107,10 @@ def test_release_validation_rejects_stale_sequence_region(
     } == {"sequence_region_containment"}
 
 
-def test_truth_inputs_are_not_lifton_execution_inputs(tmp_path):
+def test_truth_inputs_are_not_lifton_execution_inputs(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        release, "source_cli_options", lambda _source: frozenset(),
+    )
     inputs = _inputs(tmp_path)
     argv = release.build_lifton_argv(
         release.SourceSpec(

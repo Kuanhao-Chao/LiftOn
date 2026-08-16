@@ -1,7 +1,8 @@
 """Custom evaluator (PRIMARY metric) reusing LiftOn's own parasail kernel.
 
-For each tool output GFF3 + target genome, resolve every lifted mRNA to its
-reference mRNA, extract the lifted transcript DNA + translated protein from the
+For each tool output GFF3 + target genome, resolve every lifted transcript
+container (``mRNA`` or ``transcript``) to its reference transcript, extract the
+lifted transcript DNA + translated protein from the
 TARGET genome with LiftOn's own ``extract_sequence`` helpers, and align them
 against the reference transcript/protein with LiftOn's ``align`` +
 ``get_id_fraction`` kernel. Emits a per-transcript TSV and a summary JSON with
@@ -97,16 +98,13 @@ def _children(db, mrna, ftype):
 
 
 def _transcript_ftype(db):
-    """Choose the coding-transcript featuretype for a FeatureDB.
+    """Choose the preferred transcript-container traversal order.
 
     RefSeq/NCBI annotate coding transcripts as ``mRNA``; Ensembl/gffread GTF use
-    ``transcript``. Pick whichever DOMINATES (more features) rather than a strict
-    "mRNA if any else transcript" fallback, so a handful of stray ``mRNA`` rows in
-    an Ensembl-derived output (the lifton GFFs carry exactly one) don't flip the
-    choice and collapse scoring to that single feature. On RefSeq ``mRNA`` always
-    dominates -> byte-identical scoring on every existing RefSeq cell; on the
-    Ensembl pair ``transcript`` dominates -> the cell becomes scorable instead of
-    degenerate (n_reference_coding=0)."""
+    ``transcript``. Both types are scored by :func:`_transcript_features`; putting
+    the dominant type first preserves the historical RefSeq traversal order and
+    gives deterministic precedence when malformed inputs reuse one logical ID
+    across both types."""
     try:
         n_m = db.count_features_of_type("mRNA")
         n_t = db.count_features_of_type("transcript")
@@ -114,6 +112,35 @@ def _transcript_ftype(db):
         n_m = sum(1 for _ in db.features_of_type("mRNA"))
         n_t = sum(1 for _ in db.features_of_type("transcript"))
     return "transcript" if n_t > n_m else "mRNA"
+
+
+def _transcript_ftypes(db):
+    """Return present coding-transcript types with the dominant type first."""
+    preferred = _transcript_ftype(db)
+    other = "transcript" if preferred == "mRNA" else "mRNA"
+    counts = {}
+    for feature_type in (preferred, other):
+        try:
+            counts[feature_type] = db.count_features_of_type(feature_type)
+        except Exception:
+            counts[feature_type] = sum(
+                1 for _ in db.features_of_type(feature_type)
+            )
+    return tuple(
+        feature_type for feature_type in (preferred, other)
+        if counts[feature_type] > 0
+    )
+
+
+def _transcript_features(db):
+    """Yield mRNA/transcript rows once, treating their types as equivalent."""
+    seen_ids = set()
+    for feature_type in _transcript_ftypes(db):
+        for feature in db.features_of_type(feature_type):
+            if feature.id in seen_ids:
+                continue
+            seen_ids.add(feature.id)
+            yield feature
 
 
 # sub-feature types excluded from the "overall feature completeness" aggregate
@@ -167,12 +194,18 @@ def completeness_by_type(tool_db, ref_ids_by_type, ref_all_ids):
             continue
         n_rec = sum(1 for rid in rids if tool_base_counts.get(rid, 0) >= 1)
         n_extra = sum(max(0, tool_base_counts.get(rid, 0) - 1) for rid in rids)
+        tool_feature_count = tool_census.get(ftype, 0)
+        if ftype in {"mRNA", "transcript"}:
+            tool_feature_count = sum(
+                tool_census.get(transcript_type, 0)
+                for transcript_type in ("mRNA", "transcript")
+            )
         out[ftype] = {
             "n_reference": n_ref,
             "n_recovered": n_rec,
             "pct_recovered": round(n_rec / n_ref, 5),
             "n_extra_copies": n_extra,
-            "n_tool_features": tool_census.get(ftype, 0),
+            "n_tool_features": tool_feature_count,
         }
         if ftype not in _SUBFEATURE_TYPES:
             agg_ref += n_ref
@@ -267,13 +300,14 @@ def _orf_validity(prot):
 def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
     """Return (ref, ref_index).
 
-    ref: {mrna_id: {dna_exon, dna_cds, prot, is_coding}} keyed by ref mRNA id.
+    ref: {transcript_id: {dna_exon, dna_cds, prot, is_coding}} keyed by the
+    reference transcript-container ID.
     ref_index: {"ids_by_type", "all_ids", "census"} for all-feature-type
     completeness (see feature_index)."""
     db = _build_db(ref_gff)
     fa = pyfaidx.Fasta(ref_fa)
     ref: dict[str, dict] = {}
-    for mrna in db.features_of_type(_transcript_ftype(db)):
+    for mrna in _transcript_features(db):
         exons = _children(db, mrna, "exon")
         cds = _children(db, mrna, ("CDS", "stop_codon"))
         cds_only = [c for c in cds]
@@ -292,7 +326,7 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
         }
     n_coding = sum(1 for v in ref.values() if v["is_coding"])
     ref_ids_by_type, ref_all_ids, ref_census = feature_index(db)
-    log(f"  [eval] reference: {len(ref)} mRNA ({n_coding} coding); "
+    log(f"  [eval] reference: {len(ref)} transcript containers ({n_coding} coding); "
         f"{len(ref_census)} feature types, {sum(ref_census.values())} features total")
     ref_index = {
         "ids_by_type": ref_ids_by_type,
@@ -374,7 +408,7 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
 
     target_map = id_mapping.build_miniprot_target_map(db) if is_miniprot else {}
 
-    # all-feature-type completeness (additive; independent of the mRNA logic below)
+    # all-feature-type completeness (independent of transcript-container scoring)
     cbt = {}
     if ref_index is not None:
         cbt = completeness_by_type(db, ref_index["ids_by_type"], ref_index["all_ids"])
@@ -385,7 +419,7 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
     payloads = []   # (idx, mrna, exons, cds, ref_id) for valid ref_id only
     n_features = 0
     n_unmapped_id = 0
-    for mrna in db.features_of_type(_transcript_ftype(db)):
+    for mrna in _transcript_features(db):
         n_features += 1
         if is_miniprot:
             ref_id = id_mapping.resolve_miniprot(mrna, target_map, space, acc_to_mrna, ref_ids)
