@@ -37,7 +37,7 @@ import time
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 try:
     import fcntl
@@ -77,6 +77,7 @@ REQUIRED_RUNTIME_DISTRIBUTIONS = (
 OPTIONAL_RUNTIME_DISTRIBUTIONS = ("lifton",)
 PROVENANCE_TOOLING_FILES = {
     "tooling_build_controller": Path(__file__).resolve(),
+    "tooling_evaluator": HERE / "evaluator.py",
     "tooling_release_evaluation": HERE / "release_evaluation.py",
     "tooling_release_report": HERE / "release_report.py",
     "tooling_run_benchmarks": HERE.parent / "run_benchmarks.py",
@@ -84,7 +85,7 @@ PROVENANCE_TOOLING_FILES = {
 }
 WATCHDOG_LOW_CPU_FRACTION = 0.05
 WATCHDOG_CONTROL_FILES = {
-    ".failed.json", ".success", "cell.json", "exit.json",
+    ".failed.json", ".success", ".terminal.lock", "cell.json", "exit.json",
     "performance_retry.json", "status.json",
 }
 
@@ -105,6 +106,10 @@ PAIRED_E2E_MODES = (
 
 ACTIVE_STATES = {"launching", "running"}
 PENDING_STATES = {"pending", "retry_pending"}
+# How long a launched worker may remain unobservable before liveness probes
+# stop giving it the benefit of the doubt. Shared by admission control and
+# orphan detection so the two can never disagree about whether a cell counts.
+LAUNCH_GRACE_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -112,6 +117,7 @@ class Policy:
     """Resource policy applied before every cell launch."""
 
     threads_per_cell: int = 8
+    scheduler_threads_per_cell: int | None = None
     max_active: int = 4
     max_full: int = 2
     max_worker_threads: int = 32
@@ -141,6 +147,10 @@ class Policy:
             "watchdog_poll_seconds": self.watchdog_poll_seconds,
             "terminate_grace_seconds": self.terminate_grace_seconds,
         }
+        if self.scheduler_threads_per_cell is not None:
+            numeric_positive["scheduler_threads_per_cell"] = (
+                self.scheduler_threads_per_cell
+            )
         bad = [name for name, value in numeric_positive.items() if value <= 0]
         if bad:
             raise ValueError(f"policy values must be positive: {', '.join(bad)}")
@@ -148,6 +158,13 @@ class Policy:
             raise ValueError("max_full cannot exceed max_active")
         if self.threads_per_cell > self.max_worker_threads:
             raise ValueError("threads_per_cell cannot exceed max_worker_threads")
+        if (
+            self.scheduler_threads_per_cell is not None
+            and self.scheduler_threads_per_cell > self.max_worker_threads
+        ):
+            raise ValueError(
+                "scheduler_threads_per_cell cannot exceed max_worker_threads"
+            )
 
 
 def utc_now() -> str:
@@ -532,6 +549,8 @@ def paired_configuration(
     return {
         "panel": panel,
         "repetitions": int(repetitions),
+        "exclusive": False,
+        "validation_policy": "record_invalid",
         "lifton_executable": str(Path(lifton_executable).resolve()),
         "registries": {
             "benchmark": str(Path(benchmark_registry).resolve()),
@@ -593,13 +612,12 @@ def _prepare_paired_provenance(
         }
         for records in record_groups.values():
             for record in records.values():
-                stat = Path(record["path"]).stat()
-                record.update({
-                    "mtime_ns": stat.st_mtime_ns,
-                    "ctime_ns": stat.st_ctime_ns,
-                    "st_dev": stat.st_dev,
-                    "st_ino": stat.st_ino,
-                })
+                stable = _stable_paired_input_record(
+                    Path(record["path"]),
+                    sha256_file=release_evaluation.sha256_file,
+                )
+                record.clear()
+                record.update(stable)
         inputs[benchmark] = record_groups["inputs"]
         evaluation_inputs[benchmark] = record_groups["evaluation_inputs"]
     return {
@@ -611,7 +629,7 @@ def _prepare_paired_provenance(
 
 
 def _current_paired_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
-    """Recheck sources and cheaply verify the plan-time input fingerprints."""
+    """Recheck sources and content-address every frozen paired input."""
 
     from benchmarks.compare import release_evaluation
 
@@ -630,36 +648,45 @@ def _current_paired_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
             for name, expected in expected_records.items():
                 path = Path(expected["path"])
                 try:
-                    stat = path.stat()
-                except OSError as exc:
+                    current_records[name] = _stable_paired_input_record(
+                        path,
+                        sha256_file=release_evaluation.sha256_file,
+                    )
+                except (OSError, RuntimeError, ValueError) as exc:
                     current_records[name] = {
                         "path": str(path), "error": str(exc),
                     }
-                    continue
-                record = {
-                    "path": str(path.resolve()),
-                    "size": stat.st_size,
-                    "mtime_ns": stat.st_mtime_ns,
-                    "ctime_ns": stat.st_ctime_ns,
-                    "st_dev": stat.st_dev,
-                    "st_ino": stat.st_ino,
-                }
-                if all(
-                    record[field_name] == expected.get(field_name)
-                    for field_name in (
-                        "size", "mtime_ns", "ctime_ns", "st_dev", "st_ino",
-                    )
-                ):
-                    record["sha256"] = expected.get("sha256")
-                else:
-                    record["sha256"] = release_evaluation.sha256_file(path)
-                current_records[name] = record
             current_group[benchmark] = current_records
         current_groups[group_name] = current_group
     return {
         "configuration": dict(configuration),
         "sources": sources,
         **current_groups,
+    }
+
+
+def _stable_paired_input_record(
+    path: Path,
+    *,
+    sha256_file: Callable[[Path], str],
+) -> dict[str, Any]:
+    """Hash one paired input while rejecting a concurrent replacement."""
+
+    resolved = Path(path).resolve()
+    before = resolved.stat()
+    digest = sha256_file(resolved)
+    after = resolved.stat()
+    if any(
+        getattr(before, field_name) != getattr(after, field_name)
+        for field_name in (
+            "st_size", "st_mtime_ns", "st_ctime_ns", "st_dev", "st_ino",
+        )
+    ):
+        raise RuntimeError(f"paired input changed while it was hashed: {resolved}")
+    return {
+        "path": str(resolved),
+        "size": after.st_size,
+        "sha256": digest,
     }
 
 
@@ -845,7 +872,7 @@ def _paired_cell(
         "expected_order": expected_order,
         "threads": threads,
         "full_job": panel in {"full", "e2e"},
-        "exclusive": True,
+        "exclusive": bool(configuration.get("exclusive", False)),
         "command": command,
         "environment": {},
         "paired": dict(configuration),
@@ -899,6 +926,10 @@ def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
                         paired_evaluation_inputs[item]
                     ),
                 ))
+        for cell in cells:
+            cell["scheduler_thread_cost"] = (
+                policy.scheduler_threads_per_cell or cell["threads"]
+            )
         return cells
     for item in ids:
         prefix = "gate" if stage == "gates" else stage.split("-", 1)[0]
@@ -916,6 +947,10 @@ def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
         else:
             raise ValueError(stage)
         cells.append(cell)
+    for cell in cells:
+        cell["scheduler_thread_cost"] = (
+            policy.scheduler_threads_per_cell or cell["threads"]
+        )
     return cells
 
 
@@ -1317,7 +1352,13 @@ def _read_status(cell: Mapping[str, Any]) -> dict[str, Any]:
     return status
 
 
-def _write_status(cell: Mapping[str, Any], state: str, **fields: Any) -> None:
+def _write_status(
+    cell: Mapping[str, Any],
+    state: str,
+    *,
+    clear_fields: Sequence[str] = (),
+    **fields: Any,
+) -> None:
     old = _read_status(cell)
     payload = {
         **old,
@@ -1328,7 +1369,23 @@ def _write_status(cell: Mapping[str, Any], state: str, **fields: Any) -> None:
         "updated_at": utc_now(),
         **fields,
     }
+    for field_name in clear_fields:
+        payload.pop(field_name, None)
     atomic_write_json(Path(cell["cell_dir"]) / "status.json", payload)
+
+
+@contextlib.contextmanager
+def _terminal_transition(cell: Mapping[str, Any]):
+    lock_path = Path(cell["cell_dir"]) / ".terminal.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _read_proc_stat(pid: int, proc_root: Path = Path("/proc")) -> dict[str, int] | None:
@@ -1362,6 +1419,18 @@ def _pid_identity_matches(pid: int, pgid: int, start_ticks: int | None,
         and record["session"] == pgid
         and record["start_ticks"] == start_ticks
     )
+
+
+def _worker_identity_matches(status: Mapping[str, Any]) -> bool:
+    """Return whether the recorded cell worker is still the same process."""
+
+    try:
+        pid = int(status["worker_pid"])
+        start_ticks = int(status["worker_start_ticks"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    record = _read_proc_stat(pid)
+    return bool(record and record["start_ticks"] == start_ticks)
 
 
 def _process_group_cpu_seconds(pgid: int, proc_root: Path = Path("/proc")) -> float | None:
@@ -2028,6 +2097,8 @@ def _validate_paired_summary(
 def _validate_paired_result(
     cell: Mapping[str, Any],
     raw: Any,
+    *,
+    allow_invalid_validation: bool = False,
 ) -> list[str]:
     from benchmarks.compare import release_evaluation
 
@@ -2195,7 +2266,7 @@ def _validate_paired_result(
         validation = version.get("validation")
         if not isinstance(validation, Mapping):
             errors.append(f"{label} GFF3 validation is missing")
-        else:
+        elif not allow_invalid_validation:
             if validation.get("is_valid") is not True:
                 errors.append(f"{label} GFF3 validation is not valid")
             if validation.get("n_errors") != 0:
@@ -2277,7 +2348,12 @@ def _validate_paired_result(
     return errors
 
 
-def validate_result_schema(cell: Mapping[str, Any], path: Path) -> list[str]:
+def validate_result_schema(
+    cell: Mapping[str, Any],
+    path: Path,
+    *,
+    allow_invalid_validation: bool = False,
+) -> list[str]:
     errors: list[str] = []
     try:
         raw = read_json(path)
@@ -2359,7 +2435,9 @@ def validate_result_schema(cell: Mapping[str, Any], path: Path) -> list[str]:
             errors.append("end-to-end evaluation profile metrics are not finite and positive")
         errors.extend(_validate_e2e_payload(row, label="end-to-end biology"))
     elif kind == "paired_release":
-        errors.extend(_validate_paired_result(cell, raw))
+        errors.extend(_validate_paired_result(
+            cell, raw, allow_invalid_validation=allow_invalid_validation,
+        ))
     elif kind != "gate":
         errors.append(f"unknown result kind {kind!r}")
     return errors
@@ -2388,6 +2466,7 @@ def validate_release_arm_manifest(
     *,
     version: Mapping[str, Any],
     observed_fingerprints: Mapping[str, Any],
+    allow_invalid_validation: bool = False,
 ) -> list[str]:
     """Cross-check one neutral arm manifest against plan and live artifacts."""
 
@@ -2470,9 +2549,12 @@ def validate_release_arm_manifest(
     if validation != version.get("validation"):
         errors.append(f"{label} release manifest validation disagrees with pair result")
     if (
-        not isinstance(validation, Mapping)
-        or validation.get("is_valid") is not True
-        or validation.get("n_errors") != 0
+        not allow_invalid_validation
+        and (
+            not isinstance(validation, Mapping)
+            or validation.get("is_valid") is not True
+            or validation.get("n_errors") != 0
+        )
     ):
         errors.append(f"{label} release manifest validation is not successful")
 
@@ -2565,7 +2647,14 @@ def _validate_paired_artifacts(
             "artifacts": {name: str(path) for name, path in required.items()},
         }
 
-    errors.extend(validate_result_schema(cell, required["result_json"]))
+    allow_invalid_validation = (
+        cell.get("paired", {}).get("validation_policy") == "record_invalid"
+    )
+    errors.extend(validate_result_schema(
+        cell,
+        required["result_json"],
+        allow_invalid_validation=allow_invalid_validation,
+    ))
     validation_reports: dict[str, Any] = {}
     fingerprints: dict[str, Any] = {}
     try:
@@ -2580,7 +2669,8 @@ def _validate_paired_artifacts(
         manifest_errors = validate_manifest(required[f"{label}_manifest"])
         errors.extend(f"{label} manifest: {error}" for error in manifest_errors)
         structure_errors = validate_gff3_structure(required[f"{label}_gff"])
-        errors.extend(f"{label} GFF3: {error}" for error in structure_errors)
+        if not allow_invalid_validation:
+            errors.extend(f"{label} GFF3: {error}" for error in structure_errors)
 
         validator_cell = {
             **cell,
@@ -2592,7 +2682,8 @@ def _validate_paired_artifacts(
             validator_cell, required[f"{label}_gff"],
         )
         validation_reports[label] = validator_report
-        errors.extend(f"{label} GFF3: {error}" for error in validator_errors)
+        if not allow_invalid_validation:
+            errors.extend(f"{label} GFF3: {error}" for error in validator_errors)
         validation_path = (
             Path(cell["cell_dir"]) / f"{label}_gff_validation.json"
         )
@@ -2629,6 +2720,7 @@ def _validate_paired_artifacts(
                 required[f"{label}_manifest"],
                 version=version,
                 observed_fingerprints=observed,
+                allow_invalid_validation=allow_invalid_validation,
             ))
             artifact_group = version.get("evaluation_artifacts")
             record = (
@@ -3046,9 +3138,12 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
     started_ns = time.time_ns()
     started_at = utc_now()
     _unlink_markers(cell_dir)
+    worker_record = _read_proc_stat(os.getpid())
     _write_status(
         cell, "running", attempts=attempt, started_at=started_at,
         started_ns=started_ns, session=cell_session_name(plan, cell),
+        worker_pid=os.getpid(),
+        worker_start_ticks=(worker_record or {}).get("start_ticks"),
         isolated_retry=bool(old_status.get("isolated_retry")),
     )
     environment = os.environ.copy()
@@ -3147,19 +3242,271 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
         "validation": validation,
         "performance": regressions,
     }
-    atomic_write_json(success_path, success_document)
-    _write_status(
-        cell, "success", attempts=attempt, completed_at=success_document["completed_at"],
-        isolated_retry=False, validation=validation, performance=regressions,
+    _mark_success(
+        cell,
+        success_document,
+        validation=validation,
+        performance=regressions,
     )
     return 0
+
+
+def _mark_success(
+    cell: Mapping[str, Any],
+    document: Mapping[str, Any],
+    *,
+    validation: Mapping[str, Any],
+    performance: Sequence[Mapping[str, Any]],
+) -> None:
+    cell_dir = Path(cell["cell_dir"])
+    with _terminal_transition(cell):
+        atomic_write_json(cell_dir / ".success", document)
+        try:
+            (cell_dir / ".failed.json").unlink()
+        except FileNotFoundError:
+            pass
+        _write_status(
+            cell,
+            "success",
+            clear_fields=("errors", "failed_at", "returncode", "watchdog"),
+            attempts=int(document["attempt"]),
+            completed_at=document["completed_at"],
+            isolated_retry=False,
+            validation=validation,
+            performance=performance,
+        )
+
+
+def _success_evidence_errors(
+    cell: Mapping[str, Any],
+    success: Mapping[str, Any],
+) -> list[str]:
+    validation = success.get("validation")
+    if not isinstance(validation, Mapping):
+        return ["success marker validation evidence is missing"]
+    evidence_records: dict[str, Any] = {}
+    artifacts = validation.get("artifacts")
+    if isinstance(artifacts, Mapping):
+        evidence_records.update(artifacts)
+    evaluation_artifacts = validation.get("evaluation_artifacts")
+    if isinstance(evaluation_artifacts, Mapping):
+        for label, group in evaluation_artifacts.items():
+            if not isinstance(group, Mapping):
+                continue
+            for name, metadata in group.items():
+                evidence_records[f"{label}_{name}"] = metadata
+    errors = []
+    for name, metadata in evidence_records.items():
+        if not isinstance(metadata, Mapping):
+            errors.append(f"validated artifact evidence is malformed: {name}")
+            continue
+        path_value = metadata.get("path")
+        if not isinstance(path_value, str):
+            errors.append(f"validated artifact path is malformed: {name}")
+            continue
+        path = Path(path_value)
+        try:
+            stat = path.stat()
+        except OSError:
+            errors.append(f"validated artifact disappeared: {name}={path}")
+            continue
+        if (
+            stat.st_size != metadata.get("size")
+            or stat.st_mtime_ns != metadata.get("mtime_ns")
+        ):
+            errors.append(f"validated artifact changed after success: {name}={path}")
+            continue
+        recorded_sha = metadata.get("sha256")
+        if not _sha256_text(recorded_sha):
+            errors.append(f"validated artifact lacks SHA-256 evidence: {name}={path}")
+        elif sha256_file(path) != recorded_sha:
+            errors.append(f"validated artifact hash changed after success: {name}={path}")
+    return errors
+
+
+def _recorded_plan_file_errors(plan: Mapping[str, Any]) -> list[str]:
+    provenance = plan.get("provenance")
+    files = provenance.get("files") if isinstance(provenance, Mapping) else None
+    if not isinstance(files, Mapping):
+        return []
+    errors = []
+    for label, record in files.items():
+        if not isinstance(record, Mapping):
+            errors.append(f"recorded provenance for {label} is malformed")
+            continue
+        path_value = record.get("path")
+        if not isinstance(path_value, str):
+            errors.append(f"recorded provenance path for {label} is malformed")
+            continue
+        path = Path(path_value)
+        try:
+            stat = path.stat()
+        except OSError as exc:
+            errors.append(f"recorded provenance file unavailable: {label}: {exc}")
+            continue
+        if stat.st_size != record.get("size"):
+            errors.append(f"recorded provenance size changed: {label}={path}")
+        recorded_sha = record.get("sha256")
+        if not _sha256_text(recorded_sha):
+            errors.append(f"recorded provenance SHA-256 is malformed: {label}")
+        elif sha256_file(path) != recorded_sha:
+            errors.append(f"recorded provenance hash changed: {label}={path}")
+    return errors
+
+
+def recover_terminal_race(
+    run_dir: Path,
+    requested: Sequence[str],
+    audit_path: Path,
+    *,
+    apply: bool = False,
+) -> dict[str, Any]:
+    """Archive an exact false-orphan race and make its cells retryable.
+
+    This administrative path intentionally does not compare the active source
+    checkout with the frozen worker snapshot. It verifies the source and input
+    hashes recorded by the immutable plan instead, because recovery is run
+    from the maintained checkout while the campaign runs from its snapshot.
+    """
+
+    plan = load_plan(run_dir)
+    cell_ids = list(dict.fromkeys(requested))
+    if not cell_ids:
+        raise ValueError("at least one explicit cell is required")
+    unknown = set(cell_ids) - {cell["id"] for cell in plan["cells"]}
+    if unknown:
+        raise ValueError(f"unknown cell ids: {sorted(unknown)}")
+    audit_path = audit_path.resolve()
+    if not audit_path.is_relative_to(run_dir.resolve()):
+        raise ValueError("audit record must be below the run directory")
+    if audit_path.exists():
+        raise FileExistsError(f"audit record already exists: {audit_path}")
+
+    expected_errors = [
+        "worker tmux session disappeared before a final status was written",
+        "orphan cleanup: process identity no longer matches; signal refused",
+    ]
+    cells = [_cell_for(plan, cell_id) for cell_id in cell_ids]
+    preflight = []
+    errors = _recorded_plan_file_errors(plan)
+    for cell in cells:
+        cell_dir = Path(cell["cell_dir"])
+        status = _read_status(cell)
+        success_path = cell_dir / ".success"
+        failed_path = cell_dir / ".failed.json"
+        try:
+            success = read_json(success_path)
+            failed = read_json(failed_path)
+        except (OSError, TypeError, ValueError) as exc:
+            errors.append(f"{cell['id']}: terminal marker is unreadable: {exc}")
+            continue
+        cell_errors = []
+        if status.get("state") != "success":
+            cell_errors.append(f"status state is {status.get('state')!r}")
+        if status.get("attempts") != 1 or success.get("attempt") != 1:
+            cell_errors.append("terminal race recovery requires attempt 1")
+        if success.get("fingerprint") != cell["fingerprint"]:
+            cell_errors.append("success marker fingerprint does not match plan")
+        if failed.get("fingerprint") != cell["fingerprint"]:
+            cell_errors.append("failed marker fingerprint does not match plan")
+        if status.get("errors") != expected_errors:
+            cell_errors.append("status errors do not match the known orphan race")
+        if failed.get("errors") != expected_errors:
+            cell_errors.append("failed marker errors do not match the known orphan race")
+        if failed.get("watchdog", {}).get("reason") != "orphaned_worker":
+            cell_errors.append("failed marker is not an orphaned-worker record")
+        if success.get("exit", {}).get("returncode") != 0:
+            cell_errors.append("success marker does not record return code zero")
+        if not (
+            isinstance(failed.get("failed_at"), str)
+            and isinstance(success.get("completed_at"), str)
+            and failed["failed_at"] < success["completed_at"]
+        ):
+            cell_errors.append("orphan failure did not precede successful completion")
+        if tmux_has_session(cell_session_name(plan, cell)):
+            cell_errors.append("cell tmux session is still active")
+        if _worker_identity_matches(status):
+            cell_errors.append("cell worker process is still active")
+        cell_errors.extend(_success_evidence_errors(cell, success))
+        if cell_errors:
+            errors.extend(f"{cell['id']}: {error}" for error in cell_errors)
+        preflight.append({
+            "cell_id": cell["id"],
+            "status": status,
+            "success_sha256": sha256_file(success_path),
+            "failed_sha256": sha256_file(failed_path),
+            "success_path": str(success_path),
+            "failed_path": str(failed_path),
+        })
+    if errors:
+        raise RuntimeError("terminal race recovery preflight failed: " + "; ".join(errors))
+
+    recovery_id = "terminal-race-" + dt.datetime.now(dt.timezone.utc).strftime(
+        "%Y%m%dT%H%M%SZ"
+    )
+    audit = {
+        "schema_version": CONTROLLER_SCHEMA_VERSION,
+        "kind": "administrative_terminal_race_recovery",
+        "recovery_id": recovery_id,
+        "run_id": plan["run_id"],
+        "run_dir": str(run_dir.resolve()),
+        "plan_fingerprint": plan["fingerprint"],
+        "cells": [],
+        "applied": apply,
+        "created_at": utc_now(),
+    }
+    if not apply:
+        audit["preflight"] = preflight
+        return audit
+
+    moved: list[tuple[Path, Path]] = []
+    try:
+        for item, cell in zip(preflight, cells):
+            cell_dir = Path(cell["cell_dir"])
+            archive_dir = cell_dir / "administrative-recovery" / recovery_id
+            archive_dir.mkdir(parents=True, exist_ok=False)
+            archived = {}
+            for name in ("status.json", ".success", ".failed.json"):
+                source = cell_dir / name
+                destination = archive_dir / name
+                os.replace(source, destination)
+                moved.append((destination, source))
+                archived[name] = str(destination)
+            _write_status(
+                cell,
+                "failed",
+                attempts=1,
+                failed_at=utc_now(),
+                errors=["administrative rerun requested after terminal race"],
+                returncode=None,
+                isolated_retry=False,
+                validation={},
+                performance=[],
+                watchdog={"reason": "administrative_terminal_race_recovery"},
+            )
+            audit["cells"].append({
+                "cell_id": cell["id"],
+                "before": item,
+                "archive": archived,
+                "state_after": "failed",
+            })
+        atomic_write_json(audit_path, audit)
+    except Exception:
+        try:
+            for destination, source in reversed(moved):
+                if destination.exists():
+                    os.replace(destination, source)
+        finally:
+            raise
+    return audit
 
 
 def _mark_failed(cell: Mapping[str, Any], errors: Sequence[str], *,
                  returncode: int | None, attempt: int,
                  validation: Mapping[str, Any] | None = None,
                  performance: Sequence[Mapping[str, Any]] | None = None,
-                 watchdog: Mapping[str, Any] | None = None) -> None:
+                 watchdog: Mapping[str, Any] | None = None,
+                 expected_states: Sequence[str] | None = None) -> bool:
     document = {
         "schema_version": CONTROLLER_SCHEMA_VERSION,
         "cell_id": cell["id"],
@@ -3172,13 +3519,20 @@ def _mark_failed(cell: Mapping[str, Any], errors: Sequence[str], *,
         "performance": list(performance or []),
         "watchdog": dict(watchdog or {}),
     }
-    atomic_write_json(Path(cell["cell_dir"]) / ".failed.json", document)
-    _write_status(
-        cell, "failed", attempts=attempt, failed_at=document["failed_at"],
-        errors=list(errors), returncode=returncode, isolated_retry=False,
-        validation=document["validation"], performance=document["performance"],
-        watchdog=document["watchdog"],
-    )
+    with _terminal_transition(cell):
+        if (
+            expected_states is not None
+            and _read_status(cell).get("state") not in set(expected_states)
+        ):
+            return False
+        atomic_write_json(Path(cell["cell_dir"]) / ".failed.json", document)
+        _write_status(
+            cell, "failed", attempts=attempt, failed_at=document["failed_at"],
+            errors=list(errors), returncode=returncode, isolated_retry=False,
+            validation=document["validation"], performance=document["performance"],
+            watchdog=document["watchdog"],
+        )
+    return True
 
 
 def mem_available_gib(meminfo: Path = Path("/proc/meminfo")) -> float:
@@ -3208,7 +3562,12 @@ def launch_allowed(cell: Mapping[str, Any], active: Sequence[Mapping[str, Any]],
         return False, "paired cell must run exclusively"
     if len(active) >= policy.max_active:
         return False, "active-cell limit reached"
-    if sum(int(item["threads"]) for item in active) + int(cell["threads"]) > policy.max_worker_threads:
+    active_cost = sum(
+        int(item.get("scheduler_thread_cost", item["threads"]))
+        for item in active
+    )
+    cell_cost = int(cell.get("scheduler_thread_cost", cell["threads"]))
+    if active_cost + cell_cost > policy.max_worker_threads:
         return False, "worker-thread limit reached"
     if cell.get("full_job") and sum(bool(item.get("full_job")) for item in active) >= policy.max_full:
         return False, "full-job limit reached"
@@ -3306,7 +3665,8 @@ def _foreign_active_cells(plan: Mapping[str, Any]) -> list[str]:
             launch_is_recent = bool(
                 started_ns and now_ns - started_ns < int(5.0 * 1e9)
             )
-            if session_alive or process_alive or launch_is_recent:
+            worker_alive = _worker_identity_matches(status)
+            if session_alive or process_alive or worker_alive or launch_is_recent:
                 active.append(f"{other['run_id']}:{cell['id']}")
     return active
 
@@ -3377,23 +3737,64 @@ def _controller_lease(plan: Mapping[str, Any]):
         handle.close()
 
 
+def _within_launch_grace(
+    status: Mapping[str, Any], grace_seconds: float = LAUNCH_GRACE_SECONDS,
+) -> bool:
+    """True while a just-launched worker may not be observable yet.
+
+    ``tmux new-session -d`` can return before the session is listable, and the
+    worker's identity is only recorded once it starts. During that window a
+    cell is genuinely consuming the host even though neither liveness probe
+    can see it, so admission control and orphan detection must both treat it
+    as active. Counting it as neither is what allowed seven whole-genome cells
+    to run against ``max_active: 2``.
+    """
+
+    try:
+        started_ns = int(status.get("started_ns") or 0)
+    except (TypeError, ValueError):
+        return False
+    if not started_ns:
+        return False
+    return time.time_ns() - started_ns < int(grace_seconds * 1e9)
+
+
+def _cell_is_live(
+    plan: Mapping[str, Any],
+    cell: Mapping[str, Any],
+    status: Mapping[str, Any],
+) -> bool:
+    return (
+        tmux_has_session(cell_session_name(plan, cell))
+        or _worker_identity_matches(status)
+        or _within_launch_grace(status)
+    )
+
+
 def _active_cells(plan: Mapping[str, Any]) -> list[dict[str, Any]]:
     active = []
     for cell in plan["cells"]:
         status = _read_status(cell)
-        if status.get("state") in ACTIVE_STATES and tmux_has_session(cell_session_name(plan, cell)):
+        if status.get("state") in ACTIVE_STATES and _cell_is_live(
+            plan, cell, status,
+        ):
             active.append({**cell, "isolated_retry": bool(status.get("isolated_retry"))})
     return active
 
 
-def _mark_orphans(plan: Mapping[str, Any], *, grace_seconds: float = 5.0) -> None:
+def _mark_orphans(
+    plan: Mapping[str, Any], *, grace_seconds: float = LAUNCH_GRACE_SECONDS,
+) -> None:
     policy = Policy(**plan["policy"])
     now_ns = time.time_ns()
     for cell in plan["cells"]:
         status = _read_status(cell)
         if status.get("state") not in ACTIVE_STATES:
             continue
-        if tmux_has_session(cell_session_name(plan, cell)):
+        if (
+            tmux_has_session(cell_session_name(plan, cell))
+            or _worker_identity_matches(status)
+        ):
             continue
         updated_ns = int(status.get("started_ns", 0))
         if updated_ns and now_ns - updated_ns < int(grace_seconds * 1e9):
@@ -3417,6 +3818,7 @@ def _mark_orphans(plan: Mapping[str, Any], *, grace_seconds: float = 5.0) -> Non
             cell, errors,
             returncode=None, attempt=int(status.get("attempts", 0)),
             watchdog={"reason": "orphaned_worker", "cleanup": cleanup},
+            expected_states=ACTIVE_STATES,
         )
 
 
@@ -3880,6 +4282,7 @@ def _policy_from_args(args: argparse.Namespace) -> Policy:
 
     return Policy(
         threads_per_cell=selected("threads_per_cell"),
+        scheduler_threads_per_cell=selected("scheduler_threads_per_cell"),
         max_active=selected("max_active"),
         max_full=selected("max_full"),
         max_worker_threads=selected("max_worker_threads"),
@@ -3986,6 +4389,15 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile.add_argument("--deep", action="store_true")
     reconcile.add_argument("--json", action="store_true")
 
+    recover = subparsers.add_parser(
+        "recover-terminal-race",
+        help="archive exact false-orphan records and make cells retryable",
+    )
+    recover.add_argument("--run-dir", required=True)
+    recover.add_argument("--cells", nargs="+", required=True)
+    recover.add_argument("--audit-record", required=True)
+    recover.add_argument("--apply", action="store_true")
+
     refresh = subparsers.add_parser(
         "_run-refresh", help="internal isolated devel-refresh runner",
     )
@@ -4010,6 +4422,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _add_policy_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--threads-per-cell", type=int)
+    parser.add_argument("--scheduler-threads-per-cell", type=int)
     parser.add_argument("--max-active", type=int)
     parser.add_argument("--max-full", type=int)
     parser.add_argument("--max-worker-threads", type=int)
@@ -4291,6 +4704,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.action == "worker":
         run_dir = Path(args.run_dir).resolve()
         return execute_cell(run_dir, args.cell) if args.cell else scheduler_loop(run_dir)
+
+    if args.action == "recover-terminal-race":
+        try:
+            result = recover_terminal_race(
+                Path(args.run_dir).resolve(),
+                args.cells,
+                Path(args.audit_record),
+                apply=args.apply,
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
 
     if args.action in {"status", "retry", "reconcile"}:
         if not args.run_dir and not args.run_id:
