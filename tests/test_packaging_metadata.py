@@ -5,12 +5,20 @@ from __future__ import annotations
 import ast
 import re
 import runpy
-import tomllib
 from pathlib import Path
 
+import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
 import setuptools
+
+try:  # `tomllib` is only in the standard library from Python 3.11.
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,6 +133,10 @@ def test_cigar_is_not_a_dependency():
     assert "from cigar import" not in align_source
 
 
+@pytest.mark.skipif(
+    tomllib is None,
+    reason="needs tomllib (Python >= 3.11) or the tomli backport",
+)
 def test_build_backend_requires_a_modern_setuptools_floor():
     """The former `setuptools<81` ceiling existed only for `cigar`.
 

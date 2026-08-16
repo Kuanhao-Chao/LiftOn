@@ -61,6 +61,9 @@ setuptools.setup(
 			'coverage>=6.0',
 			'flake8>=6.0',
 			'packaging>=21',
+			# `tomllib` is standard-library only from 3.11; the backport keeps
+			# the packaging-metadata checks running on the declared 3.10 floor.
+			'tomli>=2.0; python_version < "3.11"',
 		],
 	},
 	include_package_data=True,
