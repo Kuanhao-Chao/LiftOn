@@ -24,6 +24,7 @@ four are recorded:
 
 | Gate | Result |
 |---|---|
+| `pytest tests/` locally, `PYTHONHASHSEED=0` | **1,808 passed, 2 skipped**, 0 failed (1 h 28 m) |
 | `Run tests` on `main` | **green on 3.10, 3.11 and 3.12** |
 | `Build and Deploy Sphinx` on `main` | **green**; khchao.com/LiftOn rebuilt and serves v1.0.11 |
 | chr22 example, real minimap2 2.28 + miniprot | exit 0; gene **878/890 (98.7 %)**, pseudogene **358/370 (96.8 %)** |
