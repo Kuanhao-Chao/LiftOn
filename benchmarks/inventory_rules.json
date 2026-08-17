@@ -80,6 +80,7 @@
         "benchmarks/compare/id_mapping.py",
         "benchmarks/compare/joint_metrics.py",
         "benchmarks/compare/provider_orthologs.py",
+        "benchmarks/compare/recovery_difference.py",
         "benchmarks/compare/release_evaluation.py",
         "benchmarks/compare/release_report.py",
         "benchmarks/compare/release_report_figures.py",
