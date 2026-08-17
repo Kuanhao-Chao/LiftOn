@@ -64,6 +64,10 @@ setuptools.setup(
 			# `tomllib` is standard-library only from 3.11; the backport keeps
 			# the packaging-metadata checks running on the declared 3.10 floor.
 			'tomli>=2.0; python_version < "3.11"',
+			# The benchmark figure generators import matplotlib at module
+			# scope, so their tests cannot even be collected without it.
+			# LiftOn itself never imports it -- this is test-only.
+			'matplotlib>=3.5',
 		],
 	},
 	include_package_data=True,
