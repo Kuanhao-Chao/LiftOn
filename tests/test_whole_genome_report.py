@@ -411,3 +411,76 @@ def test_report_assets_reject_metric_or_sensitivity_drift(tmp_path):
     sensitivity["pairs"].pop()
     with pytest.raises(whole_genome_assets.AssetError, match="fingerprint"):
         whole_genome_assets.validate_sensitivity(sensitivity, metrics)
+
+
+def _transcripts_tsv(path: Path, *, total: int, recovered: int) -> Path:
+    """A per-transcript table with a realistic, non-round recovery fraction."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [HEADER]
+    for index in range(total):
+        row = ROW.format(index=index)
+        if index >= recovered:
+            columns = row.rstrip("\n").split("\t")
+            columns[2] = "0"          # recovered
+            columns[5] = "0.0"        # protein_identity
+            columns[12] = "map_failed"
+            row = "\t".join(columns) + "\n"
+        rows.append(row)
+    path.write_text("".join(rows))
+    return path
+
+
+def _version_for_completeness(tmp_path: Path, *, total: int, recovered: int) -> dict:
+    tsv = _transcripts_tsv(tmp_path / "candidate.transcripts.tsv",
+                           total=total, recovered=recovered)
+    return {
+        "summary": {
+            "n_reference_coding": total,
+            "n_recovered_coding": recovered,
+            # The neutral evaluator rounds this to five decimals, exactly as it
+            # does on real data.
+            "completeness_coding": round(recovered / total, 5),
+            "completeness_feature_total": 0.94570,
+        },
+        "evaluation_artifacts": {"transcripts_tsv": _record(tsv)},
+    }
+
+
+def test_rounded_completeness_agrees_with_its_own_transcript_table(tmp_path):
+    """The stored ratio is rounded; the cross-check must allow for that.
+
+    Comparing a five-decimal value against a full-precision recomputation at
+    1e-9 cannot hold on any real cohort -- 23365/23471 stores as 0.99548 but
+    recomputes as 0.9954837885. The synthetic fixtures hid this because their
+    completeness is exactly 1.0.
+    """
+
+    version = _version_for_completeness(tmp_path, total=23471, recovered=23365)
+
+    metrics = whole_genome_report._transcript_metrics(version, "bee.candidate")
+
+    assert metrics["n_recovered_coding"] == 23365
+    assert metrics["n_reference_coding"] == 23471
+    assert metrics["completeness_coding"] == 0.99548
+
+
+def test_recovered_count_disagreement_still_fails_closed(tmp_path):
+    version = _version_for_completeness(tmp_path, total=23471, recovered=23365)
+    version["summary"]["n_recovered_coding"] = 23364
+
+    with pytest.raises(
+        whole_genome_report.ReportError, match="recovered coding count disagrees"
+    ):
+        whole_genome_report._transcript_metrics(version, "bee.candidate")
+
+
+def test_completeness_inconsistent_with_the_table_still_fails_closed(tmp_path):
+    version = _version_for_completeness(tmp_path, total=23471, recovered=23365)
+    version["summary"].pop("n_recovered_coding")
+    version["summary"]["completeness_coding"] = 0.5
+
+    with pytest.raises(
+        whole_genome_report.ReportError, match="coding completeness disagrees"
+    ):
+        whole_genome_report._transcript_metrics(version, "bee.candidate")

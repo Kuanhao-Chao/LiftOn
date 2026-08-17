@@ -212,13 +212,25 @@ def _transcript_metrics(version: Mapping[str, Any], label: str) -> dict[str, Any
         summary.get("completeness_feature_total"),
         f"{label}.completeness_feature_total",
     )
+    # Cross-check the summary against the per-transcript table it came from.
+    # The counts are integers and must agree exactly; the stored ratio is
+    # rounded by the evaluator, so it is only required to agree to the
+    # precision it actually carries. Comparing the rounded ratio at 1e-9
+    # can never hold on real data.
+    recovered = summary.get("n_recovered_coding")
+    if recovered is not None and recovered != metrics["n_recovered_coding"]:
+        raise ReportError(
+            f"{label}: recovered coding count disagrees with TSV "
+            f"({recovered} vs {metrics['n_recovered_coding']})"
+        )
+    derived = metrics["n_recovered_coding"] / metrics["n_reference_coding"]
     if not math.isclose(
-        metrics["completeness_coding"],
-        metrics["n_recovered_coding"] / metrics["n_reference_coding"],
-        rel_tol=0,
-        abs_tol=1e-9,
+        metrics["completeness_coding"], derived, rel_tol=0, abs_tol=1e-5,
     ):
-        raise ReportError(f"{label}: coding completeness disagrees with TSV")
+        raise ReportError(
+            f"{label}: coding completeness disagrees with TSV "
+            f"({metrics['completeness_coding']} vs {derived})"
+        )
     return metrics
 
 
