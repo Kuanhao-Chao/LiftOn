@@ -31,6 +31,14 @@ updates:
       # Raise this ceiling only together with the Sphinx pin.
       - dependency-name: "docutils"
         versions: [">=0.23"]
+      # `sphinx-panels` has been unmaintained since 2021 and 0.6.0 declares
+      # `sphinx<5`, so bumping it makes the same toolchain unresolvable -- PR
+      # #66 did exactly that. 0.4.1 requires `sphinx` without a ceiling and is
+      # the version the last successful deploy used. The docs still use its
+      # `dropdown` directive in 15 places, so it cannot simply be dropped;
+      # replacing it with `sphinx-design` is the real fix and is not a
+      # dependency bump.
+      - dependency-name: "sphinx-panels"
 
   - package-ecosystem: "github-actions"
     directory: "/"
