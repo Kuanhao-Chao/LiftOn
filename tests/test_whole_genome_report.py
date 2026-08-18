@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+
+import numpy as np
 from pathlib import Path
 
 import pytest
@@ -484,3 +486,32 @@ def test_completeness_inconsistent_with_the_table_still_fails_closed(tmp_path):
         whole_genome_report.ReportError, match="coding completeness disagrees"
     ):
         whole_genome_report._transcript_metrics(version, "bee.candidate")
+
+
+def test_complete_cohort_execution_matrix_is_not_rendered_as_missing(tmp_path):
+    """Every observed repetition must render in the "present" colour.
+
+    `imshow` autoscales, so a matrix that is uniformly 1 -- which is exactly
+    what a complete cohort produces -- was mapped to the bottom of the two
+    colour listed colormap and drawn in the "missing" grey, with the white
+    AB/BA labels invisible on top of it. The bug could only appear once the
+    study succeeded, so no partial-evidence fixture could catch it.
+    """
+
+    import matplotlib.image as mpimg
+
+    metrics = _reduce(_evidence(tmp_path / "evidence"))
+    assert metrics["coverage"]["incomplete"] == [], "fixture must be complete"
+
+    output = whole_genome_assets.figure_study(metrics, tmp_path / "study.png")
+    pixels = mpimg.imread(output)[:, :, :3]
+
+    # "#54a24b" present vs "#efefef" missing.
+    present = np.array([0x54, 0xA2, 0x4B]) / 255.0
+    missing = np.array([0xEF, 0xEF, 0xEF]) / 255.0
+    close = lambda colour: (np.abs(pixels - colour) < 0.02).all(axis=2).sum()
+
+    assert close(present) > 10_000, "the execution matrix rendered no present cells"
+    assert close(present) > close(missing), (
+        "a complete cohort drew more 'missing' than 'present' pixels"
+    )
