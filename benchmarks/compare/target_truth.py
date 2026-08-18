@@ -1439,6 +1439,7 @@ def score_target_truth(
     target_fasta: str | Path | None = None,
     id_policy: str = "ortholog-map",
     minimum_reciprocal_overlap: float = 0.5,
+    restrict_mapping_to_scope: bool = False,
 ) -> dict[str, Any]:
     """Score a prediction against target-annotation coordinates."""
 
@@ -1494,6 +1495,26 @@ def score_target_truth(
                 truth_genes=set(truth.genes),
                 truth_transcripts=set(truth.transcripts),
             )
+            dropped_out_of_scope = 0
+            if restrict_mapping_to_scope:
+                # An independently produced mapping -- a provider relationship
+                # table, say -- is built against the complete annotation and
+                # can legitimately name a source gene this scope excludes as
+                # an ambiguous multi-record model. Drop those entries and
+                # record how many, rather than rejecting the whole mapping.
+                # The primary scope is derived from this same hierarchy, so it
+                # is never given this allowance.
+                in_scope = {
+                    "gene": set(source_hierarchy.genes),
+                    "transcript": set(source_hierarchy.transcripts),
+                }
+                kept = [
+                    entry for entry in entries
+                    if entry.feature_type not in in_scope
+                    or entry.source_id in in_scope[entry.feature_type]
+                ]
+                dropped_out_of_scope = len(entries) - len(kept)
+                entries = kept
             mapping_validation = _validate_mapping_entries_against_scope(
                 entries,
                 source_genes=set(source_hierarchy.genes),
@@ -1501,6 +1522,7 @@ def score_target_truth(
                 truth_genes=set(truth.genes),
                 truth_transcripts=set(truth.transcripts),
             )
+            mapping_validation["source_ids_out_of_scope"] = dropped_out_of_scope
             if is_protein_rbh_scope:
                 ortholog_scope.validate_mapping_against_annotations(
                     raw_mapping_document,
