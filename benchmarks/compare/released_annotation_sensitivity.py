@@ -146,6 +146,8 @@ def _score(
     source: Path,
     mapping: Path,
     threshold: float,
+    *,
+    restrict_mapping_to_scope: bool = False,
 ) -> dict[str, Any]:
     return _project(target_truth.score_target_truth(
         prediction,
@@ -154,6 +156,7 @@ def _score(
         source_gff=source,
         id_policy="ortholog-map",
         minimum_reciprocal_overlap=threshold,
+        restrict_mapping_to_scope=restrict_mapping_to_scope,
     ))
 
 
@@ -229,9 +232,15 @@ def _pair_sensitivity(
             cache_root, provider_row.get("mapping"), f"{pair_id}.provider",
         )
         provider_result["threshold"] = PRIMARY_THRESHOLD
+        # The provider table is built from NCBI Gene against the complete
+        # annotation, so it names source genes the scored scope excludes as
+        # ambiguous multi-record models. Those entries are dropped and counted
+        # rather than rejecting the mapping; the primary protein-RBH scope
+        # above is derived from this hierarchy and keeps failing closed.
         provider_result["arms"] = {
             label: _score(
                 predictions[label], truth, source, mapping, PRIMARY_THRESHOLD,
+                restrict_mapping_to_scope=True,
             )
             for label in ("candidate", "reference")
         }
