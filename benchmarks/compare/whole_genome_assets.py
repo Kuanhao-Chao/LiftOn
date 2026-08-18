@@ -236,7 +236,7 @@ def figure_study(metrics: Mapping[str, Any], output: Path) -> Path:
     _setup()
     pairs = metrics["pairs"]
     fig = plt.figure(figsize=(15.2, 7.7))
-    grid = fig.add_gridspec(1, 3, width_ratios=(1.25, 1.2, 1.05), wspace=0.34)
+    grid = fig.add_gridspec(1, 3, width_ratios=(1.30, 1.10, 1.05), wspace=0.52)
     ax = fig.add_subplot(grid[0, 0])
     ax.axis("off")
     ax.set_title("A  Biological range", loc="left", fontweight="bold")
@@ -252,23 +252,25 @@ def figure_study(metrics: Mapping[str, Any], output: Path) -> Path:
         cellLoc="left",
         colLoc="left",
         loc="upper left",
-        colWidths=(0.40, 0.60),
+        colWidths=(0.45, 0.55),
     )
     table.auto_set_font_size(False)
-    table.set_fontsize(8.3)
+    table.set_fontsize(7.9)
     table.scale(1, 1.75)
     for (row, _column), cell in table.get_celld().items():
         cell.set_edgecolor("#d5d5d5")
         if row == 0:
             cell.set_facecolor("#eef4ee")
             cell.set_text_props(weight="bold")
+    # Sit directly under the table. At the axes bottom this ran into the
+    # adjacent panel's last row label.
     ax.text(
-        0, 0.04,
+        0, 0.46,
         "One same-species assembly comparison, three close comparative\n"
         "transfers, and three moderate-divergence mammalian transfers.",
         transform=ax.transAxes,
         color="#4a4a4a",
-        va="bottom",
+        va="top",
     )
 
     ax = fig.add_subplot(grid[0, 1])
@@ -278,7 +280,17 @@ def figure_study(metrics: Mapping[str, Any], output: Path) -> Path:
     for row_index, pair in enumerate(pairs):
         observed = incomplete.get(pair["id"], 4)
         matrix[row_index, observed:] = 0
-    ax.imshow(matrix, cmap=matplotlib.colors.ListedColormap(["#efefef", "#54a24b"]), aspect="auto")
+    # Pin the colour scale. When every planned repetition is observed the
+    # matrix is uniformly 1, and an autoscaled imshow maps a constant array to
+    # the bottom of the colormap -- so a complete cohort rendered every cell in
+    # the "missing" grey with white labels on top of it, invisible.
+    ax.imshow(
+        matrix,
+        cmap=matplotlib.colors.ListedColormap(["#efefef", "#54a24b"]),
+        aspect="auto",
+        vmin=0,
+        vmax=1,
+    )
     ax.set_xticks(repetitions - 1, [f"Rep {item}" for item in repetitions])
     ax.set_yticks(np.arange(len(pairs)), [SHORT_LABELS[row["id"]] for row in pairs])
     ax.set_title("B  Paired execution matrix", loc="left", fontweight="bold")
