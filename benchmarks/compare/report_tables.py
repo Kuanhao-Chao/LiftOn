@@ -1412,6 +1412,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--annotation-sensitivity", type=Path,
         help="released target-annotation sensitivity evidence",
     )
+    parser.add_argument(
+        "--recovery-difference", type=Path,
+        help="paired coding-transcript recovery-difference evidence",
+    )
     parser.add_argument("--release-manifest", type=Path)
     parser.add_argument("--failure-audit", type=Path)
     parser.add_argument("--fourway", type=Path, default=FOURWAY)
@@ -1459,9 +1463,15 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if args.annotation_sensitivity else None
             )
+            recovery = (
+                whole_genome_assets.load_recovery_difference(
+                    args.recovery_difference, study_metrics,
+                )
+                if args.recovery_difference else None
+            )
             report_path = args.check or args.update
             passed, diff = whole_genome_assets.check_report(
-                report_path, study_metrics, sensitivity,
+                report_path, study_metrics, sensitivity, recovery,
             )
             if args.update:
                 if not passed:
@@ -1470,6 +1480,7 @@ def main(argv: list[str] | None = None) -> int:
                             report_path.read_text(encoding="utf-8"),
                             study_metrics,
                             sensitivity,
+                            recovery,
                         ),
                         encoding="utf-8",
                     )
@@ -1484,6 +1495,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         except (OSError, TypeError, ValueError, RuntimeError) as exc:
             parser.error(str(exc))
+
+    if args.recovery_difference:
+        parser.error("--recovery-difference requires --whole-genome-metrics")
 
     needs_legacy = bool(
         args.table

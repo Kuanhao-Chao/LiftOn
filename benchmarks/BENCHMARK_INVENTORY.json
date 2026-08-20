@@ -140,8 +140,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "3c6367c785d0211d35f033ab03343446df0ca54d21348e60c89ec2dc5bb14ad0",
-      "bytes": 993659,
+      "aggregate_sha256": "50aae1e381914b152b4240c5fc84050596723e63def06e84b39511103f4a2704",
+      "bytes": 1007516,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "73460fd0e2ac5c8d0c61c90aea98223e2ecb91193aa063980faf12165bc50470",
-      "bytes": 497287,
+      "aggregate_sha256": "663801fdc05b0eac74ecac18eadd76245360aa8b074309cf043f1687393babd8",
+      "bytes": 498490,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -2634,14 +2634,14 @@
       "sha256": "72722a6bb4f3e9af23fd109d2f230ee8fe13ec8fcf50c4b87b0b5296aa984b8a"
     },
     {
-      "bytes": 12791,
+      "bytes": 13329,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/released_annotation_sensitivity.py",
-      "sha256": "3cccd69f683bcb133248d422e3eabbd5bb11fe31edb946bd767f020c62cdd9dc"
+      "sha256": "9fb374193c20e193f3159938f000f3c641c53f97dcebc9266ec73d8d452f8eb4"
     },
     {
       "bytes": 39059,
@@ -2654,14 +2654,14 @@
       "sha256": "475882dcad4ef4c1510f8e57558a6a5f6d620b0e56924306281ee62d6a87eff6"
     },
     {
-      "bytes": 68651,
+      "bytes": 69190,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/report_tables.py",
-      "sha256": "cf2778fd0c13fac2cd470529be85ce4ad3edc937d1e617f479ec05fd04be056a"
+      "sha256": "863acf7208de4065b6294f4c480abbc5d7708348eb6eaf3d73cfcc409752d25f"
     },
     {
       "bytes": 30423,
@@ -2972,14 +2972,14 @@
       "sha256": "d50bf8a0a36f54761452eb69721f7e621059c55040798bf8c49a04a5cd2a0b63"
     },
     {
-      "bytes": 62985,
+      "bytes": 64188,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": null,
       "path": "benchmarks/compare/target_truth.py",
-      "sha256": "25fbc176cc3a82fa54ef5da311a86253ff3be608f402bde7c257139378bd36db"
+      "sha256": "51cca780517cf703e4f4052ae3e72cf48a054e60a8baba06d72d0ba75718ce51"
     },
     {
       "bytes": 28136,
@@ -3074,24 +3074,24 @@
       "sha256": "fe626ae4f491a74c77e9bee03081c7d2ff8567c1e72d8f8f4713d970ff442ce4"
     },
     {
-      "bytes": 35901,
+      "bytes": 47972,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/whole_genome_assets.py",
-      "sha256": "63f17095cb91c727ac74af99b32f4e0da41b42409942443f4641eb75f586b826"
+      "sha256": "de60de013006dd13319cadded37115cc800bc6f50ffea772a68d3939116c0e6f"
     },
     {
-      "bytes": 36132,
+      "bytes": 36841,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/whole_genome_report.py",
-      "sha256": "c433e4f965b94d3fb23bb70f1b9fd8ca6b22bd17296c489b98a087dafa4a18d6"
+      "sha256": "beca961a8476c68954406cb5ee24d3328513e07d8ebe6ecd13ca7c084493d6a3"
     },
     {
       "bytes": 43146,
@@ -3337,7 +3337,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "f4c242381e6d56242dd0db34b83b956d89bceb6986732e859ac5cd424b8bc429",
+  "inventory_sha256": "02c3c543281a331b3df9add21e41087f776eeb6be1af4fa4e62614970f449ada",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3385,8 +3385,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "80d998c6d0f02215876c2b8d60f9d1fccbcd2da8c46f3d1bdfd876bbe2a26653",
-    "bytes": 13106754,
+    "aggregate_sha256": "bcc54f5dbc04ec9527710bac735d41153ac474ab3913b4e93886ec522a94821d",
+    "bytes": 13121814,
     "classification_counts": {
       "canonical": 74,
       "diagnostic": 26,

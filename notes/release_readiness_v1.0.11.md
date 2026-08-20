@@ -83,5 +83,36 @@ harness. None was a defect in the lifted output.
   `sphinx-design` is the real fix; until then the pin is held.
 - **Three dependabot security alerts** on the default branch (1 high, 1
   moderate, 1 low), untouched by this pass.
-- The benchmark evidence for the v1.0.11 technical report is a separate
-  workstream; see `benchmarks/manifests/lifton_v111_biology_study.json`.
+- The benchmark evidence for the v1.0.11 technical report was produced as a
+  separate frozen workstream; see the 2026-08-20 follow-up below.
+
+## 2026-08-20 reporting follow-up
+
+The seven-transfer scientific study is now complete. It contains 28 of 28
+paired, order-balanced repetitions. All 28 exact-v1.0.11 outputs pass the
+study's structural validator and each transfer is byte-deterministic across
+its four repetitions. The prespecified cohort verdict is nevertheless
+**FAIL / DIAGNOSTIC ONLY**: 40 of 50 gates pass, while eight aggregate coding-
+recovery lower bounds, the honey-bee absolute transcript-locus floor, and the
+two-concurrent-transfer memory proxy fail. Released target annotations are
+assembly-matched comparison references, not independent biological truth.
+
+This result does not modify or retroactively qualify the v1.0.11 tag. The
+study executes `c623f0b` against `e503643`; parser, scheduler, reducer, and
+report-table repairs all live after the release. In particular, the large
+stable-identifier difference between these endpoints is cumulative since
+v1.0.8 and must not be attributed solely to the narrow v1.0.11 duplicate-name
+fix.
+
+At commit `862b6f8`, the deterministic benchmark inventory was stale after
+changes to `whole_genome_report.py`, `released_annotation_sensitivity.py`, and
+`target_truth.py` across the preceding commits. That produced the only failure
+in its GitHub test matrix (1 failed, 1,805 passed, 14 skipped per job); it was
+an inventory drift failure rather than an algorithm or output failure. The
+reporting follow-up regenerates both committed inventory views after adding
+evidence-bound report tables. Remote CI status remains a property of the
+resulting commit and must be checked before merging it to `main`.
+
+The three existing Dependabot alerts in the vendored Rust/PyO3 dependency
+chain remain open. Updating that subsystem is deliberately outside this
+reporting-only follow-up and no security-clean claim is made for v1.0.11.
