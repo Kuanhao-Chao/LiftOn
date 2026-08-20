@@ -10,6 +10,7 @@ import pytest
 
 from benchmarks.compare import (
     biology_canary,
+    recovery_difference,
     release_evaluation,
     whole_genome_assets,
     whole_genome_report,
@@ -190,6 +191,17 @@ def _evidence(tmp_path: Path) -> dict[str, Path]:
         "kind": "lifton-v1.0.11-biology-study-preflight",
         "campaign_ready": True,
         "study": _record(study),
+        "ortholog_scopes": {
+            pair_id: {
+                "counts": {
+                    "gene_groups_retained": 100 + index,
+                    "transcript_groups_retained": 300 + index,
+                },
+            }
+            for index, pair_id in enumerate(
+                whole_genome_study.EXPECTED_PAIR_IDS, start=1,
+            )
+        },
     }
     preflight_document["fingerprint"] = (
         whole_genome_study.canonical_sha256(preflight_document)
@@ -210,9 +222,10 @@ def _evidence(tmp_path: Path) -> dict[str, Path]:
     )
     canary = _write_json(tmp_path / "canary.json", canary_document)
     campaign = tmp_path / "campaign"
+    cells = campaign / "runs" / "test-run" / "cells"
     for pair_id in whole_genome_study.EXPECTED_PAIR_IDS:
         for repetition in range(1, 5):
-            _pair(campaign, pair_id, repetition)
+            _pair(cells, pair_id, repetition)
     return {
         "study": study,
         "preflight": preflight,
@@ -358,9 +371,51 @@ def _with_sensitivity(metrics: dict, tmp_path: Path) -> tuple[dict, dict]:
     return metrics, sensitivity
 
 
+def _with_recovery(
+    metrics: dict,
+    campaign: Path,
+    tmp_path: Path,
+) -> tuple[dict, Path]:
+    empty = {
+        "n": 0,
+        "mean_protein_identity": None,
+        "median_protein_identity": None,
+        "n_below_threshold": 0,
+        "fraction_below_threshold": None,
+        "n_orf_valid": 0,
+        "fraction_orf_valid": None,
+        "transcripts": [],
+    }
+    document = {
+        "schema_version": recovery_difference.SCHEMA_VERSION,
+        "method": recovery_difference.METHOD,
+        "campaign_root": str(campaign.resolve()),
+        "weak_threshold": recovery_difference.DEFAULT_WEAK_THRESHOLD,
+        "transfers": {
+            pair_id: {
+                "denominator_coding": 2,
+                "weak_threshold": recovery_difference.DEFAULT_WEAK_THRESHOLD,
+                "reference_only": dict(empty),
+                "candidate_only": dict(empty),
+                "net_candidate_minus_reference": 0,
+            }
+            for pair_id in whole_genome_study.EXPECTED_PAIR_IDS
+        },
+    }
+    path = _write_json(tmp_path / "recovery-difference.json", document)
+    return metrics, path
+
+
 def test_report_assets_generate_expected_figures_and_tables(tmp_path):
-    metrics = _reduce(_evidence(tmp_path / "evidence"))
+    evidence = _evidence(tmp_path / "evidence")
+    metrics = _reduce(evidence)
     metrics, sensitivity = _with_sensitivity(metrics, tmp_path)
+    metrics, recovery_path = _with_recovery(
+        metrics, evidence["campaign"], tmp_path,
+    )
+    recovery = whole_genome_assets.load_recovery_difference(
+        recovery_path, metrics,
+    )
 
     paths = whole_genome_assets.generate_figures(metrics, tmp_path / "figures")
 
@@ -374,12 +429,17 @@ def test_report_assets_generate_expected_figures_and_tables(tmp_path):
         ))
         for name in whole_genome_assets.BLOCKS
     ) + "\n"
-    updated = whole_genome_assets.update_report(report, metrics, sensitivity)
+    updated = whole_genome_assets.update_report(
+        report, metrics, sensitivity, recovery,
+    )
     assert "stale" not in updated
     assert "Honey bee" in updated
     assert "Equal-transfer paired delta" in updated
     assert "Summed median-duration ratio" in updated
     assert "Two-concurrent-transfer v1.0.11 memory proxy" in updated
+    assert "101 / 301" in updated
+    assert "v1.0.11 only" in updated
+    assert recovery["_file_record"]["sha256"] in updated
     for excluded in (
         "arabidopsis", "rice", "zebrafish", "chicken", "xenopus",
     ):
@@ -387,8 +447,87 @@ def test_report_assets_generate_expected_figures_and_tables(tmp_path):
     report_path = tmp_path / "report.mdx"
     report_path.write_text(updated)
     assert whole_genome_assets.check_report(
-        report_path, metrics, sensitivity,
+        report_path, metrics, sensitivity, recovery,
     ) == (True, "")
+
+
+def test_report_assets_keep_recovery_block_optional(tmp_path):
+    evidence = _evidence(tmp_path / "evidence")
+    metrics = _reduce(evidence)
+    metrics, sensitivity = _with_sensitivity(metrics, tmp_path)
+    report = "\n\n".join(
+        "\n".join((
+            whole_genome_assets.START.format(name=name),
+            "stale",
+            whole_genome_assets.END.format(name=name),
+        ))
+        for name in sorted(whole_genome_assets.REQUIRED_BLOCKS)
+    ) + "\n"
+
+    updated = whole_genome_assets.update_report(report, metrics, sensitivity)
+
+    assert "stale" not in updated
+    report += "\n".join((
+        whole_genome_assets.START.format(name="biology-recovery-difference"),
+        "stale",
+        whole_genome_assets.END.format(name="biology-recovery-difference"),
+    ))
+    with pytest.raises(
+        whole_genome_assets.AssetError, match="requires --recovery-difference",
+    ):
+        whole_genome_assets.update_report(report, metrics, sensitivity)
+
+
+def test_recovery_difference_validation_fails_closed(tmp_path):
+    evidence = _evidence(tmp_path / "evidence")
+    metrics = _reduce(evidence)
+    _, path = _with_recovery(metrics, evidence["campaign"], tmp_path)
+    recovery = json.loads(path.read_text())
+
+    changed = json.loads(json.dumps(recovery))
+    changed["transfers"]["bee"]["net_candidate_minus_reference"] = 1
+    with pytest.raises(whole_genome_assets.AssetError, match="net is inconsistent"):
+        whole_genome_assets.validate_recovery_difference(changed, metrics)
+
+    changed = json.loads(json.dumps(recovery))
+    changed["transfers"]["bee"]["reference_only"]["n"] = 1
+    with pytest.raises(whole_genome_assets.AssetError, match="transcript inventory"):
+        whole_genome_assets.validate_recovery_difference(changed, metrics)
+
+    changed = json.loads(json.dumps(recovery))
+    changed["campaign_root"] = str(tmp_path / "different-campaign")
+    with pytest.raises(whole_genome_assets.AssetError, match="campaign root"):
+        whole_genome_assets.validate_recovery_difference(changed, metrics)
+
+    changed = json.loads(json.dumps(recovery))
+    changed["transfers"].pop("bee")
+    with pytest.raises(whole_genome_assets.AssetError, match="inventory"):
+        whole_genome_assets.validate_recovery_difference(changed, metrics)
+
+
+def test_cohort_table_rejects_preflight_drift(tmp_path):
+    evidence = _evidence(tmp_path / "evidence")
+    metrics = _reduce(evidence)
+    preflight = json.loads(evidence["preflight"].read_text())
+    preflight["ortholog_scopes"]["bee"]["counts"][
+        "transcript_groups_retained"
+    ] += 1
+    _write_json(evidence["preflight"], preflight)
+
+    with pytest.raises(whole_genome_assets.AssetError, match="changed after reduction"):
+        whole_genome_assets.table_cohort(metrics, None, None)
+
+
+def test_qualification_table_lists_only_failed_gates(tmp_path):
+    metrics = _reduce(_evidence(tmp_path / "evidence"))
+    metrics["qualification"]["gates"][0]["passed"] = False
+    metrics["qualification"]["status"] = "FAIL"
+
+    table = whole_genome_assets.table_qualification(metrics, None, None)
+
+    assert "49/50 prespecified checks passed" in table
+    assert table.count("**FAIL**") == 1
+    assert "| PASS |" not in table
 
 
 def test_report_assets_reject_metric_or_sensitivity_drift(tmp_path):

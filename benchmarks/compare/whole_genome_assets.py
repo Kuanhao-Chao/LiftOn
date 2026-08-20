@@ -17,7 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from . import whole_genome_report, whole_genome_study
+from . import recovery_difference, whole_genome_report, whole_genome_study
 
 
 CANDIDATE = "LiftOn v1.0.11"
@@ -174,6 +174,143 @@ def load_sensitivity(
     return validate_sensitivity(
         _load_json(path, "annotation sensitivity"), metrics,
     )
+
+
+def _campaign_root(metrics: Mapping[str, Any]) -> Path:
+    roots = set()
+    for row in metrics["pairs"]:
+        for record in row["pair_results"]:
+            path = Path(record["path"]).resolve()
+            for parent in path.parents:
+                if parent.name == "runs":
+                    roots.add(parent.parent)
+                    break
+            else:
+                raise AssetError(
+                    f"{row['id']}: paired result is not inside a campaign runs directory"
+                )
+    if len(roots) != 1:
+        raise AssetError("study metrics span more than one campaign root")
+    return roots.pop()
+
+
+def _validate_recovery_description(value: Any, label: str) -> None:
+    if not isinstance(value, Mapping):
+        raise AssetError(f"{label} description is missing")
+    count = value.get("n")
+    below = value.get("n_below_threshold")
+    orf_valid = value.get("n_orf_valid")
+    if (
+        not isinstance(count, int)
+        or isinstance(count, bool)
+        or count < 0
+        or not isinstance(below, int)
+        or isinstance(below, bool)
+        or not 0 <= below <= count
+        or not isinstance(orf_valid, int)
+        or isinstance(orf_valid, bool)
+        or not 0 <= orf_valid <= count
+    ):
+        raise AssetError(f"{label} counts are invalid")
+    transcripts = value.get("transcripts")
+    if (
+        not isinstance(transcripts, list)
+        or len(transcripts) != min(count, 50)
+        or len(set(transcripts)) != len(transcripts)
+        or not all(
+            isinstance(identifier, str) and identifier
+            for identifier in transcripts
+        )
+    ):
+        raise AssetError(f"{label} transcript inventory is invalid")
+    for name, numerator in (
+        ("fraction_below_threshold", below),
+        ("fraction_orf_valid", orf_valid),
+    ):
+        observed = value.get(name)
+        expected = round(numerator / count, 6) if count else None
+        if observed != expected:
+            raise AssetError(f"{label} {name} disagrees with its counts")
+    for name in ("mean_protein_identity", "median_protein_identity"):
+        observed = value.get(name)
+        if count == 0:
+            if observed is not None:
+                raise AssetError(f"{label} {name} must be null for an empty set")
+        elif (
+            not isinstance(observed, (int, float))
+            or isinstance(observed, bool)
+            or not 0 <= float(observed) <= 1
+        ):
+            raise AssetError(f"{label} {name} is invalid")
+
+
+def validate_recovery_difference(
+    document: Any,
+    metrics: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    if (
+        not isinstance(document, Mapping)
+        or document.get("schema_version") != recovery_difference.SCHEMA_VERSION
+        or document.get("method") != recovery_difference.METHOD
+        or document.get("weak_threshold")
+        != recovery_difference.DEFAULT_WEAK_THRESHOLD
+    ):
+        raise AssetError("recovery difference uses an unsupported schema or method")
+    try:
+        recovery_root = Path(str(document.get("campaign_root", ""))).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise AssetError(f"recovery difference campaign root is invalid: {exc}") from exc
+    if recovery_root != _campaign_root(metrics):
+        raise AssetError("recovery difference campaign root disagrees with study metrics")
+    transfers = document.get("transfers")
+    if (
+        not isinstance(transfers, Mapping)
+        or list(transfers) != list(whole_genome_study.EXPECTED_PAIR_IDS)
+    ):
+        raise AssetError("recovery difference transfer inventory disagrees")
+    metrics_by_id = {row["id"]: row for row in metrics["pairs"]}
+    for pair_id, result in transfers.items():
+        if not isinstance(result, Mapping):
+            raise AssetError(f"{pair_id}: recovery difference is missing")
+        denominator = result.get("denominator_coding")
+        net = result.get("net_candidate_minus_reference")
+        if (
+            not isinstance(denominator, int)
+            or isinstance(denominator, bool)
+            or denominator <= 0
+            or not isinstance(net, int)
+            or isinstance(net, bool)
+            or result.get("weak_threshold") != document["weak_threshold"]
+        ):
+            raise AssetError(f"{pair_id}: recovery difference counts are invalid")
+        for arm in ("candidate_only", "reference_only"):
+            _validate_recovery_description(result.get(arm), f"{pair_id} {arm}")
+        expected_net = (
+            result["candidate_only"]["n"] - result["reference_only"]["n"]
+        )
+        if net != expected_net:
+            raise AssetError(f"{pair_id}: recovery difference net is inconsistent")
+        observed_delta = metrics_by_id[pair_id]["source_deltas"][
+            "completeness_coding"
+        ]
+        if not math.isclose(
+            float(observed_delta), net / denominator, rel_tol=0, abs_tol=1.1e-5,
+        ):
+            raise AssetError(
+                f"{pair_id}: recovery difference disagrees with coding completeness"
+            )
+    return document
+
+
+def load_recovery_difference(
+    path: Path,
+    metrics: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    document = dict(validate_recovery_difference(
+        _load_json(path, "recovery difference"), metrics,
+    ))
+    document["_file_record"] = whole_genome_study.file_record(path.resolve())
+    return document
 
 
 def _setup() -> None:
@@ -580,20 +717,68 @@ def _two(row: Mapping[str, Any], path: Sequence[str], digits: int = 4) -> str:
     )
 
 
-def table_cohort(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] | None) -> str:
+def _ortholog_counts(metrics: Mapping[str, Any]) -> Mapping[str, Mapping[str, int]]:
+    preflight_path = _file_record(metrics["preflight"], "study preflight")
+    preflight = _load_json(
+        preflight_path, "study preflight",
+    )
+    scopes = preflight.get("ortholog_scopes")
+    if (
+        preflight.get("schema_version") != whole_genome_study.SCHEMA_VERSION
+        or preflight.get("kind") != "lifton-v1.0.11-biology-study-preflight"
+        or preflight.get("campaign_ready") is not True
+        or preflight.get("study") != metrics["study"]
+        or not isinstance(scopes, Mapping)
+        or list(scopes) != list(whole_genome_study.EXPECTED_PAIR_IDS)
+    ):
+        raise AssetError("study preflight ortholog scopes are missing or invalid")
+    counts_by_id = {}
+    for pair_id, scope in scopes.items():
+        counts = scope.get("counts") if isinstance(scope, Mapping) else None
+        genes = (
+            counts.get("gene_groups_retained")
+            if isinstance(counts, Mapping) else None
+        )
+        transcripts = (
+            counts.get("transcript_groups_retained")
+            if isinstance(counts, Mapping) else None
+        )
+        if (
+            not isinstance(genes, int)
+            or isinstance(genes, bool)
+            or genes <= 0
+            or not isinstance(transcripts, int)
+            or isinstance(transcripts, bool)
+            or transcripts <= 0
+        ):
+            raise AssetError(f"{pair_id}: preflight ortholog counts are invalid")
+        counts_by_id[pair_id] = {
+            "gene_groups_retained": genes,
+            "transcript_groups_retained": transcripts,
+        }
+    return counts_by_id
+
+
+def table_cohort(
+    metrics: Mapping[str, Any],
+    _sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
+) -> str:
+    counts_by_id = _ortholog_counts(metrics)
     rows = [
         "| Biological transfer | Rationale | Released target annotation | Reported genes | Protein-RBH gene / transcript groups |",
         "|---|---|---|---:|---:|",
     ]
     for row in metrics["pairs"]:
         target = row["target_annotation"]
-        groups = row["candidate"]["target_scope"]
+        groups = counts_by_id[row["id"]]
         rows.append(
             f"| {row['public_label']} | {row['biological_class']} | "
             f"{target['provider']}; `{target['assembly_accession']}`; "
             f"{target['release']} (evidence date {target['release_date']}) | "
             f"{target['reported_gene_count']:,} | "
-            f"{groups['gene_groups']:,} / {groups['transcript_groups']:,} |"
+            f"{groups['gene_groups_retained']:,} / "
+            f"{groups['transcript_groups_retained']:,} |"
         )
     return "\n".join(rows)
 
@@ -601,6 +786,7 @@ def table_cohort(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] | N
 def headline_summary(
     metrics: Mapping[str, Any],
     _sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
 ) -> str:
     pairs = metrics["pairs"]
     aggregate = metrics["aggregate"]
@@ -635,7 +821,11 @@ def headline_summary(
     )
 
 
-def table_comprehensiveness(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] | None) -> str:
+def table_comprehensiveness(
+    metrics: Mapping[str, Any],
+    _sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
+) -> str:
     rows = [
         "| Transfer | Coding completeness v1.0.11 / v1.0.8 | All-feature completeness | Target gene recall | Target transcript recall | CDS ID preservation | Exon ID preservation |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -653,7 +843,11 @@ def table_comprehensiveness(metrics: Mapping[str, Any], _sensitivity: Mapping[st
     return "\n".join(rows)
 
 
-def table_accuracy(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] | None) -> str:
+def table_accuracy(
+    metrics: Mapping[str, Any],
+    _sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
+) -> str:
     rows = [
         "| Transfer | Source CovPI v1.0.11 / v1.0.8 | Exact intron recall | ORF-valid recall | Target gene F1 | Target transcript F1 | Target intron-chain F1 | Target protein identity |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
@@ -695,7 +889,11 @@ def table_accuracy(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] |
     return "\n".join(rows)
 
 
-def table_performance(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] | None) -> str:
+def table_performance(
+    metrics: Mapping[str, Any],
+    _sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
+) -> str:
     rows = [
         "| Transfer | Median wall h v1.0.11 / v1.0.8 | Wall ratio | Median process-group RSS GiB | RSS ratio | Valid v1.0.11 reps | Deterministic v1.0.11 |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -745,20 +943,65 @@ def table_performance(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any
     return "\n".join(rows)
 
 
-def table_qualification(metrics: Mapping[str, Any], _sensitivity: Mapping[str, Any] | None) -> str:
+def table_qualification(
+    metrics: Mapping[str, Any],
+    _sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
+) -> str:
+    gates = metrics["qualification"]["gates"]
+    failed_gates = [gate for gate in gates if gate["passed"] is False]
+    labels = {
+        "aggregate source completeness_coding": (
+            "Aggregate coding-completeness lower confidence bound"
+        ),
+        "aggregate source covpi": "Aggregate CovPI lower confidence bound",
+        "aggregate source recall_at_0.5": (
+            "Aggregate recall at PI ≥ 0.50 lower confidence bound"
+        ),
+        "aggregate source recall_at_0.75": (
+            "Aggregate recall at PI ≥ 0.75 lower confidence bound"
+        ),
+        "aggregate source recall_at_0.9": (
+            "Aggregate recall at PI ≥ 0.90 lower confidence bound"
+        ),
+        "aggregate source recall_at_0.95": (
+            "Aggregate recall at PI ≥ 0.95 lower confidence bound"
+        ),
+        "aggregate source intron_chain_exact_recall": (
+            "Aggregate exact-intron-recall lower confidence bound"
+        ),
+        "aggregate source orf_valid_recall": (
+            "Aggregate ORF-valid-recall lower confidence bound"
+        ),
+        "bee candidate target locus F1": (
+            "Honey-bee minimum released-target locus F1"
+        ),
+        "concurrent candidate memory proxy": (
+            "Two-concurrent-transfer v1.0.11 memory proxy (GiB)"
+        ),
+    }
     rows = [
-        "| Prespecified cohort gate | Result | Observed | Required |",
+        (
+            f"**Gate summary:** {len(gates) - len(failed_gates)}/{len(gates)} "
+            "prespecified checks passed. The failed checks are listed below."
+        ),
+        "",
+        "| Failed prespecified cohort gate | Result | Observed | Required |",
         "|---|---:|---:|---:|",
     ]
-    for gate in metrics["qualification"]["gates"]:
+    for gate in failed_gates:
         rows.append(
-            f"| {gate['name']} | {'PASS' if gate['passed'] else '**FAIL**'} | "
+            f"| {labels.get(gate['name'], gate['name'])} | **FAIL** | "
             f"{_fmt(gate['observed'], 6)} | {_fmt(gate['threshold'], 6)} |"
         )
     return "\n".join(rows)
 
 
-def table_sensitivity(metrics: Mapping[str, Any], sensitivity: Mapping[str, Any] | None) -> str:
+def table_sensitivity(
+    metrics: Mapping[str, Any],
+    sensitivity: Mapping[str, Any] | None,
+    _recovery: Mapping[str, Any] | None,
+) -> str:
     if sensitivity is None:
         raise AssetError("biology-sensitivity requires annotation sensitivity")
     rows = [
@@ -788,7 +1031,36 @@ def table_sensitivity(metrics: Mapping[str, Any], sensitivity: Mapping[str, Any]
     return "\n".join(rows)
 
 
-def table_provenance(metrics: Mapping[str, Any], sensitivity: Mapping[str, Any] | None) -> str:
+def table_recovery_difference(
+    metrics: Mapping[str, Any],
+    _sensitivity: Mapping[str, Any] | None,
+    recovery: Mapping[str, Any] | None,
+) -> str:
+    if recovery is None:
+        raise AssetError("biology-recovery-difference requires recovery evidence")
+    validate_recovery_difference(recovery, metrics)
+    rows = [
+        "| Transfer | v1.0.11 only | v1.0.8 only | Net v1.0.11 − v1.0.8 | v1.0.8-only mean PI | v1.0.8-only PI < 0.50 | v1.0.8-only ORF valid |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for pair_id, result in recovery["transfers"].items():
+        reference_only = result["reference_only"]
+        rows.append(
+            f"| {SHORT_LABELS[pair_id]} | {result['candidate_only']['n']:,} | "
+            f"{reference_only['n']:,} | "
+            f"{result['net_candidate_minus_reference']:+,} | "
+            f"{_fmt(reference_only['mean_protein_identity'], 4)} | "
+            f"{_fmt(reference_only['fraction_below_threshold'], 4)} | "
+            f"{_fmt(reference_only['fraction_orf_valid'], 4)} |"
+        )
+    return "\n".join(rows)
+
+
+def table_provenance(
+    metrics: Mapping[str, Any],
+    sensitivity: Mapping[str, Any] | None,
+    recovery: Mapping[str, Any] | None,
+) -> str:
     rows = [
         "| Evidence object | SHA-256 / fingerprint |",
         "|---|---|",
@@ -806,42 +1078,69 @@ def table_provenance(metrics: Mapping[str, Any], sensitivity: Mapping[str, Any] 
         rows.append(
             f"| Released-annotation sensitivity | `{sensitivity['fingerprint']}` |"
         )
+    if recovery is not None:
+        record = recovery.get("_file_record")
+        if not isinstance(record, Mapping) or not record.get("sha256"):
+            raise AssetError("recovery difference source-file record is missing")
+        _file_record(record, "recovery difference")
+        rows.append(
+            f"| Paired recovery difference | `{record['sha256']}` |"
+        )
     return "\n".join(rows)
 
 
-BLOCKS: dict[str, Callable[[Mapping[str, Any], Mapping[str, Any] | None], str]] = {
+BlockRenderer = Callable[
+    [Mapping[str, Any], Mapping[str, Any] | None, Mapping[str, Any] | None],
+    str,
+]
+
+
+BLOCKS: dict[str, BlockRenderer] = {
     "biology-headline": headline_summary,
     "biology-cohort": table_cohort,
     "biology-comprehensiveness": table_comprehensiveness,
     "biology-accuracy": table_accuracy,
     "biology-performance": table_performance,
     "biology-qualification": table_qualification,
+    "biology-recovery-difference": table_recovery_difference,
     "biology-sensitivity": table_sensitivity,
     "biology-provenance": table_provenance,
 }
+REQUIRED_BLOCKS = frozenset(BLOCKS) - {"biology-recovery-difference"}
 
 
 def render_block(
     name: str,
     metrics: Mapping[str, Any],
     sensitivity: Mapping[str, Any] | None,
+    recovery: Mapping[str, Any] | None = None,
 ) -> str:
     if name not in BLOCKS:
         raise AssetError(f"unknown biology report block {name!r}")
-    return BLOCKS[name](metrics, sensitivity).rstrip()
+    return BLOCKS[name](metrics, sensitivity, recovery).rstrip()
 
 
 def update_report(
     text: str,
     metrics: Mapping[str, Any],
     sensitivity: Mapping[str, Any] | None,
+    recovery: Mapping[str, Any] | None = None,
 ) -> str:
     matches = list(MARKER.finditer(text))
     names = [match.group("name") for match in matches]
-    if set(names) != set(BLOCKS) or len(names) != len(BLOCKS):
+    observed = set(names)
+    if (
+        len(names) != len(observed)
+        or not REQUIRED_BLOCKS.issubset(observed)
+        or not observed.issubset(BLOCKS)
+    ):
         raise AssetError(
-            "report biology markers must occur exactly once: "
-            f"expected={sorted(BLOCKS)}, observed={sorted(names)}"
+            "required report biology markers must occur exactly once: "
+            f"required={sorted(REQUIRED_BLOCKS)}, observed={sorted(names)}"
+        )
+    if "biology-recovery-difference" in observed and recovery is None:
+        raise AssetError(
+            "biology-recovery-difference marker requires --recovery-difference"
         )
     updated = text
     for name in names:
@@ -851,7 +1150,9 @@ def update_report(
         end_index = updated.find(end, start_index + len(start))
         if end_index < 0:
             raise AssetError(f"generated block {name!r} has no end marker")
-        rendered = "\n".join((start, render_block(name, metrics, sensitivity), end))
+        rendered = "\n".join((
+            start, render_block(name, metrics, sensitivity, recovery), end,
+        ))
         updated = updated[:start_index] + rendered + updated[end_index + len(end):]
     return updated
 
@@ -860,9 +1161,10 @@ def check_report(
     path: Path,
     metrics: Mapping[str, Any],
     sensitivity: Mapping[str, Any] | None,
+    recovery: Mapping[str, Any] | None = None,
 ) -> tuple[bool, str]:
     observed = path.read_text(encoding="utf-8")
-    expected = update_report(observed, metrics, sensitivity)
+    expected = update_report(observed, metrics, sensitivity, recovery)
     if observed == expected:
         return True, ""
     return False, "".join(difflib.unified_diff(
@@ -877,6 +1179,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--metrics", type=Path, required=True)
     parser.add_argument("--sensitivity", type=Path)
+    parser.add_argument("--recovery-difference", type=Path)
     operation = parser.add_mutually_exclusive_group(required=True)
     operation.add_argument("--figures", type=Path, metavar="DIR")
     operation.add_argument("--update", type=Path, metavar="REPORT")
@@ -892,16 +1195,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             load_sensitivity(arguments.sensitivity, metrics)
             if arguments.sensitivity else None
         )
+        recovery = (
+            load_recovery_difference(arguments.recovery_difference, metrics)
+            if arguments.recovery_difference else None
+        )
         if arguments.figures:
             for path in generate_figures(metrics, arguments.figures):
                 print(path)
             return 0
         report = arguments.update or arguments.check
-        passed, diff = check_report(report, metrics, sensitivity)
+        passed, diff = check_report(report, metrics, sensitivity, recovery)
         if arguments.update:
             if not passed:
                 report.write_text(
-                    update_report(report.read_text(encoding="utf-8"), metrics, sensitivity),
+                    update_report(
+                        report.read_text(encoding="utf-8"),
+                        metrics,
+                        sensitivity,
+                        recovery,
+                    ),
                     encoding="utf-8",
                 )
                 print(f"updated {report}")
