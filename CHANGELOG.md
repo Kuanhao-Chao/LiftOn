@@ -59,9 +59,9 @@ related and runs multi-threaded by default.
   lift loop now runs one forked worker per reference chromosome
   (`--no-parallel-lift` opts out); the loop links only neighbouring genes on
   the same chromosome, so the output is identical. Fresh Liftoff at `-t 8`:
-  the aligner phase takes 134 s instead of 261 s on drosophila; on dog → cat
-  parallel lift alone takes it from 1,765 s to 1,206 s. Intermediate Liftoff
-  GFF3 files are identical to v1.0.11's.
+  the aligner phase takes 134 s instead of 261 s on drosophila and 1,206 s
+  instead of 3,020 s on dog → cat (whole run 3,092 s instead of 4,878 s).
+  Intermediate Liftoff GFF3 files are identical to v1.0.11's.
 - **Targets above 4,000,000,000 bases no longer build the minimap2 and
   miniprot indexes concurrently by default.** Liftoff/minimap2 completes first,
   then miniprot starts, preventing their index-memory peaks from overlapping.
