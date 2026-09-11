@@ -140,19 +140,19 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "50aae1e381914b152b4240c5fc84050596723e63def06e84b39511103f4a2704",
-      "bytes": 1007516,
+      "aggregate_sha256": "dd0ab6e937d83923423cbbb46bc4f8c50b906a54f9dc15c6e81f82b9fff76892",
+      "bytes": 1019930,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "description": "Current deterministic comparison, evaluation, controller, and publication tooling.",
-      "file_count": 30,
+      "file_count": 31,
       "id": "canonical_release_tooling",
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "663801fdc05b0eac74ecac18eadd76245360aa8b074309cf043f1687393babd8",
-      "bytes": 498490,
+      "aggregate_sha256": "cbc9934fb4afdb3b922e8aeab22540e47010544ad58f2528520c93eb890f1c5e",
+      "bytes": 498587,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -173,13 +173,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "b6b59da2d3eeff42cd133b7df5d40334135a11346d7775be6225f58cb0ef9cd0",
-      "bytes": 285576,
+      "aggregate_sha256": "08c902458b83c7e9cef989ced262ad69a9231e7534433b81f87c4e0ef68c60a8",
+      "bytes": 338203,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
-      "file_count": 26,
+      "file_count": 28,
       "id": "diagnostic_headroom",
       "superseded_by": null
     },
@@ -1382,14 +1382,14 @@
       "sha256": "f0f601487b2eb0d0b5ffc4e76bc3cbb1c59247f594e5eeda04401ca08704b0cf"
     },
     {
-      "bytes": 30014,
+      "bytes": 30513,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/evaluator.py",
-      "sha256": "477ac640fba3b1a435dd50f5f4ed832e013ddf61537fc249dbe34be1a99c7578"
+      "sha256": "6e74753a0bcf13a81dc507532ab708c5b50c7f8748115e16c22fe77c9baa4443"
     },
     {
       "bytes": 4224,
@@ -2028,6 +2028,16 @@
       "sha256": "5711e6ddd3d4e8c1c6537e866dc45e0e53c24832f3d3751e5028a8f6cbcaa265"
     },
     {
+      "bytes": 11915,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/gene_level.py",
+      "sha256": "d86aaa2123aa7e54c0ff4abfbd7158cb61d35b2a81bbc76f0f360782cd6687d9"
+    },
+    {
       "bytes": 3118,
       "claim_eligible": false,
       "classification": "canonical",
@@ -2582,6 +2592,30 @@
       "json_schema": null,
       "path": "benchmarks/compare/provider_orthologs.py",
       "sha256": "a892feb8f14dffe77bb91a89ee7bf187d255219061a34be738868388932f5b8b"
+    },
+    {
+      "bytes": 36229,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "f209a5354fccedefe284a1dd983dd0fd9fea27bcc19880bae14ff093d200b787",
+        "top_level_count": 6
+      },
+      "path": "benchmarks/compare/recall_gap_diagnosis.json",
+      "sha256": "f6416ec73569dd1dab576499a1f00b6fa08837cf55c6d91fae0373c9f7e9b48c"
+    },
+    {
+      "bytes": 16398,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/recall_gap_diagnosis.py",
+      "sha256": "aaa803328db5cb90676bd82315a93147706d845849422ba6bfc55b3c67ffe527"
     },
     {
       "bytes": 6361,
@@ -3148,18 +3182,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 11205,
+      "bytes": 11302,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "a8f94dc33615bc1cb7b5c681fed0d6b08072703b4314e01ac1f487d277de6a59",
+        "shape_sha256": "4fa5afc386c10ba13f6917b3d38f8ec2ae1ba0a5a5e6c43f44280e387bdb4681",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "47482ca3477f040f60530d917a4deba37be908d1b3c7c978b4213bf829f123d7"
+      "sha256": "d04db22ec06baf7365f88e58ff491e1695983bb9b7062c9ef7eadf08c0a9244b"
     },
     {
       "bytes": 34428,
@@ -3337,7 +3371,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "02c3c543281a331b3df9add21e41087f776eeb6be1af4fa4e62614970f449ada",
+  "inventory_sha256": "621f3eb4a01ddf5d1fc9f80e64ebd61c55341dc0fb1135e518206321ac6f2600",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3381,19 +3415,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "e498db20ece26779146668fb619eba0f5384a91f7a0b874f2d5d2adb079cb148",
+  "rules_sha256": "450cd510bbc35403a4a27010ccd0ff862a07887b67aa244c222e7ae55268b627",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "bcc54f5dbc04ec9527710bac735d41153ac474ab3913b4e93886ec522a94821d",
-    "bytes": 13121814,
+    "aggregate_sha256": "b2175d8d00fbfb67e705ce48e279410673d9e9937c58e0cf6dbd221ee9cbbead",
+    "bytes": 13186952,
     "classification_counts": {
-      "canonical": 74,
-      "diagnostic": 26,
+      "canonical": 75,
+      "diagnostic": 28,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 270
+    "file_count": 273
   }
 }
