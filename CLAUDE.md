@@ -61,6 +61,31 @@ profile-driven performance pass. Suite ~1610. Three things worth carrying forwar
   it, and takes `LIFTON_AB_PYTHONPATH` to pin both arms to one build (a detached
   worktree) while the main tree moves on.
 
+**v1.0.12 program (2026-09-11)** — see `notes/lifton_v1.0.12_improvement_analysis.md`
+for the evidence and `notes/release_readiness_v1.0.12.md` for the gates. What
+changed for anyone editing the code:
+
+- **The miniprot-only rescue has three passes now** (`lifton/miniprot_rescue.py`):
+  sub-pass A (the Iteration-23 rescue, unchanged), sub-pass B (candidates the
+  genomic-span band rejected, gated on protein coverage from `Target=`; default on,
+  `--no-coverage-rescue-gate`), and the isoform pass (other transcripts of each
+  rescued gene co-located with its hit; default on, `--no-rescue-isoforms`).
+  Placement is decided before any output is written (`_RescuePublisher` buffers when
+  isoforms are on); isoform scoring runs in forked processes with `-t > 1`.
+- **`--threads N > 1` now implies `--locus-pipeline` and `--parallel-lift`**
+  (`--no-locus-pipeline`, `--no-parallel-lift` opt out). Both are byte-neutral; the
+  parallel lift is exact because the lift loop's only cross-feature link (the
+  upstream-neighbour hint) never crosses a reference chromosome.
+- **Fork hazard:** a pool forked after `OutputTransaction.install_signal_handlers()`
+  inherits the SIGTERM handler, and `Pool.terminate()` used to make a worker rename
+  the parent's staged GFF3. The handler now acts only in its installing PID, and new
+  pools reset SIGTERM/SIGHUP in their initializer. Keep doing both.
+- **Evaluation:** report primary-assembly or GeneID-collapsed recall for
+  human-source transfers (`benchmarks/compare/gene_level.py`); 14.6 % of GRCh38
+  RefSeq coding genes are alt/fix copies. A/B gates for rescue changes live in
+  `benchmarks/compare/rescue_extension_ab.py` (duplicates are checked by ID; models
+  the evaluator cannot score, e.g. `V_gene_segment`, are reported separately).
+
 ## Environment & commands
 
 The project requires native deps (`parasail`, `pysam`, `pyfaidx`, `gffutils`, `duckdb`, `pyarrow`) that ship as bioconda/conda-forge wheels. On macOS/ARM, `pip install parasail` will fail to build from source — use conda. The vendored `lifton/gffbase/` ships a pre-built Rust extension (`_native*.so`); a missing extension falls back to the pure-Python parser at `lifton/gffbase/_pyfallback/`.
