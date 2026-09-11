@@ -7,8 +7,38 @@ Changelog
 v1.0.12
 --------
 
-Resource-safety and diagnostics patch release (2026-08-25), motivated by GH
-#71's two native ``SIGSEGV`` failures on an approximately 20-Gb target.
+Resource-safety and diagnostics release (2026-08-25), motivated by GH #71's two
+native ``SIGSEGV`` failures on an approximately 20-Gb target. It also recovers
+far more genes between distantly related species and runs multi-threaded by
+default.
+
+**Accuracy between distant species:**
+
+- A second miniprot-only rescue sub-pass reconsiders hits the rescue's length
+  band rejected. That band compares genomic spans, which include introns and
+  therefore follow genome size: lifting from human into fish, bird, and frog
+  genomes it discarded 75–83 % of the missed genes miniprot found, although
+  their alignments covered the whole reference protein. The sub-pass gates on
+  protein coverage (≥ 0.8) with the same identity floor. Whole-genome
+  primary-assembly gene recall rises from 0.315 to 0.593 (human → zebrafish),
+  0.364 to 0.615 (human → chicken) and 0.361 to 0.638 (human → xenopus), with
+  no gene lost, no duplicate model, and 99.7 % of added models overlapping an
+  annotated CDS of the released target annotation. ``--no-coverage-rescue-gate``
+  opts out.
+- Rescued genes now carry the other reference transcripts whose miniprot hits
+  lie at their locus, each held to the same identity floor, without changing
+  gene placement. ``--no-rescue-isoforms`` opts out.
+
+**Speed:**
+
+- ``--threads N`` with N > 1 now fans out Steps 7 and 8 without
+  ``--locus-pipeline``; output is byte-identical to the serial path.
+  ``--no-locus-pipeline`` restores serial processing.
+- Liftoff's alignment parsing and GFF3 writing are faster, and with
+  ``--threads N`` its lift loop runs one forked worker per reference
+  chromosome (``--no-parallel-lift`` opts out). Output is identical; the
+  fresh-Liftoff aligner phase at ``-t 8`` halves on drosophila
+  (261 s to 134 s).
 
 **Changed and fixed:**
 
@@ -27,6 +57,10 @@ Resource-safety and diagnostics patch release (2026-08-25), motivated by GH
   bases, covering its known large-sequence limitation.
 - Trans-spliced copies with repeated logical parent IDs now bind children to
   the matching parent on the same sequence.
+- Intermediate Liftoff and miniprot files are written to
+  ``lifton_output/liftoff/`` and ``lifton_output/miniprot/`` again; v1.0.10
+  and v1.0.11 wrote them to ``lifton_outputliftoff/`` and
+  ``lifton_outputminiprot/``.
 
 See :doc:`large_genome_resource_failures` for diagnosis and recovery guidance.
 
