@@ -431,9 +431,11 @@ def args_optional(parser):
     )
     parser.add_argument(
         '--locus-pipeline', dest='locus_pipeline', action='store_true',
-        default=False,
+        default=None,
         help='Locus-major fan-out: dispatch per-locus Step 7, Step 8, and '
              'evaluation work through bounded workers sized by --threads. '
+             'ON BY DEFAULT whenever --threads is greater than 1 (v1.0.12); '
+             'the flag is kept for compatibility. '
              'Output is emitted in submission order so --threads N is '
              'byte-identical to --threads 1; this flag changes scheduling, '
              'not algorithms. As of Iteration 8 this works on the DEFAULT '
@@ -445,6 +447,12 @@ def args_optional(parser):
              'Set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
              'serial-on-gffutils. Note: combined with the default '
              'concurrent Step 4, peak busy cores can reach ~N+1.'
+    )
+    parser.add_argument(
+        '--no-locus-pipeline', dest='locus_pipeline', action='store_false',
+        default=None,
+        help='Process Steps 7 and 8 serially even when --threads is greater '
+             'than 1 (the pre-v1.0.12 default). Output is identical either way.'
     )
     parser.add_argument(
         '--step7-max-inflight', dest='step7_max_inflight', type=int,
@@ -742,7 +750,12 @@ def parse_args(arglist):
     if (float(args.s) > float(args.sc)):
         parser.error("-sc must be greater than or equal to -s")
     if (args.chroms is None and args.unplaced is not None):
-        parser.error("-unplaced must be used with -chroms")    
+        parser.error("-unplaced must be used with -chroms")
+    # v1.0.12: parallel Steps 7/8 are the default whenever more than one thread
+    # is requested; an explicit --locus-pipeline / --no-locus-pipeline wins.
+    # Scheduling only: output is byte-identical to the serial path.
+    if args.locus_pipeline is None:
+        args.locus_pipeline = int(args.threads) > 1
     if args.step7_max_inflight is not None and args.step7_max_inflight < 1:
         parser.error("--step7-max-inflight must be at least 1")
     if args.step8_max_inflight is not None and args.step8_max_inflight < 1:

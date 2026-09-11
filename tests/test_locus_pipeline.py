@@ -479,6 +479,22 @@ class TestLocusPipelineCLI:
         args = lifton_main.parse_args(argv)
         assert args.locus_pipeline is True
 
+    def test_more_than_one_thread_enables_it_by_default(self):
+        # v1.0.12: parallel Steps 7/8 follow --threads unless told otherwise.
+        from lifton import lifton as lifton_main
+        argv = ["t.fa", "r.fa", "-g", "r.gff3", "-t", "4"]
+        assert lifton_main.parse_args(argv).locus_pipeline is True
+
+    def test_no_flag_opts_out_with_threads(self):
+        from lifton import lifton as lifton_main
+        argv = ["t.fa", "r.fa", "-g", "r.gff3", "-t", "4", "--no-locus-pipeline"]
+        assert lifton_main.parse_args(argv).locus_pipeline is False
+
+    def test_explicit_flag_is_kept_with_one_thread(self):
+        from lifton import lifton as lifton_main
+        argv = ["t.fa", "r.fa", "-g", "r.gff3", "-t", "1", "--locus-pipeline"]
+        assert lifton_main.parse_args(argv).locus_pipeline is True
+
     def test_threads_default_is_one(self):
         from lifton import lifton as lifton_main
         argv = ["t.fa", "r.fa", "-g", "r.gff3"]
