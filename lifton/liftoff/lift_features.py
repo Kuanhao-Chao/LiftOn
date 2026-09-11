@@ -4,6 +4,14 @@ from lifton.liftoff  import find_best_mapping, liftoff_utils, merge_lifted_featu
 def lift_all_features(alns, threshold, feature_db,  feature_hierarchy,
                       unmapped_features, lifted_feature_list, seq_id_threshold, feature_locations, args,
                       ref_parent_order):
+    # v1.0.12: one forked worker per reference chromosome when enabled and no
+    # overlap intervals are in play; identical output (see parallel_lift).
+    from lifton.liftoff import parallel_lift
+    if parallel_lift.enabled(args) and parallel_lift.lift_all_features_parallel(
+            alns, threshold, feature_db, feature_hierarchy, unmapped_features,
+            lifted_feature_list, seq_id_threshold, feature_locations, args,
+            ref_parent_order):
+        return
     features_to_lift = feature_hierarchy.parents
     feature_order = get_feature_order(feature_db)
     alignments = sort_alignments(features_to_lift, alns)
