@@ -31,7 +31,7 @@ from lifton import align, annotation as _lifton_annotation
 from lifton.exceptions import LiftOnAlignmentError
 from lifton.extract_sequence import get_dna_sequence, get_protein_sequence
 
-from . import id_mapping
+from . import gene_level, id_mapping
 
 _ERR_SUMMARY_RE = re.compile(r"Errors\s*:\s*(\d+)")
 
@@ -397,7 +397,14 @@ def _eval_one_mrna(mrna, exons, cds, ref_id, ref, fa, is_miniprot):
 
 def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
                   manifest: dict, out_dir: Path, profile: dict | None,
-                  log=print, ref_index: dict | None = None, threads: int = 1) -> dict:
+                  log=print, ref_index: dict | None = None, threads: int = 1,
+                  gene_map: dict | None = None) -> dict:
+    """Score one tool's output against the reference.
+
+    ``gene_map`` (from :func:`gene_level.load_transcript_genes`) adds an opt-in
+    ``gene_level`` block to the summary. Without it the TSV and summary bytes
+    are unchanged, which keeps previously sealed evidence reproducible.
+    """
     ref_ids = set(ref.keys())
     space = manifest.get("miniprot_target_space", "protein")
     acc_to_mrna = manifest.get("protein_acc_to_mrna", {})
@@ -597,6 +604,9 @@ def evaluate_tool(tool: str, tool_gff: str, tgt_fa: str, ref: dict,
         },
         "transcripts_tsv": str(tsv),
     }
+    if gene_map is not None:
+        summary["gene_level"] = gene_level.gene_level_summary(
+            gene_level.annotate_rows(rows, gene_map))
     (out_dir / f"{tool}.summary.json").write_text(json.dumps(summary, indent=2))
     log(f"  [eval:{tool}] completeness_coding="
         f"{summary['completeness_coding']} mean_prot_id={summary['protein_identity']['mean']} "
