@@ -145,3 +145,25 @@ def test_cross_sequence_child_branch_uses_matching_parent_copy(tmp_path):
     assert transcript_line.split("\t")[0] == "chr2"
     assert "ID=rna1_1;Parent=gene1_1" in transcript_line
     assert not any("ID=rna1;Parent=gene1" in line for line in lines)
+
+
+def test_family_index_matches_the_linear_scan():
+    """The (id, seqid) index returns exactly the candidates, in the same
+    order, that the linear scan over every parent returns (v1.0.12)."""
+    import random
+    import types
+
+    rng = random.Random(7)
+    parents = [
+        types.SimpleNamespace(id=f"g{rng.randrange(40)}",
+                              seqid=f"chr{rng.randrange(4)}",
+                              start=rng.randrange(1000))
+        for _ in range(500)
+    ]
+    index = write_new_gff._family_index(parents)
+    for probe in parents + [types.SimpleNamespace(id="absent", seqid="chr0")]:
+        for seqid in ("chr0", "chr1", "chr2", "chr3", "chrX"):
+            linear = write_new_gff._parent_family_candidates(probe, parents, seqid)
+            indexed = write_new_gff._parent_family_candidates(
+                probe, parents, seqid, index)
+            assert [id(p) for p in indexed] == [id(p) for p in linear]

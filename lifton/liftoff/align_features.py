@@ -1,4 +1,5 @@
 from multiprocessing import Pool
+import bisect
 import gzip
 import os
 import shlex
@@ -596,21 +597,71 @@ def get_aligned_blocks(alignment, aln_id, feature_hierarchy, search_type):
     query_block_start, query_block_pos = query_start, query_start
     new_blocks, mismatches = [], []
     merged_children_coords = liftoff_utils.merge_children_intervals(children)
+    # The children's positions relative to the parent depend only on the parent
+    # and the strand, so compute them once per alignment rather than once per
+    # block (v1.0.12; identical blocks, see _add_block_if_overlapping).
+    child_spans = _relative_child_spans(parent, merged_children_coords,
+                                        alignment.is_reverse)
     for operation, length in cigar:
         if base_is_aligned(operation, cigar_operations):
             query_block_pos, reference_block_pos = add_aligned_base(operation, query_block_pos, reference_block_pos,
                                                                     length, cigar_operations, mismatches)
             if query_block_pos == query_end:
-                add_block(query_block_pos, reference_block_pos, aln_id, alignment, query_block_start,
-                          reference_block_start, mismatches, new_blocks, merged_children_coords, parent)
+                _add_block_if_overlapping(query_block_pos, reference_block_pos, aln_id, alignment,
+                                          query_block_start, reference_block_start, mismatches,
+                                          new_blocks, child_spans)
                 break
         elif is_alignment_gap(operation, cigar_operations):
-            add_block(query_block_pos, reference_block_pos, aln_id, alignment, query_block_start, reference_block_start,
-                      mismatches, new_blocks, merged_children_coords, parent)
+            _add_block_if_overlapping(query_block_pos, reference_block_pos, aln_id, alignment,
+                                      query_block_start, reference_block_start, mismatches,
+                                      new_blocks, child_spans)
             mismatches, query_block_start, reference_block_start, query_block_pos, reference_block_pos = \
                 end_block_at_gap(
                     operation, query_block_pos, reference_block_pos, length, cigar_operations)
     return new_blocks
+
+
+def _relative_child_spans(parent, merged_children_coords, is_reverse):
+    """Merged child intervals as sorted ``(starts, ends)`` in parent-relative
+    query coordinates, exactly as ``find_overlapping_children`` derives them."""
+    spans = []
+    for child_start, child_end in merged_children_coords:
+        first = liftoff_utils.get_relative_child_coord(parent, child_start, is_reverse)
+        second = liftoff_utils.get_relative_child_coord(parent, child_end, is_reverse)
+        spans.append((min(first, second), max(first, second)))
+    spans.sort()
+    return [start for start, _ in spans], [end for _, end in spans]
+
+
+def _overlaps_any_child(child_spans, query_start, query_end):
+    """True iff some child span shares a base with [query_start, query_end].
+
+    The merged intervals are disjoint, so their relative spans are disjoint and
+    sorted: only the last span starting at or before ``query_end`` can reach
+    back to ``query_start``. Equivalent to ``find_overlapping_children(...) !=
+    []``, whose per-child ``count_overlap > 0`` is the same inequality. An empty
+    block (``query_end < query_start``, two consecutive gap operations) can
+    never overlap under that formula, so it never overlaps here either.
+    """
+    if query_end < query_start:
+        return False
+    starts, ends = child_spans
+    index = bisect.bisect_right(starts, query_end) - 1
+    return index >= 0 and ends[index] >= query_start
+
+
+def _add_block_if_overlapping(query_block_pos, reference_block_pos, aln_id, alignment,
+                              query_block_start, reference_block_start, mismatches,
+                              new_blocks, child_spans):
+    """``add_block`` with the overlap test done first, so blocks that will be
+    dropped are never built (their mismatch array was the costly part)."""
+    query_block_end = query_block_pos - 1
+    if not _overlaps_any_child(child_spans, query_block_start, query_block_end):
+        return
+    new_blocks.append(aligned_seg.aligned_seg(
+        aln_id, alignment.query_name, alignment.reference_name, query_block_start,
+        query_block_end, reference_block_start, reference_block_pos - 1,
+        alignment.is_reverse, np.array(mismatches).astype(int)))
 
 
 def get_cigar_operations():
@@ -636,8 +687,7 @@ def base_is_aligned(operation, cigar_operations):
 
 def add_aligned_base(operation, query_block_pos, reference_block_pos, length, cigar_operations, mismatches):
     if operation == cigar_operations["mismatch"]:
-        for i in range(query_block_pos, query_block_pos + length):
-            mismatches.append(i)
+        mismatches.extend(range(query_block_pos, query_block_pos + length))
     query_block_pos, reference_block_pos = adjust_position(operation, query_block_pos, reference_block_pos,
                                                            length, cigar_operations)
     return query_block_pos, reference_block_pos
