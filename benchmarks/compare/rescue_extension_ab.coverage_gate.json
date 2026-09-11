@@ -1,0 +1,1748 @@
+[
+  {
+    "added": {
+      "exon_sn": 0.34994,
+      "exon_sp": 0.37604,
+      "intron_chain_exact": 0.1854,
+      "mean_pi": 0.73584,
+      "n": 178,
+      "orf_valid": 0.4831,
+      "pi": {
+        "median": 0.725,
+        "n": 178,
+        "p10": 0.567,
+        "p90": 0.904
+      },
+      "pi_ge_0.5": 0.9831
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 178,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "celegans_to_briggsae",
+    "divergence": "distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.2048,
+      "mean_pi": 0.71748,
+      "n": 581,
+      "orf_valid": 0.4664,
+      "pi_ge_0.5": 0.9656
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 178,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 178,
+    "n_recovered_off": 3128,
+    "n_recovered_on": 3306,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 416.42578125,
+      "on": 409.75390625
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.41986,
+        "geneid_collapsed": {
+          "n_groups": 5771,
+          "n_groups_recovered": 2423,
+          "recall": 0.41986
+        },
+        "n_coding_genes": 5771,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 5771
+        },
+        "n_coding_genes_recovered": 2423,
+        "n_coding_transcripts": 7550,
+        "primary": {
+          "gene_recall_coding": 0.41986,
+          "n_coding_genes": 5771,
+          "n_coding_genes_recovered": 2423,
+          "n_coding_transcripts": 7550,
+          "transcript_recall_coding": 0.4151
+        },
+        "transcript_recall_coding": 0.4151
+      },
+      "on": {
+        "gene_recall_coding": 0.4507,
+        "geneid_collapsed": {
+          "n_groups": 5771,
+          "n_groups_recovered": 2601,
+          "recall": 0.4507
+        },
+        "n_coding_genes": 5771,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 5771
+        },
+        "n_coding_genes_recovered": 2601,
+        "n_coding_transcripts": 7550,
+        "primary": {
+          "gene_recall_coding": 0.4507,
+          "n_coding_genes": 5771,
+          "n_coding_genes_recovered": 2601,
+          "n_coding_transcripts": 7550,
+          "transcript_recall_coding": 0.43868
+        },
+        "transcript_recall_coding": 0.43868
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 581,
+    "tagged_rescue_on": 759,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 94,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 94,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 90.18,
+      "on": 93.56
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.27113,
+      "exon_sp": 0.15086,
+      "intron_chain_exact": 0.0369,
+      "mean_pi": 0.62596,
+      "n": 217,
+      "orf_valid": 0.1751,
+      "pi": {
+        "median": 0.614,
+        "n": 217,
+        "p10": 0.48,
+        "p90": 0.809
+      },
+      "pi_ge_0.5": 0.8111
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 217,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "drosophila_to_anopheles",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.0592,
+      "mean_pi": 0.59148,
+      "n": 287,
+      "orf_valid": 0.1324,
+      "pi_ge_0.5": 0.7317
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 217,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 217,
+    "n_recovered_off": 1508,
+    "n_recovered_on": 1725,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 460.3046875,
+      "on": 435.1875
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.33821,
+        "geneid_collapsed": {
+          "n_groups": 3421,
+          "n_groups_recovered": 1157,
+          "recall": 0.33821
+        },
+        "n_coding_genes": 3421,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 3421
+        },
+        "n_coding_genes_recovered": 1157,
+        "n_coding_transcripts": 7251,
+        "primary": {
+          "gene_recall_coding": 0.33821,
+          "n_coding_genes": 3421,
+          "n_coding_genes_recovered": 1157,
+          "n_coding_transcripts": 7251,
+          "transcript_recall_coding": 0.20852
+        },
+        "transcript_recall_coding": 0.20852
+      },
+      "on": {
+        "gene_recall_coding": 0.40164,
+        "geneid_collapsed": {
+          "n_groups": 3421,
+          "n_groups_recovered": 1374,
+          "recall": 0.40164
+        },
+        "n_coding_genes": 3421,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 3421
+        },
+        "n_coding_genes_recovered": 1374,
+        "n_coding_transcripts": 7251,
+        "primary": {
+          "gene_recall_coding": 0.40164,
+          "n_coding_genes": 3421,
+          "n_coding_genes_recovered": 1374,
+          "n_coding_transcripts": 7251,
+          "transcript_recall_coding": 0.23845
+        },
+        "transcript_recall_coding": 0.23845
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 287,
+    "tagged_rescue_on": 504,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 74,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 74,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 58.81,
+      "on": 61.52
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.30484,
+      "exon_sp": 0.30429,
+      "intron_chain_exact": 0.1985,
+      "mean_pi": 0.65345,
+      "n": 136,
+      "orf_valid": 0.3456,
+      "pi": {
+        "median": 0.655,
+        "n": 136,
+        "p10": 0.431,
+        "p90": 0.838
+      },
+      "pi_ge_0.5": 0.8015
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 136,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "zebrafish_to_medaka",
+    "divergence": "distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1345,
+      "mean_pi": 0.65999,
+      "n": 171,
+      "orf_valid": 0.3216,
+      "pi_ge_0.5": 0.8596
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 136,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 136,
+    "n_recovered_off": 676,
+    "n_recovered_on": 812,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 439.5,
+      "on": 440.921875
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.29781,
+        "geneid_collapsed": {
+          "n_groups": 1829,
+          "n_groups_recovered": 545,
+          "recall": 0.29798
+        },
+        "n_coding_genes": 1830,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 1830
+        },
+        "n_coding_genes_recovered": 545,
+        "n_coding_transcripts": 2972,
+        "primary": {
+          "gene_recall_coding": 0.29781,
+          "n_coding_genes": 1830,
+          "n_coding_genes_recovered": 545,
+          "n_coding_transcripts": 2972,
+          "transcript_recall_coding": 0.24159
+        },
+        "transcript_recall_coding": 0.24159
+      },
+      "on": {
+        "gene_recall_coding": 0.37213,
+        "geneid_collapsed": {
+          "n_groups": 1829,
+          "n_groups_recovered": 681,
+          "recall": 0.37233
+        },
+        "n_coding_genes": 1830,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 1830
+        },
+        "n_coding_genes_recovered": 681,
+        "n_coding_transcripts": 2972,
+        "primary": {
+          "gene_recall_coding": 0.37213,
+          "n_coding_genes": 1830,
+          "n_coding_genes_recovered": 681,
+          "n_coding_transcripts": 2972,
+          "transcript_recall_coding": 0.28735
+        },
+        "transcript_recall_coding": 0.28735
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 171,
+    "tagged_rescue_on": 307,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 105,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 105,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 43.88,
+      "on": 48.92
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.26482,
+      "exon_sp": 0.13902,
+      "intron_chain_exact": 0.0968,
+      "mean_pi": 0.63754,
+      "n": 31,
+      "orf_valid": 0.2581,
+      "pi": {
+        "median": 0.594,
+        "n": 31,
+        "p10": 0.514,
+        "p90": 0.8
+      },
+      "pi_ge_0.5": 1.0
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 31,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "rice_to_sorghum",
+    "divergence": "distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1359,
+      "mean_pi": 0.66278,
+      "n": 103,
+      "orf_valid": 0.3107,
+      "pi_ge_0.5": 1.0
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 31,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 31,
+    "n_recovered_off": 4533,
+    "n_recovered_on": 4564,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 465.9140625,
+      "on": 412.7265625
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.81255,
+        "geneid_collapsed": {
+          "n_groups": 3969,
+          "n_groups_recovered": 3225,
+          "recall": 0.81255
+        },
+        "n_coding_genes": 3969,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 3969
+        },
+        "n_coding_genes_recovered": 3225,
+        "n_coding_transcripts": 5850,
+        "primary": {
+          "gene_recall_coding": 0.81255,
+          "n_coding_genes": 3969,
+          "n_coding_genes_recovered": 3225,
+          "n_coding_transcripts": 5850,
+          "transcript_recall_coding": 0.7788
+        },
+        "transcript_recall_coding": 0.7788
+      },
+      "on": {
+        "gene_recall_coding": 0.82036,
+        "geneid_collapsed": {
+          "n_groups": 3969,
+          "n_groups_recovered": 3256,
+          "recall": 0.82036
+        },
+        "n_coding_genes": 3969,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 3969
+        },
+        "n_coding_genes_recovered": 3256,
+        "n_coding_transcripts": 5850,
+        "primary": {
+          "gene_recall_coding": 0.82036,
+          "n_coding_genes": 3969,
+          "n_coding_genes_recovered": 3256,
+          "n_coding_transcripts": 5850,
+          "transcript_recall_coding": 0.7841
+        },
+        "transcript_recall_coding": 0.7841
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 103,
+    "tagged_rescue_on": 134,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 142,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 142,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 115.36,
+      "on": 117.42
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.34857,
+      "exon_sp": 0.33343,
+      "intron_chain_exact": 0.1813,
+      "mean_pi": 0.69674,
+      "n": 171,
+      "orf_valid": 0.3275,
+      "pi": {
+        "median": 0.726,
+        "n": 171,
+        "p10": 0.491,
+        "p90": 0.88
+      },
+      "pi_ge_0.5": 0.8889
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 171,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "t4_human_to_xenopus",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1905,
+      "mean_pi": 0.67115,
+      "n": 105,
+      "orf_valid": 0.4571,
+      "pi_ge_0.5": 0.8476
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 171,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 171,
+    "n_recovered_off": 346,
+    "n_recovered_on": 517,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 373.6640625,
+      "on": 357.13671875
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.38246,
+        "geneid_collapsed": {
+          "n_groups": 536,
+          "n_groups_recovered": 205,
+          "recall": 0.38246
+        },
+        "n_coding_genes": 536,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 536
+        },
+        "n_coding_genes_recovered": 205,
+        "n_coding_transcripts": 3086,
+        "primary": {
+          "gene_recall_coding": 0.38246,
+          "n_coding_genes": 536,
+          "n_coding_genes_recovered": 205,
+          "n_coding_transcripts": 3086,
+          "transcript_recall_coding": 0.11277
+        },
+        "transcript_recall_coding": 0.11277
+      },
+      "on": {
+        "gene_recall_coding": 0.70149,
+        "geneid_collapsed": {
+          "n_groups": 536,
+          "n_groups_recovered": 376,
+          "recall": 0.70149
+        },
+        "n_coding_genes": 536,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 536
+        },
+        "n_coding_genes_recovered": 376,
+        "n_coding_transcripts": 3086,
+        "primary": {
+          "gene_recall_coding": 0.70149,
+          "n_coding_genes": 536,
+          "n_coding_genes_recovered": 376,
+          "n_coding_transcripts": 3086,
+          "transcript_recall_coding": 0.16818
+        },
+        "transcript_recall_coding": 0.16818
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 105,
+    "tagged_rescue_on": 276,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 52,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 52,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 46.42,
+      "on": 50.24
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.41609,
+      "exon_sp": 0.41054,
+      "intron_chain_exact": 0.2805,
+      "mean_pi": 0.75327,
+      "n": 164,
+      "orf_valid": 0.4207,
+      "pi": {
+        "median": 0.76,
+        "n": 164,
+        "p10": 0.562,
+        "p90": 0.932
+      },
+      "pi_ge_0.5": 0.9573
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 164,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "t4_human_to_chicken",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1071,
+      "mean_pi": 0.68941,
+      "n": 56,
+      "orf_valid": 0.2857,
+      "pi_ge_0.5": 0.8929
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 164,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 164,
+    "n_recovered_off": 801,
+    "n_recovered_on": 965,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 437.00390625,
+      "on": 436.2421875
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.38619,
+        "geneid_collapsed": {
+          "n_groups": 536,
+          "n_groups_recovered": 207,
+          "recall": 0.38619
+        },
+        "n_coding_genes": 536,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 536
+        },
+        "n_coding_genes_recovered": 207,
+        "n_coding_transcripts": 3086,
+        "primary": {
+          "gene_recall_coding": 0.38619,
+          "n_coding_genes": 536,
+          "n_coding_genes_recovered": 207,
+          "n_coding_transcripts": 3086,
+          "transcript_recall_coding": 0.26701
+        },
+        "transcript_recall_coding": 0.26701
+      },
+      "on": {
+        "gene_recall_coding": 0.69216,
+        "geneid_collapsed": {
+          "n_groups": 536,
+          "n_groups_recovered": 371,
+          "recall": 0.69216
+        },
+        "n_coding_genes": 536,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 536
+        },
+        "n_coding_genes_recovered": 371,
+        "n_coding_transcripts": 3086,
+        "primary": {
+          "gene_recall_coding": 0.69216,
+          "n_coding_genes": 536,
+          "n_coding_genes_recovered": 371,
+          "n_coding_transcripts": 3086,
+          "transcript_recall_coding": 0.32016
+        },
+        "transcript_recall_coding": 0.32016
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 56,
+    "tagged_rescue_on": 220,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 73,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 73,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 51.18,
+      "on": 54.3
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.31852,
+      "exon_sp": 0.37037,
+      "intron_chain_exact": 0.2222,
+      "mean_pi": 0.63265,
+      "n": 9,
+      "orf_valid": 0.1111,
+      "pi": {
+        "median": 0.637,
+        "n": 9,
+        "p10": 0.507,
+        "p90": 0.705
+      },
+      "pi_ge_0.5": 1.0
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 9,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "human_to_mouse",
+    "divergence": "distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1935,
+      "mean_pi": 0.70414,
+      "n": 31,
+      "orf_valid": 0.2903,
+      "pi_ge_0.5": 1.0
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 9,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 9,
+    "n_recovered_off": 2643,
+    "n_recovered_on": 2652,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 432.796875,
+      "on": 478.65625
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.86754,
+        "geneid_collapsed": {
+          "n_groups": 536,
+          "n_groups_recovered": 465,
+          "recall": 0.86754
+        },
+        "n_coding_genes": 536,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 536
+        },
+        "n_coding_genes_recovered": 465,
+        "n_coding_transcripts": 3086,
+        "primary": {
+          "gene_recall_coding": 0.86754,
+          "n_coding_genes": 536,
+          "n_coding_genes_recovered": 465,
+          "n_coding_transcripts": 3086,
+          "transcript_recall_coding": 0.86099
+        },
+        "transcript_recall_coding": 0.86099
+      },
+      "on": {
+        "gene_recall_coding": 0.88433,
+        "geneid_collapsed": {
+          "n_groups": 536,
+          "n_groups_recovered": 474,
+          "recall": 0.88433
+        },
+        "n_coding_genes": 536,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 536
+        },
+        "n_coding_genes_recovered": 474,
+        "n_coding_transcripts": 3086,
+        "primary": {
+          "gene_recall_coding": 0.88433,
+          "n_coding_genes": 536,
+          "n_coding_genes_recovered": 474,
+          "n_coding_transcripts": 3086,
+          "transcript_recall_coding": 0.8639
+        },
+        "transcript_recall_coding": 0.8639
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 31,
+    "tagged_rescue_on": 40,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 78,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 78,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 104.13,
+      "on": 103.22999999999999
+    }
+  },
+  {
+    "added": {
+      "exon_sn": null,
+      "exon_sp": null,
+      "intron_chain_exact": null,
+      "mean_pi": null,
+      "n": 0,
+      "orf_valid": null,
+      "pi": null,
+      "pi_ge_0.5": null
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 0,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "drosophila",
+    "divergence": "",
+    "earlier_rescues": {
+      "intron_chain_exact": 1.0,
+      "mean_pi": 0.55952,
+      "n": 1,
+      "orf_valid": 0.0,
+      "pi_ge_0.5": 1.0
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 0,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": true,
+    "lost_examples": [],
+    "mode": "ladder",
+    "n_lost": 0,
+    "n_new": 0,
+    "n_recovered_off": 7126,
+    "n_recovered_on": 7126,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 491.12109375,
+      "on": 457.55859375
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.97545,
+        "geneid_collapsed": {
+          "n_groups": 3421,
+          "n_groups_recovered": 3337,
+          "recall": 0.97545
+        },
+        "n_coding_genes": 3421,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 3421
+        },
+        "n_coding_genes_recovered": 3337,
+        "n_coding_transcripts": 7251,
+        "primary": {
+          "gene_recall_coding": 0.97545,
+          "n_coding_genes": 3421,
+          "n_coding_genes_recovered": 3337,
+          "n_coding_transcripts": 7251,
+          "transcript_recall_coding": 0.98359
+        },
+        "transcript_recall_coding": 0.98359
+      },
+      "on": {
+        "gene_recall_coding": 0.97545,
+        "geneid_collapsed": {
+          "n_groups": 3421,
+          "n_groups_recovered": 3337,
+          "recall": 0.97545
+        },
+        "n_coding_genes": 3421,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 3421
+        },
+        "n_coding_genes_recovered": 3337,
+        "n_coding_transcripts": 7251,
+        "primary": {
+          "gene_recall_coding": 0.97545,
+          "n_coding_genes": 3421,
+          "n_coding_genes_recovered": 3337,
+          "n_coding_transcripts": 7251,
+          "transcript_recall_coding": 0.98359
+        },
+        "transcript_recall_coding": 0.98359
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 1,
+    "tagged_rescue_on": 1,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 66,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 66,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 207.79,
+      "on": 208.37
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.29273,
+      "exon_sp": 0.29445,
+      "intron_chain_exact": 0.1394,
+      "mean_pi": 0.64615,
+      "n": 5638,
+      "orf_valid": 0.227,
+      "pi": {
+        "median": 0.643,
+        "n": 5638,
+        "p10": 0.448,
+        "p90": 0.85
+      },
+      "pi_ge_0.5": 0.8131
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 5648,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 10,
+      "unscored_examples": [
+        "id-IGHV1-46",
+        "id-IGHV3-71",
+        "id-IGHV3-73",
+        "id-IGHV7-4-1",
+        "id-IGKV1-6",
+        "id-IGKV3D-7",
+        "id-IGKV4-1",
+        "id-LOC124905154",
+        "id-TRAV18",
+        "id-TRAV9-2"
+      ]
+    },
+    "benchmark": "human_to_zebrafish",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1488,
+      "mean_pi": 0.62438,
+      "n": 3199,
+      "orf_valid": 0.2663,
+      "pi_ge_0.5": 0.7643
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 5648,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "full",
+    "n_lost": 0,
+    "n_new": 5638,
+    "n_recovered_off": 9591,
+    "n_recovered_on": 15229,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 2453.203125,
+      "on": 2495.390625
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.27383,
+        "geneid_collapsed": {
+          "n_groups": 20056,
+          "n_groups_recovered": 6314,
+          "recall": 0.31482
+        },
+        "n_coding_genes": 23292,
+        "n_coding_genes_by_seqid_class": {
+          "alt": 2568,
+          "fix": 823,
+          "primary": 19901
+        },
+        "n_coding_genes_recovered": 6378,
+        "n_coding_transcripts": 144329,
+        "primary": {
+          "gene_recall_coding": 0.31536,
+          "n_coding_genes": 19901,
+          "n_coding_genes_recovered": 6276,
+          "n_coding_transcripts": 130419,
+          "transcript_recall_coding": 0.07287
+        },
+        "transcript_recall_coding": 0.06725
+      },
+      "on": {
+        "gene_recall_coding": 0.51589,
+        "geneid_collapsed": {
+          "n_groups": 20056,
+          "n_groups_recovered": 11860,
+          "recall": 0.59134
+        },
+        "n_coding_genes": 23292,
+        "n_coding_genes_by_seqid_class": {
+          "alt": 2568,
+          "fix": 823,
+          "primary": 19901
+        },
+        "n_coding_genes_recovered": 12016,
+        "n_coding_transcripts": 144329,
+        "primary": {
+          "gene_recall_coding": 0.59299,
+          "n_coding_genes": 19901,
+          "n_coding_genes_recovered": 11801,
+          "n_coding_transcripts": 130419,
+          "transcript_recall_coding": 0.11524
+        },
+        "transcript_recall_coding": 0.10631
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 3199,
+    "tagged_rescue_on": 8847,
+    "target_agreement": {
+      "experiment": {
+        "agree": 0.9973,
+        "n": 5648
+      },
+      "lift": {
+        "agree": 0.9711,
+        "n": 7023
+      },
+      "rescue": {
+        "agree": 0.9969,
+        "n": 3199
+      }
+    },
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 152,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 152,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 1876.52,
+      "on": 2074.34
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.37312,
+      "exon_sp": 0.39061,
+      "intron_chain_exact": 0.2184,
+      "mean_pi": 0.71516,
+      "n": 5022,
+      "orf_valid": 0.313,
+      "pi": {
+        "median": 0.719,
+        "n": 5022,
+        "p10": 0.513,
+        "p90": 0.908
+      },
+      "pi_ge_0.5": 0.9156
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 5024,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 2,
+      "unscored_examples": [
+        "id-IGHV3-71",
+        "id-IGHV3-74"
+      ]
+    },
+    "benchmark": "t4_human_to_chicken",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.2033,
+      "mean_pi": 0.69844,
+      "n": 2110,
+      "orf_valid": 0.382,
+      "pi_ge_0.5": 0.8877
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 5024,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "full",
+    "n_lost": 0,
+    "n_new": 5022,
+    "n_recovered_off": 36027,
+    "n_recovered_on": 41049,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 3054.58984375,
+      "on": 2895.86328125
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.3156,
+        "geneid_collapsed": {
+          "n_groups": 20056,
+          "n_groups_recovered": 7335,
+          "recall": 0.36573
+        },
+        "n_coding_genes": 23292,
+        "n_coding_genes_by_seqid_class": {
+          "alt": 2568,
+          "fix": 823,
+          "primary": 19901
+        },
+        "n_coding_genes_recovered": 7351,
+        "n_coding_transcripts": 144329,
+        "primary": {
+          "gene_recall_coding": 0.3639,
+          "n_coding_genes": 19901,
+          "n_coding_genes_recovered": 7242,
+          "n_coding_transcripts": 130419,
+          "transcript_recall_coding": 0.281
+        },
+        "transcript_recall_coding": 0.25833
+      },
+      "on": {
+        "gene_recall_coding": 0.53121,
+        "geneid_collapsed": {
+          "n_groups": 20056,
+          "n_groups_recovered": 12339,
+          "recall": 0.61523
+        },
+        "n_coding_genes": 23292,
+        "n_coding_genes_by_seqid_class": {
+          "alt": 2568,
+          "fix": 823,
+          "primary": 19901
+        },
+        "n_coding_genes_recovered": 12373,
+        "n_coding_transcripts": 144329,
+        "primary": {
+          "gene_recall_coding": 0.61499,
+          "n_coding_genes": 19901,
+          "n_coding_genes_recovered": 12239,
+          "n_coding_transcripts": 130419,
+          "transcript_recall_coding": 0.31932
+        },
+        "transcript_recall_coding": 0.29313
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 2110,
+    "tagged_rescue_on": 7134,
+    "target_agreement": {
+      "experiment": {
+        "agree": 0.9974,
+        "n": 5024
+      },
+      "lift": {
+        "agree": 0.9939,
+        "n": 34028
+      },
+      "rescue": {
+        "agree": 0.9981,
+        "n": 2110
+      }
+    },
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 154,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 154,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 2443.62,
+      "on": 2756.37
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.33768,
+      "exon_sp": 0.34584,
+      "intron_chain_exact": 0.191,
+      "mean_pi": 0.69009,
+      "n": 5549,
+      "orf_valid": 0.2822,
+      "pi": {
+        "median": 0.691,
+        "n": 5549,
+        "p10": 0.484,
+        "p90": 0.886
+      },
+      "pi_ge_0.5": 0.885
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 5557,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 8,
+      "unscored_examples": [
+        "id-IGHV1-3",
+        "id-IGHV2-26-2",
+        "id-IGHV3-9",
+        "id-IGHV4-59",
+        "id-IGKV3-20",
+        "id-IGKV6D-41",
+        "id-IGKV7-3",
+        "id-IGLVI-70"
+      ]
+    },
+    "benchmark": "t4_human_to_xenopus",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1753,
+      "mean_pi": 0.66079,
+      "n": 3463,
+      "orf_valid": 0.3237,
+      "pi_ge_0.5": 0.8244
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 5557,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "full",
+    "n_lost": 0,
+    "n_new": 5549,
+    "n_recovered_off": 15659,
+    "n_recovered_on": 21208,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 2510.15234375,
+      "on": 2508.98828125
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.31139,
+        "geneid_collapsed": {
+          "n_groups": 20056,
+          "n_groups_recovered": 7239,
+          "recall": 0.36094
+        },
+        "n_coding_genes": 23292,
+        "n_coding_genes_by_seqid_class": {
+          "alt": 2568,
+          "fix": 823,
+          "primary": 19901
+        },
+        "n_coding_genes_recovered": 7253,
+        "n_coding_transcripts": 144329,
+        "primary": {
+          "gene_recall_coding": 0.36053,
+          "n_coding_genes": 19901,
+          "n_coding_genes_recovered": 7175,
+          "n_coding_transcripts": 130419,
+          "transcript_recall_coding": 0.12214
+        },
+        "transcript_recall_coding": 0.11224
+      },
+      "on": {
+        "gene_recall_coding": 0.54963,
+        "geneid_collapsed": {
+          "n_groups": 20056,
+          "n_groups_recovered": 12767,
+          "recall": 0.63657
+        },
+        "n_coding_genes": 23292,
+        "n_coding_genes_by_seqid_class": {
+          "alt": 2568,
+          "fix": 823,
+          "primary": 19901
+        },
+        "n_coding_genes_recovered": 12802,
+        "n_coding_transcripts": 144329,
+        "primary": {
+          "gene_recall_coding": 0.63761,
+          "n_coding_genes": 19901,
+          "n_coding_genes_recovered": 12689,
+          "n_coding_transcripts": 130419,
+          "transcript_recall_coding": 0.16442
+        },
+        "transcript_recall_coding": 0.15068
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 3472,
+    "tagged_rescue_on": 9029,
+    "target_agreement": null,
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 154,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 154,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 1974.33,
+      "on": 2120.68
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.2336,
+      "exon_sp": 0.20257,
+      "intron_chain_exact": 0.1125,
+      "mean_pi": 0.6093,
+      "n": 1253,
+      "orf_valid": 0.1484,
+      "pi": {
+        "median": 0.598,
+        "n": 1253,
+        "p10": 0.457,
+        "p90": 0.769
+      },
+      "pi_ge_0.5": 0.8021
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 1253,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "arabidopsis_to_rice",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.1615,
+      "mean_pi": 0.58787,
+      "n": 2309,
+      "orf_valid": 0.1252,
+      "pi_ge_0.5": 0.7337
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 1253,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "full",
+    "n_lost": 0,
+    "n_new": 1253,
+    "n_recovered_off": 9451,
+    "n_recovered_on": 10704,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 1323.4921875,
+      "on": 1277.62890625
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.32962,
+        "geneid_collapsed": {
+          "n_groups": 27562,
+          "n_groups_recovered": 9085,
+          "recall": 0.32962
+        },
+        "n_coding_genes": 27562,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 27562
+        },
+        "n_coding_genes_recovered": 9085,
+        "n_coding_transcripts": 48265,
+        "primary": {
+          "gene_recall_coding": 0.32962,
+          "n_coding_genes": 27562,
+          "n_coding_genes_recovered": 9085,
+          "n_coding_transcripts": 48265,
+          "transcript_recall_coding": 0.196
+        },
+        "transcript_recall_coding": 0.196
+      },
+      "on": {
+        "gene_recall_coding": 0.37508,
+        "geneid_collapsed": {
+          "n_groups": 27562,
+          "n_groups_recovered": 10338,
+          "recall": 0.37508
+        },
+        "n_coding_genes": 27562,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 27562
+        },
+        "n_coding_genes_recovered": 10338,
+        "n_coding_transcripts": 48265,
+        "primary": {
+          "gene_recall_coding": 0.37508,
+          "n_coding_genes": 27562,
+          "n_coding_genes_recovered": 10338,
+          "n_coding_transcripts": 48265,
+          "transcript_recall_coding": 0.22196
+        },
+        "transcript_recall_coding": 0.22196
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 2309,
+    "tagged_rescue_on": 3562,
+    "target_agreement": {
+      "experiment": {
+        "agree": 0.9968,
+        "n": 1253
+      },
+      "lift": {
+        "agree": 0.9579,
+        "n": 7813
+      },
+      "rescue": {
+        "agree": 0.9957,
+        "n": 2309
+      }
+    },
+    "validity": {
+      "off": {
+        "exit": 1,
+        "n_errors": 1,
+        "n_warnings": 137,
+        "valid": false
+      },
+      "on": {
+        "exit": 1,
+        "n_errors": 1,
+        "n_warnings": 137,
+        "valid": false
+      }
+    },
+    "wall_seconds": {
+      "off": 322.46,
+      "on": 330.35
+    }
+  },
+  {
+    "added": {
+      "exon_sn": 0.21141,
+      "exon_sp": 0.09969,
+      "intron_chain_exact": 0.0177,
+      "mean_pi": 0.58603,
+      "n": 790,
+      "orf_valid": 0.138,
+      "pi": {
+        "median": 0.556,
+        "n": 790,
+        "p10": 0.435,
+        "p90": 0.774
+      },
+      "pi_ge_0.5": 0.6937
+    },
+    "added_models": {
+      "duplicate_examples": [],
+      "n_added_rescue_mrna": 790,
+      "n_duplicate_genes": 0,
+      "n_duplicate_mrna": 0,
+      "n_unexplained": 0,
+      "n_unscored_added": 0,
+      "unscored_examples": []
+    },
+    "benchmark": "t4_drosophila_to_bee",
+    "divergence": "very_distant_cross_species",
+    "earlier_rescues": {
+      "intron_chain_exact": 0.0382,
+      "mean_pi": 0.58121,
+      "n": 889,
+      "orf_valid": 0.1327,
+      "pi_ge_0.5": 0.6412
+    },
+    "experiment": "coverage_gate",
+    "experiment_tagged": 790,
+    "gate": {
+      "all_added_models_explained": true,
+      "n_lost_zero": true,
+      "no_duplicate_models": true,
+      "no_regression": true,
+      "off_is_prefix_of_on": true,
+      "validity_not_worse": true
+    },
+    "gate_pass": true,
+    "gene_ids_unchanged": false,
+    "lost_examples": [],
+    "mode": "full",
+    "n_lost": 0,
+    "n_new": 790,
+    "n_recovered_off": 3491,
+    "n_recovered_on": 4281,
+    "n_redundant": 0,
+    "n_regressed": 0,
+    "peak_rss_mb": {
+      "off": 1250.23046875,
+      "on": 1336.05859375
+    },
+    "prefix": true,
+    "recall": {
+      "off": {
+        "gene_recall_coding": 0.23988,
+        "geneid_collapsed": {
+          "n_groups": 13986,
+          "n_groups_recovered": 3355,
+          "recall": 0.23988
+        },
+        "n_coding_genes": 13986,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 13986
+        },
+        "n_coding_genes_recovered": 3355,
+        "n_coding_transcripts": 30799,
+        "primary": {
+          "gene_recall_coding": 0.23988,
+          "n_coding_genes": 13986,
+          "n_coding_genes_recovered": 3355,
+          "n_coding_transcripts": 30799,
+          "transcript_recall_coding": 0.11341
+        },
+        "transcript_recall_coding": 0.11341
+      },
+      "on": {
+        "gene_recall_coding": 0.29637,
+        "geneid_collapsed": {
+          "n_groups": 13986,
+          "n_groups_recovered": 4145,
+          "recall": 0.29637
+        },
+        "n_coding_genes": 13986,
+        "n_coding_genes_by_seqid_class": {
+          "primary": 13986
+        },
+        "n_coding_genes_recovered": 4145,
+        "n_coding_transcripts": 30799,
+        "primary": {
+          "gene_recall_coding": 0.29637,
+          "n_coding_genes": 13986,
+          "n_coding_genes_recovered": 4145,
+          "n_coding_transcripts": 30799,
+          "transcript_recall_coding": 0.13906
+        },
+        "transcript_recall_coding": 0.13906
+      }
+    },
+    "regressed_examples": [],
+    "tagged_rescue_off": 889,
+    "tagged_rescue_on": 1679,
+    "target_agreement": {
+      "experiment": {
+        "agree": 0.9937,
+        "n": 790
+      },
+      "lift": {
+        "agree": 0.992,
+        "n": 2621
+      },
+      "rescue": {
+        "agree": 0.9955,
+        "n": 889
+      }
+    },
+    "validity": {
+      "off": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 52,
+        "valid": true
+      },
+      "on": {
+        "exit": 0,
+        "n_errors": 0,
+        "n_warnings": 52,
+        "valid": true
+      }
+    },
+    "wall_seconds": {
+      "off": 191.52,
+      "on": 208.75
+    }
+  }
+]

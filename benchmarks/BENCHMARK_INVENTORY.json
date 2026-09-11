@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "cbc9934fb4afdb3b922e8aeab22540e47010544ad58f2528520c93eb890f1c5e",
-      "bytes": 498587,
+      "aggregate_sha256": "d6bd1e743b1a4e34018f45f19951c9e22e787f015baca2b86af917db4f6fd089",
+      "bytes": 499037,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -225,6 +225,17 @@
       "description": "Empty standalone soybean full result produced after the historical Liftoff failure.",
       "file_count": 1,
       "id": "ineligible_incomplete_soybean",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "b105b8fc44c5f1fbbcd14d98817d296ed3a97078670e96b86bcafc40a02fe4a0",
+      "bytes": 123347,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
+      "file_count": 5,
+      "id": "promotion_ab_v1012",
       "superseded_by": null
     }
   ],
@@ -2708,6 +2719,64 @@
       "sha256": "54626384926949e7aca554a7ef6aff59482e96b64b9d1017a4694b278a705e9e"
     },
     {
+      "bytes": 43534,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "181a88103280d654455e8d7c57abcf99c2b12f133afbe27a8236352c3f169caf",
+        "top_level_count": 13
+      },
+      "path": "benchmarks/compare/rescue_extension_ab.coverage_gate.json",
+      "sha256": "c8c905b4e50317640fb5aa2b07b1d6a7a587a51e693adea7ef419f5e5201a46a"
+    },
+    {
+      "bytes": 4646,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": null,
+      "path": "benchmarks/compare/rescue_extension_ab.coverage_gate.md",
+      "sha256": "229447ce4e45bcaefb9d4bea2941e1089fd5a681ac3629564912771ad813fb93"
+    },
+    {
+      "bytes": 43065,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "d84e1a597a8076b18b2e076afc92b0e45bb4f6570ce9be0975faf68118b56d16",
+        "top_level_count": 13
+      },
+      "path": "benchmarks/compare/rescue_extension_ab.isoforms.json",
+      "sha256": "500947808c7a344a0f768dce04f8b463466137489a9c0307734be5e43a830128"
+    },
+    {
+      "bytes": 4723,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": null,
+      "path": "benchmarks/compare/rescue_extension_ab.isoforms.md",
+      "sha256": "594aa7878e6db659bb77113af3b9b4de052c12353069f633fad53f4da6c0b99e"
+    },
+    {
+      "bytes": 27379,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": null,
+      "path": "benchmarks/compare/rescue_extension_ab.py",
+      "sha256": "766c549bc023a9fcced1538edff9efd5690ccc2a016bf5e4f67e12181ae5c4ec"
+    },
+    {
       "bytes": 9124,
       "claim_eligible": false,
       "classification": "canonical",
@@ -3182,18 +3251,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 11302,
+      "bytes": 11752,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "4fa5afc386c10ba13f6917b3d38f8ec2ae1ba0a5a5e6c43f44280e387bdb4681",
+        "shape_sha256": "721d8d973306dd7744004cc76eb46ecec011b311725c808c1720e0d00051d9d7",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "d04db22ec06baf7365f88e58ff491e1695983bb9b7062c9ef7eadf08c0a9244b"
+      "sha256": "856a15f553fa130c5b7175755de70a5ad059ded895a3121a72788f50db396b85"
     },
     {
       "bytes": 34428,
@@ -3371,7 +3440,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "621f3eb4a01ddf5d1fc9f80e64ebd61c55341dc0fb1135e518206321ac6f2600",
+  "inventory_sha256": "be2294fb73e8f88b79878ba3d8e6afc00252321636ce5dbcdb3ea58e465c59d2",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3415,19 +3484,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "450cd510bbc35403a4a27010ccd0ff862a07887b67aa244c222e7ae55268b627",
+  "rules_sha256": "5b7e4c16c2c72aee5392cb9a24af313ca95da6d75b58d9b1f95abd4e66e49366",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "b2175d8d00fbfb67e705ce48e279410673d9e9937c58e0cf6dbd221ee9cbbead",
-    "bytes": 13186952,
+    "aggregate_sha256": "9235da83d157998f63afb4d41358a2ef82f1d93f4cee44075b1785a0ab38a1f2",
+    "bytes": 13310749,
     "classification_counts": {
       "canonical": 75,
-      "diagnostic": 28,
+      "diagnostic": 33,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 273
+    "file_count": 278
   }
 }
