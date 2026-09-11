@@ -455,6 +455,21 @@ def args_optional(parser):
              'than 1 (the pre-v1.0.12 default). Output is identical either way.'
     )
     parser.add_argument(
+        '--parallel-lift', dest='parallel_lift', action='store_true',
+        default=None,
+        help='No-op alias: the parallel Liftoff lift loop is the default '
+             'whenever --threads is greater than 1 (v1.0.12).'
+    )
+    parser.add_argument(
+        '--no-parallel-lift', dest='parallel_lift', action='store_false',
+        default=None,
+        help="Run Liftoff's lift loop serially. By default (--threads > 1) "
+             "each reference chromosome's alignments are lifted by one forked "
+             'worker; output is identical because the loop only links '
+             'neighbouring genes on the same reference chromosome. Env '
+             'LIFTON_PARALLEL_LIFT=1/0 overrides.'
+    )
+    parser.add_argument(
         '--step7-max-inflight', dest='step7_max_inflight', type=int,
         default=None, metavar='N',
         help='Bound submitted-but-not-emitted Step-7 loci. The default is '
