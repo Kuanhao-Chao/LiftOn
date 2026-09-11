@@ -489,7 +489,10 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         Path to the miniprot GFF3 file (legacy mode) or direct DuckDB input
         (streaming mode), or None on failure.
     """
-    miniprot_outdir = outdir + "miniprot/"
+    # os.path.join: the caller passes "<out>/lifton_output" without a trailing
+    # separator, and plain concatenation wrote "<out>/lifton_outputminiprot/"
+    # (v1.0.10-v1.0.11). The streaming path above already joins correctly.
+    miniprot_outdir = os.path.join(outdir, "miniprot", "")
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
