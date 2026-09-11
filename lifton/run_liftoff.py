@@ -76,7 +76,10 @@ def run_liftoff(output_dir, ref_db, args):
         when ``args.inmemory_liftoff`` is True.
     """
     liftoff_args = _copy_liftoff_args(args)
-    liftoff_outdir = output_dir + "liftoff/"
+    # os.path.join: the caller passes "<out>/lifton_output" without a trailing
+    # separator, and plain concatenation wrote "<out>/lifton_outputliftoff/"
+    # (v1.0.10-v1.0.11).
+    liftoff_outdir = os.path.join(output_dir, "liftoff", "")
     os.makedirs(liftoff_outdir, exist_ok=True)
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
     liftoff_args.output = liftoff_annotation
