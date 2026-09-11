@@ -257,3 +257,33 @@ def test_abort_fsync_failure_restores_handlers_after_preserving_partial(
     assert transaction.state is OutputTransactionState.ABORTED
     assert transaction.partial_path.read_text() == "recoverable\n"
     assert transaction._signal_handlers == {}
+
+
+@pytest.mark.fault
+def test_forked_child_signal_leaves_the_parent_transaction_alone(tmp_path):
+    """A multiprocessing worker forked after the handlers are installed
+    inherits them. ``Pool.terminate`` sends it SIGTERM; before v1.0.12 the
+    worker then aborted the parent's transaction, renaming the staged output
+    away while the parent was still writing it."""
+    import os
+
+    transaction = OutputTransaction(tmp_path / "result.gff3")
+    stream = transaction.open()
+    stream.write("staged by the parent\n")
+    stream.flush()
+    transaction.install_signal_handlers()
+    try:
+        pid = os.fork()
+        if pid == 0:                                   # the forked "worker"
+            os.kill(os.getpid(), signal.SIGTERM)
+            os._exit(0)                                # not reached
+        _, status = os.waitpid(pid, 0)
+        assert os.WIFSIGNALED(status)
+        assert os.WTERMSIG(status) == signal.SIGTERM
+        assert not transaction.partial_path.exists()
+        stream.write("still writing\n")
+        transaction.commit()
+    finally:
+        transaction.restore_signal_handlers()
+    assert (tmp_path / "result.gff3").read_text() == \
+        "staged by the parent\nstill writing\n"
