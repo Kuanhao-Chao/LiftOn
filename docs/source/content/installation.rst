@@ -175,15 +175,17 @@ Run the following command to make sure LiftOn is properly installed:
                     [-gap_extend GE] [-polish] [-cds] [-time] [--validate-output]
                     [--validate-verbose] [--allow-partial-output] [--strict-completeness]
                     [--strict-gff] [--stream] [--inmemory-liftoff] [--locus-pipeline]
+                    [--no-locus-pipeline] [--parallel-lift] [--no-parallel-lift]
                     [--step7-max-inflight N] [--step8-max-inflight N]
                     [--evaluation-max-inflight N] [--native]
                     [--serial-aligners | --parallel-aligners] [--optimize]
-                    [--legacy-merge] [--full-dp-align]
-                    [--fast-align] [--gene-only] [--lift-gene-like] [--no-miniprot-rescue]
-                    [--miniprot-rescue] [--miniprot-cross-locus-rescue]
-                    [--no-miniprot-candidate] [--miniprot-candidate]
-                    [--no-adaptive-rescue-floor] [--adaptive-rescue-floor] -g GFF
-                    [-P FASTA] [-T FASTA] [-L gff] [-M gff]
+                    [--legacy-merge] [--full-dp-align] [--fast-align] [--gene-only]
+                    [--lift-gene-like] [--no-miniprot-rescue] [--miniprot-rescue]
+                    [--miniprot-cross-locus-rescue] [--no-miniprot-candidate]
+                    [--miniprot-candidate] [--no-adaptive-rescue-floor]
+                    [--adaptive-rescue-floor] [--coverage-rescue-gate]
+                    [--no-coverage-rescue-gate] [--rescue-isoforms] [--no-rescue-isoforms]
+                    -g GFF [-P FASTA] [-T FASTA] [-L gff] [-M gff]
                     [--merge-strategy {create_unique,merge,error,warning,replace}]
                     [--id-spec ID_SPEC] [--force] [--verbose] [-ad SOURCE]
                     [--no-auto-convert-gtf]
@@ -203,9 +205,13 @@ Run the following command to make sure LiftOn is properly installed:
           (default) miniprot merge candidate ......... --no-miniprot-candidate
           (default) best-of-outcome merge ............ --legacy-merge
           (default) banded / windowed alignment ...... --full-dp-align
+          (default) protein-coverage rescue gate ..... --no-coverage-rescue-gate
+          (default) isoform-aware rescue ............. --no-rescue-isoforms
 
         Byte-identical fast-paths (output unchanged; pinned by the 24-cell matrix):
-          --threads N --locus-pipeline, --stream, --inmemory-liftoff, --native
+          --threads N (per-locus fan-out and the parallel Liftoff lift loop
+          are automatic when N > 1; --no-locus-pipeline / --no-parallel-lift
+          opt out), --stream, --inmemory-liftoff, --native
           Large-target schedule: automatic sequential execution above 4 billion
           bases; --serial-aligners / --parallel-aligners force either policy
           Memory bounds: --step7-max-inflight / --step8-max-inflight /

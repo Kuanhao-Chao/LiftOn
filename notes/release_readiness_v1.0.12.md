@@ -144,6 +144,34 @@ at this genome scale and that overlap can materially increase peak memory.
 | Real chr22 default/serial byte identity (minimap2 2.28, miniprot 0.13, `-copies -sc 0.95`) | **byte-identical**, md5 `160e05449efdb8bccef06fa12bb9b8b4`; 2 min 36 s each; `gff3-validate` VALID, 0 errors, 59 warnings |
 | Wheel + sdist build and clean-wheel smoke | **passed**: `python -m build`; `pip install --no-cache-dir` of the wheel into a fresh venv; `lifton --version`, `lifton -h`, `gff3-validate -h`, and `import lifton.tool_execution` all succeed |
 
+## Scope added on 2026-09-11
+
+After the #71 work was gated and committed (`307abc6`), v1.0.12 took on the
+improvement program in `notes/lifton_v1.0.12_improvement_analysis.md`. The #71
+contract above, that scheduling changes alter no thresholds or scoring, still
+describes the #71 changes. It no longer describes the release: v1.0.12 now also
+changes rescue output by default.
+
+| Commit | Change | Output | Evidence |
+|---|---|---|---|
+| `e282103` | gene-level, primary-assembly, GeneID recall; recall-gap diagnostic | benchmark tooling only | unit tests; re-derived the analysis numbers |
+| `16f67d2` | forked workers can no longer abort the parent's output transaction | none (latent fault) | fork regression test, fails on old code |
+| `79a212a` | protein-coverage rescue sub-pass + isoform-aware rescue, default on | **adds genes and transcripts** at distance | strict A/B 13/13 + 13/13: 0 lost, 0 duplicates, 0 regressions, validity unchanged |
+| `d4c1f02` | `--locus-pipeline` by default when `-t > 1` | byte-identical | drosophila and dog → cat whole genomes byte-identical; wall −33 % |
+| `764e1eb` | intermediate files back under `lifton_output/` | paths only | regression tests, fail on old code |
+| `8816ef3` | faster Liftoff SAM parsing and GFF3 writing | byte-identical | 120,000-case equivalence; identical Liftoff bodies on two whole genomes |
+| `804f01e` | forked parallel Liftoff lift loop, default when `-t > 1` | byte-identical | identical on drosophila and dog → cat (4 arms each); aligner phase −32 to −33 % |
+
+Remaining release gates for the combined tree:
+
+| Gate | Result |
+|---|---|
+| Complete `pytest tests/` on the final tree | **1,924 passed, 2 skipped** at `804f01e` (isolated worktree) |
+| Real chr22 example with the new defaults (`-copies -sc 0.95`) | exit 0; `-t 1` (2 min 32 s) and `-t 8` (1 min 23 s) byte-identical, and identical to the `307abc6` output (same-species: no rescue candidates); `gff3-validate` VALID, 0 errors, 59 warnings; intermediates in `lifton_output/liftoff/` and `lifton_output/miniprot/` |
+| Wheel + sdist build and clean-wheel smoke | **passed** at `804f01e`: `--no-cache-dir` install into a fresh venv; `lifton --version` v1.0.12; new opt-outs in `-h`; promoted defaults active; `gff3-validate` present |
+| `devel` CI on Python 3.10/3.11/3.12 | pending push |
+| Tag / GitHub Release / PyPI | pending sign-off |
+
 ## Release and deployment surfaces
 
 | Surface | State |

@@ -10,12 +10,58 @@ Nothing yet.
 
 ## [1.0.12] - 2026-08-25
 
-A resource-safety and diagnostics patch release for very large target genomes.
-It addresses GH #71 without claiming that LiftOn can make an individually
-oversized native index fit in insufficient memory.
+A resource-safety and diagnostics release for very large target genomes (GH
+#71), which also recovers far more genes when the two species are distantly
+related and runs multi-threaded by default.
 
 ### Changed
 
+- **Many more genes recovered between distantly related species.** The
+  miniprot-only rescue rejected a protein alignment when its genomic span was
+  outside 0.5–2× the reference gene's CDS span. Both spans include introns,
+  and intron length follows genome size. Lifting from human into the compact
+  fish, bird, and frog genomes, 75–83 % of the missed genes miniprot found
+  were rejected this way, although their alignments covered the entire
+  reference protein. A second rescue sub-pass now judges exactly those
+  candidates by the fraction of the reference protein the hit aligns (≥ 0.8,
+  `LIFTON_RESCUE_COVERAGE_MIN`), keeps the same protein-identity floor, and
+  fills only loci no gene occupies, best hit first. On whole genomes,
+  primary-assembly gene recall rises from 0.315 to 0.593 (human → zebrafish),
+  0.364 to 0.615 (human → chicken) and 0.361 to 0.638 (human → xenopus).
+  99.7 % of the added models overlap an annotated CDS of the released target
+  annotation on the same strand. Across the eight-cell ladder and five whole
+  genomes, no gene is lost, no model is duplicated, no transcript's protein
+  identity drops, and validator errors do not rise; the earlier output is
+  unchanged, with the new genes appended. `--no-coverage-rescue-gate` (or
+  `LIFTON_RESCUE_COVERAGE_GATE=0`) restores v1.0.11 behaviour.
+- **Rescued genes now carry their isoforms.** The rescue emitted one
+  transcript per gene, while a human gene has about six. After placement, each
+  rescued gene now also receives the other transcripts of the same reference
+  gene whose miniprot hits lie at its locus. Each must clear the same
+  protein-identity floor and may not widen the gene into another gene, and
+  gene placement is unchanged. Coding transcript recall rises, for example,
+  from 0.139 to 0.247 on drosophila → honey bee and from 0.168 to 0.618 on
+  human chromosome 20 → xenopus. `--no-rescue-isoforms` (or
+  `LIFTON_RESCUE_ISOFORMS=0`) restores one transcript per rescued gene.
+- **`--threads N` parallelizes per-locus processing by default.** Steps 7
+  and 8 used threads only with `--locus-pipeline`, which every benchmark
+  passed but plain `lifton -t 8` did not. It is now on whenever N > 1;
+  output is byte-identical to the serial path, and `--no-locus-pipeline`
+  restores it. At `-t 8` with cached aligner inputs, the drosophila whole
+  genome takes 606 s instead of 899 s and dog → cat 1,868 s instead of
+  2,792 s.
+- **Faster Liftoff post-processing, identical output.** Parsing minimap2's
+  alignments recomputed every exon's position relative to its gene for every
+  aligned block; it now does so once per alignment and tests overlap with a
+  binary search. Writing the Liftoff GFF3 scanned every gene once per child
+  transcript (a quadratic step added in v1.0.12's trans-spliced-copy fix);
+  that scan is now a dictionary lookup. With `--threads N` (N > 1), Liftoff's
+  lift loop now runs one forked worker per reference chromosome
+  (`--no-parallel-lift` opts out); the loop links only neighbouring genes on
+  the same chromosome, so the output is identical. Fresh Liftoff at `-t 8`:
+  the aligner phase takes 134 s instead of 261 s on drosophila; on dog → cat
+  parallel lift alone takes it from 1,765 s to 1,206 s. Intermediate Liftoff
+  GFF3 files are identical to v1.0.11's.
 - **Targets above 4,000,000,000 bases no longer build the minimap2 and
   miniprot indexes concurrently by default.** Liftoff/minimap2 completes first,
   then miniprot starts, preventing their index-memory peaks from overlapping.
@@ -44,6 +90,11 @@ oversized native index fit in insufficient memory.
 - **Trans-spliced copies retain the correct same-sequence hierarchy.** When
   the same logical parent ID appears on multiple sequences, copied children no
   longer attach to the matching ID on a different sequence during GFF3 output.
+- **Intermediate Liftoff and miniprot files are written inside
+  `lifton_output/` again.** v1.0.10 and v1.0.11 wrote them to sibling
+  directories named `lifton_outputliftoff/` and `lifton_outputminiprot/`
+  (a path was concatenated without a separator). They now go to
+  `lifton_output/liftoff/` and `lifton_output/miniprot/`, as documented.
 
 ## [1.0.11] - 2026-08-01
 
