@@ -77,7 +77,7 @@ def test_current_release_metadata_matches_package_version():
         rf"(?m)^version:\s*{re.escape(package_version)}\s*$", citation,
     )
     assert re.search(
-        r'(?m)^date-released:\s*["\']2026-08-01["\']\s*$', citation,
+        r'(?m)^date-released:\s*["\']2026-08-25["\']\s*$', citation,
     )
     assert docs_config["release"] == package_version
     assert docs_config["version"] == package_version

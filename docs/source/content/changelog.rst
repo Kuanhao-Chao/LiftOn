@@ -4,6 +4,32 @@
 Changelog
 ===========
 
+v1.0.12
+--------
+
+Resource-safety and diagnostics patch release (2026-08-25), motivated by GH
+#71's two native ``SIGSEGV`` failures on an approximately 20-Gb target.
+
+**Changed and fixed:**
+
+- Targets above 4,000,000,000 bases run Liftoff/minimap2 before miniprot by
+  default, preventing the two index-memory peaks from overlapping. Smaller
+  targets retain concurrent execution. ``--serial-aligners`` and
+  ``--parallel-aligners`` are mutually exclusive force overrides.
+- Liftoff creates no more Python workers than alignment tasks and divides the
+  configured thread budget across those tasks. One target with ``--threads 40``
+  therefore creates one worker whose minimap2 command receives 40 threads.
+- ``run_manifest.json`` records target statistics, schedule/reason, exact
+  aligner commands, last completed stages, bounded stderr tails, return codes,
+  and POSIX signal names. ``-11`` is reported as ``SIGSEGV``; OOM is not
+  asserted without OS or scheduler evidence.
+- miniprot older than 0.14 is rejected for a target sequence at least 2^31
+  bases, covering its known large-sequence limitation.
+- Trans-spliced copies with repeated logical parent IDs now bind children to
+  the matching parent on the same sequence.
+
+See :doc:`large_genome_resource_failures` for diagnosis and recovery guidance.
+
 v1.0.11
 --------
 

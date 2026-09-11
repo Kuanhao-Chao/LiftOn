@@ -1,6 +1,5 @@
 from multiprocessing import Pool
 import gzip
-import math
 import os
 import shlex
 import sys
@@ -12,6 +11,14 @@ import subprocess
 import pysam
 from lifton.liftoff  import aligned_seg, liftoff_utils
 from lifton.exceptions import LiftOnAlignmentError
+from lifton.tool_execution import (
+    MAX_CONCURRENT_TARGET_BASES,
+    describe_returncode,
+    detect_minimap2_stage,
+    execution_record,
+    record_execution,
+    run_with_bounded_stderr,
+)
 
 
 MMI_MAGIC = b"MMI\x02"
@@ -24,6 +31,15 @@ class _SamTargetMismatch(LiftOnAlignmentError):
 
 class _Minimap2CommandError(LiftOnAlignmentError):
     """A minimap2 subprocess could not be launched or exited unsuccessfully."""
+
+    def __init__(self, message, *, command=None, stage=None, target_file=None,
+                 returncode=None, stderr_tail=""):
+        super().__init__(message)
+        self.command = command
+        self.stage = stage
+        self.target_file = target_file
+        self.returncode = returncode
+        self.stderr_tail = stderr_tail
 
 
 def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy, liftover_type, unmapped_features):
@@ -56,9 +72,26 @@ def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy,
         sam_files = [args.directory + "/polish.sam"]
     else:
         target_fasta_dict = split_target_sequence(target_chroms, args.target, args.directory)
-        target_lengths = {name: len(sequence) for name, sequence in target_fasta_dict.items()}
-        genome_size = get_genome_size(target_fasta_dict)
-        threads_per_alignment = max(1, math.floor(int(args.threads) / len(ref_chroms)))
+        fasta_index = getattr(
+            getattr(target_fasta_dict, "faidx", None), "index", None,
+        )
+        if fasta_index is None:
+            target_lengths = {
+                name: len(sequence)
+                for name, sequence in target_fasta_dict.items()
+            }
+        else:
+            target_lengths = {
+                name: int(record.rlen)
+                for name, record in fasta_index.items()
+            }
+        genome_size = sum(target_lengths.values())
+        task_count = len(target_chroms)
+        if task_count < 1:
+            raise LiftOnAlignmentError("Liftoff received no target alignment tasks.")
+        thread_budget = max(1, int(args.threads))
+        worker_count = min(thread_budget, task_count)
+        threads_per_alignment = max(1, thread_budget // worker_count)
         sam_files = []
         print("aligning features")
         func = partial(align_single_chroms, ref_chroms, target_chroms, threads_per_alignment, args, genome_size,
@@ -67,7 +100,7 @@ def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy,
         # down the remaining workers instead of leaking a Pool while the error
         # propagates to the CLI. Keep explicit close/join calls for compatibility
         # with Liftoff's lightweight Pool test doubles.
-        pool = Pool(int(args.threads))
+        pool = Pool(worker_count)
         try:
             for result in pool.imap_unordered(func, np.arange(0, len(target_chroms))):
                 sam_files.append(result)
@@ -100,7 +133,6 @@ def get_genome_size(target_fasta_dict):
 
 def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, liftover_type, index,
                         target_lengths=None):
-    max_single_index_size = 4000000000
     features_file, features_name = get_features_file(ref_chroms, args, liftover_type, index)
     target_file, output_file = get_target_file_and_output_file(liftover_type, target_chroms, index, features_name, args)
     threads_arg = str(threads)
@@ -112,13 +144,13 @@ def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, l
         expected_lengths = target_lengths
     else:
         expected_lengths = {target_prefix: target_lengths[target_prefix]}
-    if genome_size > max_single_index_size:
+    if genome_size > MAX_CONCURRENT_TARGET_BASES:
         split_prefix = args.directory + "/" + features_name + "_to_" + target_prefix + "_split"
         command = [minimap2_path] + _minimap2_options(args) + [
             "--split-prefix", split_prefix, '-t', threads_arg]
         _run_minimap2_to_sam(
             command, [target_file, features_file], output_file, target_file,
-            expected_lengths, index_file=None,
+            expected_lengths, index_file=None, args=args,
         )
     else:
         index_was_reused = _find_reusable_minimap2_index(target_file, args, target_prefix) is not None
@@ -130,7 +162,7 @@ def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, l
             try:
                 _run_minimap2_to_sam(
                     command, [minimap2_index, features_file], output_file, target_file,
-                    expected_lengths, index_file=minimap2_index,
+                    expected_lengths, index_file=minimap2_index, args=args,
                 )
                 break
             except (_SamTargetMismatch, _Minimap2CommandError):
@@ -216,25 +248,43 @@ def _minimap2_options(args):
         raise LiftOnAlignmentError(f"Invalid -mm2_options value: {exc}") from exc
 
 
-def _run_checked_minimap2(command, stage, target_file):
+def _run_checked_minimap2(command, stage, target_file, args=None):
+    stderr_tail = ""
     try:
-        run_kwargs = {"check": True}
-        if stage == "index build":
-            # The normal Liftoff options include -a. With `minimap2 -d`, that
-            # otherwise emits a SAM header to stdout even though the intended
-            # artifact is the binary index; progress remains visible on stderr.
-            run_kwargs["stdout"] = subprocess.DEVNULL
-        subprocess.run(command, **run_kwargs)
-    except subprocess.CalledProcessError as exc:
-        raise _Minimap2CommandError(
-            f"minimap2 {stage} failed for target '{target_file}' with exit code "
-            f"{exc.returncode}. Command: {shlex.join(command)}"
-        ) from exc
-    except (FileNotFoundError, PermissionError, NotADirectoryError, OSError) as exc:
+        # The normal Liftoff options include -a. With `minimap2 -d`, that
+        # otherwise emits a SAM header to stdout even though the intended
+        # artifact is the binary index; progress remains visible on stderr.
+        stdout = subprocess.DEVNULL if stage == "index build" else None
+        result = run_with_bounded_stderr(command, stdout=stdout)
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            OSError, ValueError) as exc:
+        record = execution_record(
+            "minimap2", command=command, stage=stage,
+            status="launch_error", returncode=None,
+            details={"target_file": target_file, "error": str(exc)},
+        )
+        record_execution(args, record)
         raise _Minimap2CommandError(
             f"Unable to run minimap2 during {stage} for target '{target_file}': {exc}. "
-            f"Command: {shlex.join(command)}"
+            f"Command: {shlex.join(command)}",
+            command=list(command), stage=stage, target_file=target_file,
         ) from exc
+    stderr_tail = result.stderr_tail
+    status = "success" if result.returncode == 0 else "failed"
+    detected_stage = detect_minimap2_stage(stderr_tail, stage)
+    record_execution(args, execution_record(
+        "minimap2", command=command, stage=detected_stage, status=status,
+        returncode=result.returncode, stderr_tail=stderr_tail,
+        details={"operation": stage, "target_file": target_file},
+    ))
+    if result.returncode != 0:
+        raise _Minimap2CommandError(
+            f"minimap2 {stage} failed for target '{target_file}': "
+            f"{describe_returncode(result.returncode)}. "
+            f"Command: {shlex.join(command)}",
+            command=list(command), stage=stage, target_file=target_file,
+            returncode=result.returncode, stderr_tail=stderr_tail,
+        )
 
 
 def _warn_unusable_index(index_file, state, replacement):
@@ -322,7 +372,7 @@ def build_minimap2_index(target_file, args, threads, minimap2_path, target_prefi
         command = [minimap2_path] + _minimap2_options(args) + [
             '-t', str(threads), '-d', temporary_index, target_file,
         ]
-        _run_checked_minimap2(command, "index build", target_file)
+        _run_checked_minimap2(command, "index build", target_file, args=args)
         built_state = classify_minimap2_index(temporary_index)
         if built_state != "valid":
             raise LiftOnAlignmentError(
@@ -413,7 +463,8 @@ def validate_sam_target(sam_file, target_file, index_file=None, expected_lengths
     return None
 
 
-def _run_minimap2_to_sam(command, positional_inputs, output_file, target_file, expected_lengths, index_file):
+def _run_minimap2_to_sam(command, positional_inputs, output_file, target_file,
+                         expected_lengths, index_file, args=None):
     os.makedirs(os.path.dirname(output_file) or ".", exist_ok=True)
     fd, temporary_sam = tempfile.mkstemp(
         prefix="." + os.path.basename(output_file) + ".", suffix=".tmp", dir=os.path.dirname(output_file) or ".",
@@ -423,7 +474,9 @@ def _run_minimap2_to_sam(command, positional_inputs, output_file, target_file, e
         # Keep LiftOn's owned -o after user-supplied options so the temporary
         # artifact cannot be redirected elsewhere by -mm2_options.
         full_command = command + ['-o', temporary_sam] + positional_inputs
-        _run_checked_minimap2(full_command, "alignment", target_file)
+        _run_checked_minimap2(
+            full_command, "alignment", target_file, args=args,
+        )
         validate_sam_target(
             temporary_sam, target_file, index_file=index_file, expected_lengths=expected_lengths,
         )

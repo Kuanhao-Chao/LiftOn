@@ -44,6 +44,11 @@ These dependencies are resolved automatically when you ``pip install lifton`` (a
    ``LIFTON_DISABLE_RTREE=1``; LiftOn's results are unchanged because region
    queries fall back to the standard B-tree index.
 
+   A target containing any sequence at least 2^31 bases long requires
+   **miniprot >= 0.14**. LiftOn v1.0.12 fails preflight for a parseable older
+   version rather than risk the known long-sequence limitation. Other
+   targets retain the general miniprot >= 0.10 minimum.
+
    If your numpy version is >= 1.25.0, then it requires Python version >= 3.9.
 
    Check out the scientific python ecosystem coordination guideline `SPEC 0 <https://scientific-python.org/specs/spec-0000/>`_ — Minimum Supported Versions to configure the package version compatibility.
@@ -159,7 +164,7 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.11
+      v1.0.12
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE]
                     [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A]
@@ -171,8 +176,9 @@ Run the following command to make sure LiftOn is properly installed:
                     [--validate-verbose] [--allow-partial-output] [--strict-completeness]
                     [--strict-gff] [--stream] [--inmemory-liftoff] [--locus-pipeline]
                     [--step7-max-inflight N] [--step8-max-inflight N]
-                    [--evaluation-max-inflight N] [--native] [--serial-aligners]
-                    [--parallel-aligners] [--optimize] [--legacy-merge] [--full-dp-align]
+                    [--evaluation-max-inflight N] [--native]
+                    [--serial-aligners | --parallel-aligners] [--optimize]
+                    [--legacy-merge] [--full-dp-align]
                     [--fast-align] [--gene-only] [--lift-gene-like] [--no-miniprot-rescue]
                     [--miniprot-rescue] [--miniprot-cross-locus-rescue]
                     [--no-miniprot-candidate] [--miniprot-candidate]
@@ -188,7 +194,7 @@ Run the following command to make sure LiftOn is properly installed:
       Run `lifton -h` for the complete option list. The full, current flag
       reference -- every option's default, which flags CHANGE the output vs. the
       byte-identical fast-paths, and the kept no-op aliases -- is documented in
-      the User Manual / Function manual page. The most-used v1.0.11 options:
+      the User Manual / Function manual page. The most-used v1.0.12 options:
 
         Output-changing defaults (each ships with an opt-out flag):
           (default) lift all gene-like types ......... --gene-only
@@ -199,8 +205,9 @@ Run the following command to make sure LiftOn is properly installed:
           (default) banded / windowed alignment ...... --full-dp-align
 
         Byte-identical fast-paths (output unchanged; pinned by the 24-cell matrix):
-          --threads N --locus-pipeline, --stream, --inmemory-liftoff, --native,
-          --serial-aligners
+          --threads N --locus-pipeline, --stream, --inmemory-liftoff, --native
+          Large-target schedule: automatic sequential execution above 4 billion
+          bases; --serial-aligners / --parallel-aligners force either policy
           Memory bounds: --step7-max-inflight / --step8-max-inflight /
           --evaluation-max-inflight (default 2 x --threads)
 

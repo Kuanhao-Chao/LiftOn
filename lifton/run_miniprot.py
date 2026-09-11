@@ -4,6 +4,13 @@ from io import BytesIO
 from pathlib import Path
 import subprocess, os, sys
 from intervaltree import Interval, IntervalTree
+from lifton.tool_execution import (
+    describe_returncode,
+    detect_miniprot_stage,
+    execution_record,
+    record_execution,
+    run_with_bounded_stderr,
+)
 
 
 def _drain_stream_chunks(proc, *, chunk_size: int = 65536):
@@ -235,11 +242,21 @@ def run_miniprot_streaming_db(
         "miniprot", tgt_genome, ref_proteins_file, args.mp_options,
         getattr(args, "threads", 1),
     )
-    proc = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        bufsize=1 << 20,
-    )
+    try:
+        proc = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            bufsize=1 << 20,
+        )
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            OSError, ValueError) as exc:
+        record_execution(args, execution_record(
+            "miniprot", command=command, stage="process_launch",
+            status="launch_error", returncode=None,
+            details={"error": str(exc)},
+        ))
+        raise
     stderr_state = _BoundedStderr()
+    execution_was_recorded = False
 
     def _drain_stderr():
         if proc.stderr is None:
@@ -288,19 +305,50 @@ def run_miniprot_streaming_db(
         returncode = proc.wait()
         stderr_thread.join()
         if returncode != 0:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_state.text),
+                status="failed", returncode=returncode,
+                stderr_tail=stderr_state.text,
+            ))
+            execution_was_recorded = True
             raise RuntimeError(_with_stderr_tail(
-                f"miniprot exited with code {returncode}", stderr_state,
+                f"miniprot {describe_returncode(returncode)}", stderr_state,
             ))
         if stderr_state.error_seen:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_state.text),
+                status="failed", returncode=returncode,
+                stderr_tail=stderr_state.text,
+                details={"reason": "ERROR token on stderr"},
+            ))
+            execution_was_recorded = True
             raise RuntimeError(_with_stderr_tail(
                 "miniprot reported ERROR on stderr", stderr_state,
             ))
         if decoder.byte_count == 0 or stats.n_features_raw == 0:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_state.text),
+                status="failed", returncode=returncode,
+                stderr_tail=stderr_state.text,
+                details={"reason": "empty GFF3 stream"},
+            ))
+            execution_was_recorded = True
             raise RuntimeError("miniprot produced an empty GFF3 stream")
         mrna_count = connection.execute(
             "SELECT COUNT(*) FROM features WHERE featuretype = 'mRNA'"
         ).fetchone()[0]
         if not mrna_count:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_state.text),
+                status="failed", returncode=returncode,
+                stderr_tail=stderr_state.text,
+                details={"reason": "no mRNA features"},
+            ))
+            execution_was_recorded = True
             raise RuntimeError("miniprot output contains no mRNA features")
         connection.execute("CHECKPOINT")
         connection.close()
@@ -315,6 +363,13 @@ def run_miniprot_streaming_db(
         os.replace(partial_path, final_path)
         from lifton.output_transaction import _fsync_directory
         _fsync_directory(Path(final_path).parent)
+        record_execution(args, execution_record(
+            "miniprot", command=command,
+            stage=detect_miniprot_stage(stderr_state.text),
+            status="success", returncode=returncode,
+            stderr_tail=stderr_state.text,
+        ))
+        execution_was_recorded = True
         return MiniprotArtifact(
             database_path=final_path,
             byte_count=decoder.byte_count,
@@ -323,6 +378,18 @@ def run_miniprot_streaming_db(
             returncode=returncode,
         )
     except BaseException:
+        if not execution_was_recorded:
+            try:
+                failed_returncode = proc.poll()
+            except Exception:
+                failed_returncode = None
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_state.text),
+                status="failed", returncode=failed_returncode,
+                stderr_tail=stderr_state.text,
+                details={"reason": "streaming ingest or process failure"},
+            ))
         _stop_process(proc)
         stderr_thread.join(timeout=5)
         if connection is not None:
@@ -365,6 +432,23 @@ def check_miniprot_installed():
             subprocess.SubprocessError):
         pass
     return installed
+
+
+def probe_miniprot_version():
+    """Return miniprot's first version line, or ``None`` when unavailable."""
+
+    try:
+        completed = subprocess.run(
+            ["miniprot", "--version"], stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, text=True, check=False, timeout=5,
+        )
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            OSError, subprocess.SubprocessError):
+        return None
+    output = completed.stdout or ""
+    return next(
+        (line.strip() for line in output.splitlines() if line.strip()), None,
+    )
 
 
 def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
@@ -434,26 +518,28 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     try:
         # Legacy file-write branch (Phase 5 baseline behaviour). Streaming
         # returned above after publishing its direct DuckDB artifact.
+        execution_was_recorded = False
         with open(miniprot_output, "w") as fw:
-            proc = subprocess.run(
-                command,
-                stdout=fw,
-                stderr=subprocess.PIPE,  # capture stderr so we can scan it
-                text=True,
-            )
-        stderr_text = proc.stderr or ""
+            proc = run_with_bounded_stderr(command, stdout=fw)
+        stderr_text = proc.stderr_tail
+        stderr_error_seen = bool(
+            getattr(proc, "stderr_error_seen", False)
+            or "ERROR" in stderr_text.upper()
+        )
         return_code = proc.returncode
         output_size = (os.path.getsize(miniprot_output)
                        if os.path.exists(miniprot_output) else 0)
 
-        # Print stderr so the user sees miniprot's own log lines
-        if stderr_text:
-            print(stderr_text, end="", file=sys.stderr)
-
         # ── Failure mode 1: non-zero exit code ────────────────────────────
         if return_code != 0:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_text), status="failed",
+                returncode=return_code, stderr_tail=stderr_text,
+            ))
+            execution_was_recorded = True
             print(
-                f"\n[LiftOn] miniprot exited with code {return_code}. "
+                f"\n[LiftOn] miniprot {describe_returncode(return_code)}. "
                 "Miniprot output will be skipped; LiftOn will stage a "
                 "Liftoff-only partial result.",
                 file=sys.stderr,
@@ -461,7 +547,14 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             return None
 
         # ── Failure mode 2: miniprot printed ERROR on stderr ─────────────
-        if stderr_text and "ERROR" in stderr_text.upper():
+        if stderr_error_seen:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_text), status="failed",
+                returncode=return_code, stderr_tail=stderr_text,
+                details={"reason": "ERROR token on stderr"},
+            ))
+            execution_was_recorded = True
             print(
                 "\n[LiftOn] miniprot reported an ERROR during mapping "
                 "(exit code 0 but ERROR seen in output). "
@@ -473,6 +566,13 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
 
         # ── Failure mode 3: output is absent or empty ─────────────────────
         if output_size == 0:
+            record_execution(args, execution_record(
+                "miniprot", command=command,
+                stage=detect_miniprot_stage(stderr_text), status="failed",
+                returncode=return_code, stderr_tail=stderr_text,
+                details={"reason": "empty output"},
+            ))
+            execution_was_recorded = True
             print(
                 "\n[LiftOn] miniprot produced an empty output. "
                 "Miniprot output will be skipped; LiftOn will stage a "
@@ -481,7 +581,19 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
             )
             return None
 
+        record_execution(args, execution_record(
+            "miniprot", command=command,
+            stage=detect_miniprot_stage(stderr_text), status="success",
+            returncode=return_code, stderr_tail=stderr_text,
+        ))
+        execution_was_recorded = True
     except Exception as exc:
+        if not locals().get("execution_was_recorded", False):
+            record_execution(args, execution_record(
+                "miniprot", command=command, stage="process_launch",
+                status="launch_error", returncode=None,
+                details={"error": str(exc)},
+            ))
         print(
             f"\n[LiftOn] miniprot failed unexpectedly: {exc}\n"
             "Miniprot output will be skipped; LiftOn will stage a "

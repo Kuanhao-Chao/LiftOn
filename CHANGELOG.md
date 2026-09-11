@@ -8,6 +8,43 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
+## [1.0.12] - 2026-08-25
+
+A resource-safety and diagnostics patch release for very large target genomes.
+It addresses GH #71 without claiming that LiftOn can make an individually
+oversized native index fit in insufficient memory.
+
+### Changed
+
+- **Targets above 4,000,000,000 bases no longer build the minimap2 and
+  miniprot indexes concurrently by default.** Liftoff/minimap2 completes first,
+  then miniprot starts, preventing their index-memory peaks from overlapping.
+  Smaller targets retain the byte-identical concurrent default.
+  `--serial-aligners` forces sequential execution at every size;
+  `--parallel-aligners` now force-enables concurrency and warns above the
+  boundary. The two overrides are mutually exclusive.
+- **Liftoff's worker pool now follows the actual alignment-task count.** A
+  single whole-target alignment requested with `--threads 40` creates one
+  worker using 40 minimap2 threads, not 40 Python workers for one task.
+
+### Added
+
+- **Structured external-tool evidence in `run_manifest.json`.** Manifests now
+  include target base/sequence statistics, the resolved scheduling decision,
+  and per-execution command, stage, status, return code, signal, and bounded
+  64-KiB stderr tail. A negative subprocess return code is described by its
+  POSIX signal (for example, `-11` is `SIGSEGV`); LiftOn never calls it OOM
+  without operating-system or scheduler evidence.
+- **A long-sequence miniprot compatibility gate.** A parseable miniprot older
+  than 0.14 is rejected when a target sequence is at least 2^31 bases long. An
+  unparseable version produces a warning and an explicit upgrade recommendation.
+
+### Fixed
+
+- **Trans-spliced copies retain the correct same-sequence hierarchy.** When
+  the same logical parent ID appears on multiple sequences, copied children no
+  longer attach to the matching ID on a different sequence during GFF3 output.
+
 ## [1.0.11] - 2026-08-01
 
 A single-fix release. v1.0.10 could not ingest some annotations that v1.0.8
@@ -504,5 +541,7 @@ default output** (pinned by the 24-cell byte-identity matrix test):
 
 Prior release. See the project documentation and the git history for details.
 
+[1.0.12]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.12
+[1.0.11]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.11
 [1.0.10]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.10
 [1.0.9]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.9
