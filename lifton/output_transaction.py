@@ -277,11 +277,12 @@ class OutputTransaction:
             return False
         if self._signal_handlers:
             return True
+        self._owner_pid = os.getpid()
         for signum in (signal.SIGTERM, getattr(signal, "SIGHUP", None)):
             if signum is None:
                 continue
             self._signal_handlers[int(signum)] = signal.getsignal(signum)
-            signal.signal(signum, self._handle_signal)
+            signal.signal(signum, self._handle_signal_owned)
         return True
 
     def restore_signal_handlers(self) -> None:
@@ -308,6 +309,23 @@ class OutputTransaction:
             previous(signum, frame)
         elif previous != signal.SIG_IGN:
             raise SystemExit(128 + int(signum))
+
+    def _handle_signal_owned(self, signum, frame) -> None:
+        """Signal entry point; only the process that installed the handlers
+        may abort the transaction.
+
+        A process forked after installation (a ``multiprocessing`` worker)
+        inherits the handler and the same staging path. ``Pool.terminate``
+        sends its workers SIGTERM, and before v1.0.12 each worker then
+        "aborted" the parent's transaction, renaming the staged output away
+        from under the still-running parent. A forked child now just dies
+        with the signal's default action.
+        """
+        if os.getpid() != self._owner_pid:
+            signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+            return
+        self._handle_signal(signum, frame)
 
     def __enter__(self) -> IO[str]:
         return self.open()
