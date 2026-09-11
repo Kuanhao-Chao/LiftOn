@@ -88,15 +88,29 @@ def _feature_branch(features, root):
             frontier.add(str(feature.id))
 
 
-def _parent_family_candidates(parent, parents, seqid):
+def _parent_family_candidates(parent, parents, seqid, family_index=None):
+    if family_index is not None:
+        return list(family_index.get((parent.id, seqid), ()))
     return [
         candidate for candidate in parents
         if candidate.id == parent.id and candidate.seqid == seqid
     ]
 
 
-def _select_branch_parent(source, root, parents):
-    candidates = _parent_family_candidates(source, parents, root.seqid)
+def _family_index(parents):
+    """``(id, seqid) -> parents`` in list order, so a lookup returns exactly
+    what the linear scan in ``_parent_family_candidates`` would. Without it
+    that scan runs once per child root over every parent: quadratic, and 64 s
+    of the drosophila Liftoff write in a v1.0.12 profile."""
+    index = {}
+    for parent in parents:
+        index.setdefault((parent.id, parent.seqid), []).append(parent)
+    return index
+
+
+def _select_branch_parent(source, root, parents, family_index=None):
+    candidates = _parent_family_candidates(source, parents, root.seqid,
+                                           family_index)
     if not candidates:
         raise ValueError(
             f"cannot resolve cross-seqid child {root.id!r} under parent "
@@ -131,11 +145,13 @@ def prepare_parent_child_groups(lifted_features, final_parent_list):
         for parent in final_parent_list
     }
     moves = []
+    family_index = _family_index(final_parent_list)
     for source in final_parent_list:
         source_key = source.attributes["copy_id"][0]
         source_features = groups[source_key]
         for root in _direct_child_roots(source_features, source):
-            target = _select_branch_parent(source, root, final_parent_list)
+            target = _select_branch_parent(source, root, final_parent_list,
+                                           family_index)
             target_key = target.attributes["copy_id"][0]
             if target_key == source_key:
                 continue
