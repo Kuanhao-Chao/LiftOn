@@ -265,6 +265,17 @@
       "patterns": [
         "benchmarks/compare/_full_runs/t1_soybean_w82_to_lee.json"
       ]
+    },
+    {
+      "id": "promotion_ab_v1012",
+      "classification": "diagnostic",
+      "claim_eligible": false,
+      "completion_state": "complete",
+      "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/rescue_extension_ab.*"
+      ]
     }
   ]
 }

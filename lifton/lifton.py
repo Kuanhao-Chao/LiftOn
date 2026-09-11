@@ -630,6 +630,42 @@ def args_optional(parser):
              'pass --no-adaptive-rescue-floor to opt OUT. Env '
              'LIFTON_RESCUE_ADAPTIVE_FLOOR=1 force-enables, =0 force-disables.'
     )
+    parser.add_argument(
+        '--coverage-rescue-gate', dest='coverage_rescue_gate',
+        action='store_true', default=None,
+        help='No-op alias: the protein-coverage rescue sub-pass is the default '
+             '(v1.0.12). Pass --no-coverage-rescue-gate to opt out.'
+    )
+    parser.add_argument(
+        '--no-coverage-rescue-gate', dest='coverage_rescue_gate',
+        action='store_false', default=None,
+        help='Skip the protein-coverage rescue sub-pass (on by default since '
+             'v1.0.12). The sub-pass reconsiders miniprot-only candidates the '
+             'rescue length band rejected. That band compares genomic spans, '
+             'which include introns and so shrink or grow with genome size; the '
+             'sub-pass gates instead on how much of the reference protein the '
+             'miniprot hit covers (LIFTON_RESCUE_COVERAGE_MIN, default 0.8), '
+             'keeps the same protein-identity floor, and fills only loci no gene '
+             'occupies, best hit first. Everything the rescue already emits is '
+             'unchanged. Env LIFTON_RESCUE_COVERAGE_GATE=1/0 overrides.'
+    )
+    parser.add_argument(
+        '--rescue-isoforms', dest='rescue_isoforms',
+        action='store_true', default=None,
+        help='No-op alias: isoform-aware rescue is the default (v1.0.12). Pass '
+             '--no-rescue-isoforms to opt out.'
+    )
+    parser.add_argument(
+        '--no-rescue-isoforms', dest='rescue_isoforms',
+        action='store_false', default=None,
+        help='Emit one transcript per miniprot-only rescued gene (the pre-'
+             'v1.0.12 behaviour). By default each rescued gene also receives '
+             'the other transcripts of the same reference gene whose miniprot '
+             'hits lie at its locus (same sequence and strand, overlapping the '
+             'placed hit), each held to the same protein-identity floor and '
+             'never widening the gene into another gene; placement is '
+             'unchanged. Env LIFTON_RESCUE_ISOFORMS=1/0 overrides.'
+    )
 
 
 def parse_args(arglist):
@@ -759,6 +795,29 @@ def resolve_miniprot_rescue_args(args):
         args.adaptive_rescue_floor = _env_af.lower() not in ("0", "false", "no", "")
     else:
         args.adaptive_rescue_floor = bool(getattr(args, "adaptive_rescue_floor", True))
+    # Protein-coverage rescue sub-pass (v1.0.12). An explicit flag or
+    # LIFTON_RESCUE_COVERAGE_GATE decides; otherwise the value stays None and
+    # miniprot_rescue.COVERAGE_GATE_DEFAULT applies, so the default lives in one
+    # place. The env var is honoured again at apply time (it wins there too).
+    _env_cg = os.environ.get("LIFTON_RESCUE_COVERAGE_GATE")
+    if _env_cg is not None:
+        args.coverage_rescue_gate = _env_cg.strip().lower() not in (
+            "0", "false", "no", "")
+    else:
+        args.coverage_rescue_gate = getattr(args, "coverage_rescue_gate", None)
+    try:
+        args.miniprot_rescue_coverage_min = float(
+            os.environ.get("LIFTON_RESCUE_COVERAGE_MIN", "0.8"))
+    except (ValueError, TypeError):
+        args.miniprot_rescue_coverage_min = 0.8
+    # Isoform-aware rescue (v1.0.12); same resolution rule as the coverage gate,
+    # with the default in miniprot_rescue.ISOFORMS_DEFAULT.
+    _env_iso = os.environ.get("LIFTON_RESCUE_ISOFORMS")
+    if _env_iso is not None:
+        args.rescue_isoforms = _env_iso.strip().lower() not in (
+            "0", "false", "no", "")
+    else:
+        args.rescue_isoforms = getattr(args, "rescue_isoforms", None)
     return args
 
 
@@ -1698,6 +1757,16 @@ def run_all_lifton_steps(args):
             ref_trans_exon_num_dict, ref_features_reverse_dict,
             emitted_ref_gene_ids, fw, fw_score, transcripts_stats_dict, args)
         manifest.record_count("miniprot_rescued_genes", rescued_genes)
+        if _miniprot_rescue._coverage_gate_on(args):
+            manifest.record_count(
+                "miniprot_rescued_genes_coverage_gate",
+                getattr(args, "_rescue_coverage_gate_added", 0),
+            )
+        if _miniprot_rescue._rescue_isoforms_on(args):
+            manifest.record_count(
+                "miniprot_rescue_isoforms_added",
+                getattr(args, "_rescue_isoforms_added", 0),
+            )
         for failure in args._rescue_failure_records:
             _record_pipeline_failure(
                 args, "miniprot_rescue",
