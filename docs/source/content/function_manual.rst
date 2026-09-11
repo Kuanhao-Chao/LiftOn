@@ -21,7 +21,7 @@ LiftOn
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.11
+      v1.0.12
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial]
                   [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S] [-min_miniprot MIN_MINIPROT]
@@ -32,7 +32,7 @@ LiftOn
                   [--allow-partial-output] [--strict-completeness] [--strict-gff] [--stream]
                   [--inmemory-liftoff] [--locus-pipeline] [--step7-max-inflight N]
                   [--step8-max-inflight N] [--evaluation-max-inflight N] [--native]
-                  [--serial-aligners] [--parallel-aligners] [--optimize] [--legacy-merge]
+                  [--serial-aligners | --parallel-aligners] [--optimize] [--legacy-merge]
                   [--full-dp-align] [--fast-align] [--gene-only] [--lift-gene-like]
                   [--no-miniprot-rescue] [--miniprot-rescue] [--miniprot-cross-locus-rescue]
                   [--no-miniprot-candidate] [--miniprot-candidate] [--no-adaptive-rescue-floor]
@@ -141,7 +141,8 @@ LiftOn
       --evaluation-max-inflight N
                               bound submitted-but-not-written evaluation loci; default 2 * --threads
       --native              enable experimental native compatibility hooks; combine with LIFTON_NATIVE_LIFTOFF_ALIGN=1 to opt into mappy, while miniprot and bounded locus workers retain their proven paths
-      --serial-aligners     opt OUT of the (default) concurrent Liftoff||miniprot overlap; run them sequentially
+      --serial-aligners     force Liftoff/minimap2 to finish before miniprot starts (automatic above 4 billion target bases)
+      --parallel-aligners   force Liftoff/minimap2 and miniprot to overlap; warns above 4 billion target bases because index-memory peaks can overlap
 
       * Output-changing flags (opt-outs that RESTORE earlier behaviour):
       --legacy-merge        restore the pre-promotion UNCONDITIONAL Liftoff/miniprot merge (default = verified best-of-outcome merge)
@@ -167,7 +168,6 @@ LiftOn
                               publish the staged output even when a failure would otherwise block publication
 
       * Deprecated NO-OP aliases (kept for backward compatibility; have no effect):
-      --parallel-aligners   no-op (concurrent Step 4 is now default; use --serial-aligners to opt out)
       --optimize            no-op (best-of-outcome merge is now default; use --legacy-merge to opt out)
       --fast-align          no-op (band-everything alignment is now default; use --full-dp-align to opt out)
       --lift-gene-like      no-op (gene-like lift is now default; use --gene-only to opt out)
@@ -224,13 +224,13 @@ scheduling), and which flag restores the older behaviour.
    * - Miniprot-only rescue — *v1.0.9*
      - ``--no-miniprot-rescue``
      - CHANGES output (adds ``lifton_rescue=miniprot_only`` genes the DNA lift missed). ``--miniprot-rescue`` is a deprecated no-op alias. Env ``LIFTON_MINIPROT_RESCUE=0/1`` force-disables/enables.
-   * - Third merge candidate: miniprot's native CDS-only model — *v1.0.11*
+   * - Third merge candidate: miniprot's native CDS-only model — *v1.0.10*
      - ``--no-miniprot-candidate``
      - CHANGES output, non-decreasing per transcript: adopted only when its ORF-rescued protein identity is STRICTLY better than the two-way winner, and never for an antisense hit. ``--miniprot-candidate`` is a deprecated no-op alias. Env ``LIFTON_MINIPROT_CANDIDATE=0/1``.
-   * - Divergence-adaptive miniprot-only rescue floor — *v1.0.11*
+   * - Divergence-adaptive miniprot-only rescue floor — *v1.0.10*
      - ``--no-adaptive-rescue-floor``
      - CHANGES output (adds genes at large evolutionary distance). Lowers the 0.50 identity floor toward 0.30 as the DNA lift's gene recall drops; inert on same/close-species. ``--adaptive-rescue-floor`` is a deprecated no-op alias. Env ``LIFTON_RESCUE_ADAPTIVE_FLOOR=0/1``.
-   * - Coding transcripts harmonized to ``mRNA``; every CDS carries an ``ID`` and the reference's descriptive attributes — *v1.0.11*
+   * - Coding transcripts harmonized to ``mRNA``; every CDS carries an ``ID`` and the reference's descriptive attributes — *v1.0.10*
      - ``LIFTON_NO_MRNA_HARMONIZE=1`` / ``LIFTON_NO_CDS_ATTR_CARRY=1`` / ``LIFTON_NO_CONTAINMENT_NORMALIZE=1``
      - CHANGES column 3 and column 9 only; coordinates and the encoded protein are untouched. Output grows 12–43%.
 
@@ -258,8 +258,12 @@ scheduling), and which flag restores the older behaviour.
        ``LIFTON_NATIVE_LIFTOFF_ALIGN=1``, opt into mappy for Liftoff; miniprot
        keeps its guarded subprocess/direct-stream path and bounded locus
        workers do not require this flag.
-   * - ``--serial-aligners``
-     - Opt out of the (default) concurrent Liftoff/miniprot overlap; useful on core-constrained machines. ``--parallel-aligners`` is a deprecated no-op alias.
+   * - ``--serial-aligners`` / ``--parallel-aligners``
+     - Force sequential or concurrent native alignment. By default LiftOn
+       overlaps the tools through 4,000,000,000 target bases and serializes
+       larger targets so minimap2 and miniprot index-memory peaks do not
+       overlap. Scheduling is byte-neutral; the overrides are mutually
+       exclusive.
 
 **Validation (changes the exit code, never output bytes):** Every staged output
 must pass structural validation before atomic publication. This gate rejects

@@ -111,6 +111,19 @@ def test_manifest_records_timing_counts_validation_choices_and_json(
     )
     manifest.set_backend_choice("alignment", "subprocess")
     manifest.set_cache_choice("miniprot", "hit")
+    manifest.set_input_statistics("target_genome", {
+        "sequence_count": 2,
+        "total_bases": 17,
+        "maximum_sequence_bases": 10,
+    })
+    manifest.set_aligner_schedule({
+        "mode": "parallel", "reason": "target_within_concurrent_boundary",
+    })
+    manifest.record_aligner_execution({
+        "tool": "miniprot", "status": "failed", "returncode": -11,
+        "signal": {"number": 11, "name": "SIGSEGV"},
+        "stderr_tail": "collected syncmers\n",
+    })
     with manifest.phase("alignment", {"workers": 4}):
         manifest.record_count("genes", 2)
         assert manifest.increment_count("genes") == 3
@@ -131,6 +144,15 @@ def test_manifest_records_timing_counts_validation_choices_and_json(
     assert stored["run"]["cache"] == {"minimap2_index": "miss", "miniprot": "hit"}
     assert stored["inputs"]["annotation"]["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
     assert stored["inputs"]["missing"]["exists"] is False
+    assert stored["input_statistics"]["target_genome"] == {
+        "maximum_sequence_bases": 10,
+        "sequence_count": 2,
+        "total_bases": 17,
+    }
+    assert stored["aligners"]["schedule"]["mode"] == "parallel"
+    assert stored["aligners"]["executions"][0]["signal"] == {
+        "name": "SIGSEGV", "number": 11,
+    }
     fingerprint_phase = stored["phases"]["fingerprint_inputs"]
     assert fingerprint_phase["status"] == "success"
     assert fingerprint_phase["details"] == {

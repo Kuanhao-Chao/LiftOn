@@ -201,13 +201,16 @@ class TestRunMiniprotLegacy:
 
     def test_legacy_returns_path(self, tmp_path, fake_miniprot_args):
         from lifton import run_miniprot
+        from lifton.tool_execution import CommandResult
 
         outdir = str(tmp_path) + "/"
-        # Patch subprocess.run with a fake that "writes" a real GFF3 file
-        def fake_run(cmd, stdout=None, stderr=None, text=None):
+        # Patch the bounded runner with a fake that writes a real GFF3 file.
+        def fake_run(cmd, stdout=None, **_kwargs):
             stdout.write("##gff-version 3\nchr1\tmp\tmRNA\t1\t10\t.\t+\t.\tID=MP1;Target=tx1 1 10\n")
-            return SimpleNamespace(returncode=0, stderr="")
-        with mock.patch.object(run_miniprot.subprocess, "run", side_effect=fake_run):
+            return CommandResult(returncode=0, stderr_tail="")
+        with mock.patch.object(
+            run_miniprot, "run_with_bounded_stderr", side_effect=fake_run,
+        ):
             result = run_miniprot.run_miniprot(
                 outdir, fake_miniprot_args, "tgt.fa", "ref_proteins.fa"
             )
@@ -217,6 +220,32 @@ class TestRunMiniprotLegacy:
         # File contents preserved (Phase 5 contract)
         body = open(result).read()
         assert "MP1" in body
+
+    def test_legacy_detects_error_before_bounded_stderr_tail(
+            self, tmp_path, fake_miniprot_args, capsys):
+        from lifton import run_miniprot
+        from lifton.tool_execution import CommandResult
+
+        def fake_run(_cmd, stdout=None, **_kwargs):
+            stdout.write(
+                "##gff-version 3\n"
+                "chr1\tmp\tmRNA\t1\t10\t.\t+\t.\tID=MP1;Target=tx1 1 10\n"
+            )
+            return CommandResult(
+                returncode=0, stderr_tail="later progress\n",
+                stderr_error_seen=True,
+            )
+
+        with mock.patch.object(
+            run_miniprot, "run_with_bounded_stderr", side_effect=fake_run,
+        ):
+            result = run_miniprot.run_miniprot(
+                str(tmp_path) + "/", fake_miniprot_args,
+                "tgt.fa", "ref_proteins.fa",
+            )
+
+        assert result is None
+        assert "reported an ERROR" in capsys.readouterr().err
 
 
 class TestRunMiniprotStreaming:
@@ -277,7 +306,37 @@ class TestRunMiniprotStreaming:
         assert result is None
         stderr = capsys.readouterr().err
         assert "miniprot crashed" in stderr
-        assert "exited with code 1" in stderr
+        assert "exit status 1" in stderr
+
+    def test_streaming_sigsegv_records_issue_71_stage_in_manifest(
+            self, tmp_path, fake_miniprot_args, capsys):
+        from lifton import run_miniprot
+        from lifton.run_manifest import RunManifest
+
+        fake_miniprot_args.stream = True
+        fake_miniprot_args._run_manifest = RunManifest(
+            dependency_names=(), tool_commands={}, collect_git=False,
+        )
+        issue_stderr = (
+            b"read 20029007188 bases in 657 contigs\n"
+            b"156477268 blocks\n"
+            b"collected syncmers\n"
+        )
+        with self._patch_popen(b"", issue_stderr, returncode=-11):
+            result = run_miniprot.run_miniprot(
+                str(tmp_path) + "/", fake_miniprot_args,
+                "tgt.fa", "ref.fa",
+            )
+
+        assert result is None
+        stderr = capsys.readouterr().err
+        assert "terminated by signal 11 (SIGSEGV)" in stderr
+        executions = fake_miniprot_args._run_manifest.to_dict()[
+            "aligners"
+        ]["executions"]
+        assert len(executions) == 1
+        assert executions[0]["stage"] == "syncmers_collected"
+        assert executions[0]["signal"]["name"] == "SIGSEGV"
 
     def test_streaming_error_in_stderr_returns_none(
             self, tmp_path, fake_miniprot_args, capsys):

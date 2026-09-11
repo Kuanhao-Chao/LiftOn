@@ -4,6 +4,7 @@ import gffutils
 from lifton import align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
+from lifton.tool_execution import collect_execution_events
 from intervaltree import Interval, IntervalTree
 
 
@@ -124,6 +125,7 @@ def run_liftoff(output_dir, ref_db, args):
         sys.exit(1)
     finally:
         sys.setrecursionlimit(_orig_recursion_limit)
+        collect_execution_events(args)
 
     if args.polish:
         liftoff_annotation += "_polished"

@@ -16,6 +16,7 @@ import pytest
 from lifton.exceptions import LiftOnAlignmentError
 from lifton import run_liftoff as run_liftoff_module
 from lifton.liftoff import align_features, liftoff_main
+from lifton.tool_execution import CommandResult
 
 
 LFS_POINTER = (
@@ -43,7 +44,7 @@ def _successful_index_builder(calls):
         calls.append((command, kwargs))
         output = Path(command[command.index("-d") + 1])
         output.write_bytes(align_features.MMI_MAGIC + b"synthetic-index")
-        return subprocess.CompletedProcess(command, 0)
+        return CommandResult(0, "")
 
     return run
 
@@ -74,7 +75,9 @@ def test_valid_sidecar_index_is_reused_without_subprocess(tmp_path, monkeypatch)
     def unexpected_run(*args, **kwargs):  # pragma: no cover - assertion path
         raise AssertionError("a valid cached minimap2 index must be reused")
 
-    monkeypatch.setattr(align_features.subprocess, "run", unexpected_run)
+    monkeypatch.setattr(
+        align_features, "run_with_bounded_stderr", unexpected_run,
+    )
     result = align_features.build_minimap2_index(
         str(target), _args(tmp_path / "run"), "2", "minimap2",
         target_prefix="target_all",
@@ -88,7 +91,8 @@ def test_missing_index_is_built_in_run_directory(tmp_path, monkeypatch):
     run_dir = tmp_path / "run"
     calls = []
     monkeypatch.setattr(
-        align_features.subprocess, "run", _successful_index_builder(calls)
+        align_features, "run_with_bounded_stderr",
+        _successful_index_builder(calls),
     )
 
     result = Path(
@@ -100,7 +104,7 @@ def test_missing_index_is_built_in_run_directory(tmp_path, monkeypatch):
 
     assert run_dir in result.parents
     assert result.read_bytes().startswith(align_features.MMI_MAGIC)
-    assert calls and calls[0][1]["check"] is True
+    assert calls and calls[0][1]["stdout"] == subprocess.DEVNULL
     assert str(target) in calls[0][0]
 
 
@@ -114,7 +118,8 @@ def test_bad_sidecar_is_preserved_and_rebuilt_locally(
     run_dir = tmp_path / "run"
     calls = []
     monkeypatch.setattr(
-        align_features.subprocess, "run", _successful_index_builder(calls)
+        align_features, "run_with_bounded_stderr",
+        _successful_index_builder(calls),
     )
 
     result = Path(
@@ -138,9 +143,9 @@ def test_index_build_subprocess_failure_is_actionable_and_atomic(
     run_dir = tmp_path / "run"
 
     def fail(command, **kwargs):
-        raise subprocess.CalledProcessError(17, command, stderr="bad index")
+        return CommandResult(17, "bad index")
 
-    monkeypatch.setattr(align_features.subprocess, "run", fail)
+    monkeypatch.setattr(align_features, "run_with_bounded_stderr", fail)
 
     with pytest.raises(LiftOnAlignmentError) as exc:
         align_features.build_minimap2_index(
@@ -159,6 +164,37 @@ def test_index_build_subprocess_failure_is_actionable_and_atomic(
     )
 
 
+def test_minimap2_sigsegv_is_signal_named_and_structured(
+    tmp_path, monkeypatch,
+):
+    class RecordingManifest:
+        def __init__(self):
+            self.records = []
+
+        def record_aligner_execution(self, record):
+            self.records.append(record)
+
+    monkeypatch.setattr(
+        align_features, "run_with_bounded_stderr",
+        lambda *args, **kwargs: CommandResult(-11, "index allocation\n"),
+    )
+    manifest = RecordingManifest()
+    args = SimpleNamespace(_run_manifest=manifest)
+
+    with pytest.raises(
+        LiftOnAlignmentError,
+        match=r"terminated by signal 11 \(SIGSEGV\)",
+    ):
+        align_features._run_checked_minimap2(
+            ["minimap2", "-d", "target.mmi", "target.fa"],
+            "index build", str(tmp_path / "target.fa"), args=args,
+        )
+
+    assert len(manifest.records) == 1
+    assert manifest.records[0]["returncode"] == -11
+    assert manifest.records[0]["signal"]["name"] == "SIGSEGV"
+
+
 def test_successful_builder_that_writes_invalid_index_is_rejected(
     tmp_path, monkeypatch
 ):
@@ -167,9 +203,11 @@ def test_successful_builder_that_writes_invalid_index_is_rejected(
 
     def write_invalid(command, **kwargs):
         Path(command[command.index("-d") + 1]).write_bytes(b"not-an-index")
-        return subprocess.CompletedProcess(command, 0)
+        return CommandResult(0, "")
 
-    monkeypatch.setattr(align_features.subprocess, "run", write_invalid)
+    monkeypatch.setattr(
+        align_features, "run_with_bounded_stderr", write_invalid,
+    )
 
     with pytest.raises(LiftOnAlignmentError, match="(?i)index"):
         align_features.build_minimap2_index(
@@ -196,7 +234,8 @@ def test_stale_sidecar_is_ignored_and_rebuilt_locally(tmp_path, monkeypatch):
     calls = []
     run_dir = tmp_path / "run"
     monkeypatch.setattr(
-        align_features.subprocess, "run", _successful_index_builder(calls)
+        align_features, "run_with_bounded_stderr",
+        _successful_index_builder(calls),
     )
 
     result = Path(
@@ -272,9 +311,11 @@ def test_lifton_owned_sam_output_wins_over_user_mm2_output(tmp_path, monkeypatch
         output_positions = [i for i, token in enumerate(command) if token == "-o"]
         actual_output = Path(command[output_positions[-1] + 1])
         actual_output.write_text("@SQ\tSN:chr1\tLN:8\n")
-        return subprocess.CompletedProcess(command, 0)
+        return CommandResult(0, "")
 
-    monkeypatch.setattr(align_features.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        align_features, "run_with_bounded_stderr", fake_run,
+    )
     align_features._run_minimap2_to_sam(
         ["minimap2", "-a", "-o", str(user_sam), "-t", "1"],
         ["target.mmi", "queries.fa"], str(final_sam), str(target),
@@ -297,10 +338,13 @@ def test_failed_atomic_sam_keeps_previous_output_and_removes_temp(
     final_sam.write_text("previous-good-output\n")
 
     def fail(command, **kwargs):
-        raise subprocess.CalledProcessError(9, command)
+        return CommandResult(-11, "collected syncmers\n")
 
-    monkeypatch.setattr(align_features.subprocess, "run", fail)
-    with pytest.raises(LiftOnAlignmentError, match="alignment"):
+    monkeypatch.setattr(align_features, "run_with_bounded_stderr", fail)
+    with pytest.raises(
+        LiftOnAlignmentError,
+        match=r"alignment.*signal 11 \(SIGSEGV\)",
+    ):
         align_features._run_minimap2_to_sam(
             ["minimap2", "-a", "-t", "1"],
             ["target.mmi", "queries.fa"], str(final_sam), str(target),
@@ -395,6 +439,63 @@ def test_worker_alignment_error_terminates_and_joins_pool(tmp_path, monkeypatch)
         )
 
     assert observed == {"close": 0, "terminate": 1, "join": 1}
+
+
+@pytest.mark.parametrize(
+    ("target_chroms", "threads", "expected_workers", "expected_native_threads"),
+    [
+        (["target.fa"], 40, 1, 40),
+        (["chr1", "chr2", "chr3", "chr4"], 8, 4, 2),
+        (["chr1", "chr2", "chr3", "chr4"], 2, 2, 1),
+    ],
+)
+def test_worker_pool_and_native_threads_share_one_budget(
+    tmp_path, monkeypatch, target_chroms, threads, expected_workers,
+    expected_native_threads,
+):
+    observed = {}
+
+    class RecordingPool:
+        def __init__(self, workers):
+            observed["workers"] = workers
+
+        def imap_unordered(self, function, indexes):
+            observed["native_threads"] = function.args[2]
+            observed["tasks"] = len(list(indexes))
+            return []
+
+        def close(self):
+            pass
+
+        def terminate(self):  # pragma: no cover - assertion path
+            raise AssertionError("successful pool was terminated")
+
+        def join(self):
+            pass
+
+    monkeypatch.setattr(align_features, "Pool", RecordingPool)
+    monkeypatch.setattr(
+        align_features,
+        "split_target_sequence",
+        lambda *args, **kwargs: {
+            name: "ACGT" for name in target_chroms
+        },
+    )
+    args = SimpleNamespace(
+        native=False, subcommand=None, target=str(tmp_path / "target.fa"),
+        threads=threads, directory=str(tmp_path), mm2_options="-a",
+    )
+
+    align_features.align_features_to_target(
+        ["reference.fa"] * len(target_chroms), target_chroms, args,
+        object(), "chrm_by_chrm", [],
+    )
+
+    assert observed == {
+        "workers": expected_workers,
+        "native_threads": expected_native_threads,
+        "tasks": len(target_chroms),
+    }
 
 
 def test_empty_liftoff_result_fails_before_gff_is_written(tmp_path, monkeypatch):

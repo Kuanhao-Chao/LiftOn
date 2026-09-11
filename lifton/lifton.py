@@ -4,6 +4,7 @@ import argparse
 from pyfaidx import Fasta
 import os, sys
 import re
+import tempfile
 import time
 import concurrent.futures
 from contextlib import redirect_stdout
@@ -16,6 +17,13 @@ from lifton.exceptions import (
 )
 from lifton.run_manifest import RunManifest
 from lifton.locus_pipeline import safe_exception_text
+from lifton.tool_execution import (
+    MAX_CONCURRENT_TARGET_BASES,
+    MINIPROT_LONG_SEQUENCE_BASES,
+    miniprot_long_sequence_compatibility,
+    resolve_aligner_schedule,
+    target_fasta_statistics,
+)
 
 
 def _allocator_source_ids(database):
@@ -234,6 +242,18 @@ def _describe_annotation_source(x):
     if isinstance(x, (bytes, bytearray)):
         return f"<in-memory bytes, {len(x):,} bytes>"
     return x
+
+
+def _latest_aligner_execution(args, tool):
+    manifest = getattr(args, "_run_manifest", None)
+    if manifest is None:
+        return None
+    executions = manifest.to_dict().get("aligners", {}).get("executions", [])
+    return next(
+        (record for record in reversed(executions)
+         if record.get("tool") == tool),
+        None,
+    )
 
 def args_gffutils(parser):
     gffutils_grp = parser.add_argument_group('* gffutils parameters')
@@ -454,29 +474,21 @@ def args_optional(parser):
              'the mappy Liftoff path (for example when minimap2 is absent); '
              'it falls back gracefully when mappy is unavailable.'
     )
-    parser.add_argument(
+    aligner_schedule = parser.add_mutually_exclusive_group()
+    aligner_schedule.add_argument(
         '--serial-aligners', dest='serial_aligners', action='store_true',
         default=False,
-        help='Restore the pre-Iteration-6 SEQUENTIAL Step 4: run Liftoff '
-             '(DNA) then miniprot (protein) one after the other instead of '
-             'the default (concurrent) overlap. The default now dispatches '
-             'miniprot (an independent subprocess) to a background thread '
-             'while Liftoff runs on the main thread (Liftoff reads the '
-             'main-thread-bound SQLite reference DB, so it cannot move off '
-             'it), collapsing Step-4 wall from t_liftoff + t_miniprot to '
-             'max(t_liftoff, t_miniprot). The concurrent default is '
-             'byte-identical to this serial path (only miniprot\'s timing '
-             'moves); use --serial-aligners on core-constrained machines '
-             '(concurrent peak is ~N+1 cores with --threads N) or to keep '
-             'the two tools\' console logs from interleaving.'
+        help='Force Liftoff/minimap2 to finish before miniprot starts. '
+             'LiftOn selects this automatically when the target exceeds '
+             '4,000,000,000 bases; this flag also forces it for smaller '
+             'targets.'
     )
-    parser.add_argument(
+    aligner_schedule.add_argument(
         '--parallel-aligners', dest='parallel_aligners', action='store_true',
         default=False,
-        help='No-op alias (kept for backward compatibility). The Step-4 '
-             'Liftoff/miniprot overlap that this flag used to gate is now '
-             'the DEFAULT (Iteration 6 promotion), so --parallel-aligners '
-             'has no effect; pass --serial-aligners to opt out.'
+        help='Force Liftoff/minimap2 and miniprot to overlap. Above '
+             '4,000,000,000 target bases this overrides LiftOn\'s memory-safe '
+             'schedule and can substantially increase peak memory.'
     )
     parser.add_argument(
         '--optimize', dest='optimize', action='store_true', default=False,
@@ -806,6 +818,26 @@ def run_all_lifton_steps(args):
     except Exception as e:
         logger.log_error(f"Failed to read/index target genome '{tgt_genome}': {e}")
         sys.exit(1)
+    target_statistics = target_fasta_statistics(tgt_fai)
+    manifest.set_input_statistics("target_genome", target_statistics)
+    manifest.record_count(
+        "target_sequences", target_statistics["sequence_count"],
+    )
+    manifest.record_count("target_bases", target_statistics["total_bases"])
+    manifest.record_count(
+        "maximum_target_sequence_bases",
+        target_statistics["maximum_sequence_bases"],
+    )
+    args._target_statistics = target_statistics
+    args.aligner_diagnostics_dir = tempfile.mkdtemp(
+        prefix="aligner-diagnostics-", dir=intermediate_dir,
+    )
+    logger.log_info(
+        ">> Target genome: "
+        f"{target_statistics['sequence_count']:,} sequence(s), "
+        f"{target_statistics['total_bases']:,} bases; longest sequence "
+        f"{target_statistics['maximum_sequence_bases']:,} bases."
+    )
         
     logger.log(">> Reading reference genome ...", debug=True)
     if not os.path.exists(ref_genome):
@@ -1075,9 +1107,69 @@ def run_all_lifton_steps(args):
     ################################
     # Step 4: Run liftoff & miniprot
     ################################
-    _switch_manifest_phase(args, "run_aligners", {
-        "parallel": not bool(getattr(args, "serial_aligners", False)),
-    })
+    has_reference_proteins = len(ref_proteins.keys()) > 0
+    needs_liftoff = not (
+        getattr(args, "liftoff", None) is not None
+        and os.path.exists(args.liftoff)
+    )
+    needs_miniprot = has_reference_proteins and not (
+        getattr(args, "miniprot", None) is not None
+        and os.path.exists(args.miniprot)
+    )
+    schedule = resolve_aligner_schedule(
+        target_statistics["total_bases"],
+        needs_liftoff=needs_liftoff,
+        needs_miniprot=needs_miniprot,
+        force_serial=bool(getattr(args, "serial_aligners", False)),
+        force_parallel=bool(getattr(args, "parallel_aligners", False)),
+    )
+    args._resolved_aligner_schedule = schedule
+    manifest.set_aligner_schedule(schedule.to_dict())
+    _switch_manifest_phase(args, "run_aligners", schedule.to_dict())
+    if (schedule.parallel
+            and schedule.forced
+            and target_statistics["total_bases"]
+            > MAX_CONCURRENT_TARGET_BASES):
+        logger.log_warning(
+            "--parallel-aligners is forcing concurrent minimap2 and miniprot "
+            f"indexing for a {target_statistics['total_bases']:,}-base target; "
+            "their peak memory can overlap."
+        )
+    elif schedule.reason == "target_exceeds_concurrent_boundary":
+        logger.log_info(
+            ">> Large-target resource policy: running Liftoff/minimap2 before "
+            "miniprot so their index-memory peaks do not overlap. Pass "
+            "--parallel-aligners only to override this safeguard."
+        )
+    if (needs_miniprot
+            and target_statistics["maximum_sequence_bases"]
+            >= MINIPROT_LONG_SEQUENCE_BASES):
+        miniprot_banner = run_miniprot.probe_miniprot_version()
+        compatibility = miniprot_long_sequence_compatibility(
+            target_statistics["maximum_sequence_bases"], miniprot_banner,
+        )
+        if compatibility == "incompatible":
+            message = (
+                f"miniprot {miniprot_banner!r} is older than 0.14 and the "
+                "target contains a sequence at least 2^31 bases long; upgrade "
+                "miniprot before mapping this target."
+            )
+            _record_pipeline_failure(
+                args, "run_aligners", message, fatal=True,
+                details={
+                    "maximum_target_sequence_bases":
+                        target_statistics["maximum_sequence_bases"],
+                    "miniprot_version": miniprot_banner,
+                },
+            )
+            logger.log_error(message)
+            raise SystemExit(1)
+        if compatibility == "unknown":
+            logger.log_warning(
+                "The target contains a sequence at least 2^31 bases long, but "
+                f"the miniprot version banner {miniprot_banner!r} could not "
+                "be parsed. Use miniprot 0.14 or newer."
+            )
     t5 = time.process_time()
     # Output-neutral perf probe: Step 4 is subprocess-dominated, so
     # process_time (parent-CPU only) cannot measure it. Capture WALL time
@@ -1085,7 +1177,7 @@ def run_all_lifton_steps(args):
     # is set — lets the --parallel-aligners A/B isolate the overlap saving
     # from Step-7 noise without touching the output GFF3 or time.txt.
     _w4_start = time.perf_counter()
-    if len(ref_proteins.keys()) == 0:
+    if not has_reference_proteins:
         logger.log_info(
             ">> Reference protein set is empty; skipping miniprot."
         )
@@ -1095,14 +1187,15 @@ def run_all_lifton_steps(args):
         miniprot_annotation = None
         t6 = time.process_time()
         t7 = t6
-    elif not getattr(args, "serial_aligners", False):
+    elif schedule.parallel:
         # Iteration 6 (PROMOTED to default): overlap the two independent
         # external aligners so wall-clock = max(t_liftoff, t_miniprot) instead
         # of the sum. They read the same inputs and write disjoint output dirs
         # (liftoff/ vs miniprot/), consumed separately at Step 5, so the output
         # bytes are unchanged — only miniprot's *timing* moves. This is a
-        # byte-neutral default flip; --serial-aligners restores the old
-        # sequential path (and --parallel-aligners is a kept no-op alias).
+        # byte-neutral scheduling choice. The resource-policy resolver keeps
+        # this overlap for ordinary targets; explicit --parallel-aligners can
+        # force it above the large-target boundary.
         #
         # Liftoff MUST stay on THIS (main) thread: it reads the reference
         # gffutils DB whose SQLite connection is bound to the thread that
@@ -1135,13 +1228,17 @@ def run_all_lifton_steps(args):
         miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
         t7 = time.process_time()
     if miniprot_annotation is None and len(ref_proteins.keys()) > 0:
+        failure_details = {"reference_proteins": len(ref_proteins.keys())}
+        latest_miniprot = _latest_aligner_execution(args, "miniprot")
+        if latest_miniprot is not None:
+            failure_details["miniprot_execution"] = latest_miniprot
         _record_pipeline_failure(
             args, "run_aligners",
             "miniprot produced no usable annotation for a non-empty protein set",
-            details={"reference_proteins": len(ref_proteins.keys())},
+            details=failure_details,
         )
     if os.environ.get("LIFTON_PERF_STEP4"):
-        _mode = "serial" if getattr(args, "serial_aligners", False) else "parallel"
+        _mode = schedule.mode
         sys.stderr.write(
             f"[LiftOn][perf] Step4 wall ({_mode}): "
             f"{time.perf_counter() - _w4_start:.2f}s\n")

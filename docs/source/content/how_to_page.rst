@@ -130,6 +130,19 @@ FAQ ...
 
 |
 
+.. dropdown:: Q: What should I do if minimap2 or miniprot stops on a very large genome?
+    :animate: fade-in-slide-down
+    :container: + shadow
+    :title: bg-light font-weight-bolder
+    :body: bg-light text-left
+
+    A negative subprocess return code names a POSIX signal; it is not an OOM
+    diagnosis by itself. See :ref:`large-genome-resource-failures` for the
+    v1.0.12 scheduling policy, immediate v1.0.11 workaround, manifest evidence,
+    and resource checks.
+
+|
+
 
 |
 |
