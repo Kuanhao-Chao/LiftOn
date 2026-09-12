@@ -80,6 +80,15 @@ EXPERIMENTS = {
         "expect_prefix": True,
     },
     # Measured on top of A1: both arms run the coverage sub-pass.
+    "orf_stop_completion": {
+        "title": "terminal-stop completion of miniprot-derived models",
+        "off": {"LIFTON_ORF_STOP_COMPLETION": "0"},
+        "on": {"LIFTON_ORF_STOP_COMPLETION": "1"},
+        "tag": "orf_stop_completed=true",
+        "expect_prefix": False,
+        "expect_same_genes": True,
+        "expect_stop_extension_only": True,
+    },
     "isoforms": {
         "title": "isoform-aware rescue (A2), on top of the coverage sub-pass",
         "off": {"LIFTON_RESCUE_COVERAGE_GATE": "1", "LIFTON_RESCUE_ISOFORMS": "0"},
@@ -399,6 +408,99 @@ def _count_tagged(gff, needle):
     return total
 
 
+STOP_CODON_LENGTH = 3
+
+
+def _transcript_shapes(gff):
+    """{mRNA id: (strand, start, end, ((type, start, end), ...))} for every
+    transcript and its exon/CDS children."""
+    shapes, children = {}, defaultdict(list)
+    with open(gff) as handle:
+        for line in handle:
+            if not line or line[0] == "#":
+                continue
+            c = line.rstrip("\n").split("\t")
+            if len(c) != 9:
+                continue
+            if c[2] == "mRNA":
+                attributes = gene_level.parse_attributes(c[8])
+                shapes[attributes["ID"][0]] = [c[6], int(c[3]), int(c[4])]
+            elif c[2] in ("exon", "CDS"):
+                attributes = gene_level.parse_attributes(c[8])
+                parent = (attributes.get("Parent") or [""])[0]
+                children[parent].append((c[2], int(c[3]), int(c[4])))
+    return {tid: (row[0], row[1], row[2], tuple(sorted(children.get(tid, ()))))
+            for tid, row in shapes.items()}
+
+
+def _is_terminal_stop_extension(before, after):
+    """Does ``after`` differ from ``before`` only by growing the terminal CDS
+    and its exon by one stop codon, in transcript orientation?"""
+    strand, start, end, kids_before = before
+    if after[0] != strand:
+        return False
+    kids_after = after[3]
+    if len(kids_before) != len(kids_after):
+        return False
+    minus = strand == "-"
+    shift = -STOP_CODON_LENGTH if minus else STOP_CODON_LENGTH
+    # The two rows that may move are the outermost exon and CDS on the 3' side.
+    edge = (min(k[1] for k in kids_before) if minus
+            else max(k[2] for k in kids_before))
+    moved = 0
+    for old, new in zip(kids_before, kids_after):
+        if old == new:
+            continue
+        if old[0] != new[0]:
+            return False
+        if minus:
+            if old[2] != new[2] or old[1] != edge or new[1] != edge + shift:
+                return False
+        elif old[1] != new[1] or old[2] != edge or new[2] != edge + shift:
+            return False
+        moved += 1
+    if moved != 2:                      # exactly the terminal exon and its CDS
+        return False
+    if minus:
+        return after[2] == end and after[1] == min(start, edge + shift)
+    return after[1] == start and after[2] == max(end, edge + shift)
+
+
+def stop_extension_shape(out_off, out_on):
+    """Every transcript that changed must have changed only by gaining a stop
+    codon. This is what proves no other coordinate moved, which no aggregate
+    identity comparison can show."""
+    before = _transcript_shapes(out_off)
+    after = _transcript_shapes(out_on)
+    extended, other, examples = 0, [], []
+    for tid, shape in after.items():
+        was = before.get(tid)
+        if was is None or was == shape:
+            continue
+        if _is_terminal_stop_extension(was, shape):
+            extended += 1
+            if len(examples) < 5:
+                examples.append(tid)
+        else:
+            other.append(tid)
+    return {"n_extended": extended, "n_changed_otherwise": len(other),
+            "changed_otherwise_examples": other[:10],
+            "extended_examples": examples,
+            "n_transcripts_off": len(before), "n_transcripts_on": len(after)}
+
+
+def orf_quality(rows, identifiers):
+    """Start-codon, stop-codon and full ORF validity over one population."""
+    selected = [r for r in rows.values()
+                if r.get("tool_feature_id") in identifiers]
+    if not selected:
+        return None
+    return {"n": len(selected),
+            "start_ok": _fraction(selected, "orf_start_ok"),
+            "stop_ok": _fraction(selected, "orf_stop_ok"),
+            "orf_valid": _fraction(selected, "orf_valid")}
+
+
 def run_cell(bid, mode, experiment, pythonpath, force=False):
     spec = EXPERIMENTS[experiment]
     root = WORK / bid / f"_v1012_{experiment}_ab_{mode}"
@@ -491,6 +593,18 @@ def run_cell(bid, mode, experiment, pythonpath, force=False):
         gate["off_is_prefix_of_on"] = prefix
     if spec.get("expect_same_genes"):
         gate["gene_ids_unchanged"] = same_genes
+    shape = orf_stops = None
+    if spec.get("expect_stop_extension_only"):
+        shape = stop_extension_shape(out_off, out_on)
+        gate["only_terminal_stop_extensions"] = shape["n_changed_otherwise"] == 0
+        gate["transcript_count_unchanged"] = (
+            shape["n_transcripts_off"] == shape["n_transcripts_on"])
+        rescued_off = _tagged_transcript_ids(out_off, "lifton_rescue=miniprot_only")
+        rescued_on = _tagged_transcript_ids(out_on, "lifton_rescue=miniprot_only")
+        orf_stops = {
+            "off": orf_quality(rows_off, rescued_off),
+            "on": orf_quality(rows_on, rescued_on),
+        }
     result = {
         "benchmark": bid, "mode": mode, "experiment": experiment,
         "divergence": _bench(bid).get("divergence_class", ""),
@@ -504,6 +618,8 @@ def run_cell(bid, mode, experiment, pythonpath, force=False):
         "recall": recall, "added": added,
         "earlier_rescues": _structure(earlier_rows),
         "target_agreement": agreement,
+        "stop_extension_shape": shape,
+        "rescued_orf_quality": orf_stops,
         "wall_seconds": {"off": prof_off.wall_clock_seconds,
                          "on": prof_on.wall_clock_seconds},
         "peak_rss_mb": {"off": prof_off.peak_rss_mb, "on": prof_on.peak_rss_mb},
