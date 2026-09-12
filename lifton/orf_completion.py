@@ -97,48 +97,63 @@ def reference_protein_has_stop(ref_proteins, ref_trans_id):
 
 def complete_terminal_stop(lifton_trans, fai):
     """Extend this transcript's terminal CDS and exon over a downstream stop
-    codon. Returns True when it did.
+    codon. Returns True when it did."""
+    return apply_terminal_stop(lifton_trans, fai) is not None
 
-    Refuses unless every precondition holds: the model has coding exons, its
-    total CDS length is a whole number of codons, the terminal CDS ends flush
-    with its exon, the model does not already end in a stop, the next codon in
-    the genome is one, and it lies inside the sequence.
+
+def apply_terminal_stop(lifton_trans, fai):
+    """Extend the terminal CDS and its exon over a downstream stop codon.
+
+    Returns the ``(exon, cds, before)`` it changed so the caller can undo it,
+    or None when it changed nothing. Refuses unless every precondition holds:
+    the model has coding exons, its total CDS length is a whole number of
+    codons, the terminal CDS ends flush with its exon, the model does not
+    already end in a stop, the next codon in the genome is one, and it lies
+    inside the sequence.
     """
     if not lifton_trans.exons or lifton_trans.entry.strand not in ("+", "-"):
-        return False
+        return None
     exon, cds = _terminal_exon(lifton_trans)
     if cds is None:
-        return False
+        return None
     coding_length = sum(e.cds.entry.end - e.cds.entry.start + 1
                         for e in lifton_trans.exons if e.cds is not None)
     if coding_length < STOP_CODON_LENGTH or coding_length % 3:
-        return False
+        return None
     minus = lifton_trans.entry.strand == "-"
     try:
         sequence_length = len(fai[cds.entry.seqid])
     except (KeyError, TypeError):
-        return False
+        return None
     if minus:
         last = (cds.entry.start, cds.entry.start + STOP_CODON_LENGTH - 1)
         nxt = (cds.entry.start - STOP_CODON_LENGTH, cds.entry.start - 1)
         if nxt[0] < 1:
-            return False
+            return None
     else:
         last = (cds.entry.end - STOP_CODON_LENGTH + 1, cds.entry.end)
         nxt = (cds.entry.end + 1, cds.entry.end + STOP_CODON_LENGTH)
         if nxt[1] > sequence_length:
-            return False
+            return None
     if _codon(cds.entry, fai, *last) in STOP_CODONS:
-        return False
+        return None
     if _codon(cds.entry, fai, *nxt) not in STOP_CODONS:
-        return False
+        return None
+    before = (exon.entry.start, exon.entry.end, cds.entry.start, cds.entry.end)
     if minus:
         cds.entry.start -= STOP_CODON_LENGTH
         exon.entry.start = min(exon.entry.start, cds.entry.start)
     else:
         cds.entry.end += STOP_CODON_LENGTH
         exon.entry.end = max(exon.entry.end, cds.entry.end)
-    return True
+    return exon, cds, before
+
+
+def undo_terminal_stop(applied):
+    """Put back the coordinates ``apply_terminal_stop`` changed."""
+    exon, cds, (exon_start, exon_end, cds_start, cds_end) = applied
+    exon.entry.start, exon.entry.end = exon_start, exon_end
+    cds.entry.start, cds.entry.end = cds_start, cds_end
 
 
 def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
@@ -152,15 +167,22 @@ def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
     on = enabled_override if enabled_override is not None else enabled(args)
     if not on or not reference_protein_has_stop(ref_proteins, ref_trans_id):
         return False
-    if not complete_terminal_stop(lifton_trans, fai):
+    applied = apply_terminal_stop(lifton_trans, fai)
+    if applied is None:
         return False
-    lifton_trans.entry.attributes["orf_stop_completed"] = ["true"]
-    # The stop the model just gained is one the reference protein also has, so
-    # re-scoring can only raise the identity -- but record it rather than assume
-    # it, since this value reaches score.txt and the emitted attributes.
+    # Appending a residue can shift a global alignment, so the stop the model
+    # gains is usually a new match but occasionally costs one elsewhere: on
+    # drosophila -> anopheles, 1 of 122 completed transcripts lost 0.0013
+    # identity that way. Score it and keep the extension only when it does not
+    # make the model worse, which makes completion non-regressing by
+    # construction rather than by argument.
+    before = lifton_status.lifton_aa
     alignment = align.lifton_parasail_align(lifton_trans, m_entry, fai,
                                             ref_proteins, ref_trans_id)
-    if alignment is not None and alignment.identity is not None:
-        lifton_status.lifton_aa = max(lifton_status.lifton_aa,
-                                      alignment.identity)
+    identity = getattr(alignment, "identity", None)
+    if identity is None or (before is not None and identity < before):
+        undo_terminal_stop(applied)
+        return False
+    lifton_status.lifton_aa = identity
+    lifton_trans.entry.attributes["orf_stop_completed"] = ["true"]
     return True

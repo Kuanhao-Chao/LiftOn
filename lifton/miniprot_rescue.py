@@ -25,6 +25,7 @@ this module when the flag is OFF, so the default path is provably inert.
 import io
 import os
 import sys
+import time
 from collections import defaultdict
 
 from intervaltree import Interval
@@ -315,6 +316,17 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
     if m_feature_db is None:
         return 0
 
+    # Sub-phase wall clocks, published on args and recorded in the run manifest.
+    # The rescue is the largest phase of a distant-species run, and which of its
+    # passes the time goes to is not otherwise visible.
+    timings = {}
+    args._rescue_timings = timings
+    started = time.perf_counter()
+
+    def _mark(name, since):
+        timings[name] = round(time.perf_counter() - since, 3)
+        return time.perf_counter()
+
     floor = float(getattr(args, "miniprot_rescue_min_id", 0.5))
     added = 0
     isoforms = _rescue_isoforms_on(args)
@@ -359,6 +371,7 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
                 f"(DNA-lift gene recall {recall:.3f}, base {floor:.2f}).\n")
             sys.stderr.flush()
         floor = adapted
+    started = _mark("enumerate_and_floor", started)
 
     for mtrans in mtranscripts:
         try:
@@ -426,6 +439,7 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
     # Sub-pass B runs only after sub-pass A has finished, and only adds genes
     # at loci still free in the final tree, so everything above is unchanged
     # whether or not it runs.
+    started = _mark("subpass_a", started)
     coverage_added = 0
     if _coverage_gate_on(args):
         coverage_added = _coverage_gate_subpass(
@@ -435,6 +449,7 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             ref_trans_exon_num_dict, ref_features_reverse_dict,
             emitted_ref_gene_ids, publisher, args)
     args._rescue_coverage_gate_added = coverage_added
+    started = _mark("subpass_b_coverage", started)
 
     # Isoforms attach only after every gene is placed, so no placement decision
     # can depend on them.
@@ -445,7 +460,9 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict,
             m_id_2_ref_id_trans_dict, ref_features_len_dict,
             ref_features_reverse_dict, args)
+        started = _mark("isoform_pass", started)
         publisher.flush()
+    _mark("publish", started)
     args._rescue_isoforms_added = isoforms_added
     return added + coverage_added
 
@@ -801,6 +818,7 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
 
     plans, jobs = [], []
+    phase_started = time.perf_counter()
     stop_completion = orf_completion.enabled(args)
     for record in accepted:
         candidates = _isoform_candidates(
@@ -826,7 +844,15 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             jobs.append(prefetched)
         plans.append((record, slots))
 
+    timings = getattr(args, "_rescue_timings", None)
+    if timings is not None:
+        timings["isoform_prefetch"] = round(time.perf_counter() - phase_started, 3)
+    scoring_started = time.perf_counter()
     results = _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args)
+    if timings is not None:
+        timings["isoform_score"] = round(time.perf_counter() - scoring_started, 3)
+        timings["isoform_jobs"] = len(jobs)
+    attach_started = time.perf_counter()
 
     added = 0
     for record, slots in plans:
@@ -840,6 +866,8 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             logger.log_error(
                 f"miniprot-only rescue (isoforms) error ({record.mtrans.id}): {e}")
             _record_failure(args, record.mtrans, e)
+    if timings is not None:
+        timings["isoform_attach"] = round(time.perf_counter() - attach_started, 3)
     if added:
         sys.stderr.write(
             f"[LiftOn] miniprot-only rescue: {added} additional isoform(s) "
