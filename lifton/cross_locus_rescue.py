@@ -37,14 +37,21 @@ locus -- it trades synteny for protein identity. This is why the pass is opt-in
 (``--miniprot-cross-locus-rescue`` / env ``LIFTON_CROSS_LOCUS_RESCUE``) and the
 gain must clear a strict, regression-free A/B before any promotion.
 """
+import bisect
 import copy
 import io
 import os
 import re
 import sys
+import types
 from collections import ChainMap
 
-from lifton import run_miniprot, lifton_utils, logger
+from lifton import (miniprot_rescue, orf_completion, run_miniprot, lifton_utils,
+                    logger)
+
+#: How far back to scan for a neighbouring emitted model. Genes longer than
+#: this from their start are rare, and the scan is a guard, not a proof.
+_NEIGHBOUR_SCAN = 5_000_000
 
 _COPY_SUFFIX = re.compile(r"_\d+$")
 
@@ -150,9 +157,118 @@ def _overlaps_any(seqid, start, end, intervals):
     return False
 
 
+def _emitted_interval_index(index, skip_gene_id):
+    """Every emitted model's interval except one gene's, as {seqid: [(s, e)]}.
+
+    A replacement that grows to cover its gene's other isoforms must not grow
+    into a different gene. The cross-locus pass has no suppression tree of its
+    own -- it runs after the writer has closed -- so this rebuilds the one fact
+    it needs from the intervals already indexed out of score.txt.
+    """
+    by_seqid = {}
+    for gene_id, slot in index.items():
+        if gene_id == skip_gene_id:
+            continue
+        for seqid, start, end in slot["intervals"]:
+            by_seqid.setdefault(seqid, []).append((start, end))
+    for rows in by_seqid.values():
+        rows.sort()
+    return by_seqid
+
+
+def _reaches_another_gene(by_seqid, seqid, start, end):
+    rows = by_seqid.get(seqid)
+    if not rows:
+        return False
+    position = bisect.bisect_right(rows, (end, float("inf")))
+    for other_start, other_end in reversed(rows[:position]):
+        if other_end >= start:
+            return True
+        if other_start < start - _NEIGHBOUR_SCAN:
+            break
+    return False
+
+
+def _attach_isoforms(lifton_gene, mtrans, ref_gene_id, ref_trans_id, hits,
+                     m_feature_db, ref_db, tgt_fai, ref_proteins, ref_trans,
+                     ref_len, floor, emitted_by_seqid, args):
+    """Give the replacement the gene's other transcripts whose miniprot hits sit
+    at the same locus, so replacing a multi-isoform gene does not cost the
+    isoforms. Reuses the rescue's detached scorer verbatim.
+
+    Without this the pass emitted exactly one transcript while dropping every
+    block of the gene it replaced: on human to zebrafish it raised mean protein
+    identity from 0.597 to 0.632 and still lost 401 transcripts net.
+    """
+    placed = types.SimpleNamespace(mtrans=mtrans, ref_trans_id=ref_trans_id)
+    candidates = miniprot_rescue._isoform_candidates(
+        placed, hits, ref_proteins, ref_trans)
+    if not candidates:
+        return 0
+    view = miniprot_rescue._GeneView(
+        lifton_gene, orf_completion.enabled(args))
+    start, end = lifton_gene.entry.start, lifton_gene.entry.end
+    added = 0
+    for isoform_ref_trans_id, isoform_mtrans in candidates:
+        try:
+            transcript, status, passed = miniprot_rescue._score_isoform(
+                view, isoform_mtrans, isoform_mtrans,
+                list(m_feature_db.children(isoform_mtrans, featuretype='CDS')),
+                ref_db.db_connection[isoform_ref_trans_id].attributes,
+                isoform_ref_trans_id, floor, ref_len, tgt_fai, ref_proteins,
+                ref_trans)
+        except Exception as error:
+            logger.log_error(
+                f"cross-locus rescue (isoform {isoform_ref_trans_id}): {error}")
+            continue
+        if not passed:
+            continue
+        grown = (min(start, transcript.entry.start),
+                 max(end, transcript.entry.end))
+        if _reaches_another_gene(emitted_by_seqid, lifton_gene.entry.seqid,
+                                 *grown):
+            continue
+        transcript.entry.attributes["Parent"] = [ref_gene_id]
+        transcript.entry.attributes["lifton_rescue"] = ["cross_locus"]
+        transcript.entry.attributes["rescue_isoform"] = ["true"]
+        lifton_gene.transcripts[transcript.entry.id] = transcript
+        start, end = grown
+        added += 1
+    lifton_gene.entry.start, lifton_gene.entry.end = start, end
+    return added
+
+
+def _force_reference_ids(lifton_gene, ref_gene_id):
+    """Drop the copy suffix from the replacement's transcript ids.
+
+    ``Lifton_GENE.__init__`` numbers a gene it has seen before, so a replacement
+    is built as ``gene-X_1`` with ``tx_1`` transcripts. The gene id is already
+    forced back to the reference one, because this replaces the weak model
+    rather than adding a copy; the transcripts have to follow, or a consumer
+    diffing the two outputs sees the gene kept and every transcript renamed.
+    CDS ids are derived from the transcript id at write time, so they follow.
+    """
+    renamed = {}
+    for trans in list(lifton_gene.transcripts.values()):
+        base = _COPY_SUFFIX.sub("", trans.entry.id or "")
+        if not base or base == trans.entry.id:
+            renamed[trans.entry.id] = trans
+            continue
+        trans.entry.id = base
+        trans.entry.attributes["ID"] = [base]
+        trans.entry.attributes.pop("extra_copy_number", None)
+        for exon in getattr(trans, "exons", ()):
+            exon.entry.attributes["Parent"] = [base]
+            if exon.cds is not None:
+                exon.cds.entry.attributes["Parent"] = [base]
+        renamed[base] = trans
+    lifton_gene.transcripts = renamed
+
+
 def _build_replacement_text(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans_id,
                             tgt_fai, ref_proteins, ref_trans, tree_dict,
-                            ref_features_dict, args):
+                            ref_features_dict, args, hits=(), ref_len=0,
+                            emitted_by_seqid=None, isoform_floor=0.5):
     """Build + ORF-rescue + score a miniprot-only model; return
     (protein_identity, gff3_text) or (None, None) on failure / no protein.
 
@@ -161,7 +277,7 @@ def _build_replacement_text(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans
     already closed) instead of streaming to fw.
     """
     if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
-        return None, None
+        return None, None, 0
     candidate_ref_features = _isolated_ref_features(
         ref_features_dict, ref_gene_id,
     )
@@ -194,6 +310,13 @@ def _build_replacement_text(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans
     # this, write_entry emits a bare mRNA row with no identity attributes.
     lifton_gene.add_lifton_gene_status_attrs("miniprot")
     lifton_gene.add_lifton_trans_status_attrs(transcript_id, lifton_status)
+    isoforms = 0
+    if hits and emitted_by_seqid is not None:
+        isoforms = _attach_isoforms(
+            lifton_gene, mtrans, ref_gene_id, ref_trans_id, hits, m_feature_db,
+            ref_db, tgt_fai, ref_proteins, ref_trans, ref_len, isoform_floor,
+            emitted_by_seqid, args)
+    _force_reference_ids(lifton_gene, ref_gene_id)
     buf = io.StringIO()
     # write_entry's coding/non-coding stats-counter branch indexes this dict by
     # a fixed key set ("coding"/"non-coding"/"other", lifton/io/feature_serializer
@@ -220,8 +343,8 @@ def _build_replacement_text(mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans
             if not _rejected():
                 scope.commit()
     if _rejected():
-        return None, None
-    return pi, buf.getvalue()
+        return None, None, 0
+    return pi, buf.getvalue(), isoforms
 
 
 def _rewrite_output(out_path, replace_set, replacement_texts, ref_features_dict):
@@ -289,6 +412,9 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
     # ref_gene -> (best miniprot pi seen, gff3 text). Dedup keeps the best hit.
     chosen = {}
     chosen_pi = {}
+    chosen_isoforms = {}
+    isoform_floor = float(getattr(args, "miniprot_rescue_min_id", 0.5))
+    coverage_min = float(getattr(args, "miniprot_rescue_coverage_min", 0.8))
 
     try:
         mtranscripts = sorted(
@@ -297,6 +423,18 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
     except Exception as e:
         logger.log_error(f"cross-locus rescue: failed to enumerate mRNAs: {e}")
         return 0
+
+    # Every gene's miniprot hits, so a replacement can take its isoforms with it.
+    hits_by_gene = {}
+    for mtrans in mtranscripts:
+        try:
+            gene_id, trans_id = lifton_utils.get_ref_ids_miniprot(
+                ref_features_reverse_dict, mtrans.attributes["ID"][0],
+                m_id_2_ref_id_trans_dict)
+        except Exception:
+            continue
+        if gene_id is not None and trans_id is not None:
+            hits_by_gene.setdefault(gene_id, []).append((mtrans, trans_id))
 
     for mtrans in mtranscripts:
         try:
@@ -318,9 +456,20 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
                     and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1):
                 continue
 
-            pi, text = _build_replacement_text(
+            # A high-identity PARTIAL hit must not displace a weak but
+            # full-length lift: identity alone cannot tell them apart.
+            coverage = miniprot_rescue.miniprot_protein_coverage(
+                mtrans, ref_proteins, ref_trans_id)
+            if coverage is not None and coverage < coverage_min:
+                continue
+
+            pi, text, isoforms = _build_replacement_text(
                 mtrans, m_feature_db, ref_db, ref_gene_id, ref_trans_id, tgt_fai,
-                ref_proteins, ref_trans, tree_dict, ref_features_dict, args)
+                ref_proteins, ref_trans, tree_dict, ref_features_dict, args,
+                hits=hits_by_gene.get(ref_gene_id, ()),
+                ref_len=ref_features_len_dict.get(ref_gene_id) or 0,
+                emitted_by_seqid=_emitted_interval_index(index, ref_gene_id),
+                isoform_floor=isoform_floor)
             if pi is None or text is None:
                 continue
             if pi <= slot["best_pi"] + min_gain:   # not strictly-enough better
@@ -328,6 +477,7 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
             if pi > chosen_pi.get(ref_gene_id, -1.0):
                 chosen_pi[ref_gene_id] = pi
                 chosen[ref_gene_id] = text
+                chosen_isoforms[ref_gene_id] = isoforms
         except Exception as e:
             logger.log_error(f"cross-locus rescue error ({mtrans.id}): {e}")
 
@@ -339,7 +489,8 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
                                         ref_features_dict)
     sys.stderr.write(
         f"\n[LiftOn] cross-locus rescue: {len(chosen)} gene(s) replaced with a "
-        f"better miniprot model (dropped {n_blocks} weak block(s); "
+        f"better miniprot model carrying {sum(chosen_isoforms.values())} "
+        f"additional isoform(s) (dropped {n_blocks} weak block(s); "
         f"weak<{max_liftoff:.2f}, gain>={min_gain:.2f}).\n")
     sys.stderr.flush()
     return len(chosen)
