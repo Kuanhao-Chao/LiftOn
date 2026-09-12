@@ -243,7 +243,9 @@ Dog → cat, fresh Liftoff at `-t 8`:
 - All four arms produce identical intermediate Liftoff GFF3 bodies (`82f9ce19`, 1.78 M lines).
 - The new-code arms produce identical final outputs (`36846eee`).
 - With the new code, parallel lift takes the aligner phase from 1,765 s to 1,206 s (−32 %) and total wall from 3,710 s to 3,092 s. Peak RSS is unchanged at 13.7 GiB.
-- The old-code arms were still in Liftoff's Python post-processing more than 15 minutes after minimap2 finished, when the new-code arms had long reached Step 7.
+- Against v1.0.11 code, the aligner phase goes from 3,020 s to 1,765 s with the new parsing and writing alone (−42 %), and to **1,206 s** with parallel lift as well (−60 %). Total wall goes from 4,878 s to 3,092 s (−37 %).
+- All four arms produce the same final output (`36846eee`) at the same peak RSS.
+- Old code with parallel lift was not faster than old code serial (3,435 s), because the old parsing and writing dominated that run. That arm ran on a heavily loaded host, so its number is not a clean comparison.
 
 Parallel lift is therefore the default whenever `-t > 1`; `--no-parallel-lift` opts out.
 
