@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "807b051701f64e8f9a4c8bb7cf721350a13a972abb0a0ff33de341b5a193c345",
-      "bytes": 499086,
+      "aggregate_sha256": "a5c91ad425fa759a55e24b3f9766c3901d013b7ddbc76bc13f3f12a667fc9a70",
+      "bytes": 499141,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -173,13 +173,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "c68d92e43b4435692c2589658ce3bd384135eb3df729fcf71e5359a3ba74341c",
-      "bytes": 346882,
+      "aggregate_sha256": "866b5f2b93052eff69aece6f83f4657b685591a9ac5b9c0c47c52301e296aa62",
+      "bytes": 404680,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
-      "file_count": 31,
+      "file_count": 33,
       "id": "diagnostic_headroom",
       "superseded_by": null
     },
@@ -2639,6 +2639,30 @@
       "sha256": "a892feb8f14dffe77bb91a89ee7bf187d255219061a34be738868388932f5b8b"
     },
     {
+      "bytes": 45372,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "6c87e2c924df48ebb4fb2e70a3e8c30b412c8225b594f14d90b6901b988748f0",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/recall_gap_after_v1012.json",
+      "sha256": "0832e04421f9af550d27d63b1f1a2d240e44a863e8b6d3ad4680a6ad764c3018"
+    },
+    {
+      "bytes": 3818,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/recall_gap_after_v1012.md",
+      "sha256": "d9205e61f7e6a10c0f2bc0606fe2413677a48b3f42844ecdab4774accc52f9aa"
+    },
+    {
       "bytes": 36229,
       "claim_eligible": false,
       "classification": "diagnostic",
@@ -2653,14 +2677,14 @@
       "sha256": "f6416ec73569dd1dab576499a1f00b6fa08837cf55c6d91fae0373c9f7e9b48c"
     },
     {
-      "bytes": 16398,
+      "bytes": 25006,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "family": "diagnostic_headroom",
       "json_schema": null,
       "path": "benchmarks/compare/recall_gap_diagnosis.py",
-      "sha256": "aaa803328db5cb90676bd82315a93147706d845849422ba6bfc55b3c67ffe527"
+      "sha256": "d554c26e334a2b5332bf44911d8c0a6b52792c8591883c8cb46b11e93888ab49"
     },
     {
       "bytes": 6361,
@@ -3285,18 +3309,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 11801,
+      "bytes": 11856,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "704db8088d634c1350f8982cfdcbee614591dc7c6a9d5906e136397a7a10abaa",
+        "shape_sha256": "e29cd4d0b246e2ee4dd329de657fdd1d499294955f86ec81e9dd3243c0bfb417",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "868339051cb0593117c434d82165f9400cc1cc075ea86bb74fc4e415f44c44c7"
+      "sha256": "7f7770d5afb0c9aec31b89e07a9a126e1cd39e7a0457384658fcce3e49a09e03"
     },
     {
       "bytes": 34428,
@@ -3474,7 +3498,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "36d8090b4e66c5ac399721ca004306af83b3134c1203070b312a6084d1bcd41b",
+  "inventory_sha256": "97b9ef561982a60cb166af016c50c2c86aed4a9a150f427cfd127d0dcfbb8c69",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3518,19 +3542,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "93ae6d66d6181036212cfc6ece71ad777f2fe972eaf55f9db003201f90e3d1a7",
+  "rules_sha256": "732450c61b2ae270dfa1d3dc8397573f4cd050af9e090ea4481ed28208898acf",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "1126a4cc4191c28ce5cb3aa8f718986fb52250131871799f44ab8a11ced7316a",
-    "bytes": 13319477,
+    "aggregate_sha256": "5e9a1ae248cec1c4fa15358fb75a2e8d60ae12aac0e0ac9ba7c2a4dd615245e7",
+    "bytes": 13377330,
     "classification_counts": {
       "canonical": 75,
-      "diagnostic": 36,
+      "diagnostic": 38,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 281
+    "file_count": 283
   }
 }

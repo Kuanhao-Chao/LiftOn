@@ -31,6 +31,17 @@ per-transcript TSVs, and reports:
    strand and overlap the rescued model.
 5. **Haplotype displacement.** GeneID groups with a primary-assembly member
    and an alt/fix member where LiftOn recovers only the alt/fix copy.
+6. **Remaining gap.** The same first-failed-gate classification, but under the
+   gates v1.0.12 ships, so it can be pointed at a v1.0.12 output and say what is
+   still missing: a locus another gene already holds, protein coverage under the
+   gate, or a candidate that passed every placement gate and was lost to the
+   identity floor or the ORF search.
+7. **Rescued-model ORF validity**, split into start codon, stop codon and
+   internal stop. A miniprot model has no UTR, so the ORF search runs on a
+   sequence with no flank.
+8. **Co-ortholog opportunity.** Miniprot hits at free loci whose reference gene
+   LiftOn already emitted elsewhere; the rescue deduplicates on the reference
+   gene id and so cannot place a second copy.
 """
 from __future__ import annotations
 
@@ -105,7 +116,7 @@ def load_reference(ref_gff, alt_seqids=frozenset()):
 
 
 def load_miniprot(mp_gff):
-    mrna, cds_count = {}, Counter()
+    mrna, cds_count, cds_len = {}, Counter(), Counter()
     with open(mp_gff) as handle:
         for line in handle:
             if not line or line[0] == "#":
@@ -115,7 +126,9 @@ def load_miniprot(mp_gff):
                 continue
             if c[2] == "CDS":
                 attributes = gene_level.parse_attributes(c[8])
-                cds_count[(attributes.get("Parent") or [""])[0]] += 1
+                parent = (attributes.get("Parent") or [""])[0]
+                cds_count[parent] += 1
+                cds_len[parent] += int(c[4]) - int(c[3]) + 1
             elif c[2] == "mRNA":
                 attributes = gene_level.parse_attributes(c[8])
                 target = (attributes.get("Target") or [""])[0].split()
@@ -128,12 +141,13 @@ def load_miniprot(mp_gff):
                     "qstart": int(target[1]) if len(target) > 2 else None,
                     "qend": int(target[2]) if len(target) > 2 else None,
                 }
-    return mrna, cds_count
+    return mrna, cds_count, cds_len
 
 
 def load_lifton(lo_gff):
     genes = defaultdict(list)
     rescued = []
+    emitted_ref = set()
     with open(lo_gff) as handle:
         for line in handle:
             if not line or line[0] == "#":
@@ -143,6 +157,8 @@ def load_lifton(lo_gff):
                 continue
             if c[2] == "gene":
                 genes[c[0]].append((int(c[3]), int(c[4])))
+                emitted_ref.add(_COPY_SUFFIX.sub(
+                    "", (gene_level.parse_attributes(c[8])["ID"])[0]))
             elif c[2] == "mRNA" and "lifton_rescue=miniprot_only" in c[8]:
                 attributes = gene_level.parse_attributes(c[8])
                 rescued.append({
@@ -154,7 +170,7 @@ def load_lifton(lo_gff):
     for seqid in genes:
         genes[seqid].sort()
     starts = {seqid: [s for s, _ in rows] for seqid, rows in genes.items()}
-    return genes, starts, rescued
+    return genes, starts, rescued, emitted_ref
 
 
 def overlap_fraction(genes, starts, seqid, start, end):
@@ -222,11 +238,125 @@ def replay_gates(candidates, mp_mrna, mp_cds, gene_span, tx_cds_count,
     }
 
 
+def replay_shipped_gates(candidates, mp_mrna, mp_cds, mp_cds_len, gene_span,
+                         tx_cds_count, lo_genes, lo_starts, overlap, band,
+                         coverage_min, cds_max_ratio, ref_prot_len):
+    """First gate each still-missed gene's best miniprot model fails under the
+    gates LiftOn actually ships (v1.0.12), against an output those gates already
+    produced. Unlike :func:`replay_gates`, which replays the pre-v1.0.12 rescue
+    to explain why the span band cost so much recall, the quality test here is
+    the coverage sub-pass: a candidate inside the span band is decided by
+    sub-pass A and never sees a coverage test, so only an out-of-band candidate
+    is measured against ``coverage_min`` and the CDS-length bound."""
+    first_fail = Counter()
+    lo, hi = band
+    for gene, (tx, row) in candidates.items():
+        model = mp_mrna.get(row["tool_feature_id"])
+        if model is None or not gene_span.get(gene):
+            first_fail["unresolvable"] += 1
+            continue
+        if overlap_fraction(lo_genes, lo_starts, model["seqid"],
+                            model["start"], model["end"]) > overlap:
+            first_fail["(a) overlaps a gene LiftOn emitted"] += 1
+            continue
+        if mp_cds[row["tool_feature_id"]] == 1 and tx_cds_count.get(tx, 0) > 1:
+            first_fail["(b) single-CDS processed-pseudogene filter"] += 1
+            continue
+        ratio = (model["end"] - model["start"] + 1) / gene_span[gene]
+        if lo < ratio < hi:
+            first_fail["(d) placed by sub-pass A: lost to the identity floor "
+                       "or ORF search"] += 1
+            continue
+        length = ref_prot_len.get(tx)
+        coverage = (min(1.0, (model["qend"] - model["qstart"] + 1) / length)
+                    if length and model["qstart"] is not None else 0.0)
+        if coverage < coverage_min:
+            first_fail["(c) protein coverage below the gate"] += 1
+        elif length and mp_cds_len[row["tool_feature_id"]] > cds_max_ratio * 3 * length:
+            first_fail["(c) CDS longer than the length bound"] += 1
+        else:
+            first_fail["(d) passes sub-pass B: lost to the identity floor "
+                       "or ORF search"] += 1
+    n = sum(first_fail.values())
+    return {
+        "n_candidates": n,
+        "first_fail": {k: v for k, v in first_fail.most_common()},
+        "first_fail_fraction": {k: round(v / n, 4)
+                                for k, v in first_fail.most_common()} if n else {},
+    }
+
+
+def rescued_orf_quality(rows, rescued_ids):
+    """ORF validity of the emitted miniprot-only models, split by which
+    criterion fails. A miniprot model carries no UTR, so ``__find_orfs`` scans a
+    sequence with no flank and can reach neither a downstream stop codon nor an
+    upstream start codon."""
+    out = {}
+    for label, wanted in (("rescued", True), ("other", False)):
+        total = start_ok = stop_ok = valid = internal = 0
+        for row in rows:
+            if ((row.get("tool_feature_id") in rescued_ids) is not wanted
+                    or not (row.get("protein_identity") or "").strip()):
+                continue
+            try:
+                s = int(row["orf_start_ok"] or 0)
+                e = int(row["orf_stop_ok"] or 0)
+                v = int(row["orf_valid"] or 0)
+            except (KeyError, ValueError):
+                continue
+            total += 1
+            start_ok += s
+            stop_ok += e
+            valid += v
+            internal += bool(s and e and not v)
+        if total:
+            out[label] = {
+                "n": total,
+                "start_ok": round(start_ok / total, 4),
+                "stop_ok": round(stop_ok / total, 4),
+                "orf_valid": round(valid / total, 4),
+                "internal_stop_only": round(internal / total, 4),
+            }
+    return out
+
+
+def coortholog_opportunity(mp_mrna, mp_mrna_cov, emitted_ref, tx_genes,
+                           lo_genes, lo_starts, overlap, min_pi, coverage_min):
+    """Miniprot hits at loci no emitted gene occupies whose reference gene is
+    ALREADY emitted. The rescue deduplicates on the reference gene id, so it can
+    never place a second copy: on a whole-genome-duplication target these are
+    the co-orthologs it cannot reach. Reported as a measured option, not a
+    recommendation -- a second copy needs target-annotation truth first."""
+    hits = defaultdict(list)
+    for mid, model in mp_mrna.items():
+        if model["identity"] < min_pi or not model["target"]:
+            continue
+        record = tx_genes.get(model["target"])
+        if record is None or record.gene_id not in emitted_ref:
+            continue
+        if mp_mrna_cov.get(mid, 0.0) < coverage_min:
+            continue
+        if overlap_fraction(lo_genes, lo_starts, model["seqid"],
+                            model["start"], model["end"]) > overlap:
+            continue
+        hits[record.gene_id].append(model)
+    ordered = sorted((m for models in hits.values() for m in models),
+                     key=lambda m: (m["seqid"], m["start"], m["end"]))
+    placed, last = 0, {}
+    for model in ordered:
+        if last.get(model["seqid"], 0) < model["start"]:
+            placed += 1
+            last[model["seqid"]] = model["end"]
+    return {"n_hits": len(ordered), "n_genes": len(hits),
+            "n_non_overlapping_loci": placed, "min_pi": min_pi,
+            "coverage_min": coverage_min}
+
+
 def diagnose(args):
     alt = gene_level.load_alt_seqids(args.alt_seqids)
     tx_genes, gene_span, tx_cds_count = load_reference(args.ref_gff, alt)
-    mp_mrna, mp_cds = load_miniprot(args.miniprot_gff)
-    lo_genes, lo_starts, rescued = load_lifton(args.lifton_gff)
+    mp_mrna, mp_cds, mp_cds_len = load_miniprot(args.miniprot_gff)
+    lo_genes, lo_starts, rescued, emitted_ref = load_lifton(args.lifton_gff)
 
     tables = {"lifton": args.lifton_tsv, "miniprot": args.miniprot_tsv}
     if args.liftoff_tsv:
@@ -260,6 +390,9 @@ def diagnose(args):
                if v[1]["ref_seqid_class"] == gene_level.PRIMARY}
     replay_args = (mp_mrna, mp_cds, gene_span, tx_cds_count, lo_genes, lo_starts,
                    args.overlap, tuple(args.band), ref_prot_len)
+    shipped_args = (mp_mrna, mp_cds, mp_cds_len, gene_span, tx_cds_count,
+                    lo_genes, lo_starts, args.overlap, tuple(args.band),
+                    args.coverage_min, args.cds_max_ratio, ref_prot_len)
     n_primary_genes = recall["lifton"]["primary"]["n_coding_genes"]
     gates = {"all": replay_gates(candidates, *replay_args),
              "primary": replay_gates(primary, *replay_args)}
@@ -269,6 +402,16 @@ def diagnose(args):
         "(6) span ratio outside the rescue band", 0)
     gates["primary"]["span_class_gene_recall_ceiling"] = (
         round(span_primary / n_primary_genes, 4) if n_primary_genes else None)
+
+    remaining = {"all": replay_shipped_gates(candidates, *shipped_args),
+                 "primary": replay_shipped_gates(primary, *shipped_args)}
+    for key, block in remaining.items():
+        block["min_pi"] = args.min_pi
+        n_genes = (n_primary_genes if key == "primary"
+                   else recall["lifton"]["n_coding_genes"])
+        block["gene_recall_ceiling"] = {
+            name: round(count / n_genes, 4)
+            for name, count in block["first_fail"].items()} if n_genes else {}
 
     # Rescue hit rank and isoform opportunity.
     hits_by_target = defaultdict(list)
@@ -335,10 +478,23 @@ def diagnose(args):
     haplotype = {"geneid_groups_with_primary_and_alt_or_fix": both,
                  "recovered_only_as_alt_or_fix_copy": displaced}
 
+    mp_coverage = {}
+    for mid, model in mp_mrna.items():
+        length = ref_prot_len.get(model["target"]) if model["target"] else None
+        mp_coverage[mid] = (
+            min(1.0, (model["qend"] - model["qstart"] + 1) / length)
+            if length and model["qstart"] is not None else 0.0)
+
     return {
         "inputs": {k: str(v) for k, v in vars(args).items() if k != "json"},
         "recall": recall,
         "gate_replay": gates,
+        "remaining_gap": remaining,
+        "rescued_orf_quality": rescued_orf_quality(
+            rows["lifton"], {model["id"] for model in rescued}),
+        "coortholog_opportunity": coortholog_opportunity(
+            mp_mrna, mp_coverage, emitted_ref, tx_genes, lo_genes, lo_starts,
+            args.overlap, args.min_pi, args.coverage_min),
         "rescue_hit_rank": rescue,
         "isoform_opportunity": isoform_block,
         "haplotype_displacement": haplotype,
@@ -357,6 +513,12 @@ def build_parser():
     parser.add_argument("--overlap", type=float, default=0.1)
     parser.add_argument("--band", type=float, nargs=2, default=(0.5, 2.0),
                         metavar=("LO", "HI"))
+    parser.add_argument("--coverage-min", type=float, default=0.8,
+                        help="protein-coverage gate of the rescue's coverage "
+                             "sub-pass (LIFTON_RESCUE_COVERAGE_MIN)")
+    parser.add_argument("--cds-max-ratio", type=float, default=1.5,
+                        help="CDS-length bound of the coverage sub-pass, as a "
+                             "multiple of the reference coding length")
     parser.add_argument("--alt-seqids", default=None)
     parser.add_argument("--json", default=None)
     return parser
@@ -377,6 +539,11 @@ def main(argv=None):
     for key in ("all", "primary"):
         block = result["gate_replay"][key]
         print(f"[{key}] candidates {block['n_candidates']}: {block['first_fail']}")
+    for key in ("all", "primary"):
+        block = result["remaining_gap"][key]
+        print(f"[{key} remaining] {block['n_candidates']}: {block['first_fail']}")
+    print("rescued ORF:", result["rescued_orf_quality"].get("rescued"))
+    print("co-ortholog:", result["coortholog_opportunity"])
     print("rescue:", result["rescue_hit_rank"])
     print("isoform:", result["isoform_opportunity"])
     print("haplotype:", result["haplotype_displacement"])
