@@ -201,6 +201,14 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
+#: Types that describe a sequence or an assembly rather than a feature on it.
+#: Never lifted, and never a fallback when no gene-like type is found.
+META_FEATURE_TYPES = frozenset((
+    "region", "source", "chromosome", "scaffold", "contig", "supercontig",
+    "biological_region", "assembly", "match", "match_part", "remark",
+))
+
+
 def get_gene_like_feature_types(ref_db, sample_cap=5000):
     """Auto-detect the "gene-like" top-level parent feature types in the
     reference annotation: every feature type that has at least one TOP-LEVEL
@@ -215,20 +223,33 @@ def get_gene_like_feature_types(ref_db, sample_cap=5000):
     `sample_cap` bounds the per-type scan so a child-heavy type (e.g. CDS, whose
     instances all carry Parent and are skipped) cannot trigger a full-DB walk;
     realistic gene-like types surface a child-bearing top-level instance far
-    within the cap. Falls back to `["gene"]` if nothing qualifies.
+    within the cap.
+
+    When nothing qualifies, fall back to the top-level types the annotation
+    actually has, skipping the meta types that describe a sequence rather than a
+    feature on it. A prokaryotic or otherwise flat annotation -- bakta output, a
+    miniprot GFF -- has top-level `CDS` rows and no `gene` at all, and the old
+    `["gene"]` fallback selected nothing from it, so the run died several steps
+    later inside vendored Liftoff (GH #37). Falls back to `["gene"]` only when
+    the annotation has no usable top-level type either.
     """
     conn = ref_db.db_connection
-    gene_like = set()
+    gene_like, top_level = set(), set()
     for ftype in conn.featuretypes():
+        if ftype in META_FEATURE_TYPES:
+            continue
         for i, locus in enumerate(conn.features_of_type(ftype)):
             if i >= sample_cap:
                 break
             if "Parent" in locus.attributes:
                 continue                      # child-level instance; keep looking
+            top_level.add(ftype)
             if any(True for _ in conn.children(locus, level=1)):
                 gene_like.add(ftype)
                 break                         # one child-bearing top-level is enough
-    return sorted(gene_like) if gene_like else ["gene"]
+    if gene_like:
+        return sorted(gene_like)
+    return sorted(top_level) if top_level else ["gene"]
 
 
 def LiftOn_eval_alignment(eval_trans, locus, tgt_fai, ref_proteins, ref_trans_id, lifton_status):
