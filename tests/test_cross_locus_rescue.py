@@ -231,3 +231,184 @@ def test_flag_off_is_inert(tmp_path, monkeypatch):
     n, text = _run_pass(tmp_path, monkeypatch, flag=False)
     assert n == 0
     assert text == OUTPUT_GFF3                          # byte-identical when OFF
+
+
+# ─────────────── v1.0.12: the replacement keeps the gene's isoforms ──────────
+# Replacing a gene drops every block it had, so emitting one transcript cost the
+# isoforms: on human -> zebrafish the pass raised mean protein identity from
+# 0.597 to 0.632 and still lost 401 transcripts net.
+def test_emitted_interval_index_excludes_the_replaced_gene():
+    index = {
+        "gene-X": {"best_pi": 0.1, "intervals": [("chrA", 50, 90)]},
+        "gene-Y": {"best_pi": 0.9, "intervals": [("chrA", 500, 900),
+                                                 ("chrB", 10, 20)]},
+    }
+    by_seqid = xlocus._emitted_interval_index(index, "gene-X")
+    assert by_seqid == {"chrA": [(500, 900)], "chrB": [(10, 20)]}
+    assert xlocus._emitted_interval_index(index, "gene-Y") == {
+        "chrA": [(50, 90)]}
+
+
+def test_reaches_another_gene_detects_only_real_overlap():
+    by_seqid = {"chrA": [(100, 200), (500, 900)]}
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 150, 160) is True
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 50, 120) is True
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 890, 1000) is True
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 250, 400) is False
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 950, 1000) is False
+    assert xlocus._reaches_another_gene(by_seqid, "chrZ", 150, 160) is False
+    assert xlocus._reaches_another_gene({}, "chrA", 1, 10) is False
+
+
+def test_partial_hit_cannot_displace_a_full_length_lift(tmp_path, monkeypatch):
+    """A high-identity hit covering a third of the protein must not replace a
+    weak but full-length model: identity alone cannot tell them apart."""
+    for name in ("LIFTON_CROSS_LOCUS_RESCUE", "LIFTON_CROSS_LOCUS_MAX_LIFTOFF",
+                 "LIFTON_CROSS_LOCUS_MIN_GAIN"):
+        monkeypatch.delenv(name, raising=False)
+    out = tmp_path / "out.gff3"
+    out.write_text(OUTPUT_GFF3)
+    score = tmp_path / "score.txt"
+    score.write_text("rna-X\t0\t0\t0\t0.10\tLiftoff\t-\tchrA:50-90\n")
+    _patch_builder(monkeypatch)
+    mtrans = _FakeMtrans("MP1", "chrB", 100, 400)
+    mtrans.attributes["Target"] = ["rna-X 1 10"]        # 10 of 30 residues
+    args = SimpleNamespace(cross_locus_rescue=True, cross_locus_max_liftoff=0.5,
+                           cross_locus_min_gain=0.3, debug=False)
+    replaced = xlocus.cross_locus_rescue_pass(
+        str(out), str(score), _FakeMDB([mtrans]),
+        SimpleNamespace(db_connection=None), {}, None, {"rna-X": "M" * 29 + "*"},
+        {"rna-X": "T"}, {}, {"MP1": "rna-X"}, {}, {}, {"rna-X": "gene-X"}, args)
+    assert replaced == 0
+    assert "ID=gene-X;" in out.read_text()              # the weak model stayed
+
+
+# ──────────────────── end to end: the isoforms come along ────────────────────
+import textwrap  # noqa: E402
+
+from lifton import lifton  # noqa: E402
+from tests.test_integration_pipeline import hermetic_pipeline  # noqa: E402,F401
+
+GENE1 = "ATG" + "GCT" * 32                 # chr1 101-199
+GENE1_TAIL = "GCT" * 32 + "TAA"            # chr1 301-399
+CDS_HEAD = "ATG" + "GCT" * 16              # 51 nt
+CDS_TAIL = "GCT" * 15 + "TAA"              # 48 nt -> M + 31 A + stop
+WEAK_HEAD = "ATG" + "GGG" * 16             # same length, glycine
+WEAK_TAIL = "GGG" * 15 + "TAA"
+
+
+def _wrap(sequence):
+    return "\n".join(textwrap.wrap(sequence, 60)) + "\n"
+
+
+def _chromosome(placements, length=1300):
+    chromosome = ["A"] * length
+    for start, sequence in placements:
+        chromosome[start - 1:start - 1 + len(sequence)] = sequence
+    return "".join(chromosome)
+
+
+def _xlocus_workspace(work):
+    """gene2 has two isoforms and a reference CDS span of 548 bp. Liftoff lifts
+    a near-garbage copy on chr1; miniprot finds both isoforms cleanly on chr2,
+    where their spans (248 and 298) fall outside Step 8's 0.9-1.5 band, so only
+    the cross-locus pass can act on them."""
+    work.mkdir(parents=True, exist_ok=True)
+    (work / "ref.fa").write_text(
+        ">chr1\n" + _wrap(_chromosome([
+            (101, GENE1), (301, GENE1_TAIL),
+            (601, CDS_HEAD), (801, CDS_TAIL), (1101, CDS_TAIL)]))
+        + ">chr2\n" + _wrap(_chromosome([])))
+    (work / "tgt.fa").write_text(
+        ">chr1\n" + _wrap(_chromosome([
+            (101, GENE1), (301, GENE1_TAIL),
+            (601, WEAK_HEAD), (801, WEAK_TAIL)]))
+        + ">chr2\n" + _wrap(_chromosome([
+            (601, CDS_HEAD), (801, CDS_TAIL), (851, CDS_TAIL)])))
+    gene1 = (
+        "chr1\t{src}\tgene\t101\t399\t.\t+\t.\tID=gene1;gene_biotype=protein_coding\n"
+        "chr1\t{src}\tmRNA\t101\t399\t.\t+\t.\tID=tx1;Parent=gene1\n"
+        "chr1\t{src}\texon\t101\t199\t.\t+\t.\tID=exon1;Parent=tx1\n"
+        "chr1\t{src}\texon\t301\t399\t.\t+\t.\tID=exon2;Parent=tx1\n"
+        "chr1\t{src}\tCDS\t101\t199\t.\t+\t0\tID=cds1;Parent=tx1\n"
+        "chr1\t{src}\tCDS\t301\t399\t.\t+\t0\tID=cds2;Parent=tx1\n")
+    (work / "ref.gff3").write_text(
+        "##gff-version 3\n" + gene1.format(src="test")
+        + "chr1\ttest\tgene\t601\t1148\t.\t+\t.\tID=gene2;gene_biotype=protein_coding\n"
+          "chr1\ttest\tmRNA\t601\t848\t.\t+\t.\tID=tx2a;Parent=gene2\n"
+          "chr1\ttest\texon\t601\t651\t.\t+\t.\tID=exon3;Parent=tx2a\n"
+          "chr1\ttest\texon\t801\t848\t.\t+\t.\tID=exon4;Parent=tx2a\n"
+          "chr1\ttest\tCDS\t601\t651\t.\t+\t0\tID=cds3;Parent=tx2a\n"
+          "chr1\ttest\tCDS\t801\t848\t.\t+\t0\tID=cds3;Parent=tx2a\n"
+          "chr1\ttest\tmRNA\t601\t1148\t.\t+\t.\tID=tx2b;Parent=gene2\n"
+          "chr1\ttest\texon\t601\t651\t.\t+\t.\tID=exon5;Parent=tx2b\n"
+          "chr1\ttest\texon\t1101\t1148\t.\t+\t.\tID=exon6;Parent=tx2b\n"
+          "chr1\ttest\tCDS\t601\t651\t.\t+\t0\tID=cds4;Parent=tx2b\n"
+          "chr1\ttest\tCDS\t1101\t1148\t.\t+\t0\tID=cds4;Parent=tx2b\n")
+    (work / "liftoff.gff3").write_text(
+        "##gff-version 3\n" + gene1.format(src="Liftoff")
+        + "chr1\tLiftoff\tgene\t601\t848\t.\t+\t.\tID=gene2;gene_biotype=protein_coding\n"
+          "chr1\tLiftoff\tmRNA\t601\t848\t.\t+\t.\tID=tx2a;Parent=gene2\n"
+          "chr1\tLiftoff\texon\t601\t651\t.\t+\t.\tID=exon3;Parent=tx2a\n"
+          "chr1\tLiftoff\texon\t801\t848\t.\t+\t.\tID=exon4;Parent=tx2a\n"
+          "chr1\tLiftoff\tCDS\t601\t651\t.\t+\t0\tID=cds3;Parent=tx2a\n"
+          "chr1\tLiftoff\tCDS\t801\t848\t.\t+\t0\tID=cds3;Parent=tx2a\n")
+    (work / "miniprot.gff3").write_text(
+        "##gff-version 3\n"
+        "chr1\tminiprot\tmRNA\t101\t399\t.\t+\t.\tID=MP1;Rank=1;Identity=1.0000;Target=tx1 1 65\n"
+        "chr1\tminiprot\tCDS\t101\t199\t.\t+\t0\tID=MP1.c1;Parent=MP1\n"
+        "chr1\tminiprot\tCDS\t301\t399\t.\t+\t0\tID=MP1.c2;Parent=MP1\n"
+        "chr2\tminiprot\tmRNA\t601\t848\t.\t+\t.\tID=MP2;Rank=1;Identity=1.0000;Target=tx2a 1 32\n"
+        "chr2\tminiprot\tCDS\t601\t651\t.\t+\t0\tID=MP2.c1;Parent=MP2\n"
+        "chr2\tminiprot\tCDS\t801\t848\t.\t+\t0\tID=MP2.c2;Parent=MP2\n"
+        "chr2\tminiprot\tmRNA\t601\t898\t.\t+\t.\tID=MP3;Rank=1;Identity=1.0000;Target=tx2b 1 32\n"
+        "chr2\tminiprot\tCDS\t601\t651\t.\t+\t0\tID=MP3.c1;Parent=MP3\n"
+        "chr2\tminiprot\tCDS\t851\t898\t.\t+\t0\tID=MP3.c2;Parent=MP3\n")
+    (work / "out").mkdir()
+    return work
+
+
+def _run_xlocus(work, *flags):
+    output = work / "out" / "lifton.gff3"
+    argv = [str(work / "tgt.fa"), str(work / "ref.fa"), "-g", str(work / "ref.gff3"),
+            "-L", str(work / "liftoff.gff3"), "-M", str(work / "miniprot.gff3"),
+            "-o", str(output), "-ad", "RefSeq", "--force", *flags]
+    lifton.run_all_lifton_steps(lifton.parse_args(argv))
+    return output.read_text()
+
+
+def _mrnas(body, parent):
+    return [r.split("\t") for r in body.splitlines()
+            if r and not r.startswith("#") and r.split("\t")[2] == "mRNA"
+            and f"Parent={parent}" in r.split("\t")[8]]
+
+
+@pytest.fixture(autouse=True)
+def _clean_xlocus_env(monkeypatch):
+    for key in ("LIFTON_CROSS_LOCUS_RESCUE", "LIFTON_CROSS_LOCUS_MAX_LIFTOFF",
+                "LIFTON_CROSS_LOCUS_MIN_GAIN", "LIFTON_RESCUE_ISOFORMS",
+                "LIFTON_ORF_STOP_COMPLETION"):
+        monkeypatch.delenv(key, raising=False)
+
+
+class TestReplacementKeepsIsoforms:
+    def test_replacement_carries_the_other_isoform(self, tmp_path,
+                                                   hermetic_pipeline):
+        body = _run_xlocus(_xlocus_workspace(tmp_path / "on"),
+                           "--miniprot-cross-locus-rescue")
+        rows = _mrnas(body, "gene2")
+        assert sorted(r[8].split("ID=")[1].split(";")[0] for r in rows) == [
+            "tx2a", "tx2b"]
+        assert all(r[0] == "chr2" for r in rows)        # moved to the better locus
+        isoform = next(r for r in rows if "ID=tx2b" in r[8])
+        assert "rescue_isoform=true" in isoform[8]
+        assert "lifton_rescue=cross_locus" in isoform[8]
+        # The gene appears exactly once, and at the replacement locus.
+        genes = [r for r in body.splitlines() if "\tgene\t" in r and "ID=gene2" in r]
+        assert len(genes) == 1 and genes[0].startswith("chr2\t")
+
+    def test_flag_off_keeps_the_weak_lift(self, tmp_path, hermetic_pipeline):
+        body = _run_xlocus(_xlocus_workspace(tmp_path / "off"))
+        rows = _mrnas(body, "gene2")
+        assert all(r[0] == "chr1" for r in rows)
+        assert "lifton_rescue=cross_locus" not in body
