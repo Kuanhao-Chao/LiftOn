@@ -1,0 +1,62 @@
+[
+  {
+    "pair": "human_to_zebrafish",
+    "n_common": 6391,
+    "mean_delta": -0.09505,
+    "n_regressed": 1573,
+    "n_improved": 284,
+    "mean_deficit_over_regressed": 0.4155,
+    "fix_headroom_meanpi": 0.10227,
+    "n_catastrophic(LiftOn<0.3,mini>0.7)": 571,
+    "n_catastrophic_with_dna>=0.6(frameshift)": 0,
+    "catastrophic_share_of_regressed": 0.363
+  },
+  {
+    "pair": "t4_human_to_xenopus",
+    "n_common": 12175,
+    "mean_delta": -0.0141,
+    "n_regressed": 930,
+    "n_improved": 663,
+    "mean_deficit_over_regressed": 0.3193,
+    "fix_headroom_meanpi": 0.02439,
+    "n_catastrophic(LiftOn<0.3,mini>0.7)": 228,
+    "n_catastrophic_with_dna>=0.6(frameshift)": 0,
+    "catastrophic_share_of_regressed": 0.245
+  },
+  {
+    "pair": "t4_human_to_chicken",
+    "n_common": 33874,
+    "mean_delta": -0.01086,
+    "n_regressed": 2117,
+    "n_improved": 2243,
+    "mean_deficit_over_regressed": 0.3791,
+    "fix_headroom_meanpi": 0.02369,
+    "n_catastrophic(LiftOn<0.3,mini>0.7)": 690,
+    "n_catastrophic_with_dna>=0.6(frameshift)": 1,
+    "catastrophic_share_of_regressed": 0.326
+  },
+  {
+    "pair": "arabidopsis_to_rice",
+    "n_common": 7138,
+    "mean_delta": -0.00848,
+    "n_regressed": 510,
+    "n_improved": 173,
+    "mean_deficit_over_regressed": 0.1614,
+    "fix_headroom_meanpi": 0.01153,
+    "n_catastrophic(LiftOn<0.3,mini>0.7)": 52,
+    "n_catastrophic_with_dna>=0.6(frameshift)": 1,
+    "catastrophic_share_of_regressed": 0.102
+  },
+  {
+    "pair": "drosophila",
+    "n_common": 29885,
+    "mean_delta": 0.00442,
+    "n_regressed": 272,
+    "n_improved": 4610,
+    "mean_deficit_over_regressed": 0.1983,
+    "fix_headroom_meanpi": 0.0018,
+    "n_catastrophic(LiftOn<0.3,mini>0.7)": 17,
+    "n_catastrophic_with_dna>=0.6(frameshift)": 8,
+    "catastrophic_share_of_regressed": 0.062
+  }
+]
