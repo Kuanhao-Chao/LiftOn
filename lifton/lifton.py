@@ -12,6 +12,7 @@ from urllib.parse import unquote
 
 from lifton.exceptions import (
     LiftOnError,
+    LiftOnInputError,
     LiftOnPartialOutputError,
     LiftOnValidationError,
 )
@@ -54,12 +55,36 @@ def _allocator_source_ids(database):
     return cds_namespace_ids, copy_suffix_ids
 
 
-def _run_outdirs(output):
-    """Return the user-output directory and LiftOn artifact directory."""
+def _no_features_message(annotation_path, selected, scan_result):
+    """Explain an empty lift selection in terms the user can act on: what was
+    looked for, and what the annotation actually contains."""
+    counts = getattr(scan_result, "feature_type_counts", ()) or ()
+    present = ", ".join(f"{name} ({count})" for name, count in
+                        sorted(counts, key=lambda item: -item[1])[:15])
+    return (
+        f"No features to lift were found in {annotation_path}. LiftOn looked "
+        f"for {', '.join(selected)}"
+        + (f"; the annotation contains {present}." if present else ".")
+        + " Pass -f/--features with a file listing the feature types to lift, "
+        "one per line."
+    )
+
+
+def _run_outdirs(output, intermediate_dir=None):
+    """Return the user-output directory and the LiftOn artifact directory.
+
+    The artifact directory defaults to ``lifton_output/`` beside the output
+    file, which means every run writing into one directory shares it: two
+    concurrent jobs with different ``-o`` names but a common parent overwrite
+    each other's intermediate files (GH #14). ``--intermediate-dir`` gives a run
+    its own.
+    """
     if output == "stdout":
         outdir = "."
     else:
         outdir = os.path.dirname(output) or "."
+    if intermediate_dir:
+        return outdir, os.path.abspath(os.path.expanduser(intermediate_dir))
     return outdir, os.path.join(outdir, "lifton_output")
 
 
@@ -673,6 +698,15 @@ def args_optional(parser):
              'unchanged. Env LIFTON_RESCUE_COVERAGE_GATE=1/0 overrides.'
     )
     parser.add_argument(
+        '-dir', '--intermediate-dir', dest='intermediate_dir', default=None,
+        metavar='PATH',
+        help='Directory for this run\'s intermediate files, statistics, score '
+             'table and run manifest. Defaults to lifton_output/ beside the '
+             'output file, which two runs sharing an output directory would '
+             'also share; give each concurrent run its own to keep them '
+             'independent.'
+    )
+    parser.add_argument(
         '--orf-stop-completion', dest='orf_stop_completion',
         action='store_true', default=None,
         help='No-op alias: terminal-stop completion of miniprot-derived models '
@@ -913,13 +947,14 @@ def run_all_lifton_steps(args):
     ################################
     tgt_genome = args.target
     ref_genome = args.reference
-    outdir, lifton_outdir = _run_outdirs(args.output)
+    outdir, lifton_outdir = _run_outdirs(
+        args.output, getattr(args, "intermediate_dir", None))
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(lifton_outdir, exist_ok=True)
     args.directory = "intermediate_files/"
-    intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
+    intermediate_dir = os.path.join(lifton_outdir, args.directory)
     os.makedirs(intermediate_dir, exist_ok=True)
-    stats_dir= f"{outdir}/lifton_output/stats/"
+    stats_dir = os.path.join(lifton_outdir, "stats") + os.sep
     os.makedirs(stats_dir, exist_ok=True)
     args.directory = intermediate_dir
     manifest = _ensure_run_manifest(args, outdir, lifton_outdir)
@@ -1074,6 +1109,14 @@ def run_all_lifton_steps(args):
                         f"pass --gene-only to lift only `gene`")
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir, args)
+    # ref_features_dict always carries the "LiftOn-gene" bookkeeping entry, so
+    # emptiness is "nothing but that". Nothing selected means nothing to lift:
+    # say so here, naming the types the annotation does have, instead of letting
+    # the run die several steps later inside vendored Liftoff with a bare "Use
+    # -f to provide a list of other feature types to lift over" (GH #37).
+    if set(ref_features_dict) <= {"LiftOn-gene"}:
+        raise LiftOnInputError(_no_features_message(
+            args.reference_annotation, features, reference_annotation_scan))
 
     t4 = time.process_time()
     ################################
@@ -2153,7 +2196,8 @@ An accurate homology lift-over tool between assemblies
         # run_all_lifton_steps calls _ensure_run_manifest itself, so nothing is lost.
         if all(hasattr(args, name) for name in (
                 "output", "target", "reference", "reference_annotation")):
-            outdir, lifton_outdir = _run_outdirs(args.output)
+            outdir, lifton_outdir = _run_outdirs(
+                args.output, getattr(args, "intermediate_dir", None))
             os.makedirs(outdir, exist_ok=True)
             os.makedirs(lifton_outdir, exist_ok=True)
             _ensure_run_manifest(args, outdir, lifton_outdir)
