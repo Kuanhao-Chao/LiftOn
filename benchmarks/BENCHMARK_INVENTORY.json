@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "d6bd1e743b1a4e34018f45f19951c9e22e787f015baca2b86af917db4f6fd089",
-      "bytes": 499037,
+      "aggregate_sha256": "807b051701f64e8f9a4c8bb7cf721350a13a972abb0a0ff33de341b5a193c345",
+      "bytes": 499086,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -173,13 +173,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "08c902458b83c7e9cef989ced262ad69a9231e7534433b81f87c4e0ef68c60a8",
-      "bytes": 338203,
+      "aggregate_sha256": "c68d92e43b4435692c2589658ce3bd384135eb3df729fcf71e5359a3ba74341c",
+      "bytes": 346882,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Read-only headroom and feasibility probes used to decide whether an optimization merited an A/B.",
-      "file_count": 28,
+      "file_count": 31,
       "id": "diagnostic_headroom",
       "superseded_by": null
     },
@@ -1543,6 +1543,40 @@
       "json_schema": null,
       "path": "benchmarks/compare/fetch_new_pairs.py",
       "sha256": "d921c7476b40a81d73f35f99a7b5e07eccef80cc77cc4f399c45ca22b1e984cf"
+    },
+    {
+      "bytes": 1814,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "cb09e3cfd04f6c80738a773315e76fcc97a3a4765fde6d908ea55e5340a820f7",
+        "top_level_count": 5
+      },
+      "path": "benchmarks/compare/figure4_outliers.json",
+      "sha256": "4329e20e54a4b601238d5eb061fdac98e09e2d9866b5bd8664ccc33109809431"
+    },
+    {
+      "bytes": 880,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/figure4_outliers.md",
+      "sha256": "cf5556daafcd572d726fa0dd237f68bea2a5722ab1aeaab7cf369370b38c17a5"
+    },
+    {
+      "bytes": 5985,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "diagnostic_headroom",
+      "json_schema": null,
+      "path": "benchmarks/compare/figure4_outliers.py",
+      "sha256": "c492c4f98acda496695fa9fd0552a483c8c5ec96746ea50dce3633316855d2d1"
     },
     {
       "bytes": 296898,
@@ -3251,18 +3285,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 11752,
+      "bytes": 11801,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "721d8d973306dd7744004cc76eb46ecec011b311725c808c1720e0d00051d9d7",
+        "shape_sha256": "704db8088d634c1350f8982cfdcbee614591dc7c6a9d5906e136397a7a10abaa",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "856a15f553fa130c5b7175755de70a5ad059ded895a3121a72788f50db396b85"
+      "sha256": "868339051cb0593117c434d82165f9400cc1cc075ea86bb74fc4e415f44c44c7"
     },
     {
       "bytes": 34428,
@@ -3440,7 +3474,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "be2294fb73e8f88b79878ba3d8e6afc00252321636ce5dbcdb3ea58e465c59d2",
+  "inventory_sha256": "36d8090b4e66c5ac399721ca004306af83b3134c1203070b312a6084d1bcd41b",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3484,19 +3518,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "5b7e4c16c2c72aee5392cb9a24af313ca95da6d75b58d9b1f95abd4e66e49366",
+  "rules_sha256": "93ae6d66d6181036212cfc6ece71ad777f2fe972eaf55f9db003201f90e3d1a7",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "9235da83d157998f63afb4d41358a2ef82f1d93f4cee44075b1785a0ab38a1f2",
-    "bytes": 13310749,
+    "aggregate_sha256": "1126a4cc4191c28ce5cb3aa8f718986fb52250131871799f44ab8a11ced7316a",
+    "bytes": 13319477,
     "classification_counts": {
       "canonical": 75,
-      "diagnostic": 33,
+      "diagnostic": 36,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 278
+    "file_count": 281
   }
 }

@@ -153,6 +153,7 @@
       "superseded_by": null,
       "patterns": [
         "benchmarks/compare/chaining_headroom.*",
+        "benchmarks/compare/figure4_outliers.*",
         "benchmarks/compare/improvement_headroom.*",
         "benchmarks/compare/miniprot_only_headroom.*",
         "benchmarks/compare/miniprot_only_rescue_headroom.*",
