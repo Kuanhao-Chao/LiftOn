@@ -652,11 +652,6 @@ def lifton_miniprot_with_ref_protein(
         lifton_gene.add_exon(Lifton_trans.entry.id, cds)
         cds_copy = coreutils.clone_feature(cds)
         lifton_gene.add_cds(Lifton_trans.entry.id, cds_copy)
-    # miniprot's CDS stops at the last aligned codon, so give the model the
-    # terminal stop codon the reference protein carries before it is scored.
-    if orf_completion.enabled(args) and orf_completion.complete_terminal_stop(
-            Lifton_trans, tgt_fai):
-        Lifton_trans.entry.attributes["orf_stop_completed"] = ["true"]
     # Update LiftOn status
     lifton_status = lifton_class.Lifton_Status()                
     m_entry = m_feature_db[mtrans_id]
@@ -723,6 +718,12 @@ def process_miniprot(
             # rescue mode and preserves off ⊆ on.
             return None
         lifton_trans_aln, lifton_aa_aln = lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id, tgt_fai, ref_proteins, ref_trans, lifton_status)
+        # miniprot's CDS ends at the last aligned codon, so the model lacks the
+        # stop the reference protein carries. Complete it AFTER the ORF search,
+        # which therefore sees exactly the sequence it would have seen.
+        orf_completion.complete_and_rescore(
+            lifton_trans, mtrans, tgt_fai, ref_proteins, ref_trans_id,
+            lifton_status, args)
         lifton_utils.print_lifton_status(transcript_id, mtrans, lifton_status, DEBUG=args.debug)
         lifton_gene.add_lifton_gene_status_attrs("miniprot")
         lifton_gene.add_lifton_trans_status_attrs(transcript_id, lifton_status)

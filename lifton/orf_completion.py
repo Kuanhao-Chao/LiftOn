@@ -19,13 +19,23 @@ the terminal CDS is a stop and the model does not already end in one, the
 terminal CDS and its exon grow by exactly three bases. The encoded amino acids
 cannot change, because the added codon terminates translation.
 
-Deliberately NOT done here: the suppression interval a rescued gene contributes
-is left at its pre-extension value, so which genes are placed, and where, is
-exactly what it would have been. Only coordinates and the emitted protein move.
+Three rules keep it from being able to make anything worse:
+
+* It runs **after** the ORF search, so the ORF search sees exactly the sequence
+  it sees today and cannot take a different path. Applying it before instead
+  cost one transcript's identity on the drosophila-to-anopheles ladder cell,
+  because completing the model suppressed the ``stop_missing`` mutation that had
+  been triggering the search.
+* It fires only when the reference protein itself ends in a stop. An annotation
+  whose CDS excludes the stop produces a reference protein without one, and
+  adding a stop the reference does not have would be a mismatch, not a match.
+* The suppression interval a rescued gene contributes is left at its
+  pre-extension value, so which genes are placed, and where, is exactly what it
+  would have been. Only coordinates and the emitted protein move.
 """
 import os
 
-from lifton import coreutils
+from lifton import align, coreutils
 
 #: Default for the terminal-stop completion, in one place so a promotion or a
 #: revert is a one-line change (the pattern the other rescue switches follow).
@@ -74,6 +84,17 @@ def _terminal_exon(lifton_trans):
     return (exon, exon.cds) if flush else (None, None)
 
 
+def reference_protein_has_stop(ref_proteins, ref_trans_id):
+    """Does the reference protein for this transcript end in a stop? Only then
+    does completing a model move it toward the reference rather than away."""
+    try:
+        protein = ref_proteins[ref_trans_id]
+    except (KeyError, TypeError):
+        return False
+    protein = str(protein)
+    return bool(protein) and protein.rstrip().endswith("*")
+
+
 def complete_terminal_stop(lifton_trans, fai):
     """Extend this transcript's terminal CDS and exon over a downstream stop
     codon. Returns True when it did.
@@ -117,4 +138,29 @@ def complete_terminal_stop(lifton_trans, fai):
     else:
         cds.entry.end += STOP_CODON_LENGTH
         exon.entry.end = max(exon.entry.end, cds.entry.end)
+    return True
+
+
+def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
+                         lifton_status, args=None, enabled_override=None):
+    """Complete this miniprot-derived model and refresh its identity.
+
+    Call after the ORF search and before the status attributes are written, so
+    the ORF search is unaffected and the recorded identity describes the model
+    that is actually emitted. Returns True when the model was completed.
+    """
+    on = enabled_override if enabled_override is not None else enabled(args)
+    if not on or not reference_protein_has_stop(ref_proteins, ref_trans_id):
+        return False
+    if not complete_terminal_stop(lifton_trans, fai):
+        return False
+    lifton_trans.entry.attributes["orf_stop_completed"] = ["true"]
+    # The stop the model just gained is one the reference protein also has, so
+    # re-scoring can only raise the identity -- but record it rather than assume
+    # it, since this value reaches score.txt and the emitted attributes.
+    alignment = align.lifton_parasail_align(lifton_trans, m_entry, fai,
+                                            ref_proteins, ref_trans_id)
+    if alignment is not None and alignment.identity is not None:
+        lifton_status.lifton_aa = max(lifton_status.lifton_aa,
+                                      alignment.identity)
     return True

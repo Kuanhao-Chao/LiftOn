@@ -112,6 +112,41 @@ class TestCompleteTerminalStop:
         assert orf_completion.complete_terminal_stop(transcript, genome) is False
 
 
+class TestReferenceProteinGate:
+    """Completion follows the reference's convention rather than imposing one:
+    an annotation whose CDS excludes the stop yields a reference protein without
+    one, and adding a stop it does not have would be a mismatch."""
+
+    @pytest.mark.parametrize("protein, expected", [
+        ("MAAA*", True), ("MAAA", False), ("", False), ("*", True),
+        ("MAAA*\n", True),
+    ])
+    def test_reads_the_reference_protein(self, protein, expected):
+        assert orf_completion.reference_protein_has_stop(
+            {"tx": protein}, "tx") is expected
+
+    def test_missing_protein_is_false(self):
+        assert orf_completion.reference_protein_has_stop({}, "tx") is False
+        assert orf_completion.reference_protein_has_stop(None, "tx") is False
+
+    def test_complete_and_rescore_refuses_without_a_reference_stop(self, genome):
+        transcript = _transcript("chr1", [(10, 33)], "+")
+        status = types.SimpleNamespace(lifton_aa=0.5)
+        done = orf_completion.complete_and_rescore(
+            transcript, transcript.entry, genome, {"tx": "MAAA"}, "tx", status,
+            enabled_override=True)
+        assert done is False
+        assert transcript.exons[-1].cds.entry.end == 33
+
+    def test_complete_and_rescore_refuses_when_switched_off(self, genome):
+        transcript = _transcript("chr1", [(10, 33)], "+")
+        status = types.SimpleNamespace(lifton_aa=0.5)
+        assert orf_completion.complete_and_rescore(
+            transcript, transcript.entry, genome, {"tx": "MAAA*"}, "tx", status,
+            enabled_override=False) is False
+        assert transcript.exons[-1].cds.entry.end == 33
+
+
 class TestSwitch:
     @pytest.fixture(autouse=True)
     def _clean_env(self, monkeypatch):

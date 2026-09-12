@@ -489,6 +489,12 @@ def _build_and_accept(mtrans, ref_gene_id, ref_trans_id, ratio, floor,
     lifton_gene.orf_search_protein(lifton_trans.entry.id, ref_trans_id,
                                    tgt_fai, ref_proteins, ref_trans,
                                    lifton_status)
+    # miniprot's CDS ends at the last aligned codon, so the model lacks the stop
+    # the reference protein has. Complete it AFTER the ORF search, which
+    # therefore sees exactly the sequence it would have seen.
+    orf_completion.complete_and_rescore(
+        lifton_trans, mtrans, tgt_fai, ref_proteins, ref_trans_id,
+        lifton_status, args)
     lifton_utils.print_lifton_status(transcript_id, mtrans,
                                      lifton_status, DEBUG=args.debug)
     lifton_gene.add_lifton_gene_status_attrs("miniprot")
@@ -674,9 +680,6 @@ def _score_isoform(view, mtrans, m_entry, cds_children, ref_trans_attrs,
     for cds in cds_children:
         transcript.add_exon(cds)
         transcript.add_cds(coreutils.clone_feature(cds))
-    if view.stop_completion and orf_completion.complete_terminal_stop(
-            transcript, tgt_fai):
-        transcript.entry.attributes["orf_stop_completed"] = ["true"]
     status = lifton_class.Lifton_Status()
     alignment = align.lifton_parasail_align(transcript, m_entry, tgt_fai,
                                             ref_proteins, ref_trans_id)
@@ -697,6 +700,9 @@ def _score_isoform(view, mtrans, m_entry, cds_children, ref_trans_attrs,
     transcript.orf_search_protein(tgt_fai, ref_protein_seq, ref_trans_seq,
                                   status, is_non_coding=view.is_non_coding,
                                   eval_only=False)
+    orf_completion.complete_and_rescore(
+        transcript, m_entry, tgt_fai, ref_proteins, ref_trans_id, status,
+        enabled_override=view.stop_completion)
     transcript.add_lifton_trans_status_attrs(status)
     return transcript, status, True
 
