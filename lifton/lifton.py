@@ -1856,6 +1856,15 @@ def run_all_lifton_steps(args):
             ref_trans_exon_num_dict, ref_features_reverse_dict,
             emitted_ref_gene_ids, fw, fw_score, transcripts_stats_dict, args)
         manifest.record_count("miniprot_rescued_genes", rescued_genes)
+        # Which rescue pass the time went to. On a distant transfer this is the
+        # largest phase of the run, and the split is not otherwise visible.
+        # Milliseconds, because record_count stores integers.
+        for name, value in getattr(args, "_rescue_timings", {}).items():
+            if name == "isoform_jobs":
+                manifest.record_count("miniprot_rescue_isoform_jobs", value)
+            else:
+                manifest.record_count(f"miniprot_rescue_ms_{name}",
+                                      int(value * 1000))
         if _miniprot_rescue._coverage_gate_on(args):
             manifest.record_count(
                 "miniprot_rescued_genes_coverage_gate",
