@@ -228,8 +228,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "b105b8fc44c5f1fbbcd14d98817d296ed3a97078670e96b86bcafc40a02fe4a0",
-      "bytes": 123347,
+      "aggregate_sha256": "a5ff08aaf51a9b6b7165e963643a016783ee2a56a17a28e717094aae7f9f4705",
+      "bytes": 128106,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
@@ -2825,14 +2825,14 @@
       "sha256": "594aa7878e6db659bb77113af3b9b4de052c12353069f633fad53f4da6c0b99e"
     },
     {
-      "bytes": 27379,
+      "bytes": 32138,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "family": "promotion_ab_v1012",
       "json_schema": null,
       "path": "benchmarks/compare/rescue_extension_ab.py",
-      "sha256": "766c549bc023a9fcced1538edff9efd5690ccc2a016bf5e4f67e12181ae5c4ec"
+      "sha256": "0a1c5ca4b6d0435d6a9ff9d8eeb76a57b9588d5bf76a9725dac85c4f1e9af30b"
     },
     {
       "bytes": 9124,
@@ -3498,7 +3498,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "97b9ef561982a60cb166af016c50c2c86aed4a9a150f427cfd127d0dcfbb8c69",
+  "inventory_sha256": "ea4faa9c9fffb8648d1d27dde0ff24c2649c1bea13b1284c8f1d1b93b24afa86",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3546,8 +3546,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "5e9a1ae248cec1c4fa15358fb75a2e8d60ae12aac0e0ac9ba7c2a4dd615245e7",
-    "bytes": 13377330,
+    "aggregate_sha256": "82e27bbbb4f8fb16f662ef6ebe6a47c7200ec63fed7ca0b4bd7be30c7759d71b",
+    "bytes": 13382089,
     "classification_counts": {
       "canonical": 75,
       "diagnostic": 38,
