@@ -29,7 +29,8 @@ from collections import defaultdict
 
 from intervaltree import Interval
 
-from lifton import align, coreutils, lifton_class, run_miniprot, lifton_utils, logger
+from lifton import (align, coreutils, lifton_class, orf_completion,
+                    run_miniprot, lifton_utils, logger)
 from lifton.intervals import _make_interval
 from lifton.locus_pipeline import DeferredStateJournal, commit_locus_delta
 
@@ -622,13 +623,16 @@ class _GeneView:
     """The immutable fields of a placed gene that an isoform build needs, so
     worker threads never touch the live gene object."""
 
-    __slots__ = ("ref_gene_id", "gene_id", "copy_num", "is_non_coding")
+    __slots__ = ("ref_gene_id", "gene_id", "copy_num", "is_non_coding",
+                 "stop_completion")
 
-    def __init__(self, lifton_gene):
+    def __init__(self, lifton_gene, stop_completion=True):
         self.ref_gene_id = lifton_gene.ref_gene_id
         self.gene_id = lifton_gene.entry.id
         self.copy_num = lifton_gene.copy_num
         self.is_non_coding = lifton_gene.is_non_coding
+        # Resolved on the parent: a forked worker has no ``args``.
+        self.stop_completion = stop_completion
 
 
 def _isoform_candidates(accepted, hits, ref_proteins, ref_trans):
@@ -670,6 +674,9 @@ def _score_isoform(view, mtrans, m_entry, cds_children, ref_trans_attrs,
     for cds in cds_children:
         transcript.add_exon(cds)
         transcript.add_cds(coreutils.clone_feature(cds))
+    if view.stop_completion and orf_completion.complete_terminal_stop(
+            transcript, tgt_fai):
+        transcript.entry.attributes["orf_stop_completed"] = ["true"]
     status = lifton_class.Lifton_Status()
     alignment = align.lifton_parasail_align(transcript, m_entry, tgt_fai,
                                             ref_proteins, ref_trans_id)
@@ -788,6 +795,7 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
 
     plans, jobs = [], []
+    stop_completion = orf_completion.enabled(args)
     for record in accepted:
         candidates = _isoform_candidates(
             record, hits_by_gene.get(record.ref_gene_id, ()), ref_proteins,
@@ -795,7 +803,7 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
         if not candidates:
             plans.append((record, []))
             continue
-        view = _GeneView(record.lifton_gene)
+        view = _GeneView(record.lifton_gene, stop_completion)
         ref_len = ref_features_len_dict.get(record.ref_gene_id) or 0
         slots = []
         for ref_trans_id, mtrans in candidates:

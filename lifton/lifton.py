@@ -673,6 +673,25 @@ def args_optional(parser):
              'unchanged. Env LIFTON_RESCUE_COVERAGE_GATE=1/0 overrides.'
     )
     parser.add_argument(
+        '--orf-stop-completion', dest='orf_stop_completion',
+        action='store_true', default=None,
+        help='No-op alias: terminal-stop completion of miniprot-derived models '
+             'is the default (v1.0.12). Pass --no-orf-stop-completion to opt '
+             'out.'
+    )
+    parser.add_argument(
+        '--no-orf-stop-completion', dest='orf_stop_completion',
+        action='store_false', default=None,
+        help="Leave a miniprot-derived model ending at its last aligned codon "
+             "(the pre-v1.0.12 behaviour). miniprot's CDS excludes the stop "
+             "codon, while the reference convention -- and every other model "
+             "LiftOn emits -- includes it, and the ORF search cannot add it "
+             "because such a model has no UTR to search. By default the "
+             "terminal CDS and its exon grow by the three bases of a "
+             "downstream stop codon when there is one; the encoded amino acids "
+             "cannot change. Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
+    )
+    parser.add_argument(
         '--rescue-isoforms', dest='rescue_isoforms',
         action='store_true', default=None,
         help='No-op alias: isoform-aware rescue is the default (v1.0.12). Pass '
@@ -846,6 +865,15 @@ def resolve_miniprot_rescue_args(args):
             "0", "false", "no", "")
     else:
         args.rescue_isoforms = getattr(args, "rescue_isoforms", None)
+    # Terminal-stop completion of miniprot-derived models (v1.0.12). Default-on;
+    # LIFTON_ORF_STOP_COMPLETION wins, and is honoured again at apply time in
+    # orf_completion.enabled.
+    _env_sc = os.environ.get("LIFTON_ORF_STOP_COMPLETION")
+    if _env_sc is not None:
+        args.orf_stop_completion = _env_sc.strip().lower() not in (
+            "0", "false", "no", "")
+    else:
+        args.orf_stop_completion = getattr(args, "orf_stop_completion", None)
     return args
 
 
