@@ -23,13 +23,16 @@ decision is informed.
 Run:  python -m benchmarks.compare.cross_locus_rescue_ab [PAIR]
 """
 from __future__ import annotations
-import csv, json, sys
+import csv, json, re, sys
 from collections import Counter
 from pathlib import Path
 from . import evaluator
 from . import version_compare as vc
 from .profiling import run_profiled
 from .tool_runners import _compose_env
+
+#: A LiftOn copy suffix on an emitted id, stripped to reach the reference id.
+_COPY_SUFFIX = re.compile(r"_\d+$")
 
 HERE = Path(__file__).resolve().parent
 WORK = HERE / "work"
@@ -75,7 +78,12 @@ def _run(arm, root):
 
 
 def _gene_ids_and_tags(gff: Path):
-    """Return (Counter of top-level gene-line IDs, n cross_locus-tagged mRNA)."""
+    """Return (Counter of top-level gene-line IDs, n cross_locus-tagged mRNA).
+
+    The tag count is TRANSCRIPTS, not genes: since a replacement carries the
+    gene's isoforms, one replaced gene contributes several tagged mRNA rows.
+    ``_tag_counts`` splits the two, and the result records both.
+    """
     ids = Counter()
     n_tag = 0
     with gff.open() as fh:
@@ -118,8 +126,9 @@ def _pi_by_ref(tsv: Path) -> dict:
 
 
 def _tag_counts(gff: Path):
-    """(cross-locus transcripts, of which attached isoforms)."""
-    replaced = isoforms = 0
+    """(cross-locus transcripts, of which attached isoforms, distinct genes)."""
+    transcripts = isoforms = 0
+    genes = set()
     with open(gff) as fh:
         for line in fh:
             if line.startswith("#"):
@@ -127,10 +136,15 @@ def _tag_counts(gff: Path):
             cols = line.rstrip("\n").split("\t")
             if len(cols) != 9 or cols[2] != "mRNA":
                 continue
-            if "lifton_rescue=cross_locus" in cols[8]:
-                replaced += 1
-                isoforms += "rescue_isoform=true" in cols[8]
-    return replaced, isoforms
+            if "lifton_rescue=cross_locus" not in cols[8]:
+                continue
+            transcripts += 1
+            isoforms += "rescue_isoform=true" in cols[8]
+            for field in cols[8].split(";"):
+                if field.startswith("Parent="):
+                    genes.add(_COPY_SUFFIX.sub("", field[7:].strip()))
+                    break
+    return transcripts, isoforms, len(genes)
 
 
 def _mean(xs):
@@ -176,7 +190,8 @@ def main():
     a2a_on = _mean([on[k] - mini[k] for k in cm_on])
     rec = {
         "pair": PAIR,
-        "n_replaced(cross_locus_tag_on)": n_tags["on"],
+        # Tagged mRNA ROWS, not genes -- see n_genes_replaced below.
+        "n_cross_locus_tagged_transcripts": n_tags["on"],
         "DUPLICATE_GENE_IDS_on": len(gene_dups["on"]),       # MUST be 0 (safety)
         "DUPLICATE_GENE_IDS_off": len(gene_dups["off"]),
         "dup_examples_on": gene_dups["on"][:5],
@@ -195,7 +210,7 @@ def main():
         # SAFETY gate (duplicate-free) is load-bearing; the rest is the tradeoff
         "DUPLICATE_SAFE": len(gene_dups["on"]) == len(gene_dups["off"]) == 0,
     }
-    replaced_on, isoforms_on = _tag_counts(root / "on" / "on.gff3")
+    tagged_on, isoforms_on, genes_replaced = _tag_counts(root / "on" / "on.gff3")
     validity = {arm: vc.validate_gff(root / arm / f"{arm}.gff3", log=print)
                 for arm in ("off", "on")}
     errors = {arm: validity[arm].get("n_errors") or 0 for arm in ("off", "on")}
@@ -209,7 +224,8 @@ def main():
         "validity_not_worse": errors["on"] <= errors["off"],
     }
     rec["n_isoforms_attached"] = isoforms_on
-    rec["n_cross_locus_transcripts"] = replaced_on
+    rec["n_cross_locus_transcripts"] = tagged_on
+    rec["n_genes_replaced"] = genes_replaced
     rec["validity"] = validity
     rec["gate"] = gate
     rec["gate_pass"] = all(gate.values())

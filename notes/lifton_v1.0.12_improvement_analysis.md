@@ -318,14 +318,18 @@ zebrafish, both arms on the v1.0.12 default:
 
 | | before the isoform repair | after |
 |---|---:|---:|
-| genes replaced | 146 | 388 |
+| genes replaced | 146 | 144 |
 | isoforms attached | — | 244 |
+| cross-locus transcripts emitted | 146 | 388 |
 | net transcripts | **−401** | **−161** |
 | mean protein identity | 0.597 → 0.632 | 0.623 → 0.628 |
 | apples-to-apples deficit vs miniprot | −0.067 → −0.031 | −0.0088 → −0.0038 |
 
-The repair works — it cuts the transcript cost by 60 % — but the pass still ends
-with fewer transcripts than it started, so it **fails the promotion gate and
+The population it acts on is unchanged — 144 genes against 146, of which 140
+were DNA lifts and 4 were miniprot-only rescues — and what changed is that each
+replacement now brings its isoforms, so the same genes emit 388 transcripts
+instead of 146. The repair cuts the transcript cost by 60 %, but the pass still
+ends with fewer transcripts than it started, so it **fails the promotion gate and
 stays opt-in**. Duplicate-safe, no regression on the common set, validity
 unchanged.
 
