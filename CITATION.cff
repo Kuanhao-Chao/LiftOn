@@ -10,7 +10,7 @@ abstract: >-
   rescue pass for genes the DNA lift misses entirely.
 type: software
 version: 1.0.12
-date-released: "2026-08-25"
+date-released: "2026-09-13"
 license: GPL-3.0-or-later
 repository-code: "https://github.com/Kuanhao-Chao/LiftOn"
 url: "https://khchao.com/LiftOn/"
