@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import datetime
 import re
 import runpy
 from pathlib import Path
@@ -76,9 +77,23 @@ def test_current_release_metadata_matches_package_version():
     assert re.search(
         rf"(?m)^version:\s*{re.escape(package_version)}\s*$", citation,
     )
-    assert re.search(
-        r'(?m)^date-released:\s*["\']2026-08-25["\']\s*$', citation,
+    # Pin that the three places carrying the release date AGREE, not that it is
+    # one literal -- a hardcoded date has to be edited every release, and the
+    # failure worth catching is CITATION.cff drifting from the changelogs.
+    released = re.search(
+        r'(?m)^date-released:\s*["\'](?P<date>\d{4}-\d{2}-\d{2})["\']\s*$',
+        citation,
     )
+    assert released, "CITATION.cff needs an ISO date-released"
+    release_date = released.group("date")
+    datetime.date.fromisoformat(release_date)
+    assert re.search(
+        rf"(?m)^## \[{re.escape(package_version)}\] - {release_date}$",
+        (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+    ), f"CHANGELOG.md does not date {package_version} as {release_date}"
+    assert release_date in (
+        ROOT / "docs" / "source" / "content" / "changelog.rst"
+    ).read_text(encoding="utf-8"), "the docs changelog does not carry that date"
     assert docs_config["release"] == package_version
     assert docs_config["version"] == package_version
     assert badge in (ROOT / "README.md").read_text(encoding="utf-8")
