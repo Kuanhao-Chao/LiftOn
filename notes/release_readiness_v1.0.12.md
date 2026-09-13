@@ -172,6 +172,42 @@ Remaining release gates for the combined tree:
 | `devel` CI on Python 3.10/3.11/3.12 | pending push |
 | Tag / GitHub Release / PyPI | pending sign-off |
 
+## Scope added on 2026-09-12 (second round)
+
+The first round's results made a second measurement possible: replaying the
+gates LiftOn now *ships* against its own whole-genome output. It said the
+distant-recall well is nearly dry — 79–91 % of what is still missed is a locus
+another gene already holds — and that the weak point had moved to model
+quality. The round that followed is recorded in §5.5–5.7 of
+`notes/lifton_v1.0.12_improvement_analysis.md`.
+
+| Commit | Change | Output | Evidence |
+|---|---|---|---|
+| `adfc9a0` | track the Figure-4 diagnostic `cross_locus_rescue.py` cites | benchmark tooling only | inventory |
+| `f43e044` | recall-gap diagnostic replays the shipped gates; rescued-model ORF validity; co-ortholog count | benchmark tooling only | re-derived by hand first, then by the tool |
+| `d3fa4da` `cff6ec0` `8b91f3a` | terminal-stop completion for miniprot-derived models, default on | **changes miniprot-derived CDS** by exactly one stop codon | ladder A/B 8/8: 0 changed other than a three-base terminal extension, 0 regressions |
+| `ec71375` | flat annotations lift (#37); `-dir/--intermediate-dir` (#14) | corrective / paths only | regression tests that fail on old code |
+| `e98ef13` | cross-locus replacement keeps its isoforms, gates on coverage, keeps reference transcript ids | opt-in pass only | unit + end-to-end tests; A/B pending |
+| `2a8fee0` | isoform prefetch stops re-fetching a row it already held | byte-identical | two subsets, `-t 1` and `-t 8`, identical md5 |
+| `843a73e` `2a91017` | analysis note, changelogs, CLAUDE.md | docs | — |
+
+### Dependabot: three open pyo3 advisories, assessed and deferred
+
+`lifton/gffbase/_rust/Cargo.lock` pins pyo3 0.22.6, and three advisories are
+open against it (one high). They are **not release blockers**, for three
+reasons, and the fix is not a release-time change:
+
+- the crate uses none of the three affected APIs — no `PyString::from_object`,
+  no `nth`/`nth_back` on `PyList`/`PyTuple`, no `PyCFunction::new_closure`;
+- the Rust extension is not built here and is not on the default path — a
+  missing `_native` falls back to the pure-Python parser, which is what the
+  suite exercises;
+- two of the three are first patched in pyo3 **0.29.0**, seven majors ahead of
+  the pin, and the toolchain available for validation is Rust 1.69.
+
+Recorded as follow-up work with its own migration and a rebuilt extension, not
+as something to attempt while cutting a release.
+
 ## Release and deployment surfaces
 
 | Surface | State |
