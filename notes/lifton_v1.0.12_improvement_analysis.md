@@ -249,13 +249,123 @@ Dog → cat, fresh Liftoff at `-t 8`:
 
 Parallel lift is therefore the default whenever `-t > 1`; `--no-parallel-lift` opts out.
 
-### 5.5 Deferred with reasons
+### 5.5 Second round — what v1.0.12 still misses, and what was done about it
+
+The first round's diagnostic explained the gap the coverage sub-pass then closed. Pointed at
+a v1.0.12 output it had nothing to say, because it replays the gates as they were *before*
+that sub-pass existed. It now also replays the gates LiftOn actually ships, and reports the
+ORF validity of the emitted miniprot-only models and the co-ortholog count
+(`benchmarks/compare/recall_gap_after_v1012.{json,md}`, no new lift — it reads the A/B arms).
+
+**The recall well is nearly dry.** Of the coding genes still missed that miniprot finds at
+identity ≥ 0.5:
+
+| transfer | primary gene recall | still missed | a gene already holds the locus | pseudogene filter | coverage or length bound | placed, lost to the floor or ORF search |
+|---|---:|---:|---:|---:|---:|---:|
+| human → zebrafish | 0.593 | 1,162 | 1,018 (88 %) | 31 | 57 | 17 |
+| human → chicken | 0.615 | 1,840 | 1,669 (91 %) | 27 | 27 | 37 |
+| human → xenopus | 0.638 | 1,461 | 1,259 (86 %) | 44 | 48 | 39 |
+| arabidopsis → rice | 0.375 | 3,940 | 3,598 (91 %) | 180 | 32 | 10 |
+| drosophila → honey bee | 0.296 | 530 | 421 (79 %) | 58 | 23 | 3 |
+
+Before v1.0.12 the dominant class was the genomic-span band, 76–84 % of the misses on the
+vertebrate transfers. That class is gone. What is left is 79–91 % one class: **miniprot places
+the gene where LiftOn has already put a different gene** — a reference paralog family with no
+separate locus in the target. Emitting both would duplicate a locus rather than recover a
+gene, which is exactly what Iteration 15 did.
+
+Two consequences. **Lowering the protein-coverage gate is a measured NO-GO**: the whole class
+is 23–57 genes per transfer, at most +0.003 primary gene recall on zebrafish, and those are by
+definition the partial hits — so no sweep was run. And the identity floor and ORF search lose
+only 3–39 genes per transfer, so they are not mis-tuned either.
+
+**Model quality was the real gap.** miniprot reports a coding alignment, so its CDS ends at
+the last aligned codon and excludes the stop, while the reference convention — and every other
+model LiftOn emits — includes it. `Lifton_TRANS.__find_orfs` scans the spliced *transcript*,
+and a miniprot model has no UTR, so the stop sitting immediately downstream in the genome was
+outside the sequence being searched. Measured on the emitted output, rescued models ended in a
+stop only 39–59 % of the time and internal stops were about 1 % of the failures: it was the
+termini.
+
+`lifton/orf_completion.py` closes that. The A/B forced two design corrections, both kept:
+
+- **After, not before, the ORF search.** Completing the model first suppressed the
+  `stop_missing` mutation that had been triggering the search, so two drosophila → anopheles
+  transcripts took a different ORF path and one lost identity. Running after it means the
+  search sees exactly the sequence it always did, and the per-transcript shape check went from
+  2 exceptions to 0.
+- **Only when the reference protein ends in a stop**, and only when re-scoring shows the model
+  did not get worse. Appending a residue can shift a global alignment; 1 of 122 completed
+  transcripts on that cell lost 0.0013 identity, so the extension is now reverted in that case.
+
+Ladder A/B, 8/8 PASS, 0 transcripts changed other than a three-base terminal extension, 0
+regressions: stop-codon fraction rises 2.5–8.9 points and ORF validity 1.6–4.0 points on every
+cell (*C. elegans* → *briggsae* 0.653 → 0.700, rice → sorghum 0.438 → 0.527, human → xenopus
+0.574 → 0.639); the same-species control is inert.
+
+**Cross-locus replacement keeps its isoforms.** The opt-in pass replaces a weakly lifted gene
+with a better miniprot model on another chromosome, dropping every block the weak gene had. It
+emitted one transcript, so on human → zebrafish it raised mean protein identity 0.597 → 0.632
+and still lost **401 transcripts net** — the reason it never became a default. It now also
+receives the gene's other transcripts whose miniprot hits sit at the replacement locus, scored
+by the same detached scorer the rescue's isoform pass uses, and may widen only if the wider
+span reaches no other emitted model. Two further corrections: a replacement must clear the
+coverage gate, so a high-identity *partial* hit cannot displace a weak but full-length lift;
+and the transcript ids lose the copy suffix the gene id already loses.
+
+**Two reported failures fixed.** A flat annotation — a prokaryotic bakta GFF, a miniprot GFF —
+has top-level `CDS` rows and no `gene`, so the gene-like auto-detection found nothing, fell
+back to `gene`, selected nothing, and the run died several steps later inside vendored Liftoff
+with a bare "Use -f …" (GH #37). Detection now falls back to the top-level types the
+annotation actually has, and an empty selection stops the run at once naming them.
+`-dir/--intermediate-dir` gives a run its own artifact directory, so concurrent jobs sharing an
+output directory stop sharing one `lifton_output/` (GH #14).
+
+### 5.6 Where the rescue's time goes
+
+The rescue is the largest phase of a distant-species run — `process_miniprot_loci` is 37–79 %
+of wall on the five distant whole genomes — and the split across its passes was not visible at
+all. The run manifest now records it. On the human → xenopus subset at `-t 8`: sub-pass A
+2.4 s, the coverage sub-pass 2.8 s, isoform prefetch 2.0 s, isoform scoring 2.6 s (11.3 s at
+`-t 1`, so the worker pool gives 4.4×), attachment 0.5 s.
+
+That measurement redirected the speed work, and corrected two assumptions:
+
+- The `copy.deepcopy` hot spot CLAUDE.md names as "the strongest remaining target" is **already
+  fixed** — `Lifton_EXON` and `Lifton_CDS` have custom `__deepcopy__` built on
+  `coreutils.clone_feature`, from the 2026-07-25 batch.
+- Input fingerprinting looked like 4–8 % of wall, but it runs on a background thread and the
+  measured `join_wait_seconds` is **23 µs**. It costs the run nothing; summing manifest phases
+  double-counts it.
+- Step 8 is already thread-parallel and smaller than the rescue (≈6.5 s against 11.2 s on that
+  subset), so converting it to processes is deferred with numbers rather than built.
+
+What the measurement did find: the isoform prefetch re-fetched each miniprot mRNA by its own
+ID although the enumeration already held that row. Removing the query cut prefetch by 22 %
+(xenopus) and 28 % (chicken) at `-t 8`, with byte-identical output at `-t 1` and `-t 8`.
+
+The remaining serial cost is candidate *placement* scoring in sub-passes A and B. Those
+decisions cascade through the suppression tree, but the scores do not depend on it, so scoring
+could be precomputed in the existing pool and the decision loop left untouched. Not attempted
+here.
+
+### 5.7 Deferred with reasons
 
 - **S4, the Step-7 SQL collapse.** The materialisation walkers already derive the no-level exon list from the level-1 query and split containers from terminals. The default multi-threaded path, after S1, therefore issues two queries per transcript, and the change would help only `-t 1`, by roughly 5 % of Step 7.
 - **Parallel placement scoring in the rescue.** Sub-passes A and B score candidates serially: about 2.8 s of the 11.7 s rescue on the xenopus subset. The decisions cascade through the suppression tree, so a parallel version needs Step 8's ordered re-check design.
-- **Process-based Step 7.** Tier 3, not started.
+- **Process-based Step 7.** `Step7StateCoordinator` gates copy-number allocation on a
+  `threading.Condition` and serves live cross-locus interval reads through `_JournalTreeDict`;
+  a forked child can satisfy neither. Converting it means porting Step 8's
+  evaluate-then-rebase shape, which is not byte-neutral by construction.
+- **Process-based Step 8.** Already thread-parallel, and smaller than the rescue (§5.6).
+- **Co-ortholog models.** Miniprot hits at free loci whose reference gene LiftOn already
+  emitted elsewhere: 2,460 non-overlapping loci on human → zebrafish, 318 on arabidopsis →
+  rice, 15 on drosophila → honey bee. The rescue deduplicates on the reference gene id, so it
+  can never place a second copy. Emitting them would change what LiftOn annotates rather than
+  how well it recovers the reference — gene recall cannot move — so the claim needs
+  target-annotation truth (`benchmarks/compare/target_truth.py`) before any promotion.
 
-### 5.6 Defects found along the way
+### 5.8 Defects found along the way
 
 - **Forked workers could abort the parent's output transaction** (`16f67d2`). `Pool.terminate` sends SIGTERM, and the inherited handler renamed the staged GFF3 to `*.partial.gff3` while the parent was still writing. No release was exposed. The first post-Step-8 pool hit it: a run's staged output vanished and the matching md5 was a stale file. The regression test forks a child that signals itself.
 - **Intermediate files in `lifton_outputliftoff/` and `lifton_outputminiprot/`** (v1.0.10 and v1.0.11, `764e1eb`).
