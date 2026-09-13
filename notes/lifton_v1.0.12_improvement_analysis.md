@@ -206,9 +206,23 @@ A/B, `--experiment isoforms`, measured with A1 on in both arms. 13/13 cells pass
 On the ladder, human → mouse transcript recall rises from 0.864 to 0.908, and the same-species control is inert. The added isoforms match the earlier rescues on identity (for example 0.628 vs 0.638 on zebrafish) and on ORF validity. 99.9 % overlap an annotated CDS of the target annotation.
 
 Cost:
-- The serial implementation added 24–48 % wall time on the three human-source genomes and about 2 GB of peak RSS.
-- The process pool removes most of the scoring share of that.
-- Prefetch, attachment, and re-staging remain serial.
+The serial implementation added 24–48 % wall time on the three human-source genomes and about
+2 GB of peak RSS. With the worker pool and the prefetch fix (§5.6), measured from the run
+manifests of the whole-genome A/B arms:
+
+| whole genome | rescue phase | sub-pass A | sub-pass B | isoform prefetch | isoform scoring | isoform attach | isoform total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| human → zebrafish | 1,016 s | 148 s | 177 s | 125 s | 120 s | 29 s | 274 s (27 %) |
+| human → xenopus | 774 s | 112 s | 134 s | 107 s | 101 s | 33 s | 241 s (31 %) |
+| human → chicken | 671 s | 93 s | 158 s | 97 s | 71 s | 27 s | 196 s (29 %) |
+| drosophila → honey bee | 121 s | 22 s | 17 s | 6 s | 6 s | 1 s | 13 s (11 %) |
+| arabidopsis → rice | 156 s | 30 s | 18 s | 4 s | 3 s | 1 s | 8 s (5 %) |
+
+So the isoform pass now costs 27–31 % of the rescue phase on the human-source transfers and
+5–11 % elsewhere — and within it, the serial **prefetch** has overtaken the pooled scoring as
+the larger half. The largest serial block in the rescue is not the isoform pass at all but
+**candidate placement**: sub-passes A and B together are 325 s of the zebrafish phase against
+the isoform pass's 274 s.
 
 ### 5.3 S1 — `--locus-pipeline` by default
 
@@ -392,7 +406,18 @@ here.
 ### 5.7 Deferred with reasons
 
 - **S4, the Step-7 SQL collapse.** The materialisation walkers already derive the no-level exon list from the level-1 query and split containers from terminals. The default multi-threaded path, after S1, therefore issues two queries per transcript, and the change would help only `-t 1`, by roughly 5 % of Step 7.
-- **Parallel placement scoring in the rescue.** Sub-passes A and B score candidates serially: about 2.8 s of the 11.7 s rescue on the xenopus subset. The decisions cascade through the suppression tree, so a parallel version needs Step 8's ordered re-check design.
+- **Parallel placement scoring in the rescue — now the top remaining speed lever.** Sub-passes
+  A and B score candidates serially, and on whole genomes that is the single largest block in
+  the rescue: 325 s of the 1,016 s zebrafish phase, ahead of the isoform pass's 274 s (§5.2).
+  The *decisions* cascade through the suppression tree, but the *scores* do not depend on it,
+  so scoring could be precomputed in the existing fork pool and the decision loop left
+  untouched — the shape `_score_isoform` already uses. Deliberately not attempted in this
+  cycle: it touches a default-on path whose byte-identity is the release's load-bearing claim,
+  and it wants its own gate rather than one taken on the way to a tag.
+- **Serial isoform prefetch.** After the redundant-lookup fix it is 97–125 s on the
+  human-source genomes, now larger than the pooled scoring beside it. The two remaining
+  queries per candidate are a `children()` call and a reference-attribute read; batching needs
+  an API the default gffutils backend does not have.
 - **Process-based Step 7.** `Step7StateCoordinator` gates copy-number allocation on a
   `threading.Condition` and serves live cross-locus interval reads through `_JournalTreeDict`;
   a forked child can satisfy neither. Converting it means porting Step 8's
