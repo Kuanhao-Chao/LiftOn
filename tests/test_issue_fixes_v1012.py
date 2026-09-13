@@ -157,3 +157,21 @@ class TestIntermediateDirectory:
             assert (work / "score.txt").is_file()
         assert not (shared / "lifton_output").exists()
         assert (shared / "a.gff3").is_file() and (shared / "b.gff3").is_file()
+
+
+def test_an_input_error_exits_cleanly_rather_than_tracebacking(tmp_path, capsys):
+    """An unreadable input is the user's to fix: the message says what is wrong,
+    and a traceback only buries it."""
+    _genomes(tmp_path)
+    (tmp_path / "ref.gff3").write_text(
+        "##gff-version 3\nchr1\tt\tregion\t1\t800\t.\t+\t.\tID=r1\n")
+    (tmp_path / "features.txt").write_text("gene\n")
+    (tmp_path / "out").mkdir()
+    argv = [str(tmp_path / "tgt.fa"), str(tmp_path / "ref.fa"),
+            "-g", str(tmp_path / "ref.gff3"),
+            "-f", str(tmp_path / "features.txt"),
+            "-o", str(tmp_path / "out" / "lifton.gff3"), "--force"]
+    with pytest.raises(SystemExit) as raised:
+        lifton.main(argv)
+    assert raised.value.code == 2
+    assert "No features to lift" in capsys.readouterr().err
