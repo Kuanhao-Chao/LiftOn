@@ -96,6 +96,7 @@
         "benchmarks/compare/whole_genome_report.py",
         "benchmarks/compare/whole_genome_study.py",
         "benchmarks/manifests/lifton_v111_biology_study.json",
+        "benchmarks/release_gates.sh",
         "benchmarks/run_benchmarks.py"
       ]
     },

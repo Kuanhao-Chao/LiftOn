@@ -202,6 +202,8 @@ quality. The round that followed is recorded in §5.5–5.7 of
 | Wheel + sdist build | **passed** — `lifton-1.0.12-py3-none-any.whl`, `lifton-1.0.12.tar.gz` |
 | Clean-venv smoke | **passed** — `pip install --no-cache-dir` of the wheel into a fresh venv (building mappy, parasail and pysam from source, the empty-cache path that caught the broken `cigar` dependency at v1.0.10); `lifton --version`, `lifton -h`, `gff3-validate -h` all succeed and the new flags appear in `-h` |
 | Complete `pytest tests/` on the frozen tree | **1,979 passed, 2 skipped** (1 h 42 m, `PYTHONHASHSEED=0`) |
+| The installed wheel produces the same output as the tree | **byte-identical** — chr22 run from the clean venv's `lifton` gives md5 `160e05449efdb8bccef06fa12bb9b8b4`, the dev tree's md5. The smoke test only proved the wheel imports and answers `-h`; this proves the packaged artifact lifts identically |
+| Edited reStructuredText parses | **0 structural problems** in the three edited files (`function_manual`, `installation`, `changelog`). Caveat: this is docutils structural validation, not the full Sphinx build — Sphinx 9.1.0 needs Python ≥ 3.12 and no such interpreter was available on this host. The full build runs in CI on the `main` push, and these edits added no cross-references, only a table row and literal-block content |
 | `devel` CI on Python 3.10/3.11/3.12 | **green on all three** (run 34741426136, `81b1a23`) |
 
 One methodological note for the next release pass: **do not edit the tree while
