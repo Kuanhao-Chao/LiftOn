@@ -722,8 +722,10 @@ def args_optional(parser):
              "LiftOn emits -- includes it, and the ORF search cannot add it "
              "because such a model has no UTR to search. By default the "
              "terminal CDS and its exon grow by the three bases of a "
-             "downstream stop codon when there is one; the encoded amino acids "
-             "cannot change. Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
+             "downstream stop codon, after the ORF search and only when the "
+             "reference protein itself ends in a stop; the extension is scored "
+             "and kept only if the model does not get worse. "
+             "Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
     )
     parser.add_argument(
         '--rescue-isoforms', dest='rescue_isoforms',
