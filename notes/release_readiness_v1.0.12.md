@@ -191,6 +191,27 @@ quality. The round that followed is recorded in §5.5–5.7 of
 | `2a8fee0` | isoform prefetch stops re-fetching a row it already held | byte-identical | two subsets, `-t 1` and `-t 8`, identical md5 |
 | `843a73e` `2a91017` | analysis note, changelogs, CLAUDE.md | docs | — |
 
+### The escape hatches reproduce the pre-change bytes on a real genome
+
+Drosophila (same species, 92,679 rows, cached aligner inputs, `-t 1`):
+
+| arm | md5 |
+|---|---|
+| `--no-orf-stop-completion` | `946d1ceaf9528a0715fc8821a77e1330` |
+| `--no-orf-stop-completion --no-coverage-rescue-gate --no-rescue-isoforms` | `946d1ceaf9528a0715fc8821a77e1330` |
+| default (all three on) | `1bad8703c469154d06979416e72378a8` |
+
+`946d1cea…` is the drosophila default-path md5 recorded for v1.0.10/v1.0.11
+(`notes/release_readiness.md`), so the opt-outs restore the earlier bytes
+exactly — and the two rescue extensions are provably inert on same-species data,
+since turning off stop completion alone reaches the same file.
+
+With the default on, the **only** difference across those 92,679 rows is one
+gene: a minus-strand Step-8 miniprot model whose gene, mRNA, exon and CDS all
+begin three bases earlier, which is its stop codon in transcript orientation.
+That is the feature's whole footprint at same-species divergence, and it
+exercises the minus-strand path on real data.
+
 ### Dependabot: three open pyo3 advisories, assessed and deferred
 
 `lifton/gffbase/_rust/Cargo.lock` pins pyo3 0.22.6, and three advisories are
