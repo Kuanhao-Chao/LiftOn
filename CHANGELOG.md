@@ -8,7 +8,7 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
-## [1.0.12] - 2026-08-25
+## [1.0.12] - 2026-09-13
 
 A resource-safety and diagnostics release for very large target genomes (GH
 #71), which also recovers far more genes when the two species are distantly

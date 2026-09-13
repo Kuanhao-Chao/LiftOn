@@ -173,19 +173,21 @@ Run the following command to make sure LiftOn is properly installed:
                     [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT]
                     [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO]
                     [-gap_extend GE] [-polish] [-cds] [-time] [--validate-output]
-                    [--validate-verbose] [--allow-partial-output] [--strict-completeness]
-                    [--strict-gff] [--stream] [--inmemory-liftoff] [--locus-pipeline]
-                    [--no-locus-pipeline] [--parallel-lift] [--no-parallel-lift]
-                    [--step7-max-inflight N] [--step8-max-inflight N]
-                    [--evaluation-max-inflight N] [--native]
+                    [--validate-verbose] [--allow-partial-output]
+                    [--strict-completeness] [--strict-gff] [--stream]
+                    [--inmemory-liftoff] [--locus-pipeline] [--no-locus-pipeline]
+                    [--parallel-lift] [--no-parallel-lift] [--step7-max-inflight N]
+                    [--step8-max-inflight N] [--evaluation-max-inflight N] [--native]
                     [--serial-aligners | --parallel-aligners] [--optimize]
                     [--legacy-merge] [--full-dp-align] [--fast-align] [--gene-only]
                     [--lift-gene-like] [--no-miniprot-rescue] [--miniprot-rescue]
                     [--miniprot-cross-locus-rescue] [--no-miniprot-candidate]
                     [--miniprot-candidate] [--no-adaptive-rescue-floor]
                     [--adaptive-rescue-floor] [--coverage-rescue-gate]
-                    [--no-coverage-rescue-gate] [--rescue-isoforms] [--no-rescue-isoforms]
-                    -g GFF [-P FASTA] [-T FASTA] [-L gff] [-M gff]
+                    [--no-coverage-rescue-gate] [-dir PATH] [--orf-stop-completion]
+                    [--no-orf-stop-completion] [--rescue-isoforms]
+                    [--no-rescue-isoforms] -g GFF [-P FASTA] [-T FASTA] [-L gff]
+                    [-M gff]
                     [--merge-strategy {create_unique,merge,error,warning,replace}]
                     [--id-spec ID_SPEC] [--force] [--verbose] [-ad SOURCE]
                     [--no-auto-convert-gtf]
@@ -207,6 +209,7 @@ Run the following command to make sure LiftOn is properly installed:
           (default) banded / windowed alignment ...... --full-dp-align
           (default) protein-coverage rescue gate ..... --no-coverage-rescue-gate
           (default) isoform-aware rescue ............. --no-rescue-isoforms
+          (default) terminal-stop completion ......... --no-orf-stop-completion
 
         Byte-identical fast-paths (output unchanged; pinned by the 24-cell matrix):
           --threads N (per-locus fan-out and the parallel Liftoff lift loop
@@ -216,6 +219,11 @@ Run the following command to make sure LiftOn is properly installed:
           bases; --serial-aligners / --parallel-aligners force either policy
           Memory bounds: --step7-max-inflight / --step8-max-inflight /
           --evaluation-max-inflight (default 2 x --threads)
+
+        Run layout:
+          -dir/--intermediate-dir PATH gives a run its own directory for
+          intermediate files, statistics, score table and manifest (default:
+          lifton_output/ beside the output file)
 
         Validation:
           --strict-gff (reference, input side),

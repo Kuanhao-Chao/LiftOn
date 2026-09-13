@@ -23,22 +23,17 @@ LiftOn
 
       v1.0.12
 
-      usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial]
-                    [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S] [-min_miniprot MIN_MINIPROT]
-                    [-max_miniprot MAX_MINIPROT] [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH] [-f TYPES]
-                    [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT] [-copies] [-sc SC]
-                    [-overlap O] [-mismatch M] [-gap_open GO] [-gap_extend GE] [-polish] [-cds] [-time]
-                    [--validate-output] [--validate-verbose] [--allow-partial-output] [--strict-completeness]
-                    [--strict-gff] [--stream] [--inmemory-liftoff] [--locus-pipeline] [--no-locus-pipeline]
-                    [--parallel-lift] [--no-parallel-lift] [--step7-max-inflight N] [--step8-max-inflight N]
-                    [--evaluation-max-inflight N] [--native] [--serial-aligners | --parallel-aligners] [--optimize]
-                    [--legacy-merge] [--full-dp-align] [--fast-align] [--gene-only] [--lift-gene-like]
-                    [--no-miniprot-rescue] [--miniprot-rescue] [--miniprot-cross-locus-rescue]
-                    [--no-miniprot-candidate] [--miniprot-candidate] [--no-adaptive-rescue-floor]
-                    [--adaptive-rescue-floor] [--coverage-rescue-gate] [--no-coverage-rescue-gate]
-                    [--rescue-isoforms] [--no-rescue-isoforms] -g GFF [-P FASTA] [-T FASTA] [-L gff] [-M gff]
-                    [--merge-strategy {create_unique,merge,error,warning,replace}] [--id-spec ID_SPEC] [--force]
-                    [--verbose] [-ad SOURCE] [--no-auto-convert-gtf]
+      usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S]
+                    [-min_miniprot MIN_MINIPROT] [-max_miniprot MAX_MINIPROT] [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH] [-f TYPES] [-infer-genes]
+                    [-infer_transcripts] [-chroms TXT] [-unplaced TXT] [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO] [-gap_extend GE] [-polish]
+                    [-cds] [-time] [--validate-output] [--validate-verbose] [--allow-partial-output] [--strict-completeness] [--strict-gff] [--stream]
+                    [--inmemory-liftoff] [--locus-pipeline] [--no-locus-pipeline] [--parallel-lift] [--no-parallel-lift] [--step7-max-inflight N]
+                    [--step8-max-inflight N] [--evaluation-max-inflight N] [--native] [--serial-aligners | --parallel-aligners] [--optimize] [--legacy-merge]
+                    [--full-dp-align] [--fast-align] [--gene-only] [--lift-gene-like] [--no-miniprot-rescue] [--miniprot-rescue] [--miniprot-cross-locus-rescue]
+                    [--no-miniprot-candidate] [--miniprot-candidate] [--no-adaptive-rescue-floor] [--adaptive-rescue-floor] [--coverage-rescue-gate]
+                    [--no-coverage-rescue-gate] [-dir PATH] [--orf-stop-completion] [--no-orf-stop-completion] [--rescue-isoforms] [--no-rescue-isoforms] -g GFF
+                    [-P FASTA] [-T FASTA] [-L gff] [-M gff] [--merge-strategy {create_unique,merge,error,warning,replace}] [--id-spec ID_SPEC] [--force] [--verbose]
+                    [-ad SOURCE] [--no-auto-convert-gtf]
                     target reference
 
       Lift features from one genome assembly to another
@@ -250,6 +245,9 @@ scheduling), and which flag restores the older behaviour.
    * - Isoform-aware rescue — *v1.0.12*
      - ``--no-rescue-isoforms``
      - CHANGES output (adds transcripts to rescued genes; gene placement unchanged). ``--rescue-isoforms`` is a no-op alias. Env ``LIFTON_RESCUE_ISOFORMS=0/1``.
+   * - Terminal-stop completion of miniprot-derived models — *v1.0.12*
+     - ``--no-orf-stop-completion``
+     - CHANGES output, non-decreasing per transcript: miniprot's CDS ends at the last aligned codon, so its models lacked the stop the reference convention includes, and the ORF search cannot add it (such a model has no UTR to search). The terminal CDS and its exon grow by those three bases — after the ORF search, only when the reference protein itself ends in a stop, and only when re-scoring shows no loss. Across 8 ladder cells and 5 whole genomes, no transcript changed in any other way; rescued models ending in a stop rise 1.7–8.9 points. ``--orf-stop-completion`` is a no-op alias. Env ``LIFTON_ORF_STOP_COMPLETION=0/1``.
    * - Coding transcripts harmonized to ``mRNA``; every CDS carries an ``ID`` and the reference's descriptive attributes — *v1.0.10*
      - ``LIFTON_NO_MRNA_HARMONIZE=1`` / ``LIFTON_NO_CDS_ATTR_CARRY=1`` / ``LIFTON_NO_CONTAINMENT_NORMALIZE=1``
      - CHANGES column 3 and column 9 only; coordinates and the encoded protein are untouched. Output grows 12–43%.

@@ -7,7 +7,7 @@ Changelog
 v1.0.12
 --------
 
-Resource-safety and diagnostics release (2026-08-25), motivated by GH #71's two
+Resource-safety and diagnostics release (2026-09-13), motivated by GH #71's two
 native ``SIGSEGV`` failures on an approximately 20-Gb target. It also recovers
 far more genes between distantly related species and runs multi-threaded by
 default.
