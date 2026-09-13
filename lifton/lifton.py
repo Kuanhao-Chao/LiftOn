@@ -2241,4 +2241,9 @@ An accurate homology lift-over tool between assemblies
         if isinstance(exc, (LiftOnPartialOutputError,
                             LiftOnValidationError)):
             raise SystemExit(2) from None
+        if isinstance(exc, LiftOnInputError):
+            # The input is the user's to fix, and the message already says what
+            # is wrong and what to do; a traceback only buries it.
+            logger.log_error(str(exc))
+            raise SystemExit(2) from None
         raise

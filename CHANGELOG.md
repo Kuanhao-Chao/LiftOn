@@ -109,6 +109,11 @@ related and runs multi-threaded by default.
 
 ### Fixed
 
+- **An unreadable input now ends the run with its message, not a traceback.**
+  A `LiftOnInputError` says what is wrong with the file and what to do about it;
+  it propagated as an exception, so the message arrived buried under a stack
+  trace. LiftOn now prints it and exits 2, as it already did for a partial or
+  invalid output.
 - **A flat annotation no longer selects nothing and dies inside Liftoff.** A
   prokaryotic or otherwise flat GFF3 — bakta output, a miniprot GFF — has
   top-level `CDS` rows and no `gene`, so the gene-like auto-detection found
