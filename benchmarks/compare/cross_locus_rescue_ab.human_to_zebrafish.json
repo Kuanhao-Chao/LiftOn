@@ -1,6 +1,6 @@
 {
   "pair": "human_to_zebrafish",
-  "n_replaced(cross_locus_tag_on)": 388,
+  "n_cross_locus_tagged_transcripts": 388,
   "DUPLICATE_GENE_IDS_on": 0,
   "DUPLICATE_GENE_IDS_off": 0,
   "dup_examples_on": [],
@@ -19,6 +19,7 @@
   "DUPLICATE_SAFE": true,
   "n_isoforms_attached": 244,
   "n_cross_locus_transcripts": 388,
+  "n_genes_replaced": 144,
   "validity": {
     "off": {
       "exit": 0,
