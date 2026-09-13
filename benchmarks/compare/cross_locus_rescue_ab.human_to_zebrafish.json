@@ -1,0 +1,44 @@
+{
+  "pair": "human_to_zebrafish",
+  "n_replaced(cross_locus_tag_on)": 388,
+  "DUPLICATE_GENE_IDS_on": 0,
+  "DUPLICATE_GENE_IDS_off": 0,
+  "dup_examples_on": [],
+  "recovered_off": 65539,
+  "recovered_on": 65378,
+  "recovered_delta": -161,
+  "n_transcripts_lost(off-minus-on)": 237,
+  "n_transcripts_gained(on-minus-off)": 76,
+  "n_improved_common": 312,
+  "n_regressed_common": 0,
+  "mean_pi_off": 0.62324,
+  "mean_pi_on": 0.62818,
+  "apples_to_apples_vs_miniprot_off": -0.00883,
+  "apples_to_apples_vs_miniprot_on": -0.00384,
+  "deficit_shrunk": true,
+  "DUPLICATE_SAFE": true,
+  "n_isoforms_attached": 244,
+  "n_cross_locus_transcripts": 388,
+  "validity": {
+    "off": {
+      "exit": 0,
+      "n_errors": 0,
+      "n_warnings": 152,
+      "valid": true
+    },
+    "on": {
+      "exit": 0,
+      "n_errors": 0,
+      "n_warnings": 152,
+      "valid": true
+    }
+  },
+  "gate": {
+    "duplicate_safe": true,
+    "no_transcript_cost": false,
+    "identity_improved": true,
+    "no_regression_on_common": true,
+    "validity_not_worse": true
+  },
+  "gate_pass": false
+}

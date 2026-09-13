@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "a5c91ad425fa759a55e24b3f9766c3901d013b7ddbc76bc13f3f12a667fc9a70",
-      "bytes": 499141,
+      "aggregate_sha256": "c9ee1187af12a438a0d963260406945f9e6abe6ebc945a8bd0d0aec56fc8b921",
+      "bytes": 499195,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -228,13 +228,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "a5ff08aaf51a9b6b7165e963643a016783ee2a56a17a28e717094aae7f9f4705",
-      "bytes": 128106,
+      "aggregate_sha256": "be55fd1b7fb6ad9264ad166240708224d38620af31469d5d5eb1ba794e7a8200",
+      "bytes": 138693,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
-      "file_count": 5,
+      "file_count": 7,
       "id": "promotion_ab_v1012",
       "superseded_by": null
     }
@@ -861,6 +861,30 @@
       "json_schema": null,
       "path": "benchmarks/compare/coverage_matrix.py",
       "sha256": "913339471d635b5c5f0c84946900a5b6ae638f5bac0a520815df707aeafae9be"
+    },
+    {
+      "bytes": 1069,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": {
+        "document_type": "object",
+        "shape_sha256": "0e3bdbf3263e43bc53b9f1f0770d112ca4b9094ed1386ec4f0fb5c473b9b3a94",
+        "top_level_count": 23
+      },
+      "path": "benchmarks/compare/cross_locus_rescue_ab.human_to_zebrafish.json",
+      "sha256": "54f5a585b5738b1e54b0854e3f162c2e6805549d629dd10b65df5346b37865bf"
+    },
+    {
+      "bytes": 9518,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": null,
+      "path": "benchmarks/compare/cross_locus_rescue_ab.py",
+      "sha256": "c076113b477935bb1625347c42ca60be54d7fc726e1af8d084803817b2362c90"
     },
     {
       "bytes": 2715,
@@ -3309,18 +3333,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 11856,
+      "bytes": 11910,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "e29cd4d0b246e2ee4dd329de657fdd1d499294955f86ec81e9dd3243c0bfb417",
+        "shape_sha256": "6315be2195bbb1697091e3e9bb216f270fab6c4ff24ab3fce442bffd06e46c34",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "7f7770d5afb0c9aec31b89e07a9a126e1cd39e7a0457384658fcce3e49a09e03"
+      "sha256": "1e504ba0809d830579140e786b602e5506c838b61008f9244350f0a68b29f098"
     },
     {
       "bytes": 34428,
@@ -3498,7 +3522,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "ea4faa9c9fffb8648d1d27dde0ff24c2649c1bea13b1284c8f1d1b93b24afa86",
+  "inventory_sha256": "6bd1cdc2db8af98f6703cd52183befd5363a923ee26368a2a3c2fd333fb9cea0",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3542,19 +3566,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "732450c61b2ae270dfa1d3dc8397573f4cd050af9e090ea4481ed28208898acf",
+  "rules_sha256": "c4674d9b272c5762d35cec1cb353db7dbc3c27d536dc3d21688559c3710fcdf5",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "82e27bbbb4f8fb16f662ef6ebe6a47c7200ec63fed7ca0b4bd7be30c7759d71b",
-    "bytes": 13382089,
+    "aggregate_sha256": "90a67af72c4c2257d6498823b3cdc708a09a05978db268388c2d8b85b3c3134d",
+    "bytes": 13392730,
     "classification_counts": {
       "canonical": 75,
-      "diagnostic": 38,
+      "diagnostic": 40,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 283
+    "file_count": 285
   }
 }

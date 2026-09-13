@@ -313,6 +313,29 @@ span reaches no other emitted model. Two further corrections: a replacement must
 coverage gate, so a high-identity *partial* hit cannot displace a weak but full-length lift;
 and the transcript ids lose the copy suffix the gene id already loses.
 
+**Cross-locus stays opt-in, and its motivation has shrunk.** The A/B on human →
+zebrafish, both arms on the v1.0.12 default:
+
+| | before the isoform repair | after |
+|---|---:|---:|
+| genes replaced | 146 | 388 |
+| isoforms attached | — | 244 |
+| net transcripts | **−401** | **−161** |
+| mean protein identity | 0.597 → 0.632 | 0.623 → 0.628 |
+| apples-to-apples deficit vs miniprot | −0.067 → −0.031 | −0.0088 → −0.0038 |
+
+The repair works — it cuts the transcript cost by 60 % — but the pass still ends
+with fewer transcripts than it started, so it **fails the promotion gate and
+stays opt-in**. Duplicate-safe, no regression on the common set, validity
+unchanged.
+
+The more interesting number is the baseline. The deficit against miniprot that
+cross-locus was built to close was −0.067 when it was written; on the v1.0.12
+default it is **−0.0088**, because the coverage sub-pass and the isoform rescue
+already closed 87 % of it. Cross-locus now moves it to −0.0038 at a cost of 161
+transcripts. A second cell was not run: the gate is decided by zebrafish, and
+the motivation is no longer there to justify the compute.
+
 **Two reported failures fixed.** A flat annotation — a prokaryotic bakta GFF, a miniprot GFF —
 has top-level `CDS` rows and no `gene`, so the gene-like auto-detection found nothing, fell
 back to `gene`, selected nothing, and the run died several steps later inside vendored Liftoff
