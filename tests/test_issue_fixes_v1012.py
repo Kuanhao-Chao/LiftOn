@@ -175,3 +175,18 @@ def test_an_input_error_exits_cleanly_rather_than_tracebacking(tmp_path, capsys)
         lifton.main(argv)
     assert raised.value.code == 2
     assert "No features to lift" in capsys.readouterr().err
+
+
+def test_a_meta_type_bearing_a_hierarchy_is_still_detected(tmp_path):
+    """The meta-type filter applies to the fallback only. A type that genuinely
+    bears a hierarchy must keep being lifted, or annotations the old code
+    handled would silently lose features."""
+    _genomes(tmp_path)
+    path = tmp_path / "ref.gff3"
+    path.write_text(
+        "##gff-version 3\n"
+        "chr1\tt\tregion\t1\t800\t.\t+\t.\tID=r1\n"
+        "chr1\tt\tmatch\t101\t199\t.\t+\t.\tID=m1\n"
+        "chr1\tt\tmatch_part\t101\t199\t.\t+\t.\tID=mp1;Parent=m1\n")
+    ref_db = annotation.Annotation(str(path), False, False, force=True)
+    assert lifton_utils.get_gene_like_feature_types(ref_db) == ["match"]
