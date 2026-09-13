@@ -40,8 +40,27 @@ default.
   fresh-Liftoff aligner phase at ``-t 8`` halves on drosophila
   (261 s to 134 s).
 
+- Miniprot-derived models now carry their stop codon. miniprot's CDS ends at
+  the last aligned codon, while the reference convention -- and every other
+  model LiftOn emits -- includes the stop, and the ORF search could not add it
+  because such a model has no UTR to search. Only 39-59 % of rescued models on
+  the distant whole genomes ended in a stop. The terminal CDS and its exon now
+  grow by those three bases when the genome has them and the reference protein
+  ends in a stop, after the ORF search and only when the model does not get
+  worse. ``--no-orf-stop-completion`` opts out.
+- ``-dir/--intermediate-dir`` puts a run's intermediate files, statistics,
+  score table and manifest where you choose, so concurrent runs sharing an
+  output directory no longer share one ``lifton_output/`` (GH #14).
+
 **Changed and fixed:**
 
+- A flat annotation -- a prokaryotic GFF3 with top-level ``CDS`` rows and no
+  ``gene`` -- now lifts those rows instead of selecting nothing and failing
+  several steps later inside Liftoff, and an empty selection stops the run at
+  once, naming the feature types the annotation contains (GH #37).
+- ``run_manifest.json`` records where the miniprot-only rescue spends its time,
+  split across candidate placement, the coverage sub-pass, and the isoform
+  pass's prefetch, scoring and attachment.
 - Targets above 4,000,000,000 bases run Liftoff/minimap2 before miniprot by
   default, preventing the two index-memory peaks from overlapping. Smaller
   targets retain concurrent execution. ``--serial-aligners`` and

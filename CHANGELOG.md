@@ -62,6 +62,19 @@ related and runs multi-threaded by default.
   the aligner phase takes 134 s instead of 261 s on drosophila and 1,206 s
   instead of 3,020 s on dog → cat (whole run 3,092 s instead of 4,878 s).
   Intermediate Liftoff GFF3 files are identical to v1.0.11's.
+- **Miniprot-derived models now carry their stop codon.** miniprot reports a
+  coding alignment, so its CDS ends at the last aligned codon and excludes the
+  stop; everything else LiftOn emits follows the reference convention, where a
+  CDS includes it. The ORF search could not repair this, because it scans the
+  spliced transcript and such a model has no UTR — the stop sitting immediately
+  downstream in the genome was outside the sequence being searched. Only 39–59 %
+  of rescued models on the five distant whole genomes ended in a stop. When the
+  next codon in the genome is a stop, and the reference protein itself ends in
+  one, the terminal CDS and its exon now grow by exactly those three bases,
+  after the ORF search, so the search sees the same sequence it always did. The
+  extension is scored and kept only when the model does not get worse.
+  `--no-orf-stop-completion` (or `LIFTON_ORF_STOP_COMPLETION=0`) restores the
+  miniprot boundary.
 - **Targets above 4,000,000,000 bases no longer build the minimap2 and
   miniprot indexes concurrently by default.** Liftoff/minimap2 completes first,
   then miniprot starts, preventing their index-memory peaks from overlapping.
@@ -75,6 +88,15 @@ related and runs multi-threaded by default.
 
 ### Added
 
+- **`-dir/--intermediate-dir`** puts a run's intermediate files, statistics,
+  score table and manifest wherever you say, instead of always in
+  `lifton_output/` beside the output file. Concurrent runs writing into one
+  output directory used to share that directory and overwrite each other's
+  intermediate files (GH #14). The default is unchanged.
+- **The run manifest records where the miniprot-only rescue spends its time**,
+  split across its sub-passes: candidate placement, the coverage sub-pass, and
+  the isoform pass's prefetch, scoring and attachment. On a distant transfer the
+  rescue is the largest phase of the run and the split was not visible at all.
 - **Structured external-tool evidence in `run_manifest.json`.** Manifests now
   include target base/sequence statistics, the resolved scheduling decision,
   and per-execution command, stage, status, return code, signal, and bounded
@@ -87,6 +109,15 @@ related and runs multi-threaded by default.
 
 ### Fixed
 
+- **A flat annotation no longer selects nothing and dies inside Liftoff.** A
+  prokaryotic or otherwise flat GFF3 — bakta output, a miniprot GFF — has
+  top-level `CDS` rows and no `gene`, so the gene-like auto-detection found
+  nothing and fell back to `gene`, which selected nothing; the run continued for
+  several steps and then exited with a bare "Use -f to provide a list of other
+  feature types to lift over". Detection now falls back to the top-level types
+  the annotation actually has, skipping those that describe a sequence rather
+  than a feature on it, and an empty selection stops the run immediately with
+  the file, what was looked for, and what the annotation contains (GH #37).
 - **Trans-spliced copies retain the correct same-sequence hierarchy.** When
   the same logical parent ID appears on multiple sequences, copied children no
   longer attach to the matching ID on a different sequence during GFF3 output.
