@@ -191,6 +191,25 @@ quality. The round that followed is recorded in §5.5–5.7 of
 | `2a8fee0` | isoform prefetch stops re-fetching a row it already held | byte-identical | two subsets, `-t 1` and `-t 8`, identical md5 |
 | `843a73e` `2a91017` | analysis note, changelogs, CLAUDE.md | docs | — |
 
+### Second-round gates
+
+| Gate | Result |
+|---|---|
+| Terminal-stop completion A/B | **13/13 PASS** — 8 ladder cells + 5 whole genomes; 0 lost, 0 duplicates, 0 regressions, validity unchanged, and **0 transcripts changed other than a three-base terminal extension** on every cell |
+| Cross-locus v2 A/B | **gate FAIL on transcript cost** (−161, from −401); duplicate-safe, identity up, no regression on the common set. Stays opt-in |
+| chr22 example, `-t 1` and `-t 8`, `-copies -sc 0.95` | exit 0, **byte-identical to each other and to the `307abc6` gate**: md5 `160e05449efdb8bccef06fa12bb9b8b4` — so the whole second round is byte-neutral on same-species chr22 |
+| `gff3-validate` on that output | **VALID**, 0 errors, 59 warnings |
+| Wheel + sdist build | **passed** — `lifton-1.0.12-py3-none-any.whl`, `lifton-1.0.12.tar.gz` |
+| Clean-venv smoke | **passed** — `pip install --no-cache-dir` of the wheel into a fresh venv (building mappy, parasail and pysam from source, the empty-cache path that caught the broken `cigar` dependency at v1.0.10); `lifton --version`, `lifton -h`, `gff3-validate -h` all succeed and the new flags appear in `-h` |
+| Complete `pytest tests/` on the frozen tree | pending |
+| `devel` CI on Python 3.10/3.11/3.12 | pending push |
+
+One methodological note for the next release pass: **do not edit the tree while
+the suite runs.** Two `test_robustness_batch` cases use `inspect.getsource`,
+which re-reads the file at call time against line numbers captured at import, so
+editing `lifton/lifton.py` mid-run handed them the wrong function and produced
+two failures that were not regressions. Both pass on a stable tree.
+
 ### The escape hatches reproduce the pre-change bytes on a real genome
 
 Drosophila (same species, 92,679 rows, cached aligner inputs, `-t 1`):
