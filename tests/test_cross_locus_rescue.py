@@ -237,20 +237,21 @@ def test_flag_off_is_inert(tmp_path, monkeypatch):
 # Replacing a gene drops every block it had, so emitting one transcript cost the
 # isoforms: on human -> zebrafish the pass raised mean protein identity from
 # 0.597 to 0.632 and still lost 401 transcripts net.
-def test_emitted_interval_index_excludes_the_replaced_gene():
-    index = {
-        "gene-X": {"best_pi": 0.1, "intervals": [("chrA", 50, 90)]},
-        "gene-Y": {"best_pi": 0.9, "intervals": [("chrA", 500, 900),
-                                                 ("chrB", 10, 20)]},
-    }
-    by_seqid = xlocus._emitted_interval_index(index, "gene-X")
-    assert by_seqid == {"chrA": [(500, 900)], "chrB": [(10, 20)]}
-    assert xlocus._emitted_interval_index(index, "gene-Y") == {
-        "chrA": [(50, 90)]}
+INDEX = {
+    "gene-X": {"best_pi": 0.1, "intervals": [("chrA", 50, 90)]},
+    "gene-Y": {"best_pi": 0.9, "intervals": [("chrA", 500, 900),
+                                             ("chrB", 10, 20)]},
+}
+
+
+def test_emitted_interval_index_carries_the_owning_gene():
+    assert xlocus._emitted_interval_index(INDEX) == {
+        "chrA": [(50, 90, "gene-X"), (500, 900, "gene-Y")],
+        "chrB": [(10, 20, "gene-Y")]}
 
 
 def test_reaches_another_gene_detects_only_real_overlap():
-    by_seqid = {"chrA": [(100, 200), (500, 900)]}
+    by_seqid = {"chrA": [(100, 200, "g1"), (500, 900, "g2")]}
     assert xlocus._reaches_another_gene(by_seqid, "chrA", 150, 160) is True
     assert xlocus._reaches_another_gene(by_seqid, "chrA", 50, 120) is True
     assert xlocus._reaches_another_gene(by_seqid, "chrA", 890, 1000) is True
@@ -258,6 +259,17 @@ def test_reaches_another_gene_detects_only_real_overlap():
     assert xlocus._reaches_another_gene(by_seqid, "chrA", 950, 1000) is False
     assert xlocus._reaches_another_gene(by_seqid, "chrZ", 150, 160) is False
     assert xlocus._reaches_another_gene({}, "chrA", 1, 10) is False
+
+
+def test_a_gene_does_not_collide_with_its_own_emitted_model():
+    """The gene being replaced is excluded at query time, so the index can be
+    built once for the whole pass instead of per candidate."""
+    by_seqid = xlocus._emitted_interval_index(INDEX)
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 60, 80) is True
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 60, 80,
+                                        skip_gene_id="gene-X") is False
+    assert xlocus._reaches_another_gene(by_seqid, "chrA", 600, 800,
+                                        skip_gene_id="gene-X") is True
 
 
 def test_partial_hit_cannot_displace_a_full_length_lift(tmp_path, monkeypatch):
