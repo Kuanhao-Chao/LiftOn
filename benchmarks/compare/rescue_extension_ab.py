@@ -713,6 +713,28 @@ def _write_markdown(experiment, results, path):
                 _recall_cell(r, "on", "transcript_recall_coding"),
                 v["off"].get("n_errors"), v["on"].get("n_errors"),
                 "**PASS**" if r["gate_pass"] else "FAIL"))
+    shape_rows = [r for r in results if r.get("stop_extension_shape")]
+    if shape_rows:
+        # An experiment that changes EXISTING transcripts adds nothing, so every
+        # column above reads 0 or None. What it actually did belongs here.
+        lines += ["", "### What changed, and the quality of the models it changed", "",
+                  "`changed otherwise` must be 0: every transcript that moved did so "
+                  "only by a three-base terminal CDS+exon extension. The ORF columns "
+                  "cover the miniprot-only rescued models, the population this "
+                  "affects.", "",
+                  "| cell | transcripts | extended | changed otherwise | ends in a stop "
+                  "off→on | starts with M off→on | ORF-valid off→on |",
+                  "|---|---|---|---|---|---|---|"]
+        for r in shape_rows:
+            sh = r["stop_extension_shape"]
+            q = r.get("rescued_orf_quality") or {}
+            off, on = (q.get("off") or {}), (q.get("on") or {})
+            lines.append(
+                f"| {r['benchmark']} ({r['mode']}) | {sh['n_transcripts_on']} | "
+                f"{sh['n_extended']} | {sh['n_changed_otherwise']} | "
+                f"{off.get('stop_ok')}→{on.get('stop_ok')} | "
+                f"{off.get('start_ok')}→{on.get('start_ok')} | "
+                f"{off.get('orf_valid')}→{on.get('orf_valid')} |")
     lines += ["", "### Added models against the earlier rescues", "",
               "Earlier rescues are the miniprot-only models already in the OFF "
               "output, the natural comparison for what the experiment adds.", "",
