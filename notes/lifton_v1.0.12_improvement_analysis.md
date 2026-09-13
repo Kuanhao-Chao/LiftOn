@@ -298,10 +298,23 @@ termini.
   did not get worse. Appending a residue can shift a global alignment; 1 of 122 completed
   transcripts on that cell lost 0.0013 identity, so the extension is now reverted in that case.
 
-Ladder A/B, 8/8 PASS, 0 transcripts changed other than a three-base terminal extension, 0
-regressions: stop-codon fraction rises 2.5–8.9 points and ORF validity 1.6–4.0 points on every
-cell (*C. elegans* → *briggsae* 0.653 → 0.700, rice → sorghum 0.438 → 0.527, human → xenopus
-0.574 → 0.639); the same-species control is inert.
+A/B, **13/13 PASS** — the eight-cell ladder and five whole genomes. On every cell: 0 lost,
+0 duplicates, 0 regressions, validity unchanged, and **0 transcripts changed by anything other
+than a three-base terminal CDS+exon extension**. The start-codon fraction is unchanged
+everywhere, as it must be; only the 3′ end moves.
+
+| whole genome | transcripts | extended | ends in a stop | ORF-valid |
+|---|---:|---:|---|---|
+| human → zebrafish | 66,299 | 2,943 | 0.502 → 0.550 | 0.241 → 0.262 |
+| human → chicken | 82,638 | 2,362 | 0.585 → 0.633 | 0.329 → 0.356 |
+| human → xenopus | 75,763 | 3,552 | 0.556 → 0.611 | 0.291 → 0.319 |
+| arabidopsis → rice | 13,982 | 771 | 0.392 → 0.454 | 0.136 → 0.156 |
+| drosophila → honey bee | 7,612 | 359 | 0.421 → 0.468 | 0.148 → 0.159 |
+
+The ladder shows the same pattern (*C. elegans* → *briggsae* 0.653 → 0.700, rice → sorghum
+0.438 → 0.527, human → xenopus 0.574 → 0.639), and the same-species control moves one
+transcript. It is free: human → zebrafish takes 2,435 s against 2,431 s, and peak memory is
+unchanged.
 
 **Cross-locus replacement keeps its isoforms.** The opt-in pass replaces a weakly lifted gene
 with a better miniprot model on another chromosome, dropping every block the weak gene had. It
