@@ -62,12 +62,16 @@ class TestFlatAnnotation:
         ref_db = self._ref_db(tmp_path, FLAT_GFF)
         assert lifton_utils.get_gene_like_feature_types(ref_db) == ["CDS"]
 
-    def test_meta_types_are_never_selected(self, tmp_path):
-        ref_db = self._ref_db(
-            tmp_path,
-            "##gff-version 3\n"
-            "chr1\tt\tregion\t1\t800\t.\t+\t.\tID=r1\n"
-            "chr1\tt\tchromosome\t1\t800\t.\t+\t.\tID=c1\n")
+    @pytest.mark.parametrize("rows", [
+        # landmarks
+        "chr1\tt\tregion\t1\t800\t.\t+\t.\tID=r1\n"
+        "chr1\tt\tchromosome\t1\t800\t.\t+\t.\tID=c1\n",
+        # childless regulatory features are not lift targets either
+        "chr1\tt\tenhancer\t10\t20\t.\t+\t.\tID=e1\n"
+        "chr1\tt\tregion\t1\t800\t.\t+\t.\tID=r1\n",
+    ])
+    def test_nothing_liftable_still_falls_back_to_gene(self, tmp_path, rows):
+        ref_db = self._ref_db(tmp_path, "##gff-version 3\n" + rows)
         assert lifton_utils.get_gene_like_feature_types(ref_db) == ["gene"]
 
     def test_a_gene_bearing_annotation_is_unchanged(self, tmp_path):
