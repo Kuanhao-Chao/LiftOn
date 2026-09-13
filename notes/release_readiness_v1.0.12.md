@@ -201,8 +201,8 @@ quality. The round that followed is recorded in §5.5–5.7 of
 | `gff3-validate` on that output | **VALID**, 0 errors, 59 warnings |
 | Wheel + sdist build | **passed** — `lifton-1.0.12-py3-none-any.whl`, `lifton-1.0.12.tar.gz` |
 | Clean-venv smoke | **passed** — `pip install --no-cache-dir` of the wheel into a fresh venv (building mappy, parasail and pysam from source, the empty-cache path that caught the broken `cigar` dependency at v1.0.10); `lifton --version`, `lifton -h`, `gff3-validate -h` all succeed and the new flags appear in `-h` |
-| Complete `pytest tests/` on the frozen tree | pending |
-| `devel` CI on Python 3.10/3.11/3.12 | pending push |
+| Complete `pytest tests/` on the frozen tree | **1,979 passed, 2 skipped** (1 h 42 m, `PYTHONHASHSEED=0`) |
+| `devel` CI on Python 3.10/3.11/3.12 | **green on all three** (run 34741426136, `81b1a23`) |
 
 One methodological note for the next release pass: **do not edit the tree while
 the suite runs.** Two `test_robustness_batch` cases use `inspect.getsource`,
@@ -252,8 +252,8 @@ as something to attempt while cutting a release.
 
 | Surface | State |
 |---|---|
-| Git commit | pending |
-| `devel` CI on Python 3.10/3.11/3.12 | pending |
+| Git commit | 28 commits pushed to `origin/devel`, head `81b1a23` |
+| `devel` CI on Python 3.10/3.11/3.12 | green |
 | `main` CI and Sphinx Pages | pending |
 | Git tag / GitHub Release | pending |
 | TestPyPI / PyPI | pending |
