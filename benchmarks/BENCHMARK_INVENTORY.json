@@ -228,13 +228,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "c33bc3fb31c51ddd965f78e79213e201ef5f9f6b3eaa6c0631f7494feaea1c58",
-      "bytes": 139460,
+      "aggregate_sha256": "b4d51cfa3313dbe401d34a12ef31b3e615db6e28057e800816ce5824640eb1f5",
+      "bytes": 198455,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
-      "file_count": 7,
+      "file_count": 9,
       "id": "promotion_ab_v1012",
       "superseded_by": null
     }
@@ -2849,14 +2849,38 @@
       "sha256": "594aa7878e6db659bb77113af3b9b4de052c12353069f633fad53f4da6c0b99e"
     },
     {
-      "bytes": 32138,
+      "bytes": 51410,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "f4a603945cb40074954c195eb13d8101e08f43e3076c26cee58be5fd81e64d54",
+        "top_level_count": 13
+      },
+      "path": "benchmarks/compare/rescue_extension_ab.orf_stop_completion.json",
+      "sha256": "0055e60e519cc3384f6f5e3f194c4b49821a75867fb3dd1e1bbb5583ae80dec2"
+    },
+    {
+      "bytes": 6176,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1012",
+      "json_schema": null,
+      "path": "benchmarks/compare/rescue_extension_ab.orf_stop_completion.md",
+      "sha256": "5937388fceebc3254001c301091fd4e6624b63ae9035aa052ac9a9c8b01b13e1"
+    },
+    {
+      "bytes": 33547,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
       "family": "promotion_ab_v1012",
       "json_schema": null,
       "path": "benchmarks/compare/rescue_extension_ab.py",
-      "sha256": "0a1c5ca4b6d0435d6a9ff9d8eeb76a57b9588d5bf76a9725dac85c4f1e9af30b"
+      "sha256": "adc2fd2d8c2ab131d22680b531e3ca6e6a97e258b2cdac31d8e00d7d79ce6ed1"
     },
     {
       "bytes": 9124,
@@ -3522,7 +3546,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "a492162ddc11038b98eb9ce75838e58e1360f3aa243b25b2884b397981153a32",
+  "inventory_sha256": "78cf94d992c77563551fcea6682944833ec13bffb00ce5cee2d16696e71cea6e",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3570,15 +3594,15 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "329c07683b72401fb9effbe9d2833d67e8ebfa717cd657cf00441eeb0c81b890",
-    "bytes": 13393497,
+    "aggregate_sha256": "fee0e4b1f16149693ce7092e0839433445857c7b487993ee9ff0b64e4bbafe90",
+    "bytes": 13452492,
     "classification_counts": {
       "canonical": 75,
-      "diagnostic": 40,
+      "diagnostic": 42,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 285
+    "file_count": 287
   }
 }

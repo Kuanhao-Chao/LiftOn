@@ -51,10 +51,18 @@ def test_inventory_covers_all_curated_classes_and_registry_ids():
 
 
 def test_local_run_artifacts_are_not_release_evidence():
+    """Local run trees stay out of the inventory.
+
+    ``cross_locus_rescue_ab.py`` was named here while it was untracked scratch.
+    It is now the generator of a committed A/B result that the v1.0.12 notes
+    cite for keeping the cross-locus pass opt-in, so it is release evidence and
+    is deliberately no longer excluded -- the same reasoning that put
+    ``figure4_outliers.py`` under version control.
+    """
     document = _build()
     paths = {record["path"] for record in document["files"]}
     assert not any("/_runs/" in path for path in paths)
-    assert "benchmarks/compare/cross_locus_rescue_ab.py" not in paths
+    assert not any("/_v1012/" in path for path in paths)
     assert "benchmarks/results_rerun/FINAL_RERUN_REPORT.md" not in paths
     assert "benchmarks/compare/_runs/**" in document["ineligible_local_patterns"]
 
