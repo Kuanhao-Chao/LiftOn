@@ -232,18 +232,22 @@ def get_gene_like_feature_types(ref_db, sample_cap=5000):
     `["gene"]` fallback selected nothing from it, so the run died several steps
     later inside vendored Liftoff (GH #37). Falls back to `["gene"]` only when
     the annotation has no usable top-level type either.
+
+    The meta-type filter applies to that fallback ONLY. Applying it to the
+    detection as well would drop a type that genuinely bears a hierarchy --
+    `match` over `match_part`, say -- from annotations the old code lifted, so
+    this stays strictly a change to the case where nothing was selected at all.
     """
     conn = ref_db.db_connection
     gene_like, top_level = set(), set()
     for ftype in conn.featuretypes():
-        if ftype in META_FEATURE_TYPES:
-            continue
         for i, locus in enumerate(conn.features_of_type(ftype)):
             if i >= sample_cap:
                 break
             if "Parent" in locus.attributes:
                 continue                      # child-level instance; keep looking
-            top_level.add(ftype)
+            if ftype not in META_FEATURE_TYPES:
+                top_level.add(ftype)
             if any(True for _ in conn.children(locus, level=1)):
                 gene_like.add(ftype)
                 break                         # one child-bearing top-level is enough
