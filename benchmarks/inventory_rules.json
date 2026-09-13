@@ -276,6 +276,7 @@
       "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
       "superseded_by": null,
       "patterns": [
+        "benchmarks/compare/cross_locus_rescue_ab.*",
         "benchmarks/compare/rescue_extension_ab.*"
       ]
     }
