@@ -201,12 +201,18 @@ def get_parent_features_to_lift(feature_types_file):
     return feature_types
 
 
-#: Types that describe a sequence or an assembly rather than a feature on it.
-#: Never lifted, and never a fallback when no gene-like type is found.
-META_FEATURE_TYPES = frozenset((
-    "region", "source", "chromosome", "scaffold", "contig", "supercontig",
-    "biological_region", "assembly", "match", "match_part", "remark",
-))
+def _flat_fallback_types():
+    """Top-level types worth lifting when no type bears a hierarchy at all.
+
+    A positive list, not an exclusion list: a flat annotation's genes are its
+    `CDS` rows (bakta output, a miniprot GFF), while its other top-level rows
+    are landmarks and regulatory features that were never lift targets. An
+    exclusion list would have to anticipate every one of those -- and a first
+    attempt at one selected childless `enhancer` rows, which an existing test
+    caught.
+    """
+    from lifton.gff3_validator import GENE_TYPES, TRANSCRIPT_TYPES
+    return frozenset(GENE_TYPES) | frozenset(TRANSCRIPT_TYPES) | {"CDS"}
 
 
 def get_gene_like_feature_types(ref_db, sample_cap=5000):
@@ -225,20 +231,19 @@ def get_gene_like_feature_types(ref_db, sample_cap=5000):
     realistic gene-like types surface a child-bearing top-level instance far
     within the cap.
 
-    When nothing qualifies, fall back to the top-level types the annotation
-    actually has, skipping the meta types that describe a sequence rather than a
-    feature on it. A prokaryotic or otherwise flat annotation -- bakta output, a
-    miniprot GFF -- has top-level `CDS` rows and no `gene` at all, and the old
-    `["gene"]` fallback selected nothing from it, so the run died several steps
-    later inside vendored Liftoff (GH #37). Falls back to `["gene"]` only when
-    the annotation has no usable top-level type either.
+    When nothing qualifies, fall back to the top-level gene, transcript or `CDS`
+    types the annotation actually has. A prokaryotic or otherwise flat
+    annotation -- bakta output, a miniprot GFF -- has top-level `CDS` rows and
+    no `gene` at all, and the old `["gene"]` fallback selected nothing from it,
+    so the run died several steps later inside vendored Liftoff (GH #37). Falls
+    back to `["gene"]` when the annotation has no such type either.
 
-    The meta-type filter applies to that fallback ONLY. Applying it to the
-    detection as well would drop a type that genuinely bears a hierarchy --
-    `match` over `match_part`, say -- from annotations the old code lifted, so
-    this stays strictly a change to the case where nothing was selected at all.
+    The fallback list applies ONLY when nothing bears a hierarchy. Filtering the
+    detection itself would drop a type that genuinely has one -- `match` over
+    `match_part`, say -- from annotations the old code lifted.
     """
     conn = ref_db.db_connection
+    liftable = _flat_fallback_types()
     gene_like, top_level = set(), set()
     for ftype in conn.featuretypes():
         for i, locus in enumerate(conn.features_of_type(ftype)):
@@ -246,7 +251,7 @@ def get_gene_like_feature_types(ref_db, sample_cap=5000):
                 break
             if "Parent" in locus.attributes:
                 continue                      # child-level instance; keep looking
-            if ftype not in META_FEATURE_TYPES:
+            if ftype in liftable:
                 top_level.add(ftype)
             if any(True for _ in conn.children(locus, level=1)):
                 gene_like.add(ftype)
