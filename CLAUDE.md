@@ -86,6 +86,43 @@ changed for anyone editing the code:
   `benchmarks/compare/rescue_extension_ab.py` (duplicates are checked by ID; models
   the evaluator cannot score, e.g. `V_gene_segment`, are reported separately).
 
+**v1.0.12, second round (2026-09-12)** — what the first round's results made
+possible to measure, and what changed as a result:
+
+- **The distant-recall well is nearly dry.** Replaying the *shipped* gates against
+  v1.0.12's own whole-genome output (`benchmarks/compare/recall_gap_after_v1012.md`),
+  79–91 % of the coding genes still missed that miniprot finds are one class: a gene
+  LiftOn already emitted holds the locus. Lowering `LIFTON_RESCUE_COVERAGE_MIN` is
+  worth 23–57 genes per transfer — a **measured NO-GO**, no sweep run. Do not
+  re-propose threshold tuning here without new evidence.
+- **`lifton/orf_completion.py` (default on, `--no-orf-stop-completion`).** miniprot's
+  CDS ends at the last aligned codon, so its models lacked the stop the reference
+  convention includes, and `__find_orfs` could not add it (no UTR to search: a
+  miniprot model's exons *are* its CDS). Two rules make it non-regressing, and both
+  were forced by the A/B rather than reasoned out: it runs **after** the ORF search
+  (before it, completing the model suppressed the `stop_missing` trigger and changed
+  two transcripts' ORF path), and it fires only when the reference protein itself
+  ends in a stop, keeping the extension only when re-scoring shows no loss. Hook
+  points: `run_miniprot.lifton_miniprot_with_ref_protein`'s caller in
+  `process_miniprot`, `miniprot_rescue._build_and_accept`, and `_score_isoform`
+  (which takes the resolved switch on `_GeneView`, since a forked worker has no
+  `args`). Candidate-3 is deliberately NOT hooked — it competes inside Step 7.
+- **Cross-locus replacement keeps its isoforms** (`cross_locus_rescue.py`, still
+  opt-in). It dropped every block of the gene it replaced while emitting one
+  transcript: −401 net on human → zebrafish. It now reuses the rescue's detached
+  isoform scorer, may widen only where no other emitted model is reached, and gates
+  on protein coverage so a partial hit cannot displace a full-length lift.
+- **The run manifest records where the rescue's time goes** (`miniprot_rescue_ms_*`).
+  Use it before optimising: it showed the `copy.deepcopy` target this file names as
+  "the strongest remaining target" is **already fixed** (custom `__deepcopy__` on
+  `Lifton_EXON`/`Lifton_CDS`), and that `fingerprint_inputs` is fully overlapped —
+  its 124 s phase has a 23 µs join wait, so **summing manifest phases double-counts**.
+- **GH #37 / #14.** `lifton_utils.get_gene_like_feature_types` falls back to the
+  annotation's real top-level types (minus `META_FEATURE_TYPES`) instead of `["gene"]`,
+  and an empty selection raises `LiftOnInputError` naming what the file contains;
+  `-dir/--intermediate-dir` moves a run's artifact directory. `ISSUE_TRIAGE_REPLIES.md`
+  holds replies for all eight open issues, to post **after** the tag.
+
 ## Environment & commands
 
 The project requires native deps (`parasail`, `pysam`, `pyfaidx`, `gffutils`, `duckdb`, `pyarrow`) that ship as bioconda/conda-forge wheels. On macOS/ARM, `pip install parasail` will fail to build from source — use conda. The vendored `lifton/gffbase/` ships a pre-built Rust extension (`_native*.so`); a missing extension falls back to the pure-Python parser at `lifton/gffbase/_pyfallback/`.
