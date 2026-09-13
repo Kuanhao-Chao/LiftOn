@@ -157,32 +157,31 @@ def _overlaps_any(seqid, start, end, intervals):
     return False
 
 
-def _emitted_interval_index(index, skip_gene_id):
-    """Every emitted model's interval except one gene's, as {seqid: [(s, e)]}.
+def _emitted_interval_index(index):
+    """Every emitted model's interval, as {seqid: [(start, end, ref_gene_id)]}.
 
     A replacement that grows to cover its gene's other isoforms must not grow
     into a different gene. The cross-locus pass has no suppression tree of its
     own -- it runs after the writer has closed -- so this rebuilds the one fact
-    it needs from the intervals already indexed out of score.txt.
+    it needs from the intervals already indexed out of score.txt. Built once for
+    the whole pass; the gene being replaced is excluded at query time.
     """
     by_seqid = {}
     for gene_id, slot in index.items():
-        if gene_id == skip_gene_id:
-            continue
         for seqid, start, end in slot["intervals"]:
-            by_seqid.setdefault(seqid, []).append((start, end))
+            by_seqid.setdefault(seqid, []).append((start, end, gene_id))
     for rows in by_seqid.values():
         rows.sort()
     return by_seqid
 
 
-def _reaches_another_gene(by_seqid, seqid, start, end):
+def _reaches_another_gene(by_seqid, seqid, start, end, skip_gene_id=None):
     rows = by_seqid.get(seqid)
     if not rows:
         return False
-    position = bisect.bisect_right(rows, (end, float("inf")))
-    for other_start, other_end in reversed(rows[:position]):
-        if other_end >= start:
+    position = bisect.bisect_right(rows, (end, float("inf"), ""))
+    for other_start, other_end, gene_id in reversed(rows[:position]):
+        if other_end >= start and gene_id != skip_gene_id:
             return True
         if other_start < start - _NEIGHBOUR_SCAN:
             break
@@ -226,7 +225,7 @@ def _attach_isoforms(lifton_gene, mtrans, ref_gene_id, ref_trans_id, hits,
         grown = (min(start, transcript.entry.start),
                  max(end, transcript.entry.end))
         if _reaches_another_gene(emitted_by_seqid, lifton_gene.entry.seqid,
-                                 *grown):
+                                 *grown, skip_gene_id=ref_gene_id):
             continue
         transcript.entry.attributes["Parent"] = [ref_gene_id]
         transcript.entry.attributes["lifton_rescue"] = ["cross_locus"]
@@ -413,6 +412,7 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
     chosen = {}
     chosen_pi = {}
     chosen_isoforms = {}
+    emitted_by_seqid = _emitted_interval_index(index)
     isoform_floor = float(getattr(args, "miniprot_rescue_min_id", 0.5))
     coverage_min = float(getattr(args, "miniprot_rescue_coverage_min", 0.8))
 
@@ -468,7 +468,7 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
                 ref_proteins, ref_trans, tree_dict, ref_features_dict, args,
                 hits=hits_by_gene.get(ref_gene_id, ()),
                 ref_len=ref_features_len_dict.get(ref_gene_id) or 0,
-                emitted_by_seqid=_emitted_interval_index(index, ref_gene_id),
+                emitted_by_seqid=emitted_by_seqid,
                 isoform_floor=isoform_floor)
             if pi is None or text is None:
                 continue
