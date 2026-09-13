@@ -832,8 +832,11 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
         slots = []
         for ref_trans_id, mtrans in candidates:
             try:
+                # ``mtrans`` came from the same features_of_type('mRNA') sweep,
+                # so it IS the row a lookup by its own ID would return; the
+                # scorer only ever reads the entry's strand and stores it.
                 prefetched = (
-                    view, mtrans, m_feature_db[mtrans.attributes["ID"][0]],
+                    view, mtrans, mtrans,
                     list(m_feature_db.children(mtrans, featuretype='CDS')),
                     ref_db.db_connection[ref_trans_id].attributes,
                     ref_trans_id, floor, ref_len)
