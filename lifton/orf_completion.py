@@ -32,6 +32,12 @@ Three rules keep it from being able to make anything worse:
 * The suppression interval a rescued gene contributes is left at its
   pre-extension value, so which genes are placed, and where, is exactly what it
   would have been. Only coordinates and the emitted protein move.
+
+Only the protein identity is re-derived. ``dna_identity`` still describes the
+model before the three bases were added, because re-deriving it means realigning
+the whole transcript -- the most expensive part of scoring -- to move a value by
+three bases in several hundred. The evaluator translates the emitted CDS itself,
+so no measurement depends on the attribute.
 """
 import os
 
