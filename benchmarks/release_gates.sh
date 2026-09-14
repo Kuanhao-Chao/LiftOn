@@ -1,63 +1,71 @@
 #!/bin/bash
-# The pre-release gates that need real data and a real install:
-#   * the chr22 example at -t 1 and -t 8, byte-identical to each other
-#   * gff3-validate on that output
-#   * wheel + sdist build
-#   * a --no-cache-dir install into a fresh venv (the empty-cache path that
-#     caught the broken `cigar` dependency before v1.0.10 reached PyPI)
-#   * the installed wheel lifting chr22 to the SAME bytes as the tree -- the
-#     smoke test alone only proves the wheel imports and answers -h
-#
-# Usage: bash benchmarks/release_gates.sh [output_dir]
-set -u
+# Run real chr22 lifts, compare serial/threaded output, build distributions,
+# install the wheel without a pip cache, and prove the installed wheel lifts
+# identically. Every failed stage is a failed gate; prior evidence is retained.
+# Usage: LIFTON_PY=/path/to/python bash benchmarks/release_gates.sh [new_output_dir]
+set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PY=${LIFTON_PY:-$(command -v python)}
+PY=$(command -v "$PY")
 BIN=$(dirname "$PY")
-OUT=${1:-$ROOT/benchmarks/compare/_v1012/release_gates}
-rm -rf "$OUT"; mkdir -p "$OUT"
+if [[ $# -gt 0 ]]; then
+  # mkdir must fail on an existing directory, including an empty one. Never
+  # erase earlier evidence or accidentally reuse a stale successful output.
+  mkdir -p "$(dirname "$1")"
+  mkdir "$1"
+  OUT=$(cd "$1" && pwd)
+else
+  mkdir -p "$ROOT/benchmarks/compare/_runs"
+  OUT=$(mktemp -d "$ROOT/benchmarks/compare/_runs/release-gates.XXXXXXXX")
+fi
+trap 'status=$?; if (( status != 0 )); then echo "[FAILED] exit=$status; evidence: $OUT" >&2; fi' EXIT
+printf 'Evidence: %s\n' "$OUT"
+export PYTHONNOUSERSITE=1
 
-echo "== chr22 example, -t 1 and -t 8 =="
-cd "$ROOT/test"
+run_chr22() {
+  local executable=$1
+  local threads=$2
+  local destination=$3
+  mkdir "$destination"
+  "$executable" -t "$threads" -g "$ROOT/test/GRCh38_chr22.gff3" \
+    -o "$destination/lifton.gff3" -copies -sc 0.95 \
+    "$ROOT/test/chm13_chr22.fa" "$ROOT/test/GRCh38_chr22.fa"
+  test -s "$destination/lifton.gff3"
+}
+
+echo '== chr22 example, -t 1 and -t 8 =='
+cd "$OUT"
 for t in 1 8; do
-  rm -rf "$OUT/chr22_t$t"; mkdir -p "$OUT/chr22_t$t"
-  /usr/bin/time -v -o "$OUT/chr22_t$t.time" \
-    "$BIN/lifton" -t $t -g GRCh38_chr22.gff3 -o "$OUT/chr22_t$t/lifton.gff3" \
-      -copies -sc 0.95 chm13_chr22.fa GRCh38_chr22.fa > "$OUT/chr22_t$t.log" 2>&1
-  echo "[chr22 t=$t] exit=$?  $(md5sum "$OUT/chr22_t$t/lifton.gff3" 2>/dev/null | cut -d' ' -f1)"
+  run_chr22 "$BIN/lifton" "$t" "$OUT/chr22_t$t" > "$OUT/chr22_t$t.log" 2>&1
+  sha256sum "$OUT/chr22_t$t/lifton.gff3"
 done
+cmp "$OUT/chr22_t1/lifton.gff3" "$OUT/chr22_t8/lifton.gff3"
 "$BIN/gff3-validate" "$OUT/chr22_t1/lifton.gff3" > "$OUT/chr22_validate.txt" 2>&1
-echo "[gff3-validate] exit=$?"
-grep -iE "^(errors|warnings)|is_valid|VALID" "$OUT/chr22_validate.txt" | head -5
 
-echo "== wheel + sdist build =="
+echo '== wheel + sdist build =='
 cd "$ROOT"
-rm -rf "$OUT/dist"
 "$PY" -m build --outdir "$OUT/dist" > "$OUT/build.log" 2>&1
-echo "[build] exit=$?"
-ls "$OUT/dist"
+shopt -s nullglob
+wheels=("$OUT"/dist/*.whl)
+sdists=("$OUT"/dist/*.tar.gz)
+[[ ${#wheels[@]} -eq 1 && ${#sdists[@]} -eq 1 ]]
+sha256sum "${wheels[0]}" "${sdists[0]}" > "$OUT/distributions.sha256"
 
-echo "== clean-venv smoke =="
+echo '== clean-venv smoke =='
+# Run outside the source tree with no PYTHONPATH/user-site leakage.
+cd "$OUT"
+unset PYTHONPATH
 "$PY" -m venv "$OUT/venv" > "$OUT/venv.log" 2>&1
-WHL=$(ls "$OUT"/dist/*.whl 2>/dev/null | head -1)
-"$OUT/venv/bin/pip" install --no-cache-dir "$WHL" >> "$OUT/venv.log" 2>&1
-echo "[pip install] exit=$?"
-"$OUT/venv/bin/lifton" --version;      echo "[--version] exit=$?"
-"$OUT/venv/bin/lifton" -h > /dev/null; echo "[-h] exit=$?"
-"$OUT/venv/bin/gff3-validate" -h > /dev/null; echo "[gff3-validate -h] exit=$?"
-"$OUT/venv/bin/lifton" -h 2>&1 | grep -cE "no-orf-stop-completion|intermediate-dir" | sed 's/^/[new flags in -h] /'
+"$OUT/venv/bin/pip" install --no-cache-dir "${wheels[0]}" >> "$OUT/venv.log" 2>&1
+"$OUT/venv/bin/lifton" --version
+"$OUT/venv/bin/lifton" -h > "$OUT/wheel_help.txt"
+"$OUT/venv/bin/gff3-validate" -h > "$OUT/validator_help.txt"
+grep -q -- '--no-orf-stop-completion' "$OUT/wheel_help.txt"
+grep -q -- '--intermediate-dir' "$OUT/wheel_help.txt"
 
-# Importing and answering -h does not prove the packaged artifact LIFTS the same.
-# Run the chr22 example from the venv and compare with the tree's own output.
-echo "== the wheel lifts identically =="
-cd "$ROOT/test"
-rm -rf "$OUT/wheel_chr22"; mkdir -p "$OUT/wheel_chr22"
-"$OUT/venv/bin/lifton" -t 8 -g GRCh38_chr22.gff3 -o "$OUT/wheel_chr22/lifton.gff3" \
-  -copies -sc 0.95 chm13_chr22.fa GRCh38_chr22.fa > "$OUT/wheel_chr22.log" 2>&1
-echo "[wheel chr22] exit=$?"
-WHEEL_MD5=$(md5sum "$OUT/wheel_chr22/lifton.gff3" 2>/dev/null | cut -d" " -f1)
-TREE_MD5=$(md5sum "$OUT/chr22_t8/lifton.gff3" 2>/dev/null | cut -d" " -f1)
-echo "[wheel md5] $WHEEL_MD5"
-echo "[tree  md5] $TREE_MD5"
-[ -n "$WHEEL_MD5" ] && [ "$WHEEL_MD5" = "$TREE_MD5" ] \
-  && echo "[wheel == tree] yes" || echo "[wheel == tree] NO -- investigate"
-echo "[DONE] exit=$?"
+echo '== installed wheel lifts identically =='
+run_chr22 "$OUT/venv/bin/lifton" 8 "$OUT/wheel_chr22" > "$OUT/wheel_chr22.log" 2>&1
+"$OUT/venv/bin/gff3-validate" "$OUT/wheel_chr22/lifton.gff3" > "$OUT/wheel_validate.txt" 2>&1
+cmp "$OUT/chr22_t8/lifton.gff3" "$OUT/wheel_chr22/lifton.gff3"
+sha256sum "$OUT/wheel_chr22/lifton.gff3"
+echo '[DONE] exit=0'

@@ -20,13 +20,9 @@ help:
 	@echo "  benchmark-build-plan  create/review an isolated benchmark-controller plan"
 	@echo "  benchmark-build       launch the selected benchmark stage through tmux"
 
-# Full suite. The 3 hypothesis-only files error on collection without hypothesis
-# installed; deselect them for a clean run (see CLAUDE.md).
+# Install .[test] first: a full-suite target must include property tests.
 test:
-	PYTHONNOUSERSITE=1 $(LIFTON_PY) -m pytest tests/ -q \
-		--ignore=tests/test_property_based.py \
-		--ignore=tests/test_streaming_property.py \
-		--ignore=tests/test_vulnerabilities.py
+	PYTHONNOUSERSITE=1 $(LIFTON_PY) -m pytest tests/ -q
 
 test-fast:
 	PYTHONNOUSERSITE=1 $(LIFTON_PY) -m pytest \
