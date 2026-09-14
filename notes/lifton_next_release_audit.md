@@ -90,6 +90,14 @@ only to the numerically scored common set. For chicken, 1,258 recovered models
 in each arm have no protein identity and status `map_failed`; their recovery
 cannot be described as independently confirmed accuracy.
 
+Follow-up inspection resolved the chicken class: all 1,258 rows have
+`n_cds_lifted=0` and `lifted_prot_len=0`; an inspected emitted model has exons
+but no CDS and is explicitly tagged `mutation=no_protein`. These are mapped
+reference IDs without recovered coding sequence, not unexplained failed
+alignments. The revised comparison records this class separately and gates on
+loss of previously scored coding models. A blank score without corresponding
+CDS/sequence evidence remains unresolved.
+
 The evaluator uses LiftOn's extraction/alignment code. It provides a consistent
 yardstick across tools but can share bugs with the implementation. Independent
 sequence extraction, target-coordinate concordance, and constructed truth must
@@ -133,6 +141,12 @@ quality will be measured independently of historical rescue-trigger labels.
   previous evidence. The script now fails on the first error, compares actual
   bytes, and runs the wheel outside the source tree without PYTHONPATH leakage.
 - `make test` now includes the three previously ignored property-test modules.
+- Release-comparison regressions: **14 failed / 2 passed before the repair**;
+  the expanded comparison/provenance suite now has **26 passing tests**.
+  Coverage includes ID loss despite net gain, nonfinite/missing identity,
+  missing CDS versus scoring failure, per-model validity regressions, changed
+  binaries/source/commands, altered outputs, and incomplete receipts. Legacy
+  rescoring is written to a new campaign and cannot manufacture provenance.
 
 ## Release state
 
