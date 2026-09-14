@@ -5,7 +5,9 @@
     "benchmarks/inventory.py",
     "benchmarks/inventory_rules.json",
     "benchmarks/manifest_tools.py",
-    "benchmarks/manifests/canonical_v2_datasets.json"
+    "benchmarks/manifests/canonical_v2_datasets.json",
+    "benchmarks/compare/release_report_figures.py",
+    "benchmarks/compare/release_rescore.py"
   ],
   "output_paths": [
     "benchmarks/BENCHMARK_INVENTORY.json",
@@ -65,21 +67,38 @@
       "superseded_by": null,
       "patterns": [
         "benchmarks/compare/__init__.py",
+        "benchmarks/compare/biology_canary.py",
         "benchmarks/compare/build_controller.py",
         "benchmarks/compare/build_inputs.py",
+        "benchmarks/compare/campaign_watch.py",
+        "benchmarks/compare/continue_campaign.py",
         "benchmarks/compare/enrich_joint_metrics.py",
         "benchmarks/compare/evaluator.py",
         "benchmarks/compare/feature_types.py",
         "benchmarks/compare/fourway_compare.py",
         "benchmarks/compare/fourway_report.py",
+        "benchmarks/compare/gene_level.py",
         "benchmarks/compare/id_mapping.py",
         "benchmarks/compare/joint_metrics.py",
+        "benchmarks/compare/provider_orthologs.py",
+        "benchmarks/compare/recovery_difference.py",
         "benchmarks/compare/release_evaluation.py",
         "benchmarks/compare/release_report.py",
+        "benchmarks/compare/release_report_figures.py",
+        "benchmarks/compare/release_rescore.py",
+        "benchmarks/compare/release_provenance.py",
+        "benchmarks/compare/release_validation.py",
+        "benchmarks/compare/released_annotation_sensitivity.py",
+        "benchmarks/compare/report_tables.py",
         "benchmarks/compare/reporter.py",
         "benchmarks/compare/run_compare.py",
         "benchmarks/compare/subset_builder.py",
         "benchmarks/compare/tool_runners.py",
+        "benchmarks/compare/whole_genome_assets.py",
+        "benchmarks/compare/whole_genome_report.py",
+        "benchmarks/compare/whole_genome_study.py",
+        "benchmarks/manifests/lifton_v111_biology_study.json",
+        "benchmarks/release_gates.sh",
         "benchmarks/run_benchmarks.py"
       ]
     },
@@ -137,10 +156,13 @@
       "superseded_by": null,
       "patterns": [
         "benchmarks/compare/chaining_headroom.*",
+        "benchmarks/compare/figure4_outliers.*",
         "benchmarks/compare/improvement_headroom.*",
         "benchmarks/compare/miniprot_only_headroom.*",
         "benchmarks/compare/miniprot_only_rescue_headroom.*",
         "benchmarks/compare/orf_best_match_headroom.*",
+        "benchmarks/compare/recall_gap_after_v1012.*",
+        "benchmarks/compare/recall_gap_diagnosis.*",
         "benchmarks/compare/sql_attribution.tsv",
         "benchmarks/compare/start_lost_headroom.*",
         "benchmarks/compare/step8_rescue_headroom.*",
@@ -209,7 +231,6 @@
         "benchmarks/compare/merge_full_runs.py",
         "benchmarks/compare/profiling.py",
         "benchmarks/compare/report_figures.py",
-        "benchmarks/compare/report_tables.py",
         "benchmarks/compare/v1_0_8_vs_devel_report.*",
         "benchmarks/compare/version_compare*",
         "benchmarks/compare/version_report.py",
@@ -248,6 +269,18 @@
       "superseded_by": null,
       "patterns": [
         "benchmarks/compare/_full_runs/t1_soybean_w82_to_lee.json"
+      ]
+    },
+    {
+      "id": "promotion_ab_v1012",
+      "classification": "diagnostic",
+      "claim_eligible": false,
+      "completion_state": "complete",
+      "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/cross_locus_rescue_ab.*",
+        "benchmarks/compare/rescue_extension_ab.*"
       ]
     }
   ]

@@ -8,6 +8,156 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
+## [1.0.12] - 2026-09-14
+
+Fixes a `-copies` bug that dropped every extra gene copy's transcript, exons
+and CDS. Also a resource-safety and diagnostics release for very large target
+genomes (GH #71), which recovers far more genes when the two species are
+distantly related and runs multi-threaded by default.
+
+### Changed
+
+- **Many more genes recovered between distantly related species.** The
+  miniprot-only rescue rejected a protein alignment when its genomic span was
+  outside 0.5–2× the reference gene's CDS span. Both spans include introns,
+  and intron length follows genome size. Lifting from human into the compact
+  fish, bird, and frog genomes, 75–83 % of the missed genes miniprot found
+  were rejected this way, although their alignments covered the entire
+  reference protein. A second rescue sub-pass now judges exactly those
+  candidates by the fraction of the reference protein the hit aligns (≥ 0.8,
+  `LIFTON_RESCUE_COVERAGE_MIN`), keeps the same protein-identity floor, and
+  fills only loci no gene occupies, best hit first. On whole genomes,
+  primary-assembly gene recall rises from 0.315 to 0.593 (human → zebrafish),
+  0.364 to 0.615 (human → chicken) and 0.361 to 0.638 (human → xenopus).
+  99.7 % of the added models overlap an annotated CDS of the released target
+  annotation on the same strand. Across the eight-cell ladder and five whole
+  genomes, no gene is lost, no model is duplicated, no transcript's protein
+  identity drops, and validator errors do not rise; the earlier output is
+  unchanged, with the new genes appended. `--no-coverage-rescue-gate` (or
+  `LIFTON_RESCUE_COVERAGE_GATE=0`) restores v1.0.11 behaviour.
+- **Rescued genes now carry their isoforms.** The rescue emitted one
+  transcript per gene, while a human gene has about six. After placement, each
+  rescued gene now also receives the other transcripts of the same reference
+  gene whose miniprot hits lie at its locus. Each must clear the same
+  protein-identity floor and may not widen the gene into another gene, and
+  gene placement is unchanged. Coding transcript recall rises, for example,
+  from 0.139 to 0.247 on drosophila → honey bee and from 0.168 to 0.618 on
+  human chromosome 20 → xenopus. `--no-rescue-isoforms` (or
+  `LIFTON_RESCUE_ISOFORMS=0`) restores one transcript per rescued gene.
+- **`--threads N` parallelizes per-locus processing by default.** Steps 7
+  and 8 used threads only with `--locus-pipeline`, which every benchmark
+  passed but plain `lifton -t 8` did not. It is now on whenever N > 1;
+  output is byte-identical to the serial path, and `--no-locus-pipeline`
+  restores it. At `-t 8` with cached aligner inputs, the drosophila whole
+  genome takes 606 s instead of 899 s and dog → cat 1,868 s instead of
+  2,792 s.
+- **Faster Liftoff post-processing, identical output.** Parsing minimap2's
+  alignments recomputed every exon's position relative to its gene for every
+  aligned block; it now does so once per alignment and tests overlap with a
+  binary search. Writing the Liftoff GFF3 scanned every gene once per child
+  transcript (a quadratic step added in v1.0.12's trans-spliced-copy fix);
+  that scan is now a dictionary lookup. With `--threads N` (N > 1), Liftoff's
+  lift loop now runs one forked worker per reference chromosome
+  (`--no-parallel-lift` opts out); the loop links only neighbouring genes on
+  the same chromosome, so the output is identical. Fresh Liftoff at `-t 8`:
+  the aligner phase takes 134 s instead of 261 s on drosophila and 1,206 s
+  instead of 3,020 s on dog → cat (whole run 3,092 s instead of 4,878 s).
+  Intermediate Liftoff GFF3 files are identical to v1.0.11's.
+- **Miniprot-derived models now carry their stop codon.** miniprot reports a
+  coding alignment, so its CDS ends at the last aligned codon and excludes the
+  stop; everything else LiftOn emits follows the reference convention, where a
+  CDS includes it. The ORF search could not repair this, because it scans the
+  spliced transcript and such a model has no UTR — the stop sitting immediately
+  downstream in the genome was outside the sequence being searched. Only 39–59 %
+  of rescued models on the five distant whole genomes ended in a stop. When the
+  next codon in the genome is a stop, and the reference protein itself ends in
+  one, the terminal CDS and its exon now grow by exactly those three bases,
+  after the ORF search, so the search sees the same sequence it always did. The
+  extension is scored and kept only when the model does not get worse.
+  `--no-orf-stop-completion` (or `LIFTON_ORF_STOP_COMPLETION=0`) restores the
+  miniprot boundary.
+- **Targets above 4,000,000,000 bases no longer build the minimap2 and
+  miniprot indexes concurrently by default.** Liftoff/minimap2 completes first,
+  then miniprot starts, preventing their index-memory peaks from overlapping.
+  Smaller targets retain the byte-identical concurrent default.
+  `--serial-aligners` forces sequential execution at every size;
+  `--parallel-aligners` now force-enables concurrency and warns above the
+  boundary. The two overrides are mutually exclusive.
+- **Liftoff's worker pool now follows the actual alignment-task count.** A
+  single whole-target alignment requested with `--threads 40` creates one
+  worker using 40 minimap2 threads, not 40 Python workers for one task.
+
+### Added
+
+- **`-dir/--intermediate-dir`** puts a run's intermediate files, statistics,
+  score table and manifest wherever you say, instead of always in
+  `lifton_output/` beside the output file. Concurrent runs writing into one
+  output directory used to share that directory and overwrite each other's
+  intermediate files (GH #14). The default is unchanged.
+- **The run manifest records where the miniprot-only rescue spends its time**,
+  split across its sub-passes: candidate placement, the coverage sub-pass, and
+  the isoform pass's prefetch, scoring and attachment. On a distant transfer the
+  rescue is the largest phase of the run and the split was not visible at all.
+- **Structured external-tool evidence in `run_manifest.json`.** Manifests now
+  include target base/sequence statistics, the resolved scheduling decision,
+  and per-execution command, stage, status, return code, signal, and bounded
+  64-KiB stderr tail. A negative subprocess return code is described by its
+  POSIX signal (for example, `-11` is `SIGSEGV`); LiftOn never calls it OOM
+  without operating-system or scheduler evidence.
+- **A long-sequence miniprot compatibility gate.** A parseable miniprot older
+  than 0.14 is rejected when a target sequence is at least 2^31 bases long. An
+  unparseable version produces a warning and an explicit upgrade recommendation.
+
+### Fixed
+
+- **`-copies` extra gene copies keep their transcripts, exons and CDS.**
+  Reported by a user. Liftoff suffixes every feature of an extra copy with
+  `_<extra_copy_number>`, so a copy arrives as `gene-X_1` / `rna-X_1`. LiftOn
+  resolved the gene id back to the reference correctly but looked the
+  transcript id up verbatim; `rna-X_1` is not in the reference annotation, so
+  the lookup failed and the transcript was skipped — taking every exon and CDS
+  with it, while the already-written gene line remained. The result was a gene
+  with no children, which is useless to every downstream tool. Across the
+  17-genome benchmark set, run with `-copies`: rice 539 of 815 copy genes,
+  human → zebrafish 1,178 of 1,881, maize B73 → Mo17 1,079 of 2,716,
+  human → xenopus 728 of 986, arabidopsis 161 of 223 — about 4,400 genes in
+  total, and byte-for-byte identical in v1.0.11, so this was present in every
+  release. Liftoff had produced complete hierarchies for them: of rice's 539,
+  Liftoff gave children to 535 of the 535 it emitted. The reference transcript
+  is now resolved the way the gene already was — the exact id first, and only
+  on a miss the `_<N>` copy base, accepted only when that base really is a
+  transcript of the reference gene the copy belongs to. Trying the exact id
+  first is what keeps reference ids that genuinely end in `_<int>` intact. All
+  1,908 dropped transcripts checked across rice, human → zebrafish and
+  arabidopsis resolve correctly; every row already in the output is unchanged.
+- **A gene emitted without child features is now counted and reported.** The
+  count appears at the end of the run and in `run_manifest.json` as
+  `genes_emitted_without_children`. `gff3-validate` had always flagged these,
+  but as a warning, and the release gates count errors — so 4,400 of them went
+  unnoticed.
+- **An unreadable input now ends the run with its message, not a traceback.**
+  A `LiftOnInputError` says what is wrong with the file and what to do about it;
+  it propagated as an exception, so the message arrived buried under a stack
+  trace. LiftOn now prints it and exits 2, as it already did for a partial or
+  invalid output.
+- **A flat annotation no longer selects nothing and dies inside Liftoff.** A
+  prokaryotic or otherwise flat GFF3 — bakta output, a miniprot GFF — has
+  top-level `CDS` rows and no `gene`, so the gene-like auto-detection found
+  nothing and fell back to `gene`, which selected nothing; the run continued for
+  several steps and then exited with a bare "Use -f to provide a list of other
+  feature types to lift over". Detection now falls back to the top-level types
+  the annotation actually has, skipping those that describe a sequence rather
+  than a feature on it, and an empty selection stops the run immediately with
+  the file, what was looked for, and what the annotation contains (GH #37).
+- **Trans-spliced copies retain the correct same-sequence hierarchy.** When
+  the same logical parent ID appears on multiple sequences, copied children no
+  longer attach to the matching ID on a different sequence during GFF3 output.
+- **Intermediate Liftoff and miniprot files are written inside
+  `lifton_output/` again.** v1.0.10 and v1.0.11 wrote them to sibling
+  directories named `lifton_outputliftoff/` and `lifton_outputminiprot/`
+  (a path was concatenated without a separator). They now go to
+  `lifton_output/liftoff/` and `lifton_output/miniprot/`, as documented.
+
 ## [1.0.11] - 2026-08-01
 
 A single-fix release. v1.0.10 could not ingest some annotations that v1.0.8
@@ -504,5 +654,7 @@ default output** (pinned by the 24-cell byte-identity matrix test):
 
 Prior release. See the project documentation and the git history for details.
 
+[1.0.12]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.12
+[1.0.11]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.11
 [1.0.10]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.10
 [1.0.9]: https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.9

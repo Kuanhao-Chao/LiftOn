@@ -36,6 +36,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -574,6 +575,7 @@ class RunManifest:
         self._run_started = time.perf_counter()
         self._phase_starts: dict[str, float] = {}
         self._finished = False
+        self._aligner_lock = threading.Lock()
         self._fingerprints_complete = False
         self._fingerprint_executor: concurrent.futures.ThreadPoolExecutor | None = None
         self._fingerprint_future: concurrent.futures.Future[dict[str, Any]] | None = None
@@ -639,6 +641,11 @@ class RunManifest:
                 "tools": collect_tool_versions(tool_commands),
             },
             "inputs": _pending_fingerprints(normalized_inputs),
+            "input_statistics": {},
+            "aligners": {
+                "schedule": None,
+                "executions": [],
+            },
             "phases": phases,
             "counts": {},
             "failures": [],
@@ -723,6 +730,25 @@ class RunManifest:
     def set_cache_choice(self, name: str, value: Any) -> None:
         sanitized = sanitize_data({str(name): value})
         self._document["run"]["cache"].update(sanitized)
+
+    def set_input_statistics(
+        self, name: str, value: Mapping[str, Any],
+    ) -> None:
+        """Record cheap structural facts separately from input fingerprints."""
+
+        self._document["input_statistics"][str(name)] = sanitize_data(value)
+
+    def set_aligner_schedule(self, value: Mapping[str, Any]) -> None:
+        """Record the resolved native-tool schedule before either tool starts."""
+
+        self._document["aligners"]["schedule"] = sanitize_data(value)
+
+    def record_aligner_execution(self, value: Mapping[str, Any]) -> None:
+        """Append one bounded, structured external-tool execution record."""
+
+        sanitized = sanitize_data(value)
+        with self._aligner_lock:
+            self._document["aligners"]["executions"].append(sanitized)
 
     def start_phase(self, name: str, details: Mapping[str, Any] | None = None) -> None:
         """Start a uniquely named phase using a monotonic timer."""

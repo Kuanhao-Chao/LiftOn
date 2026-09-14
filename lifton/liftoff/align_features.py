@@ -1,6 +1,6 @@
 from multiprocessing import Pool
+import bisect
 import gzip
-import math
 import os
 import shlex
 import sys
@@ -12,6 +12,14 @@ import subprocess
 import pysam
 from lifton.liftoff  import aligned_seg, liftoff_utils
 from lifton.exceptions import LiftOnAlignmentError
+from lifton.tool_execution import (
+    MAX_CONCURRENT_TARGET_BASES,
+    describe_returncode,
+    detect_minimap2_stage,
+    execution_record,
+    record_execution,
+    run_with_bounded_stderr,
+)
 
 
 MMI_MAGIC = b"MMI\x02"
@@ -24,6 +32,15 @@ class _SamTargetMismatch(LiftOnAlignmentError):
 
 class _Minimap2CommandError(LiftOnAlignmentError):
     """A minimap2 subprocess could not be launched or exited unsuccessfully."""
+
+    def __init__(self, message, *, command=None, stage=None, target_file=None,
+                 returncode=None, stderr_tail=""):
+        super().__init__(message)
+        self.command = command
+        self.stage = stage
+        self.target_file = target_file
+        self.returncode = returncode
+        self.stderr_tail = stderr_tail
 
 
 def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy, liftover_type, unmapped_features):
@@ -56,9 +73,26 @@ def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy,
         sam_files = [args.directory + "/polish.sam"]
     else:
         target_fasta_dict = split_target_sequence(target_chroms, args.target, args.directory)
-        target_lengths = {name: len(sequence) for name, sequence in target_fasta_dict.items()}
-        genome_size = get_genome_size(target_fasta_dict)
-        threads_per_alignment = max(1, math.floor(int(args.threads) / len(ref_chroms)))
+        fasta_index = getattr(
+            getattr(target_fasta_dict, "faidx", None), "index", None,
+        )
+        if fasta_index is None:
+            target_lengths = {
+                name: len(sequence)
+                for name, sequence in target_fasta_dict.items()
+            }
+        else:
+            target_lengths = {
+                name: int(record.rlen)
+                for name, record in fasta_index.items()
+            }
+        genome_size = sum(target_lengths.values())
+        task_count = len(target_chroms)
+        if task_count < 1:
+            raise LiftOnAlignmentError("Liftoff received no target alignment tasks.")
+        thread_budget = max(1, int(args.threads))
+        worker_count = min(thread_budget, task_count)
+        threads_per_alignment = max(1, thread_budget // worker_count)
         sam_files = []
         print("aligning features")
         func = partial(align_single_chroms, ref_chroms, target_chroms, threads_per_alignment, args, genome_size,
@@ -67,7 +101,7 @@ def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy,
         # down the remaining workers instead of leaking a Pool while the error
         # propagates to the CLI. Keep explicit close/join calls for compatibility
         # with Liftoff's lightweight Pool test doubles.
-        pool = Pool(int(args.threads))
+        pool = Pool(worker_count)
         try:
             for result in pool.imap_unordered(func, np.arange(0, len(target_chroms))):
                 sam_files.append(result)
@@ -100,7 +134,6 @@ def get_genome_size(target_fasta_dict):
 
 def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, liftover_type, index,
                         target_lengths=None):
-    max_single_index_size = 4000000000
     features_file, features_name = get_features_file(ref_chroms, args, liftover_type, index)
     target_file, output_file = get_target_file_and_output_file(liftover_type, target_chroms, index, features_name, args)
     threads_arg = str(threads)
@@ -112,13 +145,13 @@ def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, l
         expected_lengths = target_lengths
     else:
         expected_lengths = {target_prefix: target_lengths[target_prefix]}
-    if genome_size > max_single_index_size:
+    if genome_size > MAX_CONCURRENT_TARGET_BASES:
         split_prefix = args.directory + "/" + features_name + "_to_" + target_prefix + "_split"
         command = [minimap2_path] + _minimap2_options(args) + [
             "--split-prefix", split_prefix, '-t', threads_arg]
         _run_minimap2_to_sam(
             command, [target_file, features_file], output_file, target_file,
-            expected_lengths, index_file=None,
+            expected_lengths, index_file=None, args=args,
         )
     else:
         index_was_reused = _find_reusable_minimap2_index(target_file, args, target_prefix) is not None
@@ -130,7 +163,7 @@ def align_single_chroms(ref_chroms, target_chroms, threads, args, genome_size, l
             try:
                 _run_minimap2_to_sam(
                     command, [minimap2_index, features_file], output_file, target_file,
-                    expected_lengths, index_file=minimap2_index,
+                    expected_lengths, index_file=minimap2_index, args=args,
                 )
                 break
             except (_SamTargetMismatch, _Minimap2CommandError):
@@ -216,25 +249,43 @@ def _minimap2_options(args):
         raise LiftOnAlignmentError(f"Invalid -mm2_options value: {exc}") from exc
 
 
-def _run_checked_minimap2(command, stage, target_file):
+def _run_checked_minimap2(command, stage, target_file, args=None):
+    stderr_tail = ""
     try:
-        run_kwargs = {"check": True}
-        if stage == "index build":
-            # The normal Liftoff options include -a. With `minimap2 -d`, that
-            # otherwise emits a SAM header to stdout even though the intended
-            # artifact is the binary index; progress remains visible on stderr.
-            run_kwargs["stdout"] = subprocess.DEVNULL
-        subprocess.run(command, **run_kwargs)
-    except subprocess.CalledProcessError as exc:
-        raise _Minimap2CommandError(
-            f"minimap2 {stage} failed for target '{target_file}' with exit code "
-            f"{exc.returncode}. Command: {shlex.join(command)}"
-        ) from exc
-    except (FileNotFoundError, PermissionError, NotADirectoryError, OSError) as exc:
+        # The normal Liftoff options include -a. With `minimap2 -d`, that
+        # otherwise emits a SAM header to stdout even though the intended
+        # artifact is the binary index; progress remains visible on stderr.
+        stdout = subprocess.DEVNULL if stage == "index build" else None
+        result = run_with_bounded_stderr(command, stdout=stdout)
+    except (FileNotFoundError, PermissionError, NotADirectoryError,
+            OSError, ValueError) as exc:
+        record = execution_record(
+            "minimap2", command=command, stage=stage,
+            status="launch_error", returncode=None,
+            details={"target_file": target_file, "error": str(exc)},
+        )
+        record_execution(args, record)
         raise _Minimap2CommandError(
             f"Unable to run minimap2 during {stage} for target '{target_file}': {exc}. "
-            f"Command: {shlex.join(command)}"
+            f"Command: {shlex.join(command)}",
+            command=list(command), stage=stage, target_file=target_file,
         ) from exc
+    stderr_tail = result.stderr_tail
+    status = "success" if result.returncode == 0 else "failed"
+    detected_stage = detect_minimap2_stage(stderr_tail, stage)
+    record_execution(args, execution_record(
+        "minimap2", command=command, stage=detected_stage, status=status,
+        returncode=result.returncode, stderr_tail=stderr_tail,
+        details={"operation": stage, "target_file": target_file},
+    ))
+    if result.returncode != 0:
+        raise _Minimap2CommandError(
+            f"minimap2 {stage} failed for target '{target_file}': "
+            f"{describe_returncode(result.returncode)}. "
+            f"Command: {shlex.join(command)}",
+            command=list(command), stage=stage, target_file=target_file,
+            returncode=result.returncode, stderr_tail=stderr_tail,
+        )
 
 
 def _warn_unusable_index(index_file, state, replacement):
@@ -322,7 +373,7 @@ def build_minimap2_index(target_file, args, threads, minimap2_path, target_prefi
         command = [minimap2_path] + _minimap2_options(args) + [
             '-t', str(threads), '-d', temporary_index, target_file,
         ]
-        _run_checked_minimap2(command, "index build", target_file)
+        _run_checked_minimap2(command, "index build", target_file, args=args)
         built_state = classify_minimap2_index(temporary_index)
         if built_state != "valid":
             raise LiftOnAlignmentError(
@@ -413,7 +464,8 @@ def validate_sam_target(sam_file, target_file, index_file=None, expected_lengths
     return None
 
 
-def _run_minimap2_to_sam(command, positional_inputs, output_file, target_file, expected_lengths, index_file):
+def _run_minimap2_to_sam(command, positional_inputs, output_file, target_file,
+                         expected_lengths, index_file, args=None):
     os.makedirs(os.path.dirname(output_file) or ".", exist_ok=True)
     fd, temporary_sam = tempfile.mkstemp(
         prefix="." + os.path.basename(output_file) + ".", suffix=".tmp", dir=os.path.dirname(output_file) or ".",
@@ -423,7 +475,9 @@ def _run_minimap2_to_sam(command, positional_inputs, output_file, target_file, e
         # Keep LiftOn's owned -o after user-supplied options so the temporary
         # artifact cannot be redirected elsewhere by -mm2_options.
         full_command = command + ['-o', temporary_sam] + positional_inputs
-        _run_checked_minimap2(full_command, "alignment", target_file)
+        _run_checked_minimap2(
+            full_command, "alignment", target_file, args=args,
+        )
         validate_sam_target(
             temporary_sam, target_file, index_file=index_file, expected_lengths=expected_lengths,
         )
@@ -543,21 +597,71 @@ def get_aligned_blocks(alignment, aln_id, feature_hierarchy, search_type):
     query_block_start, query_block_pos = query_start, query_start
     new_blocks, mismatches = [], []
     merged_children_coords = liftoff_utils.merge_children_intervals(children)
+    # The children's positions relative to the parent depend only on the parent
+    # and the strand, so compute them once per alignment rather than once per
+    # block (v1.0.12; identical blocks, see _add_block_if_overlapping).
+    child_spans = _relative_child_spans(parent, merged_children_coords,
+                                        alignment.is_reverse)
     for operation, length in cigar:
         if base_is_aligned(operation, cigar_operations):
             query_block_pos, reference_block_pos = add_aligned_base(operation, query_block_pos, reference_block_pos,
                                                                     length, cigar_operations, mismatches)
             if query_block_pos == query_end:
-                add_block(query_block_pos, reference_block_pos, aln_id, alignment, query_block_start,
-                          reference_block_start, mismatches, new_blocks, merged_children_coords, parent)
+                _add_block_if_overlapping(query_block_pos, reference_block_pos, aln_id, alignment,
+                                          query_block_start, reference_block_start, mismatches,
+                                          new_blocks, child_spans)
                 break
         elif is_alignment_gap(operation, cigar_operations):
-            add_block(query_block_pos, reference_block_pos, aln_id, alignment, query_block_start, reference_block_start,
-                      mismatches, new_blocks, merged_children_coords, parent)
+            _add_block_if_overlapping(query_block_pos, reference_block_pos, aln_id, alignment,
+                                      query_block_start, reference_block_start, mismatches,
+                                      new_blocks, child_spans)
             mismatches, query_block_start, reference_block_start, query_block_pos, reference_block_pos = \
                 end_block_at_gap(
                     operation, query_block_pos, reference_block_pos, length, cigar_operations)
     return new_blocks
+
+
+def _relative_child_spans(parent, merged_children_coords, is_reverse):
+    """Merged child intervals as sorted ``(starts, ends)`` in parent-relative
+    query coordinates, exactly as ``find_overlapping_children`` derives them."""
+    spans = []
+    for child_start, child_end in merged_children_coords:
+        first = liftoff_utils.get_relative_child_coord(parent, child_start, is_reverse)
+        second = liftoff_utils.get_relative_child_coord(parent, child_end, is_reverse)
+        spans.append((min(first, second), max(first, second)))
+    spans.sort()
+    return [start for start, _ in spans], [end for _, end in spans]
+
+
+def _overlaps_any_child(child_spans, query_start, query_end):
+    """True iff some child span shares a base with [query_start, query_end].
+
+    The merged intervals are disjoint, so their relative spans are disjoint and
+    sorted: only the last span starting at or before ``query_end`` can reach
+    back to ``query_start``. Equivalent to ``find_overlapping_children(...) !=
+    []``, whose per-child ``count_overlap > 0`` is the same inequality. An empty
+    block (``query_end < query_start``, two consecutive gap operations) can
+    never overlap under that formula, so it never overlaps here either.
+    """
+    if query_end < query_start:
+        return False
+    starts, ends = child_spans
+    index = bisect.bisect_right(starts, query_end) - 1
+    return index >= 0 and ends[index] >= query_start
+
+
+def _add_block_if_overlapping(query_block_pos, reference_block_pos, aln_id, alignment,
+                              query_block_start, reference_block_start, mismatches,
+                              new_blocks, child_spans):
+    """``add_block`` with the overlap test done first, so blocks that will be
+    dropped are never built (their mismatch array was the costly part)."""
+    query_block_end = query_block_pos - 1
+    if not _overlaps_any_child(child_spans, query_block_start, query_block_end):
+        return
+    new_blocks.append(aligned_seg.aligned_seg(
+        aln_id, alignment.query_name, alignment.reference_name, query_block_start,
+        query_block_end, reference_block_start, reference_block_pos - 1,
+        alignment.is_reverse, np.array(mismatches).astype(int)))
 
 
 def get_cigar_operations():
@@ -583,8 +687,7 @@ def base_is_aligned(operation, cigar_operations):
 
 def add_aligned_base(operation, query_block_pos, reference_block_pos, length, cigar_operations, mismatches):
     if operation == cigar_operations["mismatch"]:
-        for i in range(query_block_pos, query_block_pos + length):
-            mismatches.append(i)
+        mismatches.extend(range(query_block_pos, query_block_pos + length))
     query_block_pos, reference_block_pos = adjust_position(operation, query_block_pos, reference_block_pos,
                                                            length, cigar_operations)
     return query_block_pos, reference_block_pos

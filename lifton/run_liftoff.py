@@ -1,9 +1,10 @@
 import subprocess
 import os, copy, sys
-import gffutils
+import gffutils  # noqa: F401  (kept: part of this module's public surface)
 from lifton import align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
+from lifton.tool_execution import collect_execution_events
 from intervaltree import Interval, IntervalTree
 
 
@@ -75,7 +76,10 @@ def run_liftoff(output_dir, ref_db, args):
         when ``args.inmemory_liftoff`` is True.
     """
     liftoff_args = _copy_liftoff_args(args)
-    liftoff_outdir = output_dir + "liftoff/"
+    # os.path.join: the caller passes "<out>/lifton_output" without a trailing
+    # separator, and plain concatenation wrote "<out>/lifton_outputliftoff/"
+    # (v1.0.10-v1.0.11).
+    liftoff_outdir = os.path.join(output_dir, "liftoff", "")
     os.makedirs(liftoff_outdir, exist_ok=True)
     liftoff_annotation = liftoff_outdir + "liftoff.gff3"
     liftoff_args.output = liftoff_annotation
@@ -124,6 +128,7 @@ def run_liftoff(output_dir, ref_db, args):
         sys.exit(1)
     finally:
         sys.setrecursionlimit(_orig_recursion_limit)
+        collect_execution_events(args)
 
     if args.polish:
         liftoff_annotation += "_polished"
@@ -553,13 +558,17 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_liftoff(ref_features_dict, _parent_gene_id, locus.id)
         lifton_status = lifton_class.Lifton_Status()
         lifton_status.annotation = "Liftoff"
-        # V1.1a fix: narrow bare `except:` to the actual exceptions a
-        # missing reference transcript can raise. KeyError is the
-        # gffbase / dict-style miss; FeatureNotFoundError is gffutils.
-        # KeyboardInterrupt and SystemExit now correctly propagate.
-        try: # Test if the reference transcript exists. Skip if not.
-            ref_db[ref_trans_id]
-        except (KeyError, gffutils.exceptions.FeatureNotFoundError):
+        # Resolve the reference transcript: the exact id first, then -- only on a
+        # miss -- the Liftoff `-copies` `_<N>` base, verified to be a child of the
+        # reference gene we already resolved. Before this, a `-copies` extra copy
+        # never resolved (`rna-X_1` was looked up verbatim), so every extra copy
+        # lost its transcript, exons and CDS and was emitted as a bare gene line
+        # -- ~4,400 such genes across the 17-genome benchmark corpus, in every
+        # release up to and including v1.0.11. See lifton_utils.resolve_ref_trans_id.
+        _resolved_trans_id = lifton_utils.resolve_ref_trans_id(
+            ref_db, ref_trans_id, ref_gene_id,
+        )
+        if _resolved_trans_id is None:
             # Skipping here drops this transcript AND all of its exons/CDS from the
             # output, so say so instead of returning silently -- an unresolvable id
             # used to be indistinguishable from "nothing to lift".
@@ -568,6 +577,7 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
                 f"{ref_trans_id!r} was not found in the reference annotation."
             )
             return None
+        ref_trans_id = _resolved_trans_id
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
         orf_done = False
         if cds_num > 0:

@@ -109,3 +109,41 @@ class TestFreshParallelStep7:
                         locus_pipeline=(threads > 1),
                         suffix=f"axis_t{threads}")
         assert result == baseline
+
+
+class TestParallelByDefault:
+    """v1.0.12: ``-t N`` (N > 1) fans Steps 7/8 out without --locus-pipeline."""
+
+    @staticmethod
+    def _drive(workspace, suffix, *flags):
+        from lifton import lifton as lifton_main
+
+        out_gff = workspace["out"] / f"default_parallel_{suffix}.gff3"
+        argv = [str(workspace["tgt_fa"]), str(workspace["ref_fa"]),
+                "-g", str(workspace["ref_gff"]), "-L", str(workspace["liftoff"]),
+                "-M", str(workspace["miniprot"]), "-o", str(out_gff),
+                "-ad", "RefSeq", "--force", *flags]
+        lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv))
+        return out_gff.read_bytes()
+
+    def test_threads_alone_pool_and_match_serial(
+            self, integration_workspace, hermetic_pipeline, monkeypatch):
+        from lifton import parallel as _parallel
+        original = _parallel.ThreadPoolExecutor
+        constructed = {"n": 0}
+
+        class TPESpy(original):
+            def __init__(self, *a, **kw):
+                constructed["n"] += 1
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(_parallel, "ThreadPoolExecutor", TPESpy)
+        serial = self._drive(integration_workspace, "t1", "-t", "1")
+        assert constructed["n"] == 0
+        opted_out = self._drive(integration_workspace, "t4_off", "-t", "4",
+                                "--no-locus-pipeline")
+        assert constructed["n"] == 0
+        default = self._drive(integration_workspace, "t4", "-t", "4")
+        assert constructed["n"] >= 1
+        assert len(serial) > 0
+        assert default == serial == opted_out

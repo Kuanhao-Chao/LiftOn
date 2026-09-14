@@ -9,6 +9,7 @@ from benchmarks.compare.target_truth import (
     filter_truth_to_target_fasta,
     main,
     parse_annotation,
+    quarantine_document,
     score_target_truth,
     write_target_truth_metrics,
 )
@@ -413,6 +414,92 @@ def test_target_truth_cli_writes_machine_readable_result(tmp_path):
     assert json.loads(output.read_text())["gene"]["locus"]["f1"] == 1.0
 
 
+def _coding_annotation(gene_id, transcript_id, *, start, end, strand, cds_rows,
+                       partial=False):
+    attributes = f"ID={transcript_id};Parent={gene_id}"
+    if partial:
+        attributes += ";partial=true"
+    rows = [
+        f"chr1\tt\tgene\t{start}\t{end}\t.\t{strand}\t.\tID={gene_id}",
+        f"chr1\tt\tmRNA\t{start}\t{end}\t.\t{strand}\t.\t{attributes}",
+        f"chr1\tt\texon\t{start}\t{end}\t.\t{strand}\t."
+        f"\tID={transcript_id}.e;Parent={transcript_id}",
+    ]
+    for index, (cds_start, cds_end, phase) in enumerate(cds_rows, start=1):
+        rows.append(
+            f"chr1\tt\tCDS\t{cds_start}\t{cds_end}\t.\t{strand}\t{phase}"
+            f"\tID={transcript_id}.c{index};Parent={transcript_id}"
+        )
+    return "\n".join(rows) + "\n"
+
+
+def test_target_sequence_scoring_is_phase_and_strand_aware(tmp_path):
+    # Plus CDS: ATG AAA CCC TAA split after four bases (next phase = 2).
+    # Minus CDS: forward genomic TTAGGGCAT -> coding ATG CCC TAA.
+    target = tmp_path / "target.fa"
+    target.write_text(
+        ">chr1\n"
+        "ATGAAACCCTAA" + "N" * 7 + "TTAGGGCAT" + "N" * 20 + "\n"
+    )
+    body = (
+        _coding_annotation(
+            "gplus", "tplus", start=1, end=12, strand="+",
+            cds_rows=((1, 4, 0), (5, 12, 2)),
+        )
+        + _coding_annotation(
+            "gminus", "tminus", start=20, end=28, strand="-",
+            cds_rows=((20, 28, 0),),
+        )
+    )
+    prediction = _write(tmp_path / "prediction.gff3", body)
+    truth = _write(tmp_path / "truth.gff3", body)
+
+    result = score_target_truth(
+        prediction,
+        truth,
+        target_fasta=target,
+        id_policy="exact-id",
+    )
+
+    sequence = result["target_sequence"]
+    assert sequence["truth_eligible"] == 2
+    assert sequence["exact_protein"]["rate"] == 1.0
+    assert sequence["protein_identity"]["mean"] == 1.0
+    assert sequence["protein_identity"]["coverage_weighted"] == 1.0
+    assert sequence["phase_consistent"] == {"prediction": 2, "truth": 2}
+    assert sequence["orf"]["both_valid_rate"] == 1.0
+
+
+def test_target_sequence_counts_untranslatable_prediction_as_zero(tmp_path):
+    target = tmp_path / "target.fa"
+    target.write_text(">chr1\nATGAAATAA\n")
+    truth = _write(
+        tmp_path / "truth.gff3",
+        _coding_annotation(
+            "g", "t", start=1, end=9, strand="+",
+            cds_rows=((1, 9, 0),),
+        ),
+    )
+    prediction_body = _coding_annotation(
+        "g", "t", start=1, end=9, strand="+", cds_rows=((1, 9, 0),),
+    ).replace("chr1\tt\tCDS", "missing\tt\tCDS")
+    prediction = _write(tmp_path / "prediction.gff3", prediction_body)
+
+    result = score_target_truth(
+        prediction,
+        truth,
+        target_fasta=target,
+        id_policy="exact-id",
+    )
+
+    sequence = result["target_sequence"]
+    assert sequence["truth_eligible"] == 1
+    assert sequence["prediction_untranslatable"] == 1
+    assert sequence["exact_protein"]["rate"] == 0.0
+    assert sequence["protein_identity"]["mean"] == 0.0
+    assert sequence["failures"] == {"prediction.fasta_interval_error": 1}
+
+
 @given(
     offset=st.integers(min_value=-200, max_value=200),
     width=st.integers(min_value=10, max_value=100),
@@ -435,3 +522,74 @@ def test_locus_property_is_bounded_and_symmetric(tmp_path, offset, width):
 
     for key in ("precision", "recall", "f1"):
         assert metric[key] is None or 0.0 <= metric[key] <= 1.0
+
+
+def test_structurally_invalid_row_is_quarantined_not_fatal(tmp_path):
+    """One malformed row must not discard an otherwise complete annotation.
+
+    LiftOn v1.0.8 emits a single inverted-coordinate mRNA on the dog-to-cat
+    transfer. Aborting the parse threw away four fully executed paired cells,
+    so the row is now recorded and skipped instead.
+    """
+
+    path = tmp_path / "prediction.gff3"
+    path.write_text(
+        _annotation("g1", "t1")
+        + "chr1\tt\tgene\t1000\t1200\t.\t+\t.\tID=g2\n"
+        + "chr1\tt\tmRNA\t1200\t1000\t.\t+\t.\tID=t2;Parent=g2\n"
+        + "chr1\tt\texon\t1000\t1100\t.\t+\t.\tID=t2.e1;Parent=t2\n"
+        + "chr1\tt\tCDS\t1000\t1100\t.\t+\t0\tID=t2.cds;Parent=t2\n"
+    )
+
+    annotation = parse_annotation(path)
+
+    assert len(annotation.quarantined) == 1
+    record = annotation.quarantined[0]
+    assert record.reason == "invalid_coordinates"
+    assert record.feature_type == "mRNA"
+    assert record.feature_id == "t2"
+    assert record.detail == "1200..1000"
+
+    # The malformed transcript is absent from every scored collection, and so
+    # are the children that would otherwise be orphaned by its removal.
+    assert set(annotation.transcripts) == {"t1"}
+    assert "t2" not in annotation.exons
+    assert "t2" not in annotation.cds
+    assert "t2" not in annotation.cds_segments
+    # The valid model beside it is untouched.
+    assert set(annotation.genes) == {"g1", "g2"}
+    assert len(annotation.exons["t1"]) == 2
+
+
+def test_wellformed_annotation_reports_an_empty_quarantine(tmp_path):
+    path = tmp_path / "clean.gff3"
+    path.write_text(_annotation("g1", "t1"))
+
+    document = quarantine_document(parse_annotation(path))
+
+    assert document == {
+        "n_quarantined": 0,
+        "by_reason": {},
+        "records": [],
+        "records_truncated": False,
+    }
+
+
+def test_quarantine_is_reported_in_the_scored_result(tmp_path):
+    prediction = tmp_path / "prediction.gff3"
+    prediction.write_text(
+        _annotation("g1", "t1")
+        + "chr1\tt\tgene\t1000\t1200\t.\t+\t.\tID=g2\n"
+        + "chr1\tt\tmRNA\t1200\t1000\t.\t+\t.\tID=t2;Parent=g2\n"
+    )
+    truth = tmp_path / "truth.gff3"
+    truth.write_text(_annotation("g1", "t1"))
+
+    metrics = score_target_truth(prediction, truth, id_policy="exact-id")
+
+    integrity = metrics["integrity"]
+    assert integrity["method"] == "structural-record-quarantine-v1"
+    assert integrity["prediction"]["n_quarantined"] == 1
+    assert integrity["prediction"]["by_reason"] == {"invalid_coordinates": 1}
+    assert integrity["prediction"]["records"][0]["feature_id"] == "t2"
+    assert integrity["truth"]["n_quarantined"] == 0

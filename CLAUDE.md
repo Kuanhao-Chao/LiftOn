@@ -61,6 +61,68 @@ profile-driven performance pass. Suite ~1610. Three things worth carrying forwar
   it, and takes `LIFTON_AB_PYTHONPATH` to pin both arms to one build (a detached
   worktree) while the main tree moves on.
 
+**v1.0.12 program (2026-09-11)** — see `notes/lifton_v1.0.12_improvement_analysis.md`
+for the evidence and `notes/release_readiness_v1.0.12.md` for the gates. What
+changed for anyone editing the code:
+
+- **The miniprot-only rescue has three passes now** (`lifton/miniprot_rescue.py`):
+  sub-pass A (the Iteration-23 rescue, unchanged), sub-pass B (candidates the
+  genomic-span band rejected, gated on protein coverage from `Target=`; default on,
+  `--no-coverage-rescue-gate`), and the isoform pass (other transcripts of each
+  rescued gene co-located with its hit; default on, `--no-rescue-isoforms`).
+  Placement is decided before any output is written (`_RescuePublisher` buffers when
+  isoforms are on); isoform scoring runs in forked processes with `-t > 1`.
+- **`--threads N > 1` now implies `--locus-pipeline` and `--parallel-lift`**
+  (`--no-locus-pipeline`, `--no-parallel-lift` opt out). Both are byte-neutral; the
+  parallel lift is exact because the lift loop's only cross-feature link (the
+  upstream-neighbour hint) never crosses a reference chromosome.
+- **Fork hazard:** a pool forked after `OutputTransaction.install_signal_handlers()`
+  inherits the SIGTERM handler, and `Pool.terminate()` used to make a worker rename
+  the parent's staged GFF3. The handler now acts only in its installing PID, and new
+  pools reset SIGTERM/SIGHUP in their initializer. Keep doing both.
+- **Evaluation:** report primary-assembly or GeneID-collapsed recall for
+  human-source transfers (`benchmarks/compare/gene_level.py`); 14.6 % of GRCh38
+  RefSeq coding genes are alt/fix copies. A/B gates for rescue changes live in
+  `benchmarks/compare/rescue_extension_ab.py` (duplicates are checked by ID; models
+  the evaluator cannot score, e.g. `V_gene_segment`, are reported separately).
+
+**v1.0.12, second round (2026-09-12)** — what the first round's results made
+possible to measure, and what changed as a result:
+
+- **The distant-recall well is nearly dry.** Replaying the *shipped* gates against
+  v1.0.12's own whole-genome output (`benchmarks/compare/recall_gap_after_v1012.md`),
+  79–91 % of the coding genes still missed that miniprot finds are one class: a gene
+  LiftOn already emitted holds the locus. Lowering `LIFTON_RESCUE_COVERAGE_MIN` is
+  worth 23–57 genes per transfer — a **measured NO-GO**, no sweep run. Do not
+  re-propose threshold tuning here without new evidence.
+- **`lifton/orf_completion.py` (default on, `--no-orf-stop-completion`).** miniprot's
+  CDS ends at the last aligned codon, so its models lacked the stop the reference
+  convention includes, and `__find_orfs` could not add it (no UTR to search: a
+  miniprot model's exons *are* its CDS). Two rules make it non-regressing, and both
+  were forced by the A/B rather than reasoned out: it runs **after** the ORF search
+  (before it, completing the model suppressed the `stop_missing` trigger and changed
+  two transcripts' ORF path), and it fires only when the reference protein itself
+  ends in a stop, keeping the extension only when re-scoring shows no loss. Hook
+  points: `run_miniprot.lifton_miniprot_with_ref_protein`'s caller in
+  `process_miniprot`, `miniprot_rescue._build_and_accept`, and `_score_isoform`
+  (which takes the resolved switch on `_GeneView`, since a forked worker has no
+  `args`). Candidate-3 is deliberately NOT hooked — it competes inside Step 7.
+- **Cross-locus replacement keeps its isoforms** (`cross_locus_rescue.py`, still
+  opt-in). It dropped every block of the gene it replaced while emitting one
+  transcript: −401 net on human → zebrafish. It now reuses the rescue's detached
+  isoform scorer, may widen only where no other emitted model is reached, and gates
+  on protein coverage so a partial hit cannot displace a full-length lift.
+- **The run manifest records where the rescue's time goes** (`miniprot_rescue_ms_*`).
+  Use it before optimising: it showed the `copy.deepcopy` target this file names as
+  "the strongest remaining target" is **already fixed** (custom `__deepcopy__` on
+  `Lifton_EXON`/`Lifton_CDS`), and that `fingerprint_inputs` is fully overlapped —
+  its 124 s phase has a 23 µs join wait, so **summing manifest phases double-counts**.
+- **GH #37 / #14.** `lifton_utils.get_gene_like_feature_types` falls back to the
+  annotation's real top-level types (minus `META_FEATURE_TYPES`) instead of `["gene"]`,
+  and an empty selection raises `LiftOnInputError` naming what the file contains;
+  `-dir/--intermediate-dir` moves a run's artifact directory. `ISSUE_TRIAGE_REPLIES.md`
+  holds replies for all eight open issues, to post **after** the tag.
+
 ## Environment & commands
 
 The project requires native deps (`parasail`, `pysam`, `pyfaidx`, `gffutils`, `duckdb`, `pyarrow`) that ship as bioconda/conda-forge wheels. On macOS/ARM, `pip install parasail` will fail to build from source — use conda. The vendored `lifton/gffbase/` ships a pre-built Rust extension (`_native*.so`); a missing extension falls back to the pure-Python parser at `lifton/gffbase/_pyfallback/`.
@@ -225,6 +287,48 @@ Any change that touches the alignment kernel, the writer, the directive carrier,
 **Scope clarification (GFF3 parent-child containment + unique-ID normalization — Iteration 24, output-CORRECTIVE, default-ON, v1.0.9 release-hardening).** A thorough pre-release validation (`gff3-validate` / `--validate-output`) surfaced that LiftOn (v1.0.8 AND devel) emits **invalid GFF3 the reference itself does not have**, on frameshift-corrected RefSeq models: (a) **coord_containment** — ORF-boundary patching extends a single-exon CDS a few bp past its exon (to capture a stop codon on a `stop_missing` model) without widening the exon, so the CDS/exon falls outside the mRNA span; plus the Iter-21 inverted (`start>end`) class from a non-monotonic rebuilt exon list; (b) **duplicate exon IDs** — the chaining rebuilds the exon structure while reusing stale reference `exon-<acc>-N` IDs, so ~53% of transcripts carry colliding exon IDs (full dog→cat ≈ 28k, drosophila ≈ 23k duplicate-ID errors). Root cause confirmed: the reference annotation has **0** such violations → LiftOn introduces them; both classes manifest at the `update_boundaries` / serializer chokepoint. **Fix:** a new `Lifton_TRANS.normalize_containment()` (+ `Lifton_GENE.normalize_containment()`) runs at the write funnel (`Lifton_GENE.write_entry`) and (i) extends each exon to cover its CDS, (ii) sorts exons, (iii) re-numbers exon IDs 5′→3′ from the shared base **only on a real collision**, (iv) sets the transcript/gene span to the child envelope. **CDS coordinates are never touched → protein identity is provably unchanged** (only `exon`/`mRNA`/`gene` boundary + exon-ID lines move). Default-ON; **`LIFTON_NO_CONTAINMENT_NORMALIZE=1`** reproduces the pre-Iteration-24 bytes (manuscript / A-B baseline). The in-tree validator (`lifton/gff3_validator.py`) was also corrected for a **false positive**: a spec-valid discontinuous CDS (the multiple segments of one multi-exon CDS) legitimately shares a single ID — exempted via `DISCONTINUOUS_FEATURE_TYPES` (same type + same Parent). **Scope vs the byte-identity contract:** OUTPUT-CORRECTIVE (changes only previously-invalid transcripts — ~53% carry an exon-ID fix, ~3% a boundary fix; same class as the Iter-20/21 crash fixes being output-corrective), **byte-identical on every already-valid transcript**, so the **24-cell matrix stays GREEN with NO golden edit** (fixtures are valid → normalize is a no-op). **Verified:** (1) 24-cell green no golden edit; (2) full suite **725→729** (+5 `tests/test_lifton_class.py::TestContainmentNormalization`, +1 `gff3_validator` exemption; the flag-gated Case-2 precursor `LIFTON_SORT_CDS_CASE2` was SUBSUMED/removed); (3) **dog→cat AND drosophila subsets now `is_valid: True`, 0 validator errors** (were 59 / 23k+); (4) drosophila OFF (`LIFTON_NO_CONTAINMENT_NORMALIZE=1`) reproduces the canonical anchor **`e97f411a…` BYTE-FOR-BYTE**, new valid default md5 `05553487…`; (5) **`protein_identity` IDENTICAL** ON-vs-OFF on both genomes (accuracy preserved). Remaining `gff3-validate` items are WARNINGS, not errors (38 miniprot-passthrough exon-phase, 43 CDS-less mRNA, 2 tRNA gene, 6 cds-phase) — advisory edge cases, documented/deferred. Because the output changes (boundary/ID, not CDS), the committed `fourway_results.json` accuracy/completeness numbers are UNCHANGED but the validity figure improves to clean; a benchmark re-baseline refreshes only the validity panel. See memory [[lifton-inverted-coord-write-crash]], [[lifton-genelike-child-double-lift]], [[lifton-trans-serializer-split]], and [[lifton-optimization-flag-gating]].
 
 **Scope clarification (Iter-24 follow-up: gene-like-feature normalize CRASH fixed + validator strand-`?` fix + full-genome validity refresh — output-CORRECTIVE, SHIPPED).** The pre-release FULL-GENOME validity re-lift (devel column, all 17 `full:*` cells, parallel per-genome tmux via `benchmarks/compare/validity_relift.py --single`/`--merge`) CAUGHT a release-blocker that the Iter-24 containment work itself introduced: `Lifton_GENE.normalize_containment` iterated `self.transcripts` calling `.normalize_containment()` on every child, but a gene's `transcripts` dict ALSO holds **`LiftOn_FEATURE`** objects (gene-like children — pseudogene / ncRNA-gene / organellar features, added by `Lifton_GENE.add_feature`) which had no such method → `AttributeError: 'LiftOn_FEATURE' object has no attribute 'normalize_containment'` ABORTS the whole genome in the parent-thread `consume()` write phase (same class as Iter-21). Invisible to the 729 coding-only tests + the 24-cell matrix + the chr22 example (all gene-only); surfaced only on full **arabidopsis→rice** — i.e. on any genome with gene-like features, which is the DEFAULT lift. **FIX:** added `LiftOn_FEATURE.normalize_containment()` (recurse into `self.features` + EXTEND its span to contain children — conservative, never shrinks) + a defensive `getattr` guard in `Lifton_GENE.normalize_containment` so a future child type without the method can't re-abort. Byte-neutral on the coding-only fixtures (24-cell GREEN no golden edit). **Validator fix:** `gff3-validate` flagged `strand '?'` as invalid, but GFF3 permits `?` (stranded-but-unknown, on real RefSeq organellar features) — `VALID_STRANDS` now accepts it (a uniform false-positive correction applied to all four tools). Verified: full suite **729→733** (+1 `tests/test_lifton_class.py::test_gene_with_feature_child_does_not_crash`, +3 NEW `tests/test_gff3_validate_output.py` covering strand-`?` + the previously-untested Iter-24 discontinuous-CDS exemption), 24-cell GREEN. **Full-genome validity refresh (`fourway_results.json`):** released v1.0.9 (devel) now validates CLEAN (0 `gff3-validate` errors) on **9 of 17 whole genomes** — bee, drosophila, drosophila→bee, and all five human cross-species (gorilla/macaque/marmoset/chicken/xenopus) + human→zebrafish — with small residuals on mammals (dog→cat 15, mouse→caroli 1) and on **plant genomes with organellar genomes** (arabidopsis 49, rice 73, maize 75, tomato 101, tomato→potato 58, arabidopsis→rice 35) that are **REFERENCE-INHERITED, NOT LiftOn-introduced** — the references themselves fail the same checks WORSE (e.g. TAIR10 ref = 164 errors: organellar CDS-directly-under-`gene` + dup mito IDs that LiftOn faithfully carries, fewer). vs the pre-Iter-24 committed Table 8 (~100–225/genome) this is a halved-to-zero reduction. The refresh updates ONLY the `validity[*]` blocks of the 17 `full:*` cells (per-tool, from the HEAD baseline, with crash-genome `lifton_stable` nulls preserved); accuracy/completeness/perf are byte-identical to the committed JSON (**0 non-validity diffs**). Report/blog Table 8 + the `rfig_full_validity`/`fig_full_validity` figures (`report_figures.py`/`blog_figures.py`, relabelled `LiftOn 2.0`→`LiftOn v1.0.9`) are refreshed to these numbers. LESSON: a write-funnel visitor added in Iter-24 was exercised only on coding genes; the default gene-like lift routes `LiftOn_FEATURE` children through the same funnel — the synthetic suite + 24-cell can't see it, only a full-genome run with organellar/gene-like features does (the recurring Iter-20/21 lesson: full-genome scale surfaces what the subset/synthetic gates cannot). See memory [[lifton-genelike-child-double-lift]], [[lifton-inverted-coord-write-crash]], and [[lifton-optimization-flag-gating]].
+
+**Scope clarification (Liftoff `-copies` childless-gene fix — output-CORRECTIVE, default-ON, v1.0.12).**
+A user reported that with `-copies`, LiftOn emitted **only the gene line** for an extra gene
+copy where Liftoff emits gene + mRNA + exon + CDS. Verified, and far bigger than one gene:
+**~4,400 childless copy genes across the 17-genome corpus** (rice 539 of 815 copy genes,
+human→zebrafish 1,178 of 1,881, maize 1,079 of 2,716, xenopus 728 of 986, arabidopsis 161
+of 223), **byte-for-byte identical in v1.0.11** — i.e. shipping in every release, not a
+v1.0.12 regression. **Root cause:** `lifton_utils.get_ref_ids_liftoff`'s both-ids branch
+resolved the GENE against the gene-keyed `ref_features_dict` (`gene-X_1` → `gene-X`,
+correct) but for the TRANSCRIPT called `get_ID_base(liftoff_trans_id, None)` — and
+**`get_ID_base(id, None)` is provably the identity function** (every branch returns `id`).
+`rna-X_1` was therefore looked up verbatim, `ref_db[...]` raised, and
+`run_liftoff.process_liftoff` `return None`d, dropping the transcript **and every exon and
+CDS under it** while the gene `initialize_lifton_gene` had already built stayed in the
+output as a bare line. **Fix:** new `lifton_utils.resolve_ref_trans_id` applies the rule
+`run_evaluation._copy_base` (line 105) already applied correctly on the evaluation path —
+**exact id first, then the `_<N>` copy base** — plus a guard that the base is a child of the
+resolved reference gene. Exact-first is what keeps reference ids that genuinely end in
+`_<int>` intact (`…mrna.FMUND_1`; maize really has `gene-z1D_2`, `gene-z1D_3`). Validated
+against the real gffutils reference DBs: **1,908/1,908 dropped transcripts resolve, 0
+misroutes.** **Three parts, each pinned by a test proven to fail without it**
+(`tests/test_copies_childless_gene.py`): (1) the resolver + its use in `process_liftoff`;
+(2) **`locus_pipeline._populate_ref_attrs_for_descent` must pre-fetch BOTH candidate ids** —
+workers read through `_RefDbProxy`, which raises `KeyError` for anything not pre-fetched, so
+without this the fix works at `-t 1` and **silently does not at `-t 4`**, which is the
+default once threads are on; (3) genes emitted with no children are counted into
+`run_manifest.json` as `genes_emitted_without_children` and reported at Step 9.
+`run_evaluation` needed **no** change — it already resolves copies via
+`_lookup_reference_feature`, and since `get_ID_base(id, None) == id` the
+`get_ref_ids_liftoff` edit is exactly behaviour-preserving for every other caller.
+**Scope vs the byte-identity contract:** OUTPUT-ADDITIVE/CORRECTIVE (adds rows under genes
+already emitted; the gene interval, the copy counter and `emitted_ref_gene_ids` were all
+already committed by `Lifton_GENE.__init__`, so Step-8 suppression and rescue dedup are
+untouched), **byte-identical on any annotation without `-copies` extra copies**; the
+**24-cell matrix stays GREEN with NO golden edit** (its fixtures have no copies).
+**LESSON:** a conservative guard is only conservative when it is given the evidence to be
+conditional on — passing `None` to "be safe" made `get_ID_base` unconditional, and the
+comment above it described that workaround as the design for three releases. Also: the
+correct rule already existed **in this repo, on the evaluation path**; the lift path never
+got it. And the warning was there all along (550 lines of `Skipping … was not found` in the
+rice stderr) — nothing aggregated it, and `gff3-validate` flags a childless gene only as a
+WARNING while the release gates count errors.
 
 **Scope clarification (ORF-rescue best-match selection — Iteration 9 NO-GO, code REVERTED).** The accuracy axis this round targeted ORF *selection*: `lifton_class.__find_orfs` keeps only the single LONGEST ORF per reading frame (`i = orf_idx_e` interior-skip), then identity-scores those ≤3 survivors — so a shorter but better-matching ORF is discarded. The experiment (gated behind `--orf-best-match` / `LIFTON_ORF_BEST_MATCH=1`) kept the top-K(=3) longest per frame (no-interior-skip scan, trailing-`*` stripped) and selected by reference-protein identity. **Feasibility-first** (the Iteration-4 recipe): a byte-neutral `LIFTON_ORF_DIAG` probe ran FIRST (flag OFF, output byte-frozen) measuring, per rescued transcript, what the broadened pick *would* achieve vs the applied longest — `benchmarks/compare/orf_best_match_headroom.py`: drosophila **5/6979** rescued transcripts would change (projected corpus mean-PI Δ **+0.00011**), mouse_to_rat chr18 **12/2305** (**+0.00030**), both ~10-30× below the +0.003 promotion bar (and the +0.005 Iteration-4 bar). The A/B (`benchmarks/compare/orf_best_match_ab.py`, default vs `LIFTON_ORF_BEST_MATCH=1`, cached `-L`/`-M`) then **adversarially verified on emitted output** what the flag-OFF projection could not see — the strip/re-score **ripples into the best-of-outcome merge**: net **−0.00003** (drosophila, 4 improved / **59 regressed**) and **+0.00008** (mouse_to_rat, 3 / **23**), with CDS counts perturbed (regressions dominate; gate 0/2). **Decision: NO-GO.** The longest ORF per frame is already near-optimal — the same "well is dry" shape as Iteration 4 (when one source/choice wins a transcript it usually wins everywhere). Because the result was **net-negative** (not merely marginal), the `lifton/` implementation was **REVERTED** (no flag shipped, matching the Iteration-4 precedent); the **audit trail is the retained benchmark scripts + results** (`benchmarks/compare/orf_best_match_{headroom,ab}.{py,json,md}`) plus this note. To reproduce, restore the `LIFTON_ORF_BEST_MATCH` / `LIFTON_ORF_DIAG` instrumentation in `lifton_class.__find_orfs`. Lesson reinforced: the feasibility diagnostic gates cheaply, but the A/B is what catches downstream ripple regressions an upside-only projection misses. See memory [[lifton-chaining-at-safe-ceiling]] and [[lifton-optimization-flag-gating]].
 

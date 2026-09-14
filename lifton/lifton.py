@@ -4,6 +4,7 @@ import argparse
 from pyfaidx import Fasta
 import os, sys
 import re
+import tempfile
 import time
 import concurrent.futures
 from contextlib import redirect_stdout
@@ -11,11 +12,19 @@ from urllib.parse import unquote
 
 from lifton.exceptions import (
     LiftOnError,
+    LiftOnInputError,
     LiftOnPartialOutputError,
     LiftOnValidationError,
 )
 from lifton.run_manifest import RunManifest
 from lifton.locus_pipeline import safe_exception_text
+from lifton.tool_execution import (
+    MAX_CONCURRENT_TARGET_BASES,
+    MINIPROT_LONG_SEQUENCE_BASES,
+    miniprot_long_sequence_compatibility,
+    resolve_aligner_schedule,
+    target_fasta_statistics,
+)
 
 
 def _allocator_source_ids(database):
@@ -46,12 +55,36 @@ def _allocator_source_ids(database):
     return cds_namespace_ids, copy_suffix_ids
 
 
-def _run_outdirs(output):
-    """Return the user-output directory and LiftOn artifact directory."""
+def _no_features_message(annotation_path, selected, scan_result):
+    """Explain an empty lift selection in terms the user can act on: what was
+    looked for, and what the annotation actually contains."""
+    counts = getattr(scan_result, "feature_type_counts", ()) or ()
+    present = ", ".join(f"{name} ({count})" for name, count in
+                        sorted(counts, key=lambda item: -item[1])[:15])
+    return (
+        f"No features to lift were found in {annotation_path}. LiftOn looked "
+        f"for {', '.join(selected)}"
+        + (f"; the annotation contains {present}." if present else ".")
+        + " Pass -f/--features with a file listing the feature types to lift, "
+        "one per line."
+    )
+
+
+def _run_outdirs(output, intermediate_dir=None):
+    """Return the user-output directory and the LiftOn artifact directory.
+
+    The artifact directory defaults to ``lifton_output/`` beside the output
+    file, which means every run writing into one directory shares it: two
+    concurrent jobs with different ``-o`` names but a common parent overwrite
+    each other's intermediate files (GH #14). ``--intermediate-dir`` gives a run
+    its own.
+    """
     if output == "stdout":
         outdir = "."
     else:
         outdir = os.path.dirname(output) or "."
+    if intermediate_dir:
+        return outdir, os.path.abspath(os.path.expanduser(intermediate_dir))
     return outdir, os.path.join(outdir, "lifton_output")
 
 
@@ -235,6 +268,18 @@ def _describe_annotation_source(x):
         return f"<in-memory bytes, {len(x):,} bytes>"
     return x
 
+
+def _latest_aligner_execution(args, tool):
+    manifest = getattr(args, "_run_manifest", None)
+    if manifest is None:
+        return None
+    executions = manifest.to_dict().get("aligners", {}).get("executions", [])
+    return next(
+        (record for record in reversed(executions)
+         if record.get("tool") == tool),
+        None,
+    )
+
 def args_gffutils(parser):
     gffutils_grp = parser.add_argument_group('* gffutils parameters')
     gffutils_grp.add_argument(
@@ -411,9 +456,11 @@ def args_optional(parser):
     )
     parser.add_argument(
         '--locus-pipeline', dest='locus_pipeline', action='store_true',
-        default=False,
+        default=None,
         help='Locus-major fan-out: dispatch per-locus Step 7, Step 8, and '
              'evaluation work through bounded workers sized by --threads. '
+             'ON BY DEFAULT whenever --threads is greater than 1 (v1.0.12); '
+             'the flag is kept for compatibility. '
              'Output is emitted in submission order so --threads N is '
              'byte-identical to --threads 1; this flag changes scheduling, '
              'not algorithms. As of Iteration 8 this works on the DEFAULT '
@@ -425,6 +472,27 @@ def args_optional(parser):
              'Set LIFTON_PARALLEL_BLOCK_GFFUTILS=1 to opt back out to '
              'serial-on-gffutils. Note: combined with the default '
              'concurrent Step 4, peak busy cores can reach ~N+1.'
+    )
+    parser.add_argument(
+        '--no-locus-pipeline', dest='locus_pipeline', action='store_false',
+        default=None,
+        help='Process Steps 7 and 8 serially even when --threads is greater '
+             'than 1 (the pre-v1.0.12 default). Output is identical either way.'
+    )
+    parser.add_argument(
+        '--parallel-lift', dest='parallel_lift', action='store_true',
+        default=None,
+        help='No-op alias: the parallel Liftoff lift loop is the default '
+             'whenever --threads is greater than 1 (v1.0.12).'
+    )
+    parser.add_argument(
+        '--no-parallel-lift', dest='parallel_lift', action='store_false',
+        default=None,
+        help="Run Liftoff's lift loop serially. By default (--threads > 1) "
+             "each reference chromosome's alignments are lifted by one forked "
+             'worker; output is identical because the loop only links '
+             'neighbouring genes on the same reference chromosome. Env '
+             'LIFTON_PARALLEL_LIFT=1/0 overrides.'
     )
     parser.add_argument(
         '--step7-max-inflight', dest='step7_max_inflight', type=int,
@@ -454,29 +522,21 @@ def args_optional(parser):
              'the mappy Liftoff path (for example when minimap2 is absent); '
              'it falls back gracefully when mappy is unavailable.'
     )
-    parser.add_argument(
+    aligner_schedule = parser.add_mutually_exclusive_group()
+    aligner_schedule.add_argument(
         '--serial-aligners', dest='serial_aligners', action='store_true',
         default=False,
-        help='Restore the pre-Iteration-6 SEQUENTIAL Step 4: run Liftoff '
-             '(DNA) then miniprot (protein) one after the other instead of '
-             'the default (concurrent) overlap. The default now dispatches '
-             'miniprot (an independent subprocess) to a background thread '
-             'while Liftoff runs on the main thread (Liftoff reads the '
-             'main-thread-bound SQLite reference DB, so it cannot move off '
-             'it), collapsing Step-4 wall from t_liftoff + t_miniprot to '
-             'max(t_liftoff, t_miniprot). The concurrent default is '
-             'byte-identical to this serial path (only miniprot\'s timing '
-             'moves); use --serial-aligners on core-constrained machines '
-             '(concurrent peak is ~N+1 cores with --threads N) or to keep '
-             'the two tools\' console logs from interleaving.'
+        help='Force Liftoff/minimap2 to finish before miniprot starts. '
+             'LiftOn selects this automatically when the target exceeds '
+             '4,000,000,000 bases; this flag also forces it for smaller '
+             'targets.'
     )
-    parser.add_argument(
+    aligner_schedule.add_argument(
         '--parallel-aligners', dest='parallel_aligners', action='store_true',
         default=False,
-        help='No-op alias (kept for backward compatibility). The Step-4 '
-             'Liftoff/miniprot overlap that this flag used to gate is now '
-             'the DEFAULT (Iteration 6 promotion), so --parallel-aligners '
-             'has no effect; pass --serial-aligners to opt out.'
+        help='Force Liftoff/minimap2 and miniprot to overlap. Above '
+             '4,000,000,000 target bases this overrides LiftOn\'s memory-safe '
+             'schedule and can substantially increase peak memory.'
     )
     parser.add_argument(
         '--optimize', dest='optimize', action='store_true', default=False,
@@ -618,6 +678,72 @@ def args_optional(parser):
              'pass --no-adaptive-rescue-floor to opt OUT. Env '
              'LIFTON_RESCUE_ADAPTIVE_FLOOR=1 force-enables, =0 force-disables.'
     )
+    parser.add_argument(
+        '--coverage-rescue-gate', dest='coverage_rescue_gate',
+        action='store_true', default=None,
+        help='No-op alias: the protein-coverage rescue sub-pass is the default '
+             '(v1.0.12). Pass --no-coverage-rescue-gate to opt out.'
+    )
+    parser.add_argument(
+        '--no-coverage-rescue-gate', dest='coverage_rescue_gate',
+        action='store_false', default=None,
+        help='Skip the protein-coverage rescue sub-pass (on by default since '
+             'v1.0.12). The sub-pass reconsiders miniprot-only candidates the '
+             'rescue length band rejected. That band compares genomic spans, '
+             'which include introns and so shrink or grow with genome size; the '
+             'sub-pass gates instead on how much of the reference protein the '
+             'miniprot hit covers (LIFTON_RESCUE_COVERAGE_MIN, default 0.8), '
+             'keeps the same protein-identity floor, and fills only loci no gene '
+             'occupies, best hit first. Everything the rescue already emits is '
+             'unchanged. Env LIFTON_RESCUE_COVERAGE_GATE=1/0 overrides.'
+    )
+    parser.add_argument(
+        '-dir', '--intermediate-dir', dest='intermediate_dir', default=None,
+        metavar='PATH',
+        help='Directory for this run\'s intermediate files, statistics, score '
+             'table and run manifest. Defaults to lifton_output/ beside the '
+             'output file, which two runs sharing an output directory would '
+             'also share; give each concurrent run its own to keep them '
+             'independent.'
+    )
+    parser.add_argument(
+        '--orf-stop-completion', dest='orf_stop_completion',
+        action='store_true', default=None,
+        help='No-op alias: terminal-stop completion of miniprot-derived models '
+             'is the default (v1.0.12). Pass --no-orf-stop-completion to opt '
+             'out.'
+    )
+    parser.add_argument(
+        '--no-orf-stop-completion', dest='orf_stop_completion',
+        action='store_false', default=None,
+        help="Leave a miniprot-derived model ending at its last aligned codon "
+             "(the pre-v1.0.12 behaviour). miniprot's CDS excludes the stop "
+             "codon, while the reference convention -- and every other model "
+             "LiftOn emits -- includes it, and the ORF search cannot add it "
+             "because such a model has no UTR to search. By default the "
+             "terminal CDS and its exon grow by the three bases of a "
+             "downstream stop codon, after the ORF search and only when the "
+             "reference protein itself ends in a stop; the extension is scored "
+             "and kept only if the model does not get worse. "
+             "Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
+    )
+    parser.add_argument(
+        '--rescue-isoforms', dest='rescue_isoforms',
+        action='store_true', default=None,
+        help='No-op alias: isoform-aware rescue is the default (v1.0.12). Pass '
+             '--no-rescue-isoforms to opt out.'
+    )
+    parser.add_argument(
+        '--no-rescue-isoforms', dest='rescue_isoforms',
+        action='store_false', default=None,
+        help='Emit one transcript per miniprot-only rescued gene (the pre-'
+             'v1.0.12 behaviour). By default each rescued gene also receives '
+             'the other transcripts of the same reference gene whose miniprot '
+             'hits lie at its locus (same sequence and strand, overlapping the '
+             'placed hit), each held to the same protein-identity floor and '
+             'never widening the gene into another gene; placement is '
+             'unchanged. Env LIFTON_RESCUE_ISOFORMS=1/0 overrides.'
+    )
 
 
 def parse_args(arglist):
@@ -694,7 +820,12 @@ def parse_args(arglist):
     if (float(args.s) > float(args.sc)):
         parser.error("-sc must be greater than or equal to -s")
     if (args.chroms is None and args.unplaced is not None):
-        parser.error("-unplaced must be used with -chroms")    
+        parser.error("-unplaced must be used with -chroms")
+    # v1.0.12: parallel Steps 7/8 are the default whenever more than one thread
+    # is requested; an explicit --locus-pipeline / --no-locus-pipeline wins.
+    # Scheduling only: output is byte-identical to the serial path.
+    if args.locus_pipeline is None:
+        args.locus_pipeline = int(args.threads) > 1
     if args.step7_max_inflight is not None and args.step7_max_inflight < 1:
         parser.error("--step7-max-inflight must be at least 1")
     if args.step8_max_inflight is not None and args.step8_max_inflight < 1:
@@ -747,6 +878,38 @@ def resolve_miniprot_rescue_args(args):
         args.adaptive_rescue_floor = _env_af.lower() not in ("0", "false", "no", "")
     else:
         args.adaptive_rescue_floor = bool(getattr(args, "adaptive_rescue_floor", True))
+    # Protein-coverage rescue sub-pass (v1.0.12). An explicit flag or
+    # LIFTON_RESCUE_COVERAGE_GATE decides; otherwise the value stays None and
+    # miniprot_rescue.COVERAGE_GATE_DEFAULT applies, so the default lives in one
+    # place. The env var is honoured again at apply time (it wins there too).
+    _env_cg = os.environ.get("LIFTON_RESCUE_COVERAGE_GATE")
+    if _env_cg is not None:
+        args.coverage_rescue_gate = _env_cg.strip().lower() not in (
+            "0", "false", "no", "")
+    else:
+        args.coverage_rescue_gate = getattr(args, "coverage_rescue_gate", None)
+    try:
+        args.miniprot_rescue_coverage_min = float(
+            os.environ.get("LIFTON_RESCUE_COVERAGE_MIN", "0.8"))
+    except (ValueError, TypeError):
+        args.miniprot_rescue_coverage_min = 0.8
+    # Isoform-aware rescue (v1.0.12); same resolution rule as the coverage gate,
+    # with the default in miniprot_rescue.ISOFORMS_DEFAULT.
+    _env_iso = os.environ.get("LIFTON_RESCUE_ISOFORMS")
+    if _env_iso is not None:
+        args.rescue_isoforms = _env_iso.strip().lower() not in (
+            "0", "false", "no", "")
+    else:
+        args.rescue_isoforms = getattr(args, "rescue_isoforms", None)
+    # Terminal-stop completion of miniprot-derived models (v1.0.12). Default-on;
+    # LIFTON_ORF_STOP_COMPLETION wins, and is honoured again at apply time in
+    # orf_completion.enabled.
+    _env_sc = os.environ.get("LIFTON_ORF_STOP_COMPLETION")
+    if _env_sc is not None:
+        args.orf_stop_completion = _env_sc.strip().lower() not in (
+            "0", "false", "no", "")
+    else:
+        args.orf_stop_completion = getattr(args, "orf_stop_completion", None)
     return args
 
 
@@ -786,13 +949,14 @@ def run_all_lifton_steps(args):
     ################################
     tgt_genome = args.target
     ref_genome = args.reference
-    outdir, lifton_outdir = _run_outdirs(args.output)
+    outdir, lifton_outdir = _run_outdirs(
+        args.output, getattr(args, "intermediate_dir", None))
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(lifton_outdir, exist_ok=True)
     args.directory = "intermediate_files/"
-    intermediate_dir = f"{outdir}/lifton_output/{args.directory}"
+    intermediate_dir = os.path.join(lifton_outdir, args.directory)
     os.makedirs(intermediate_dir, exist_ok=True)
-    stats_dir= f"{outdir}/lifton_output/stats/"
+    stats_dir = os.path.join(lifton_outdir, "stats") + os.sep
     os.makedirs(stats_dir, exist_ok=True)
     args.directory = intermediate_dir
     manifest = _ensure_run_manifest(args, outdir, lifton_outdir)
@@ -806,6 +970,26 @@ def run_all_lifton_steps(args):
     except Exception as e:
         logger.log_error(f"Failed to read/index target genome '{tgt_genome}': {e}")
         sys.exit(1)
+    target_statistics = target_fasta_statistics(tgt_fai)
+    manifest.set_input_statistics("target_genome", target_statistics)
+    manifest.record_count(
+        "target_sequences", target_statistics["sequence_count"],
+    )
+    manifest.record_count("target_bases", target_statistics["total_bases"])
+    manifest.record_count(
+        "maximum_target_sequence_bases",
+        target_statistics["maximum_sequence_bases"],
+    )
+    args._target_statistics = target_statistics
+    args.aligner_diagnostics_dir = tempfile.mkdtemp(
+        prefix="aligner-diagnostics-", dir=intermediate_dir,
+    )
+    logger.log_info(
+        ">> Target genome: "
+        f"{target_statistics['sequence_count']:,} sequence(s), "
+        f"{target_statistics['total_bases']:,} bases; longest sequence "
+        f"{target_statistics['maximum_sequence_bases']:,} bases."
+    )
         
     logger.log(">> Reading reference genome ...", debug=True)
     if not os.path.exists(ref_genome):
@@ -927,6 +1111,14 @@ def run_all_lifton_steps(args):
                         f"pass --gene-only to lift only `gene`")
     features = lifton_utils.get_parent_features_to_lift(args.features)
     ref_features_dict, ref_features_len_dict, ref_features_reverse_dict, ref_trans_exon_num_dict = lifton_utils.get_ref_liffover_features(features, ref_db, intermediate_dir, args)
+    # ref_features_dict always carries the "LiftOn-gene" bookkeeping entry, so
+    # emptiness is "nothing but that". Nothing selected means nothing to lift:
+    # say so here, naming the types the annotation does have, instead of letting
+    # the run die several steps later inside vendored Liftoff with a bare "Use
+    # -f to provide a list of other feature types to lift over" (GH #37).
+    if set(ref_features_dict) <= {"LiftOn-gene"}:
+        raise LiftOnInputError(_no_features_message(
+            args.reference_annotation, features, reference_annotation_scan))
 
     t4 = time.process_time()
     ################################
@@ -1075,9 +1267,69 @@ def run_all_lifton_steps(args):
     ################################
     # Step 4: Run liftoff & miniprot
     ################################
-    _switch_manifest_phase(args, "run_aligners", {
-        "parallel": not bool(getattr(args, "serial_aligners", False)),
-    })
+    has_reference_proteins = len(ref_proteins.keys()) > 0
+    needs_liftoff = not (
+        getattr(args, "liftoff", None) is not None
+        and os.path.exists(args.liftoff)
+    )
+    needs_miniprot = has_reference_proteins and not (
+        getattr(args, "miniprot", None) is not None
+        and os.path.exists(args.miniprot)
+    )
+    schedule = resolve_aligner_schedule(
+        target_statistics["total_bases"],
+        needs_liftoff=needs_liftoff,
+        needs_miniprot=needs_miniprot,
+        force_serial=bool(getattr(args, "serial_aligners", False)),
+        force_parallel=bool(getattr(args, "parallel_aligners", False)),
+    )
+    args._resolved_aligner_schedule = schedule
+    manifest.set_aligner_schedule(schedule.to_dict())
+    _switch_manifest_phase(args, "run_aligners", schedule.to_dict())
+    if (schedule.parallel
+            and schedule.forced
+            and target_statistics["total_bases"]
+            > MAX_CONCURRENT_TARGET_BASES):
+        logger.log_warning(
+            "--parallel-aligners is forcing concurrent minimap2 and miniprot "
+            f"indexing for a {target_statistics['total_bases']:,}-base target; "
+            "their peak memory can overlap."
+        )
+    elif schedule.reason == "target_exceeds_concurrent_boundary":
+        logger.log_info(
+            ">> Large-target resource policy: running Liftoff/minimap2 before "
+            "miniprot so their index-memory peaks do not overlap. Pass "
+            "--parallel-aligners only to override this safeguard."
+        )
+    if (needs_miniprot
+            and target_statistics["maximum_sequence_bases"]
+            >= MINIPROT_LONG_SEQUENCE_BASES):
+        miniprot_banner = run_miniprot.probe_miniprot_version()
+        compatibility = miniprot_long_sequence_compatibility(
+            target_statistics["maximum_sequence_bases"], miniprot_banner,
+        )
+        if compatibility == "incompatible":
+            message = (
+                f"miniprot {miniprot_banner!r} is older than 0.14 and the "
+                "target contains a sequence at least 2^31 bases long; upgrade "
+                "miniprot before mapping this target."
+            )
+            _record_pipeline_failure(
+                args, "run_aligners", message, fatal=True,
+                details={
+                    "maximum_target_sequence_bases":
+                        target_statistics["maximum_sequence_bases"],
+                    "miniprot_version": miniprot_banner,
+                },
+            )
+            logger.log_error(message)
+            raise SystemExit(1)
+        if compatibility == "unknown":
+            logger.log_warning(
+                "The target contains a sequence at least 2^31 bases long, but "
+                f"the miniprot version banner {miniprot_banner!r} could not "
+                "be parsed. Use miniprot 0.14 or newer."
+            )
     t5 = time.process_time()
     # Output-neutral perf probe: Step 4 is subprocess-dominated, so
     # process_time (parent-CPU only) cannot measure it. Capture WALL time
@@ -1085,7 +1337,7 @@ def run_all_lifton_steps(args):
     # is set — lets the --parallel-aligners A/B isolate the overlap saving
     # from Step-7 noise without touching the output GFF3 or time.txt.
     _w4_start = time.perf_counter()
-    if len(ref_proteins.keys()) == 0:
+    if not has_reference_proteins:
         logger.log_info(
             ">> Reference protein set is empty; skipping miniprot."
         )
@@ -1095,14 +1347,15 @@ def run_all_lifton_steps(args):
         miniprot_annotation = None
         t6 = time.process_time()
         t7 = t6
-    elif not getattr(args, "serial_aligners", False):
+    elif schedule.parallel:
         # Iteration 6 (PROMOTED to default): overlap the two independent
         # external aligners so wall-clock = max(t_liftoff, t_miniprot) instead
         # of the sum. They read the same inputs and write disjoint output dirs
         # (liftoff/ vs miniprot/), consumed separately at Step 5, so the output
         # bytes are unchanged — only miniprot's *timing* moves. This is a
-        # byte-neutral default flip; --serial-aligners restores the old
-        # sequential path (and --parallel-aligners is a kept no-op alias).
+        # byte-neutral scheduling choice. The resource-policy resolver keeps
+        # this overlap for ordinary targets; explicit --parallel-aligners can
+        # force it above the large-target boundary.
         #
         # Liftoff MUST stay on THIS (main) thread: it reads the reference
         # gffutils DB whose SQLite connection is bound to the thread that
@@ -1135,13 +1388,17 @@ def run_all_lifton_steps(args):
         miniprot_annotation = lifton_utils.exec_miniprot(lifton_outdir, args, tgt_genome, ref_proteins_file)
         t7 = time.process_time()
     if miniprot_annotation is None and len(ref_proteins.keys()) > 0:
+        failure_details = {"reference_proteins": len(ref_proteins.keys())}
+        latest_miniprot = _latest_aligner_execution(args, "miniprot")
+        if latest_miniprot is not None:
+            failure_details["miniprot_execution"] = latest_miniprot
         _record_pipeline_failure(
             args, "run_aligners",
             "miniprot produced no usable annotation for a non-empty protein set",
-            details={"reference_proteins": len(ref_proteins.keys())},
+            details=failure_details,
         )
     if os.environ.get("LIFTON_PERF_STEP4"):
-        _mode = "serial" if getattr(args, "serial_aligners", False) else "parallel"
+        _mode = schedule.mode
         sys.stderr.write(
             f"[LiftOn][perf] Step4 wall ({_mode}): "
             f"{time.perf_counter() - _w4_start:.2f}s\n")
@@ -1601,6 +1858,25 @@ def run_all_lifton_steps(args):
             ref_trans_exon_num_dict, ref_features_reverse_dict,
             emitted_ref_gene_ids, fw, fw_score, transcripts_stats_dict, args)
         manifest.record_count("miniprot_rescued_genes", rescued_genes)
+        # Which rescue pass the time went to. On a distant transfer this is the
+        # largest phase of the run, and the split is not otherwise visible.
+        # Milliseconds, because record_count stores integers.
+        for name, value in getattr(args, "_rescue_timings", {}).items():
+            if name == "isoform_jobs":
+                manifest.record_count("miniprot_rescue_isoform_jobs", value)
+            else:
+                manifest.record_count(f"miniprot_rescue_ms_{name}",
+                                      int(value * 1000))
+        if _miniprot_rescue._coverage_gate_on(args):
+            manifest.record_count(
+                "miniprot_rescued_genes_coverage_gate",
+                getattr(args, "_rescue_coverage_gate_added", 0),
+            )
+        if _miniprot_rescue._rescue_isoforms_on(args):
+            manifest.record_count(
+                "miniprot_rescue_isoforms_added",
+                getattr(args, "_rescue_isoforms_added", 0),
+            )
         for failure in args._rescue_failure_records:
             _record_pipeline_failure(
                 args, "miniprot_rescue",
@@ -1616,6 +1892,21 @@ def run_all_lifton_steps(args):
     # Step 9: Printing stats
     ################################
     _switch_manifest_phase(args, "write_reports")
+    # Genes published with no child features. A bare gene line carries no
+    # transcript, exon or CDS, so it is useless to every downstream consumer --
+    # but nothing surfaced it: `gff3-validate` reports it as a WARNING and the
+    # release gates count errors. Report the number here so a user sees it
+    # without running the validator.
+    _childless_genes = getattr(args, "_childless_gene_count", 0)
+    manifest.record_count("genes_emitted_without_children", _childless_genes)
+    if _childless_genes:
+        _childless_examples = getattr(args, "_childless_gene_ids", []) or []
+        _shown = ", ".join(_childless_examples[:5])
+        logger.log_warning(
+            f"{_childless_genes} gene(s) were emitted with no child features "
+            f"(no transcript, exon or CDS)"
+            + (f"; e.g. {_shown}" if _shown else "")
+        )
     try:
         stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug, fw_feature_type=fw_feature_type)
     except Exception as e:
@@ -1931,7 +2222,8 @@ An accurate homology lift-over tool between assemblies
         # run_all_lifton_steps calls _ensure_run_manifest itself, so nothing is lost.
         if all(hasattr(args, name) for name in (
                 "output", "target", "reference", "reference_annotation")):
-            outdir, lifton_outdir = _run_outdirs(args.output)
+            outdir, lifton_outdir = _run_outdirs(
+                args.output, getattr(args, "intermediate_dir", None))
             os.makedirs(outdir, exist_ok=True)
             os.makedirs(lifton_outdir, exist_ok=True)
             _ensure_run_manifest(args, outdir, lifton_outdir)
@@ -1965,5 +2257,10 @@ An accurate homology lift-over tool between assemblies
                 manifest.write(args._run_manifest_path)
         if isinstance(exc, (LiftOnPartialOutputError,
                             LiftOnValidationError)):
+            raise SystemExit(2) from None
+        if isinstance(exc, LiftOnInputError):
+            # The input is the user's to fix, and the message already says what
+            # is wrong and what to do; a traceback only buries it.
+            logger.log_error(str(exc))
             raise SystemExit(2) from None
         raise
