@@ -140,19 +140,19 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "5e49233bc96f48ed97b4b2885b5d88512d0e723c494db33279f86c38a5938cc1",
-      "bytes": 1022764,
+      "aggregate_sha256": "96d4ac8bb4193381650e479a80a4e1023c36190adb9b0ef223be3c2423dc674b",
+      "bytes": 1047894,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "description": "Current deterministic comparison, evaluation, controller, and publication tooling.",
-      "file_count": 32,
+      "file_count": 34,
       "id": "canonical_release_tooling",
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "aba2ce1a90affc4c5c1f9048ac0db60e5c0ab89111b9d79ba53eaba56fa69191",
-      "bytes": 499234,
+      "aggregate_sha256": "3a3b1d07e4854a3460311c048dff8129433ae76b968fcdb4c73de471d898341b",
+      "bytes": 499338,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -2731,6 +2731,16 @@
       "sha256": "1400279bcdfcb5da4f4fc04563a8bf0b3ba1f6c85da39b1be8f40eb58b387b1b"
     },
     {
+      "bytes": 5237,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/release_provenance.py",
+      "sha256": "15a596a40eb3482971b3ee44bc3059249dbef12bf4affd3d33bf55ae69ca5b0b"
+    },
+    {
       "bytes": 171562,
       "claim_eligible": false,
       "classification": "canonical",
@@ -2759,6 +2769,16 @@
       "json_schema": null,
       "path": "benchmarks/compare/release_rescore.py",
       "sha256": "72722a6bb4f3e9af23fd109d2f230ee8fe13ec8fcf50c4b87b0b5296aa984b8a"
+    },
+    {
+      "bytes": 19893,
+      "claim_eligible": false,
+      "classification": "canonical",
+      "completion_state": "supporting",
+      "family": "canonical_release_tooling",
+      "json_schema": null,
+      "path": "benchmarks/compare/release_validation.py",
+      "sha256": "6c3e0c0097f85e2847e07c1a9a81456ffc5bfa59d755b3095502cecf81fe9fc1"
     },
     {
       "bytes": 13329,
@@ -3357,18 +3377,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 11949,
+      "bytes": 12053,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "a6d7f8984a8cf0570e8b0722d518a9e5d75736706024f45d575274bd98e0bfc5",
+        "shape_sha256": "b84639b4f88baaa45f4ca6c1d1c88a7f1ba93c546c3f110dd1f42dce400931bd",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "745d4b44886da344c7c6e211285e7aba19846f88197dae16c8d7e78f851bbd07"
+      "sha256": "199919888fb796c21089db85ee70f2266369745ee38a2c7b62ff2500b20a77be"
     },
     {
       "bytes": 34428,
@@ -3556,7 +3576,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "94e8a8f6927b9e5dcfb4e04a38a6b239038e968f3d0ece73c6f84e7251b74464",
+  "inventory_sha256": "1151d6aadb109408e7b7cd4794c8d466316bc80001f792b40d314a217e6893ec",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3600,19 +3620,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "87b8e20a8aaa3131d9c57bfed0e66e5b41766ff1db83a263577aaf8b8cfae7be",
+  "rules_sha256": "0ff008335c3e99f69d0e03ebc5700a9f80581303d7fea757f834fb9b8c881aca",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "e0d90c8f19bdd64596f3546f0e71b7304e62de7dfd2487b4d002449fa5aeca14",
-    "bytes": 13455365,
+    "aggregate_sha256": "a4b5b15107ab69d9043186453bcad6f73f888670ce7154afba2f426cf9d69258",
+    "bytes": 13480599,
     "classification_counts": {
-      "canonical": 76,
+      "canonical": 78,
       "diagnostic": 42,
       "historical": 152,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 288
+    "file_count": 290
   }
 }
