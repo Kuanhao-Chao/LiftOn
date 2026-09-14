@@ -8,11 +8,12 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
-## [1.0.12] - 2026-09-13
+## [1.0.12] - 2026-09-14
 
-A resource-safety and diagnostics release for very large target genomes (GH
-#71), which also recovers far more genes when the two species are distantly
-related and runs multi-threaded by default.
+Fixes a `-copies` bug that dropped every extra gene copy's transcript, exons
+and CDS. Also a resource-safety and diagnostics release for very large target
+genomes (GH #71), which recovers far more genes when the two species are
+distantly related and runs multi-threaded by default.
 
 ### Changed
 
@@ -109,6 +110,31 @@ related and runs multi-threaded by default.
 
 ### Fixed
 
+- **`-copies` extra gene copies keep their transcripts, exons and CDS.**
+  Reported by a user. Liftoff suffixes every feature of an extra copy with
+  `_<extra_copy_number>`, so a copy arrives as `gene-X_1` / `rna-X_1`. LiftOn
+  resolved the gene id back to the reference correctly but looked the
+  transcript id up verbatim; `rna-X_1` is not in the reference annotation, so
+  the lookup failed and the transcript was skipped — taking every exon and CDS
+  with it, while the already-written gene line remained. The result was a gene
+  with no children, which is useless to every downstream tool. Across the
+  17-genome benchmark set, run with `-copies`: rice 539 of 815 copy genes,
+  human → zebrafish 1,178 of 1,881, maize B73 → Mo17 1,079 of 2,716,
+  human → xenopus 728 of 986, arabidopsis 161 of 223 — about 4,400 genes in
+  total, and byte-for-byte identical in v1.0.11, so this was present in every
+  release. Liftoff had produced complete hierarchies for them: of rice's 539,
+  Liftoff gave children to 535 of the 535 it emitted. The reference transcript
+  is now resolved the way the gene already was — the exact id first, and only
+  on a miss the `_<N>` copy base, accepted only when that base really is a
+  transcript of the reference gene the copy belongs to. Trying the exact id
+  first is what keeps reference ids that genuinely end in `_<int>` intact. All
+  1,908 dropped transcripts checked across rice, human → zebrafish and
+  arabidopsis resolve correctly; every row already in the output is unchanged.
+- **A gene emitted without child features is now counted and reported.** The
+  count appears at the end of the run and in `run_manifest.json` as
+  `genes_emitted_without_children`. `gff3-validate` had always flagged these,
+  but as a warning, and the release gates count errors — so 4,400 of them went
+  unnoticed.
 - **An unreadable input now ends the run with its message, not a traceback.**
   A `LiftOnInputError` says what is wrong with the file and what to do about it;
   it propagated as an exception, so the message arrived buried under a stack

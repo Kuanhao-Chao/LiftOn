@@ -6,6 +6,7 @@ from lifton.liftoff import liftoff_main
 # leaf module lifton.coreutils to break the lifton_utils <-> lifton_class
 # import cycle. Re-exported here so lifton_utils.<helper> keeps resolving.
 from lifton import coreutils
+import gffutils
 from lifton.coreutils import (  # noqa: F401
     custom_bisect_insert,
     get_ID_base,
@@ -539,12 +540,20 @@ def get_ref_ids_liftoff(ref_features_dict, liftoff_gene_id, liftoff_trans_id):
     if ref_gene_id is None:
         return None, None
     else:
-        # For transcript ID, we need to check if the base exists in ref_features_dict
-        # But ref_features_dict contains gene IDs, not transcript IDs
-        # So we'll use a more conservative approach: only remove single-digit suffixes
-        # The transcript ID should match the reference transcript ID from the reference annotation
-        ref_trans_id = get_ID_base(liftoff_trans_id, None)
-        return ref_gene_id, ref_trans_id
+        # ``ref_features_dict`` is keyed by GENE id, so it cannot confirm a
+        # transcript-level copy suffix, and passing it here would reject every
+        # transcript. Passing ``None`` instead used to disable the check
+        # altogether -- ``get_ID_base`` then returned the id verbatim, so a
+        # Liftoff ``-copies`` transcript (``rna-X_1``) never resolved to its
+        # reference (``rna-X``) and the caller dropped the transcript plus all
+        # of its exons and CDS, leaving a bare gene line in the output.
+        #
+        # The suffix is therefore resolved against the reference annotation
+        # itself, by ``resolve_ref_trans_id`` at the call site: it is the only
+        # source that can distinguish a copy suffix from an id that genuinely
+        # ends in ``_<int>``. This function returns the id as Liftoff wrote it
+        # and leaves that resolution to the caller.
+        return ref_gene_id, liftoff_trans_id
 
 
 def __extract_ref_ids(ref_features_dict, liftoff_id):
@@ -557,6 +566,89 @@ def __extract_ref_ids(ref_features_dict, liftoff_id):
             return ref_id
         else:
             return None
+
+
+def copy_suffix_base(feature_id):
+    """Return the candidate base of a Liftoff ``-copies`` id, or ``None``.
+
+    Liftoff appends ``_<extra_copy_number>`` to the ID (and Parent) of every
+    feature of an extra gene copy -- ``liftoff/write_new_gff.py:edit_copy_ids``.
+    The base returned here is only ever a *candidate*: reference ids that
+    genuinely end in ``_<int>`` exist (``...mrna.FMUND_1``), so callers must try
+    the exact id first and fall back to this only on a miss.
+    """
+    if not feature_id:
+        return None
+    base, separator, suffix = str(feature_id).rpartition("_")
+    if separator and base and suffix.isdigit():
+        return base
+    return None
+
+
+def resolve_ref_trans_id(ref_db, candidate, ref_gene_id=None):
+    """Resolve a Liftoff transcript id to its reference transcript id.
+
+    Exact id first, then -- and only on a miss -- the Liftoff ``-copies``
+    ``_<N>`` base. Trying the exact id first is what makes this safe for
+    reference ids that legitimately end in ``_<int>``: such an id is present in
+    the reference, so it matches exactly and is never stripped. This mirrors the
+    rule ``run_evaluation._copy_base`` already applies on the evaluation path.
+
+    When ``ref_gene_id`` is known, a stripped base is accepted only if it is a
+    child of that reference gene, so a copy suffix can never resolve onto some
+    other gene's transcript. ``ref_gene_id`` is ``None`` for the 3-level
+    hierarchy case (gene -> primary_transcript -> miRNA), where the caller
+    resolves from the transcript id alone; the guard is skipped there.
+
+    Returns the resolved reference transcript id, or ``None`` if neither the
+    exact id nor a verified copy base exists in the reference annotation.
+    """
+    # No early-out on a None candidate. The pre-existing behaviour was a plain
+    # `ref_db[ref_trans_id]` probe, which this replaces, and the caller can still
+    # reach here with None (the reference gene did not resolve). Short-circuiting
+    # would stop touching `ref_db` at all on that path, and
+    # `tests/test_vulnerabilities.py::TestV1_1a_BareExceptInRefDbLookup` pins
+    # that an interrupt raised *by the lookup* still propagates. The probe is
+    # harmless -- every backend raises a caught miss for a None key.
+    if __ref_db_has(ref_db, candidate):
+        return candidate
+    base = copy_suffix_base(candidate)
+    if base is None or not __ref_db_has(ref_db, base):
+        return None
+    if ref_gene_id is not None and not __ref_parent_is(ref_db, base, ref_gene_id):
+        return None
+    return base
+
+
+# Exactly the pair the pre-existing `ref_db[ref_trans_id]` probe in
+# `run_liftoff.process_liftoff` caught, and the same pair `run_evaluation`
+# uses. KeyError is the gffbase / dict-style miss and what
+# `locus_pipeline._RefDbProxy` raises for an id its parent thread did not
+# pre-fetch; FeatureNotFoundError is gffutils. Anything else is a real backend
+# failure and must keep propagating -- catching it here would turn a broken
+# database into a silent genome-wide drop, which is the shape of the bug this
+# whole change exists to fix.
+_MISSING_FEATURE_ERRORS = (KeyError, gffutils.exceptions.FeatureNotFoundError)
+
+
+def __ref_db_has(ref_db, feature_id):
+    """True if ``ref_db[feature_id]`` resolves."""
+    try:
+        ref_db[feature_id]
+    except _MISSING_FEATURE_ERRORS:
+        return False
+    return True
+
+
+def __ref_parent_is(ref_db, feature_id, ref_gene_id):
+    """True if ``feature_id``'s reference Parent includes ``ref_gene_id``."""
+    try:
+        parents = ref_db[feature_id].attributes.get("Parent") or []
+    except _MISSING_FEATURE_ERRORS:
+        return False
+    if isinstance(parents, str):
+        parents = [parents]
+    return any(str(parent) == str(ref_gene_id) for parent in parents)
 
 
 def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_ref_id_trans_dict):
