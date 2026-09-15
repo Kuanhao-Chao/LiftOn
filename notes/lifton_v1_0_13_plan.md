@@ -28,20 +28,50 @@ historical evidence are preserved. v1.0.11 comparisons remain historical.
 - No publication, tagging, push, deployment, external messages, or destruction of
   historical work. Endpoint is a reviewed, locally qualified candidate.
 
-## Execution status (2026-09-14)
+## Execution status (2026-09-15)
 
 | Step | Status | Evidence / next action |
 |---|---|---|
 | Release synchronization and dependency audit | Complete | Fresh origin fetch and release API confirm v1.0.12 at 6c86d1b; dependencies audited without upgrades. |
-| Task 1: release evidence | In progress | Imported draft passes 79 focused evidence/inventory tests; local review and final fixes underway. |
+| Task 1: release evidence | Review fixes implemented; verification underway | b7a9033 plus fixes for required campaign/attempt history, source import isolation and CDS-based reference inventory. Independent re-review pending. |
 | Task 2: controller integration | Pending | Reuse scheduler with the new role schema. |
-| Tasks 3–6: input correctness and reproducibility | Pending | Sparse-CDS and actual GTF failures reproduced on release; fixes next. |
+| Task 3: sparse coding models | Implemented; independent review pending | 54df064; 31 focused tests, supplied-FASTA combinations, both strands, mixed inputs and 30 fast/native tests pass. |
+| Task 4: GTF hierarchy | Review fix implemented; re-review pending | f0d63fa + 9fe9f7e; real panel and fast benchmark pass. Direct GTF backend fallback: 44 focused tests pass in isolated Python 3.11. |
+| Tasks 5–6: translation and reproducibility | Pending | Initial phase, alternative genetic codes and fresh copy variation remain explicit release gates. |
 | Task 7: correctness release qualification | Pending | No v1.0.13 release-readiness claim yet. |
 | Tasks 8–11: efficiency, optional copies and final review | Pending | Follow correctness checkpoint. |
 
-The earlier delegated task stopped at the service usage limit. Its uncommitted
-changes and tests were preserved; implementation and review continue locally.
-The execution workspace retains the full dependency metadata and draft hashes.
+Independent Task 1/4 reviews completed and identified the gaps listed above.
+The review/implementation agents subsequently reached their service usage limit;
+saved work is preserved and implementation continues locally. No independent
+approval is claimed for tasks whose review did not finish. Task 4 preceded
+Tasks 2/3 because its confirmed input bug was
+independent of scheduling and sparse normalization. The execution workspace
+retains the dependency metadata, draft hashes, task reports and review packages.
+
+The frozen f0d63fa real-GTF check retained all 8 genes, 26 transcripts (17 coding,
+9 noncoding), 116 exons and 69 CDS. Raw GTF and independently retained GFF3 control,
+each in ordinary and stream mode, all finished with manifest status `success`
+and identical output SHA256
+`ba2596d2f351f42a5d2bceadad50f7f4f77265dd49ac103355b68f803f875ff0`.
+Commands, source/input hashes and manifests are in
+`/tmp/lifton-v1013-gtf-evidence/evidence.json`. The human-MANE fast benchmark gate
+also passed; its single timing observation is not a performance improvement
+claim. These are intermediate checks, not qualification of the final branch.
+
+Test environment correction: the shared editable installation can import a
+missing LiftOn submodule from another checkout even when the top-level package
+comes from this worktree. Focused sparse-model tests disable that finder; final
+qualification must use isolated installs and verify actual module origins.
+
+Isolated Python 3.10.21, 3.11.15 and 3.12.14 dependency environments are installed,
+with no editable finders and no broken requirements. Their resolved locks and
+download reports are retained in the execution workspace. This is environment
+preparation, not cross-version candidate qualification. Python 3.10 uses the
+compatible NumPy 2.2.6, NetworkX 3.4.2 and Matplotlib 3.10.8; the other interpreters
+retain the audited direct dependency versions. The initial Python 3.10 install
+used pip 23.0.1's legacy interlap setup path and emitted a deprecation; repeat
+clean package qualification with a current isolated build frontend.
 
 ## Task 1: Complete portable release evidence and version-neutral roles
 

@@ -16,6 +16,7 @@ import re
 import sys
 import tempfile
 import uuid
+from itertools import chain
 from pathlib import Path
 
 from . import evaluator
@@ -55,10 +56,10 @@ class Configuration:
     resume: bool = False
 
 
-def _argv(python, paths, anndb, threads, out_gff, *, copies=False):
+def _argv(python, paths, anndb, threads, out_gff, *, root, copies=False):
     # lifton.lifton does not have a __main__ block. Invoke the actual CLI main,
     # using the interpreter and import path whose provenance was just verified.
-    argv = [python, "-c", "from lifton.lifton import main; main()",
+    argv = [python, "-c", provenance.guarded_code(root, "from lifton.lifton import main; main()"),
             "-t", str(threads), "-ad", anndb, "-g", str(paths["ref_gff"]),
             "-o", str(out_gff)]
     if copies:
@@ -73,7 +74,7 @@ def _run_arm(bid, arm, tree, paths, anndb, config, log=print):
     manifest = statedir / "lifton_output" / "run_manifest.json"
     receipt_path = statedir / "completion.json"
     env = provenance.isolated_env(tree)
-    argv = _argv(config.python, paths, anndb, config.threads, out_gff, copies=config.copies)
+    argv = _argv(config.python, paths, anndb, config.threads, out_gff, root=tree, copies=config.copies)
     expected = provenance.run_evidence(python=config.python, root=tree, inputs=paths,
                                       argv=argv, cwd=statedir, env=env)
     receipt = provenance.read_receipt(receipt_path, expected, out_gff, manifest)
@@ -120,7 +121,7 @@ def _missing_cds_ids(rows):
             and _finite_identity(r.get("protein_identity")) is None}
 
 
-def common_set(new_rows, old_rows, *, expected_ids=None):
+def common_set(new_rows, old_rows, *, expected_ids=None, expected_coding_ids=None):
     """Track recovered IDs separately from the subset with usable scores.
 
     An increased count can hide lost IDs, and a non-regressing scored common
@@ -129,6 +130,10 @@ def common_set(new_rows, old_rows, *, expected_ids=None):
     all_new = Counter(r["ref_mrna_id"] for r in new_rows)
     all_old = Counter(r["ref_mrna_id"] for r in old_rows)
     expected = set(expected_ids) if expected_ids is not None else set(all_old)
+    coding_ids = (set(expected_coding_ids) if expected_coding_ids is not None else
+                  {r['ref_mrna_id'] for r in old_rows if str(r.get('is_coding', '')).lower() in ('1', 'true')})
+    coding_consistent = all((str(r.get('is_coding', '')).lower() in ('1', 'true')) ==
+                            (r['ref_mrna_id'] in coding_ids) for r in chain(new_rows, old_rows))
     nr, oldr = _recovered_rows(new_rows), _recovered_rows(old_rows)
     ni, oi = Counter(r["ref_mrna_id"] for r in nr), Counter(r["ref_mrna_id"] for r in oldr)
     new, old = _recovered_pi(nr), _recovered_pi(oldr)
@@ -139,6 +144,8 @@ def common_set(new_rows, old_rows, *, expected_ids=None):
     new_missing, old_missing = _missing_cds_ids(nr), _missing_cds_ids(oldr)
     return {
         "evaluation_rows_complete": bool(expected) and all_new.keys() == all_old.keys() == expected,
+        "expected_ids": sorted(expected), "expected_coding_ids": sorted(coding_ids),
+        "coding_membership_consistent": coding_consistent,
         "missing_evaluation_new_ids": sorted(expected - all_new.keys()),
         "missing_evaluation_old_ids": sorted(expected - all_old.keys()),
         "unexpected_evaluation_new_ids": sorted(all_new.keys() - expected),
@@ -228,6 +235,13 @@ def _evaluation_evidence():
     return provenance.evaluation_evidence()
 
 
+def reference_inventory(ref):
+    """Keep annotated coding membership separate from extractable proteins."""
+    coding = {identifier for identifier, value in ref.items() if value['is_coding']}
+    return {'schema_version': 1, 'all_ids': sorted(ref), 'coding_ids': sorted(coding),
+            'unresolved_coding_ids': sorted(identifier for identifier in coding if not ref[identifier]['prot'])}
+
+
 def _isolated_inputs(paths, destination):
     """Build all evaluator indexes beside private links, never source artifacts."""
     destination.mkdir(parents=True, exist_ok=False)
@@ -286,7 +300,9 @@ def run_cell(bid, config, log=print):
         }
     record["reference_validity"] = validate_output(paths["ref_gff"], reference=True)
     record["expected_reference_ids"] = sorted(ref)
-    record["common_set"] = common_set(*(rows_by_arm[label] for label in _arm_labels(record)), expected_ids=ref)
+    record["reference_inventory"] = reference_inventory(ref)
+    record["common_set"] = common_set(*(rows_by_arm[label] for label in _arm_labels(record)), expected_ids=ref,
+                                      expected_coding_ids=record['reference_inventory']['coding_ids'])
     for value in record["inputs"].values():
         provenance.verify_fingerprint(value, label="Evaluation input")
     for details in record["arms"].values():
@@ -304,6 +320,14 @@ def _finish(record):
     """Fail closed on missing evidence, per-ID loss and new validity issues."""
     new, old = (record["arms"][label] for label in _arm_labels(record))
     common = record["common_set"]
+    inventory = record.get('reference_inventory', {})
+    inventory_complete = (isinstance(inventory, dict) and inventory.get('schema_version') == 1
+                          and bool(inventory.get('all_ids'))
+                          and inventory.get('all_ids') == common.get('expected_ids')
+                          and inventory.get('coding_ids') == common.get('expected_coding_ids')
+                          and set(inventory['coding_ids']).issubset(inventory['all_ids'])
+                          and isinstance(inventory.get('unresolved_coding_ids'), list)
+                          and set(inventory['unresolved_coding_ids']).issubset(inventory['coding_ids']))
     nv, ov = new.get("validity", {}), old.get("validity", {})
     validity_complete = all(v.get("complete") is True and v.get("exit") in (0, 1)
                             and isinstance(v.get("n_errors"), int)
@@ -321,6 +345,9 @@ def _finish(record):
         "introduced_validity_issues": introduced,
     }
     record["gate"] = {
+        "reference_inventory_complete": inventory_complete,
+        "reference_scoring_resolved": inventory_complete and not inventory['unresolved_coding_ids'],
+        "coding_membership_consistent": common.get('coding_membership_consistent') is True,
         "evaluation_rows_complete": common.get("evaluation_rows_complete") is True,
         "both_arms_completed": all(a.get("completed") is True for a in (new, old)),
         "provenance_verified": all(a.get("provenance_verified") is True for a in (new, old)),
@@ -415,6 +442,9 @@ def rescore(bid, source, destination, log=print):
 
 
 def _write_report(output, bid, record):
+    campaign = Path(output) / "campaign.json"
+    if campaign.exists():
+        record["campaign"] = provenance.fingerprint(campaign)
     path = Path(output) / "results" / f"{bid}.json"
     if path.exists():
         previous = provenance.fingerprint(path)
@@ -428,6 +458,9 @@ def _write_report(output, bid, record):
 def _report_errors(output, path, record, evaluation_evidence):
     errors = []
     try:
+        campaign_path = output / "campaign.json"
+        if record.get("campaign") != provenance.fingerprint(campaign_path):
+            raise ValueError("Pinned campaign no longer matches the report")
         seal = json.loads((output / "report_receipts" / f"{record['cell']}.json").read_text())
         if seal != provenance.fingerprint(path):
             raise ValueError("Report does not match its completion fingerprint")
@@ -461,14 +494,16 @@ def _report_errors(output, path, record, evaluation_evidence):
                     raise ValueError("Run receipt does not verify report")
                 if receipt["evidence"]["inputs"] != record["inputs"]:
                     raise ValueError("Run receipt inputs do not match report")
-        failure = output / "failures" / f"{record['cell']}.json"
         attempt = output / "attempts" / f"{record['cell']}.json"
-        if attempt.exists():
-            state = json.loads(attempt.read_text())
-            if state.get("status") != "success" or state.get("report") != seal:
-                raise ValueError("Latest cell attempt did not successfully produce this report")
-        elif failure.exists():
-            raise ValueError("Cell has an unsuccessful retry")
+        state = json.loads(attempt.read_text())
+        if (state.get("cell") != record["cell"] or state.get("status") != "success"
+                or state.get("report") != seal):
+            raise ValueError("Latest cell attempt did not successfully produce this report")
+        history = Path(state["attempt"]).resolve(strict=True)
+        if history.parent != (output / "attempt_history" / record["cell"]).resolve():
+            raise ValueError("Attempt history is outside the cell history directory")
+        if json.loads(history.read_text()) != state:
+            raise ValueError("Latest attempt and preserved history disagree")
     except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
         errors.append(str(error))
     return errors
@@ -501,8 +536,11 @@ def merge(output, expected_cells=None):
     if unexpected or duplicates:
         campaign_errors.append("Unexpected or duplicate result cells")
     campaign = output / "campaign.json"
-    if campaign.exists() and json.loads(campaign.read_text())["expected_cells"] != sorted(expected_cells):
-        campaign_errors.append("Expected cells do not match the pinned campaign")
+    try:
+        if json.loads(campaign.read_text())["expected_cells"] != sorted(expected_cells):
+            campaign_errors.append("Expected cells do not match the pinned campaign")
+    except (OSError, ValueError, TypeError, KeyError):
+        campaign_errors.append("Pinned campaign is missing or malformed")
     evaluation_evidence = _evaluation_evidence() if records else None
     for path, record in zip(paths, records):
         if record.get("schema_version") not in (2, REPORT_SCHEMA_VERSION):
@@ -579,6 +617,8 @@ def main(argv=None):
     if len(cells) != len(set(cells)):
         ap.error("cell IDs must be unique")
     campaign_path = output / "campaign.json"
+    if args.resume and not campaign_path.is_file():
+        ap.error("resume requires the original pinned campaign; use a new --run-id")
     campaign = {"expected_cells": sorted(cells), "candidate": str(args.candidate_tree.resolve()),
                 "reference": str(args.baseline_tree.resolve()) if args.baseline_tree else None, "python": args.python,
                 "threads": args.threads, "copies": args.copies,

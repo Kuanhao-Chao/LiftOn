@@ -310,7 +310,8 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
     for mrna in _transcript_features(db):
         exons = _children(db, mrna, "exon")
         cds = _children(db, mrna, ("CDS", "stop_codon"))
-        cds_only = [c for c in cds]
+        annotated_cds = [c for c in cds if c.featuretype == "CDS"]
+        cds_only = cds if annotated_cds else []
         dna_exon = get_dna_sequence(mrna, fa, exons) if exons else ""
         dna_cds = get_dna_sequence(mrna, fa, cds_only) if cds_only else ""
         prot = get_protein_sequence(mrna, fa, cds_only) if cds_only else ""
@@ -318,11 +319,12 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
             "dna_exon": dna_exon or "",
             "dna_cds": dna_cds or "",
             "prot": (prot or "").rstrip("*") + ("*" if prot and prot.endswith("*") else ""),
-            "is_coding": bool(cds_only) and bool(prot),
+            # Coding membership comes from annotation, never extraction success.
+            "is_coding": bool(annotated_cds),
             # Phase 3 structural refs (coordinate-independent boundary positions).
             "exon_bounds": _internal_boundaries(exons, mrna.strand) if exons else [],
             "cds_bounds": _internal_boundaries(cds_only, mrna.strand) if cds_only else [],
-            "n_exons": len(exons), "n_cds": len(cds_only),
+            "n_exons": len(exons), "n_cds": len(annotated_cds),
         }
     n_coding = sum(1 for v in ref.values() if v["is_coding"])
     ref_ids_by_type, ref_all_ids, ref_census = feature_index(db)

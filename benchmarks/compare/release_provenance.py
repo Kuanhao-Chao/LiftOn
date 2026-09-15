@@ -16,6 +16,78 @@ from lifton.run_manifest import atomic_write_json
 SCHEMA_VERSION = 2
 
 
+def install_source_guard(root):
+    """Resolve LiftOn imports only from the recorded source, including lazy imports.
+
+    Self-contained because the identical bootstrap runs in released interpreters
+    without requiring any changes to their source or installed package.
+    """
+    import importlib.machinery
+    from pathlib import Path
+    import sys
+    root = Path(root).resolve(strict=True)
+    package = root / 'lifton'
+
+    def check_path(value):
+        if not Path(value).resolve().is_relative_to(package):
+            raise ImportError(f'LiftOn import outside recorded source: {value}; expected {package}')
+
+    for name, module in tuple(sys.modules.items()):
+        if name == 'lifton' or name.startswith('lifton.'):
+            origin = getattr(module, '__file__', None)
+            if origin:
+                check_path(origin)
+            for location in getattr(module, '__path__', ()):
+                check_path(location)
+    if any(getattr(finder, '_lifton_source_root', None) == str(root) for finder in sys.meta_path):
+        return
+
+    class SourceGuard:
+        _lifton_source_root = str(root)
+
+        @staticmethod
+        def find_spec(fullname, path=None, target=None):
+            if fullname != 'lifton' and not fullname.startswith('lifton.'):
+                return None
+            search = [str(root)] if fullname == 'lifton' else path
+            if fullname != 'lifton':
+                for location in search or ():
+                    check_path(location)
+            spec = importlib.machinery.PathFinder.find_spec(fullname, search, target)
+            if spec is None:
+                # Returning None would let an editable finder use another tree.
+                raise ModuleNotFoundError(f'{fullname} is absent from recorded LiftOn source {root}', name=fullname)
+            if spec.origin is not None:
+                check_path(spec.origin)
+            for location in spec.submodule_search_locations or ():
+                check_path(location)
+            return spec
+
+    sys.meta_path.insert(0, SourceGuard)
+
+
+def guarded_code(root, body):
+    return inspect.getsource(install_source_guard) + f'\ninstall_source_guard({str(Path(root).resolve())!r})\n' + body
+
+
+def imported_module_evidence():
+    """Fingerprint the actual LiftOn modules loaded by a guarded runtime probe."""
+    import hashlib
+    from pathlib import Path
+    import sys
+    modules = {}
+    for name, module in sorted(tuple(sys.modules.items())):
+        if name != 'lifton' and not name.startswith('lifton.'):
+            continue
+        origin = getattr(module, '__file__', None)
+        if origin:
+            path = Path(origin).resolve(strict=True)
+            modules[name] = {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+        else:
+            modules[name] = {'locations': sorted(str(Path(p).resolve()) for p in getattr(module, '__path__', ()))}
+    return modules
+
+
 def sha256(path):
     digest = hashlib.sha256()
     with Path(path).open('rb') as handle:
@@ -96,12 +168,14 @@ def dependency_evidence():
 
 
 def evaluation_evidence():
+    root = Path(__file__).resolve().parents[2]
+    install_source_guard(root)
     import lifton
     package = Path(lifton.__file__).resolve().parent
     compare = Path(__file__).resolve().parent
     sources = {f"lifton/{p.relative_to(package)}": fingerprint(p) for p in sorted(package.rglob("*.py"))}
     sources.update({f"benchmarks/compare/{p.name}": fingerprint(p) for p in sorted(compare.glob("*.py"))})
-    return {"sources": sources, "dependencies": dependency_evidence(),
+    return {"sources": sources, "source_root": str(root), "dependencies": dependency_evidence(),
             "python": sys.version, "executable": fingerprint(sys.executable)}
 
 
@@ -118,11 +192,13 @@ def snapshot(root):
 
 def runtime(python, root, cwd, env):
     code = (
-        'import json,sys,lifton; '
+        'import json,sys,lifton,lifton.lifton; '
         'print(json.dumps(dict(executable=sys.executable,python=sys.version,'
-        'module=lifton.__file__,version=lifton.__version__,dependencies=dependency_evidence())))'
+        'module=lifton.__file__,version=lifton.__version__,modules=imported_module_evidence(),'
+        'dependencies=dependency_evidence())))'
     )
-    code = inspect.getsource(dependency_evidence) + '\n' + code
+    code = guarded_code(root, inspect.getsource(dependency_evidence) + '\n'
+                        + inspect.getsource(imported_module_evidence) + '\n' + code)
     result = subprocess.run([python, '-c', code], cwd=cwd, env=env, check=True,
                             capture_output=True, text=True, timeout=60)
     evidence = json.loads(result.stdout)
