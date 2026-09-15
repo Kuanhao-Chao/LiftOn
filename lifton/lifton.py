@@ -932,6 +932,53 @@ def resolve_miniprot_candidate_args(args):
     return args
 
 
+def _check_reference_findings(args, findings, stats_dir):
+    """Report input findings and enforce the requested strict policy."""
+    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
+    # thousands of `unencoded_reserved_char` findings on Dbxref values
+    # (DBTAG:ID is technically reserved-char-bearing). The previous
+    # unconditional per-finding stderr dump produced 100+ MB stderr
+    # logs that buried real errors. Strict mode keeps per-row stderr
+    # output (users opted in); the default path now writes findings to
+    # a side-car file under stats/ and prints one summary line.
+    _strict_gff = getattr(args, "strict_gff", False)
+    if _strict_gff:
+        for f in findings:
+            logger.log(str(f), debug=True)
+    elif findings:
+        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
+        try:
+            with open(findings_path, "w") as fw:
+                for f in findings:
+                    fw.write(str(f) + "\n")
+            n_err = sum(1 for f in findings if f.severity == "error")
+            n_warn = len(findings) - n_err
+            logger.log_info(
+                f">> GFF3 input validator: {len(findings)} finding(s) "
+                f"({n_err} error, {n_warn} warning) written to "
+                f"{findings_path}; pass --strict-gff to also dump "
+                f"per-row to stderr."
+            )
+        except OSError as exc:
+            logger.log_warning(
+                f"GFF3 input validator: could not write findings to "
+                f"{findings_path}: {exc}; falling back to stderr dump."
+            )
+            for f in findings:
+                logger.log(str(f), debug=True)
+    if _strict_gff and any(f.severity == "error" for f in findings):
+        _record_pipeline_failure(
+            args, "validate_reference_annotation",
+            "reference annotation failed strict GFF3 validation",
+            details={"errors": sum(
+                1 for finding in findings if finding.severity == "error"
+            )},
+            fatal=True,
+        )
+        _finish_run_manifest(args, "failed")
+        sys.exit(2)
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
     # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
@@ -1017,49 +1064,11 @@ def run_all_lifton_steps(args):
             target_seqids=reference_seqids,
         )
         findings = list(reference_annotation_scan.ncbi_findings)
-    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
-    # thousands of `unencoded_reserved_char` findings on Dbxref values
-    # (DBTAG:ID is technically reserved-char-bearing). The previous
-    # unconditional per-finding stderr dump produced 100+ MB stderr
-    # logs that buried real errors. Strict mode keeps per-row stderr
-    # output (users opted in); the default path now writes findings to
-    # a side-car file under stats/ and prints one summary line.
-    _strict_gff = getattr(args, "strict_gff", False)
-    if _strict_gff:
-        for f in findings:
-            logger.log(str(f), debug=True)
-    elif findings:
-        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
-        try:
-            with open(findings_path, "w") as fw:
-                for f in findings:
-                    fw.write(str(f) + "\n")
-            n_err = sum(1 for f in findings if f.severity == "error")
-            n_warn = len(findings) - n_err
-            logger.log_info(
-                f">> GFF3 input validator: {len(findings)} finding(s) "
-                f"({n_err} error, {n_warn} warning) written to "
-                f"{findings_path}; pass --strict-gff to also dump "
-                f"per-row to stderr."
-            )
-        except OSError as exc:
-            logger.log_warning(
-                f"GFF3 input validator: could not write findings to "
-                f"{findings_path}: {exc}; falling back to stderr dump."
-            )
-            for f in findings:
-                logger.log(str(f), debug=True)
-    if _strict_gff and any(f.severity == "error" for f in findings):
-        _record_pipeline_failure(
-            args, "validate_reference_annotation",
-            "reference annotation failed strict GFF3 validation",
-            details={"errors": sum(
-                1 for finding in findings if finding.severity == "error"
-            )},
-            fatal=True,
-        )
-        _finish_run_manifest(args, "failed")
-        sys.exit(2)
+        if reference_annotation_scan.file_format == "GTF":
+            # GTF has no GFF3 version directive and uses quoted attributes.
+            # Keep coordinate/column checks; check GFF3 grammar after conversion.
+            findings = [f for f in findings if f.rule not in {"missing_gff_version", "bad_attribute"}]
+    _check_reference_findings(args, findings, stats_dir)
     ################################
     # Step 1: Building database from the reference annotation
     ################################
@@ -1076,7 +1085,12 @@ def run_all_lifton_steps(args):
         args.verbose,
         auto_convert_gtf,
         scan_result=reference_annotation_scan,
+        conversion_dir=intermediate_dir,
     )
+    if getattr(ref_db, "conversion_provenance", None):
+        manifest.set_input_statistics("reference_annotation_conversion", ref_db.conversion_provenance)
+        converted_scan = annotation.scan_annotation(ref_db.file_name, target_seqids=reference_seqids)
+        _check_reference_findings(args, list(converted_scan.ncbi_findings), stats_dir)
     manifest.set_backend_choice("reference_annotation", ref_db.backend)
     manifest.set_cache_choice(
         "reference_annotation", getattr(ref_db, "cache_status", "unknown")

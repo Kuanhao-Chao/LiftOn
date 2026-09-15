@@ -4,6 +4,18 @@
 Changelog
 ===========
 
+Unreleased
+----------
+
+- Preserve genes and exon/CDS attributes when converting GTF with gffread.
+  Conversion files are private to each run, with hashes, command and tool
+  provenance recorded in the run manifest.
+- Repair direct-GTF self-parent relations and preserve transcript IDs during
+  inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
+  checks after conversion.
+- Strengthen release evidence with candidate/reference roles, artifact receipts,
+  explicit expected cells and rejection of incomplete or stale results.
+
 v1.0.12
 --------
 
