@@ -1091,6 +1091,35 @@ def run_all_lifton_steps(args):
         manifest.set_input_statistics("reference_annotation_conversion", ref_db.conversion_provenance)
         converted_scan = annotation.scan_annotation(ref_db.file_name, target_seqids=reference_seqids)
         _check_reference_findings(args, list(converted_scan.ncbi_findings), stats_dir)
+    from lifton import reference_models
+    normalization = reference_models.normalize_sparse_coding(
+        ref_db, os.path.join(intermediate_dir, "reference_models"),
+    )
+    if normalization:
+        requested_features = lifton_utils.get_parent_features_to_lift(args.features)
+        if requested_features == ["CDS"]:
+            normalized_features = os.path.join(
+                intermediate_dir, "reference_models", "normalized_feature_types.txt")
+            with open(normalized_features, "w") as feature_handle:
+                feature_handle.write("gene\n")
+            args.features = normalized_features
+            normalization["feature_selection"] = {
+                "requested": ["CDS"], "effective": ["gene"],
+            }
+        manifest.set_input_statistics("reference_model_normalization", normalization)
+        backend = ref_db.backend
+        connection = ref_db.db_connection
+        if hasattr(connection, "conn"):
+            connection.conn.close()
+        args.reference_annotation = normalization["annotation"]
+        ref_db = annotation.Annotation(args.reference_annotation, False, False, backend=backend)
+        reference_annotation_scan = ref_db.scan_result
+        for argument, filename in (("proteins", "supplied_proteins.fa"), ("transcripts", "supplied_transcripts.fa")):
+            supplied = getattr(args, argument, None)
+            if supplied and os.path.exists(supplied):
+                aliased = reference_models.alias_fasta(
+                    supplied, normalization["mapping"], os.path.join(intermediate_dir, "reference_models", filename))
+                setattr(args, argument, aliased)
     manifest.set_backend_choice("reference_annotation", ref_db.backend)
     manifest.set_cache_choice(
         "reference_annotation", getattr(ref_db, "cache_status", "unknown")
@@ -1148,10 +1177,15 @@ def run_all_lifton_steps(args):
         # no in-memory dict materialisation. Then re-open via pyfaidx
         # so downstream consumers see the same lazy mmap-backed
         # interface as the user-supplied -P / -T branch below.
-        ref_trans_file, ref_proteins_file = \
-            extract_sequence.extract_features_to_fasta(
-                ref_db, features, ref_fai, intermediate_dir,
-            )
+        generated_trans, generated_proteins = extract_sequence.extract_features_to_fasta(
+            ref_db, features, ref_fai, intermediate_dir,
+        )
+        # Preserve individually supplied sequences for normalized references.
+        # Their IDs were checked against the explicit alias map above.
+        ref_trans_file = (ref_trans_file if normalization and ref_trans_file and os.path.exists(ref_trans_file)
+                          else generated_trans)
+        ref_proteins_file = (ref_proteins_file if normalization and ref_proteins_file and os.path.exists(ref_proteins_file)
+                             else generated_proteins)
         ref_trans = Fasta(ref_trans_file)
         ref_proteins = Fasta(ref_proteins_file)
     else:
