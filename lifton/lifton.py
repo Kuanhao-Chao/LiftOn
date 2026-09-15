@@ -1087,6 +1087,13 @@ def run_all_lifton_steps(args):
         scan_result=reference_annotation_scan,
         conversion_dir=intermediate_dir,
     )
+    manifest.set_backend_choice(
+        "reference_annotation_requested", ref_db.requested_backend,
+    )
+    if ref_db.backend_fallback_reason:
+        manifest.set_backend_choice(
+            "reference_annotation_fallback", ref_db.backend_fallback_reason,
+        )
     if getattr(ref_db, "conversion_provenance", None):
         manifest.set_input_statistics("reference_annotation_conversion", ref_db.conversion_provenance)
         converted_scan = annotation.scan_annotation(ref_db.file_name, target_seqids=reference_seqids)

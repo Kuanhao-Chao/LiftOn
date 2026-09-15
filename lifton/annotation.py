@@ -86,7 +86,9 @@ class Annotation:
             # str-shaped GFF3 blob — coerce to bytes for uniform handling
             source = source.encode("utf-8")
 
-        self.backend = self._resolve_backend(backend, is_blob=self._is_blob)
+        self.requested_backend = self._resolve_backend(backend, is_blob=self._is_blob)
+        self.backend = self.requested_backend
+        self.backend_fallback_reason = None
         if self._is_blob and self.backend != "gffbase":
             raise ValueError(
                 "In-memory GFF3 blob input requires backend='gffbase'; "
@@ -333,6 +335,12 @@ class Annotation:
         else:
             self.infer_genes       = infer_genes
             self.infer_transcripts = infer_transcripts
+            if self.backend == "gffbase":
+                # gffbase's GTF ingest assigns synthetic IDs to authored gene
+                # and transcript rows. Route raw GTF through the gffutils path,
+                # which repairs its inferred hierarchy after database creation.
+                self.backend = "gffutils"
+                self.backend_fallback_reason = "direct_gtf_hierarchy_requires_gffutils"
 
     def _detect_file_format_for(self, path: str) -> str:
         try:
