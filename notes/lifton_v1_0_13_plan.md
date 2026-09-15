@@ -34,10 +34,11 @@ historical evidence are preserved. v1.0.11 comparisons remain historical.
 |---|---|---|
 | Release synchronization and dependency audit | Complete | Fresh origin fetch and release API confirm v1.0.12 at 6c86d1b; dependencies audited without upgrades. |
 | Task 1: release evidence | Review fixes committed; independent re-review pending | b7a9033 + c0fbe4a; 138 evidence/evaluator/inventory tests pass. Required campaign/attempt history, guarded imports and annotated coding inventory implemented. |
-| Task 2: controller integration | Implemented; native canary next | Existing scheduler dispatches qualification with frozen inputs/sources, exact environment and separate retry directories. 189 controller/evidence tests pass. |
+| Task 2: controller integration | Implemented; native canary passed | 0620294; 189 controller/evidence tests pass. Frozen candidate stream/inmemory equals v1.0.12 control; deep reconciliation verifies sealed first-attempt evidence. |
 | Task 3: sparse coding models | Implemented; independent review pending | 54df064; 31 focused tests, supplied-FASTA combinations, both strands, mixed inputs and 30 fast/native tests pass. |
 | Task 4: GTF hierarchy | Review fix implemented; re-review pending | f0d63fa + 9fe9f7e; real panel and fast benchmark pass. Direct GTF backend fallback: 44 focused tests pass in isolated Python 3.11. |
-| Tasks 5–6: translation and reproducibility | Pending | Initial phase, alternative genetic codes and fresh copy variation remain explicit release gates. |
+| Task 5: translation | Initial phase implemented; genetic codes next | Eight independent phase tests, including native runs on both strands, pass; 160 translation/alignment regressions and all 24 byte configurations pass. |
+| Task 6: reproducibility | Pending | Fresh copy variation and complete copy hierarchies remain explicit release gates. |
 | Task 7: correctness release qualification | Pending | No v1.0.13 release-readiness claim yet. |
 | Tasks 8–11: efficiency, optional copies and final review | Pending | Follow correctness checkpoint. |
 
@@ -63,6 +64,22 @@ Test environment correction: the shared editable installation can import a
 missing LiftOn submodule from another checkout even when the top-level package
 comes from this worktree. Focused sparse-model tests disable that finder; final
 qualification must use isolated installs and verify actual module origins.
+
+Task 2's real controller campaign is
+`/tmp/lifton-controller-qualification-runs/native-controller-20260915`.
+Frozen candidate 0620294 and reference 6c86d1b retained all 26 transcripts,
+including all 17 coding transcripts with protein and DNA identity 1.0 and no
+lost IDs. Candidate stream/inmemory and reference output have the same
+`ba2596d2...f875ff0` SHA256 as the GTF control above. The first attempt and deep
+reconciliation passed. This single canary qualifies the controller path, not
+whole-genome correctness or performance of later candidate commits.
+
+Task 5 initial-phase validation uses explicitly constructed coding sequences,
+including split codons, phase 1/2, both strands, repeated scoring and stop
+extension. Extraction and scoring trim the initial phase once; downstream
+frames retain junction-spanning codons. Ordinary phase-zero extraction retains
+its existing padding convention. Alternative tables and mixed-code native
+alignment remain unfinished and are required before Task 5 is complete.
 
 Isolated Python 3.10.21, 3.11.15 and 3.12.14 dependency environments are installed,
 with no editable finders and no broken requirements. Their resolved locks and
