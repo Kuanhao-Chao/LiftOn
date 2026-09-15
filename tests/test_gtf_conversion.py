@@ -27,13 +27,15 @@ def gtf(tmp_path):
 
 @pytest.mark.skipif(not shutil.which('gffread'), reason='requires native gffread')
 @pytest.mark.parametrize('inferred', [False, True])
-def test_conversion_retains_genes_transcripts_and_child_attributes(gtf, inferred):
+@pytest.mark.parametrize('backend', ['gffutils', 'gffbase'])
+def test_conversion_retains_genes_transcripts_and_child_attributes(gtf, inferred, backend):
     if inferred:
         gtf.write_text(''.join(line for line in gtf.read_text().splitlines(True)
                                if line.split('\t')[2] not in {'gene', 'transcript'}))
     original = gtf.read_bytes()
-    ann = Annotation(gtf, False, False)
+    ann = Annotation(gtf, False, False, backend=backend)
     db = ann.db_connection
+    assert ann.backend == backend
     assert {f.id for f in db.features_of_type('gene')} == {'g1', 'g2'}
     assert db['t1'].attributes['Parent'] == ['g1']
     assert db['t2'].attributes['Parent'] == ['g2']
@@ -60,14 +62,27 @@ def test_conversion_uses_unique_private_paths_and_records_evidence(gtf, tmp_path
     assert '--keep-genes' in evidence['argv'] and '--keep-exon-attrs' in evidence['argv']
 
 
-def test_direct_gtf_opt_out_keeps_explicit_hierarchy(gtf, monkeypatch):
+@pytest.mark.parametrize(('backend', 'from_environment'), [
+    ('gffutils', False),
+    ('gffbase', False),
+    (None, True),
+])
+def test_direct_gtf_opt_out_keeps_explicit_hierarchy(
+        gtf, monkeypatch, backend, from_environment):
     monkeypatch.setattr(Annotation, '_convert_gtf_to_gff3',
                         lambda _: pytest.fail('conversion should be disabled'))
-    ann = Annotation(gtf, False, False, auto_convert_gtf=False)
+    if from_environment:
+        monkeypatch.setenv('LIFTON_USE_GFFBASE', '1')
+    ann = Annotation(gtf, False, False, auto_convert_gtf=False, backend=backend)
     assert ann.file_name == str(gtf)
     assert {f.id for f in ann.db_connection.features_of_type('gene')} == {'g1', 'g2'}
     assert [p.id for p in ann.db_connection.parents('t1', level=1)] == ['g1']
     assert ann.db_connection['t1'].attributes['Parent'] == ['g1']
+    requested = 'gffbase' if backend == 'gffbase' or from_environment else 'gffutils'
+    assert ann.requested_backend == requested
+    assert ann.backend == 'gffutils'
+    assert ann.backend_fallback_reason == (
+        'direct_gtf_hierarchy_requires_gffutils' if requested == 'gffbase' else None)
     assert ann.conversion_provenance is None
 
 
@@ -108,8 +123,13 @@ def test_failed_converter_cannot_reuse_stale_success(gtf, tmp_path, monkeypatch)
 
 @pytest.mark.skipif(any(not shutil.which(tool) for tool in ('gffread', 'minimap2', 'miniprot')),
                     reason='requires native gffread, minimap2 and miniprot')
-@pytest.mark.parametrize('options', [[], ['--stream'], ['--no-auto-convert-gtf'], ['--strict-gff']])
-def test_native_gtf_lift_recovers_coding_hierarchy(tmp_path, options):
+@pytest.mark.parametrize(('options', 'request_gffbase'), [
+    ([], False),
+    (['--stream'], False),
+    (['--no-auto-convert-gtf'], True),
+    (['--strict-gff'], False),
+])
+def test_native_gtf_lift_recovers_coding_hierarchy(tmp_path, options, request_gffbase):
     import json
     import os
     import random
@@ -133,6 +153,8 @@ def test_native_gtf_lift_recovers_coding_hierarchy(tmp_path, options):
     output = tmp_path / 'out.gff3'
     env = dict(os.environ, PYTHONNOUSERSITE='1', PYTHONDONTWRITEBYTECODE='1', PYTHONHASHSEED='0',
                PYTHONPATH=str(Path(__file__).resolve().parents[1]), LIFTON_MINIPROT_THREADS='1')
+    if request_gffbase:
+        env['LIFTON_USE_GFFBASE'] = '1'
     command = [sys.executable, '-c', 'from lifton.lifton import main; main()',
                str(fasta), str(fasta), '-g', str(gtf), '-o', str(output), '-ad', 'Ensembl', '-t', '1', *options]
     result = subprocess.run(command, cwd=tmp_path, env=env, capture_output=True, text=True, timeout=180)
@@ -144,14 +166,21 @@ def test_native_gtf_lift_recovers_coding_hierarchy(tmp_path, options):
     cds = [r for r in rows if r[2] == 'CDS']
     assert len(cds) == 1 and cds[0][3:5] == ['1001', '1603']
     assert 'Parent=t1' in cds[0][8]
+    if request_gffbase:
+        assert manifest['run']['backend']['reference_annotation'] == 'gffutils'
+        assert manifest['run']['backend']['reference_annotation_requested'] == 'gffbase'
+        assert manifest['run']['backend']['reference_annotation_fallback'] == \
+            'direct_gtf_hierarchy_requires_gffutils'
     if not options or '--stream' in options:
         assert manifest['input_statistics']['reference_annotation_conversion']['tool']['sha256']
 
 
-def test_direct_gtf_inference_preserves_original_transcript_ids(gtf):
+@pytest.mark.parametrize('backend', ['gffutils', 'gffbase'])
+def test_direct_gtf_inference_preserves_original_transcript_ids(gtf, backend):
     gtf.write_text(''.join(line for line in gtf.read_text().splitlines(True)
                            if line.split('\t')[2] not in {'gene', 'transcript'}))
-    ann = Annotation(gtf, True, True, auto_convert_gtf=False)
+    ann = Annotation(gtf, True, True, auto_convert_gtf=False, backend=backend)
     assert {f.id for f in ann.db_connection.features_of_type('gene')} == {'g1', 'g2'}
     assert {f.id for f in ann.db_connection.features_of_type('transcript')} == {'t1', 't2'}
     assert ann.db_connection['t1'].attributes['Parent'] == ['g1']
+    assert ann.backend == 'gffutils'

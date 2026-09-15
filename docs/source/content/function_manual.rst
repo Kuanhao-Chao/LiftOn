@@ -327,7 +327,11 @@ converted file hashes, command and converter executable/version.
 
 ``--no-auto-convert-gtf`` keeps direct GTF parsing. Supply ``-infer-genes`` and/or
 ``-infer-transcripts`` when those records are missing. Explicit transcript IDs
-are preserved. GFF3 attribute syntax is checked after automatic conversion;
-raw GTF still receives coordinate and column validation. Complex mixed coding
-hierarchies and alternative translation tables require their separate release
-qualification; conversion success alone does not establish biological accuracy.
+are preserved. Direct GTF uses the hierarchy-repairing gffutils parser even when
+``LIFTON_USE_GFFBASE`` requests gffbase; the run manifest reports ``gffutils`` as
+the effective reference-annotation backend. Converted GFF3 and ordinary GFF3
+continue to honor the selected backend. GFF3 attribute syntax is checked after
+automatic conversion; raw GTF still receives coordinate and column validation.
+Complex mixed coding hierarchies and alternative translation tables require
+their separate release qualification; conversion success alone does not
+establish biological accuracy.
