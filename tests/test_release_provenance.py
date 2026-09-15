@@ -15,7 +15,9 @@ def receipt(tmp_path, monkeypatch):
     output.write_text('##gff-version 3\n')
     manifest = tmp_path / 'manifest.json'
     manifest.write_text(json.dumps({'run': {'status': 'success'}}))
-    expected = {'source': source, 'inputs': {}, 'argv': ['lifton'], 'runtime': {'version': '1'}}
+    expected = {'source': source, 'inputs': {}, 'argv': ['lifton'], 'runtime': {'version': '1'},
+                'cwd': str(tmp_path), 'environment': {}}
+    monkeypatch.setattr(p, 'runtime', lambda *args: {'version': '1'})
     path = tmp_path / 'completion.json'
     profile = SimpleNamespace(exit_code=0, wall_clock_seconds=1, peak_rss_mb=2)
     p.write_receipt(path, expected=expected, output=output, manifest=manifest,
