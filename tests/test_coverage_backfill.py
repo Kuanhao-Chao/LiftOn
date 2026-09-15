@@ -397,10 +397,12 @@ class TestGetRefIdsLiftoff:
         assert ref_trans == "tx1"
 
     def test_both_known(self):
-        # Post-merge: with both ids supplied, get_ref_ids_liftoff calls
-        # get_ID_base(trans_id, None) on the trans path (line 489 in
-        # lifton_utils.py), which is now conservative and preserves the
-        # _<int> suffix.
+        # With both ids supplied, get_ref_ids_liftoff resolves the GENE against
+        # the gene-keyed dict and returns the TRANSCRIPT id exactly as Liftoff
+        # wrote it -- the gene-keyed dict cannot verify a transcript suffix.
+        # Resolving `_<int>` is the caller's job, via
+        # `lifton_utils.resolve_ref_trans_id`, which checks the reference
+        # annotation itself (see tests/test_copies_childless_gene.py).
         d = self._make_dict()
         ref_gene, ref_trans = lifton_utils.get_ref_ids_liftoff(
             d, "gene1", "tx1_2",

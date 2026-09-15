@@ -1892,6 +1892,21 @@ def run_all_lifton_steps(args):
     # Step 9: Printing stats
     ################################
     _switch_manifest_phase(args, "write_reports")
+    # Genes published with no child features. A bare gene line carries no
+    # transcript, exon or CDS, so it is useless to every downstream consumer --
+    # but nothing surfaced it: `gff3-validate` reports it as a WARNING and the
+    # release gates count errors. Report the number here so a user sees it
+    # without running the validator.
+    _childless_genes = getattr(args, "_childless_gene_count", 0)
+    manifest.record_count("genes_emitted_without_children", _childless_genes)
+    if _childless_genes:
+        _childless_examples = getattr(args, "_childless_gene_ids", []) or []
+        _shown = ", ".join(_childless_examples[:5])
+        logger.log_warning(
+            f"{_childless_genes} gene(s) were emitted with no child features "
+            f"(no transcript, exon or CDS)"
+            + (f"; e.g. {_shown}" if _shown else "")
+        )
     try:
         stats.print_report(ref_features_dict, transcripts_stats_dict, fw_unmapped, fw_extra_copy, fw_mapped_feature, fw_mapped_trans, debug=args.debug, fw_feature_type=fw_feature_type)
     except Exception as e:

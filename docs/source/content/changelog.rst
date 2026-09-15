@@ -7,7 +7,7 @@ Changelog
 v1.0.12
 --------
 
-Resource-safety and diagnostics release (2026-09-13), motivated by GH #71's two
+Resource-safety and diagnostics release (2026-09-14), motivated by GH #71's two
 native ``SIGSEGV`` failures on an approximately 20-Gb target. It also recovers
 far more genes between distantly related species and runs multi-threaded by
 default.
@@ -54,6 +54,21 @@ default.
 
 **Changed and fixed:**
 
+- ``-copies`` extra gene copies keep their transcripts, exons and CDS. Liftoff
+  suffixes every feature of an extra copy with ``_<extra_copy_number>``, so a
+  copy arrives as ``gene-X_1`` / ``rna-X_1``. LiftOn resolved the gene id back
+  to the reference correctly but looked the transcript id up verbatim, so the
+  lookup failed and the transcript was skipped -- taking every exon and CDS
+  with it and leaving a gene line with no children. Across the 17-genome
+  benchmark set this affected about 4,400 genes (rice 539 of 815 copy genes,
+  human to zebrafish 1,178 of 1,881), identically in v1.0.11, so it was present
+  in every release. The reference transcript is now resolved the way the gene
+  already was: the exact id first, and only on a miss the ``_<N>`` copy base,
+  accepted only when that base really is a transcript of the reference gene the
+  copy belongs to -- so reference ids that genuinely end in ``_<int>`` are left
+  alone.
+- A gene emitted with no child features is counted and reported at the end of
+  the run and in ``run_manifest.json`` as ``genes_emitted_without_children``.
 - A flat annotation -- a prokaryotic GFF3 with top-level ``CDS`` rows and no
   ``gene`` -- now lifts those rows instead of selecting nothing and failing
   several steps later inside Liftoff, and an empty selection stops the run at

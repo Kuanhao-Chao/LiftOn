@@ -1026,6 +1026,11 @@ def _populate_ref_attrs_for_descent(payload: MaterialisedLocus,
         ref_id for ref_id in (ref_gene_id, ref_trans_id_for_gene)
         if ref_id is not None
     ]
+    # A locus that IS the transcript (gene with direct exons) resolves its
+    # reference id the same way the per-transcript loop below does.
+    _locus_base = _lu.copy_suffix_base(ref_trans_id_for_gene)
+    if _locus_base is not None and _locus_base not in ref_ids:
+        ref_ids.append(_locus_base)
 
     # For each cached transcript-shaped feature (one with level-1 exon
     # children) under the locus, look up the (ref_gene_id, ref_trans_id)
@@ -1042,7 +1047,19 @@ def _populate_ref_attrs_for_descent(payload: MaterialisedLocus,
             )
         except Exception:
             continue
-        for ref_id in (r_gene_id, r_trans_id):
+        # `get_ref_ids_liftoff` returns the transcript id as Liftoff wrote it;
+        # `run_liftoff.process_liftoff` resolves it through
+        # `lifton_utils.resolve_ref_trans_id`, which tries the exact id first and
+        # then the Liftoff `-copies` `_<N>` base. The worker reads the reference
+        # through `_RefDbProxy`, which raises KeyError for anything not
+        # pre-fetched here -- so BOTH candidates must be cached or a `-copies`
+        # extra copy would resolve serially and not in parallel, and the two
+        # paths would stop being byte-identical.
+        candidates = [r_gene_id, r_trans_id]
+        base = _lu.copy_suffix_base(r_trans_id)
+        if base is not None:
+            candidates.append(base)
+        for ref_id in candidates:
             if ref_id is not None and ref_id not in ref_ids:
                 ref_ids.append(ref_id)
 
@@ -1563,6 +1580,43 @@ def process_locus_native(payload: MaterialisedLocus,
     )
 
 
+# How many childless-gene ids to keep as examples for the summary line. The
+# count itself is always exact; only the id list is bounded.
+_CHILDLESS_EXAMPLE_CAP = 10
+
+
+def _record_childless_gene(ctx, lifton_gene) -> None:
+    """Tally a gene published with no child features.
+
+    A bare gene line is useless downstream -- no transcript, no exon, no CDS --
+    and `feature_serializer.write_gene` cannot reject it, because "no children"
+    is indistinguishable there from a gene that legitimately has none. It was
+    also invisible in practice: `gff3-validate` reports it, but only as a
+    WARNING, and the release gates count errors. The Liftoff `-copies` transcript
+    resolution bug produced ~4,400 of these across the benchmark corpus without
+    ever showing up in a summary. Counting them here puts the number in front of
+    the user at the end of every run.
+    """
+    if ctx is None:
+        return
+    transcripts = getattr(lifton_gene, "transcripts", None)
+    if transcripts is None or len(transcripts) > 0:
+        return
+    args = getattr(ctx, "args", None)
+    if args is None:
+        return
+    count = getattr(args, "_childless_gene_count", 0) + 1
+    args._childless_gene_count = count
+    examples = getattr(args, "_childless_gene_ids", None)
+    if examples is None:
+        examples = []
+        args._childless_gene_ids = examples
+    if len(examples) < _CHILDLESS_EXAMPLE_CAP:
+        gene_id = getattr(getattr(lifton_gene, "entry", None), "id", None)
+        if gene_id is not None:
+            examples.append(str(gene_id))
+
+
 def consume(result: LocusResult, fw, transcripts_stats_dict: dict, *,
             ctx: Optional[StepContext] = None,
             state_coordinator: Optional[Step7StateCoordinator] = None) -> bool:
@@ -1660,6 +1714,7 @@ def consume(result: LocusResult, fw, transcripts_stats_dict: dict, *,
     # leave score/chain rows with no corresponding feature.
     if state_coordinator is not None:
         state_coordinator.commit(result.delta)
+    _record_childless_gene(ctx, result.lifton_gene)
     if ctx is not None:
         if result.delta.score_text and ctx.fw_score is not None:
             ctx.fw_score.write(result.delta.score_text)
