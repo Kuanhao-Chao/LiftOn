@@ -140,8 +140,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "96d4ac8bb4193381650e479a80a4e1023c36190adb9b0ef223be3c2423dc674b",
-      "bytes": 1047894,
+      "aggregate_sha256": "f33fdda4cb489cbe6e37d9475ae4988d75ae133dadb6bbcdeb44237891a69926",
+      "bytes": 1065570,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -2731,14 +2731,14 @@
       "sha256": "1400279bcdfcb5da4f4fc04563a8bf0b3ba1f6c85da39b1be8f40eb58b387b1b"
     },
     {
-      "bytes": 5237,
+      "bytes": 9105,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/release_provenance.py",
-      "sha256": "15a596a40eb3482971b3ee44bc3059249dbef12bf4affd3d33bf55ae69ca5b0b"
+      "sha256": "a75c2683b52e0ce172d384002139e3bed8f06cca48c0946567e74001a132eda9"
     },
     {
       "bytes": 171562,
@@ -2771,14 +2771,14 @@
       "sha256": "72722a6bb4f3e9af23fd109d2f230ee8fe13ec8fcf50c4b87b0b5296aa984b8a"
     },
     {
-      "bytes": 19893,
+      "bytes": 33701,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/release_validation.py",
-      "sha256": "6c3e0c0097f85e2847e07c1a9a81456ffc5bfa59d755b3095502cecf81fe9fc1"
+      "sha256": "cd4d439975f61b669945c471f4d0fbe95205441c4d685b0df451c3e6657b1fa1"
     },
     {
       "bytes": 13329,
@@ -3576,7 +3576,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "1151d6aadb109408e7b7cd4794c8d466316bc80001f792b40d314a217e6893ec",
+  "inventory_sha256": "971f34eae7edc90f8856aeaf2cf4264a8298d97ea0a4f112f3908b66067ad9d8",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3624,8 +3624,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "a4b5b15107ab69d9043186453bcad6f73f888670ce7154afba2f426cf9d69258",
-    "bytes": 13480599,
+    "aggregate_sha256": "435616046b2ec20f09b8576369bd2d060d1a6e53ed5327eb66fb4a4867f3af4f",
+    "bytes": 13498275,
     "classification_counts": {
       "canonical": 78,
       "diagnostic": 42,
