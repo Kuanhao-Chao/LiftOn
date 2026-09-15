@@ -95,8 +95,8 @@ LiftOn
       -m PATH               Minimap2 path
       -f TYPES, --features TYPES
                               list of feature types to lift over (an explicit -f overrides gene-like auto-detection)
-      -infer-genes          use if annotation file only includes transcripts, exon/CDS features; auto-enabled for GTF
-      -infer_transcripts    use if annotation file only includes exon/CDS features and does not include transcripts/mRNA; auto-enabled for GTF
+      -infer-genes          use if annotation file only includes transcripts, exon/CDS features; needed for direct GTF when genes are absent
+      -infer_transcripts    use if annotation file only includes exon/CDS features and does not include transcripts/mRNA; needed for direct GTF when transcripts are absent
       -chroms TXT           comma seperated file with corresponding chromosomes in the reference,target sequences
       -unplaced TXT         text file with name(s) of unplaced sequences to map genes from after genes from chromosomes in chroms.txt are mapped; default is
                               "unplaced_seq_names.txt"
@@ -312,3 +312,22 @@ console script is installed alongside ``lifton``.
    :alt: My Logo
    :class: logo, header-image only-dark
    :align: center
+
+GTF reference intake
+--------------------
+
+Automatic GTF conversion uses ``gffread -E -F --keep-exon-attrs --keep-genes``.
+This retains gene records and exon/CDS attributes, including Ensembl biotypes.
+For exon/CDS-only GTF, gffread infers transcript and gene containers. Its GFF3
+CDS convention includes the terminal stop codon. LiftOn keeps each converted
+annotation and converter log in a unique directory under
+``lifton_output/intermediate_files/``. The run manifest's
+``input_statistics.reference_annotation_conversion`` records the original and
+converted file hashes, command and converter executable/version.
+
+``--no-auto-convert-gtf`` keeps direct GTF parsing. Supply ``-infer-genes`` and/or
+``-infer-transcripts`` when those records are missing. Explicit transcript IDs
+are preserved. GFF3 attribute syntax is checked after automatic conversion;
+raw GTF still receives coordinate and column validation. Complex mixed coding
+hierarchies and alternative translation tables require their separate release
+qualification; conversion success alone does not establish biological accuracy.

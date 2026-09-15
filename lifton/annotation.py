@@ -71,6 +71,7 @@ class Annotation:
         *,
         backend: "Optional[str]" = None,
         scan_result: "Optional[AnnotationScanResult]" = None,
+        conversion_dir=None,
     ):
         # ── Phase 7: polymorphic on input type ────────────────────────────────
         # ``source`` may be either a filesystem path (str/PathLike) OR an
@@ -103,6 +104,8 @@ class Annotation:
         self.force          = force
         self.verbose        = verbose
         self.auto_convert_gtf = auto_convert_gtf
+        self.conversion_dir = conversion_dir
+        self.conversion_provenance = None
         self.infer_genes = infer_genes
         self.infer_transcripts = infer_transcripts
         self.cache_status = "not_applicable"
@@ -292,7 +295,7 @@ class Annotation:
         print(
             "[LiftOn] GTF support is experimental. "
             "For best results, convert to GFF3 first:\n"
-            f"    gffread -E {original_file} -o {original_file}.gff3\n"
+            f"    gffread -E -F --keep-exon-attrs --keep-genes {original_file} -o {original_file}.gff3\n"
             f"    or: agat_sp_gtf2gff.pl --gtf {original_file} -o {original_file}.gff3",
             file=sys.stderr,
         )
@@ -310,11 +313,10 @@ class Annotation:
                     self.scan_result = scan_annotation(converted)
                     self.directives = list(self.scan_result.directives)
                     self._detected_file_format = "GFF format"
+                    self.infer_genes = False
+                    self.infer_transcripts = False
                 else:
-                    logger.log_warning(
-                        f"Converted file {converted!r} may not be valid GFF3. "
-                        "Using original GTF."
-                    )
+                    raise LiftOnInputError(f"Converted file {converted!r} is not valid GFF3")
             else:
                 # V1.9 fix: when the user explicitly requests
                 # auto-conversion AND every conversion strategy failed,
@@ -379,7 +381,9 @@ class Annotation:
         return {
             "auto_convert_gtf": bool(self.auto_convert_gtf),
             "detected_format": getattr(self, "_detected_file_format", "GFF format"),
-            "gtf_transform": "suffix_transcript_id" if self.infer_genes else None,
+            "gtf_transform": ("suffix_transcript_id" if self._get_transform_func() else None),
+            **({"gtf_relations": "explicit_hierarchy_v1"}
+               if getattr(self, "_detected_file_format", None) == "GTF format" else {}),
         }
 
     def _gffutils_manifest(self) -> dict:
@@ -537,6 +541,23 @@ class Annotation:
         built = None
         try:
             built = self._build_database_at(temporary)
+            if self._detected_file_format == "GTF format":
+                # gffutils interprets gene_id/transcript_id on their own rows
+                # as self-parent relations. These are not biological edges.
+                built.conn.execute("DELETE FROM relations WHERE parent = child")
+                # Downstream lifting uses explicit ID/Parent attributes as well
+                # as database relations. Raw GTF carries gene_id/transcript_id
+                # instead, which otherwise makes transcripts look like roots.
+                import json
+                for feature in built.all_features():
+                    attrs = dict(feature.attributes)
+                    attrs['ID'] = [feature.id]
+                    parents = [parent.id for parent in built.parents(feature, level=1)]
+                    if parents:
+                        attrs['Parent'] = parents
+                    built.conn.execute("UPDATE features SET attributes = ? WHERE id = ?",
+                                       (json.dumps(attrs), feature.id))
+                built.conn.commit()
             built.conn.close()
             built = None
             if annotation_cache.source_fingerprint(self.file_name) != expected["source"]:
@@ -712,7 +733,7 @@ class Annotation:
     # ─────────────────────────────────────────────────────────────────────────
 
     def _get_transform_func(self):
-        if not self.infer_genes:
+        if not self.infer_genes or getattr(self, "_detected_file_format", None) == "GTF format":
             return None
         return _transform_func_gtf
 
@@ -767,7 +788,7 @@ class Annotation:
         key for the next repeat instead. Every other id, discontinuous CDS
         included, is passed through untouched.
         """
-        infer_genes = self.infer_genes
+        transform_gtf = self._get_transform_func()
         contaminated = self._contaminated_ids()
         existing = set(getattr(getattr(self, "scan_result", None),
                                "copy_suffix_ids", ()))
@@ -783,8 +804,8 @@ class Annotation:
             )
 
         def unique_id_transform(feature):
-            if infer_genes:
-                feature = _transform_func_gtf(feature)
+            if transform_gtf is not None:
+                feature = transform_gtf(feature)
             if not contaminated:
                 return feature
 
@@ -821,58 +842,13 @@ class Annotation:
         Attempt conversion via gffread (preferred) then agat.
         Returns the output file path or None on failure.
         """
-        base = os.path.splitext(self.file_name)[0]
-        output_file = base + "_converted.gff3"
-
-        gffread_ok = self._tool_available("gffread")
-        agat_cmd   = self._find_agat_command()
-
-        if not gffread_ok and agat_cmd is None:
-            if self.verbose:
-                logger.log_warning(
-                    "Neither gffread nor agat is available. "
-                    "GTF will be used directly (may fail).\n"
-                    f"  Install gffread:  conda install -c bioconda gffread\n"
-                    f"  Install agat:     conda install -c bioconda agat"
-                )
-            return None
-
-        # Try gffread first
-        if gffread_ok:
-            try:
-                print(
-                    f"[LiftOn]   Converting GTF → GFF3 with gffread: {output_file}",
-                    file=sys.stderr,
-                )
-                result = subprocess.run(
-                    ["gffread", "-E", self.file_name, "-o", output_file],
-                    capture_output=True, text=True, check=True,
-                )
-                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                    return output_file
-                logger.log_warning("gffread conversion produced an empty file.")
-            except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-                logger.log_warning(f"gffread conversion failed: {exc}")
-
-        # Try agat as fallback
-        if agat_cmd:
-            try:
-                print(
-                    f"[LiftOn]   Converting GTF → GFF3 with agat ({agat_cmd}): {output_file}",
-                    file=sys.stderr,
-                )
-                if "gtf2gff" in agat_cmd:
-                    cmd = [agat_cmd, "--gtf", self.file_name, "-o", output_file]
-                else:
-                    cmd = [agat_cmd, "--gff", self.file_name, "-o", output_file]
-                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-                if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
-                    return output_file
-                logger.log_warning("agat conversion produced an empty file.")
-            except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-                logger.log_warning(f"agat conversion failed: {exc}")
-
-        return None
+        from lifton.annotation_conversion import convert_gtf
+        output, evidence = convert_gtf(
+            self.file_name, directory=self.conversion_dir,
+            gffread=self._tool_available("gffread"), agat=self._find_agat_command(),
+        )
+        self.conversion_provenance = evidence
+        return output
 
     def _tool_available(self, name: str) -> bool:
         try:

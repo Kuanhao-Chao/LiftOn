@@ -6,7 +6,22 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- GTF conversion retains gene hierarchy and exon/CDS attributes using gffread's
+  gene-preserving options. Converted inputs and logs are private to each run;
+  the manifest records input/output hashes, command and converter provenance.
+- Direct GTF intake removes parser-generated self-parent relations, supplies
+  explicit hierarchy attributes and preserves transcript IDs during inference.
+- Strict GFF3 validation checks the converted GFF3 instead of rejecting valid
+  GTF attribute syntax. Ensembl `gene_biotype` is recognized for classification.
+
+### Development
+
+- Release qualification uses candidate/reference roles and verifies portable
+  input, tool, dependency, evaluator and artifact evidence. Incomplete, stale,
+  malformed and unsuccessful retry records cannot pass qualification.
+
 
 ## [1.0.12] - 2026-09-14
 

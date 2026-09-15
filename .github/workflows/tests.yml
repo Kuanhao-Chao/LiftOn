@@ -60,7 +60,7 @@ jobs:
         # --ignore. Not a runtime dep, so kept out of setup.py install_requires.
         python -m pip install hypothesis
         # zlib1g-dev: mappy has no wheel for this runner and builds from sdist.
-        sudo apt-get install -y wget zlib1g-dev
+        sudo apt-get install -y wget zlib1g-dev gffread
         wget --tries=3 --timeout=30 https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
         tar xvf miniprot-0.13_x64-linux.tar.bz2
         cp miniprot-0.13_x64-linux/miniprot /usr/local/bin
