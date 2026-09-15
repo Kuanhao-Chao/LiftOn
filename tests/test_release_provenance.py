@@ -114,3 +114,18 @@ def test_guard_rejects_an_already_loaded_outside_module(tmp_path):
     result = subprocess.run([sys.executable, '-c', code], cwd=tmp_path,
                             capture_output=True, text=True, timeout=30)
     assert result.returncode != 0 and 'outside' in result.stderr
+
+
+def test_profiled_qualification_does_not_inherit_shell_overrides(tmp_path, monkeypatch):
+    import json
+    import sys
+    from pathlib import Path
+    from benchmarks.compare.profiling import run_profiled
+    monkeypatch.setenv('LIFTON_USE_GFFBASE', 'inherited-unrecorded')
+    profile = run_profiled([sys.executable, '-c',
+                            'import json,os; print(json.dumps(dict(os.environ)))'],
+                           label='clean', log_dir=tmp_path, env={'PATH': '/usr/bin:/bin'},
+                           inherit_env=False, log=lambda _: None)
+    assert profile.exit_code == 0
+    observed = json.loads(Path(profile.stdout_path).read_text())
+    assert 'LIFTON_USE_GFFBASE' not in observed

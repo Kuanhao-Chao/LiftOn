@@ -87,6 +87,7 @@
         "benchmarks/compare/release_report_figures.py",
         "benchmarks/compare/release_rescore.py",
         "benchmarks/compare/release_provenance.py",
+        "benchmarks/compare/release_qualification.py",
         "benchmarks/compare/release_validation.py",
         "benchmarks/compare/released_annotation_sensitivity.py",
         "benchmarks/compare/report_tables.py",
