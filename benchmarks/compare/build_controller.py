@@ -80,6 +80,9 @@ PROVENANCE_TOOLING_FILES = {
     "tooling_evaluator": HERE / "evaluator.py",
     "tooling_release_evaluation": HERE / "release_evaluation.py",
     "tooling_release_report": HERE / "release_report.py",
+    "tooling_release_qualification": HERE / "release_qualification.py",
+    "tooling_release_validation": HERE / "release_validation.py",
+    "tooling_release_provenance": HERE / "release_provenance.py",
     "tooling_run_benchmarks": HERE.parent / "run_benchmarks.py",
     "tooling_gff3_validator": REPO_ROOT / "lifton" / "gff3_validator.py",
 }
@@ -899,8 +902,21 @@ def build_cells(stage: str, ids: Sequence[str], *, run_dir: Path,
                 paired: Mapping[str, Any] | None = None,
                 paired_inputs: Mapping[str, Any] | None = None,
                 paired_evaluation_inputs: Mapping[str, Any] | None = None,
+                qualification: Mapping[str, Any] | None = None,
                 ) -> list[dict[str, Any]]:
     cells: list[dict[str, Any]] = []
+    if stage == "qualification":
+        from benchmarks.compare import release_qualification
+        if qualification is None:
+            raise ValueError('Qualification stage requires frozen source and input configuration')
+        cost = release_qualification.validate_policy(policy)
+        for identifier in ids:
+            cell = release_qualification.build_cell(
+                identifier, run_dir / 'cells' / ('qualification__' + identifier),
+                policy.threads_per_cell, qualification)
+            cell['scheduler_thread_cost'] = cost
+            cells.append(cell)
+        return cells
     panel = _paired_panel(stage)
     if panel is not None:
         if (
@@ -1090,6 +1106,22 @@ def validate_plan_integrity(plan: Mapping[str, Any]) -> None:
                     f"cell campaign_case disagrees with plan: {cell['id']}"
                 )
 
+    if plan.get('stage') == 'qualification':
+        from benchmarks.compare import release_qualification
+        frozen = plan.get('qualification')
+        if not isinstance(frozen, Mapping) or frozen != provenance.get('qualification'):
+            raise ValueError('Qualification plan lacks matching frozen evidence')
+        if plan['ids'] != frozen.get('expected_cells'):
+            raise ValueError('Qualification expected cells disagree with the plan')
+        release_qualification.select_ids(frozen['configuration'], plan['ids'])
+        expected_cells = build_cells('qualification', plan['ids'], run_dir=Path(plan['run_dir']),
+                                     policy=Policy(**plan['policy']), dataset_registry=Path(plan['inputs']['dataset_registry']),
+                                     qualification=frozen)
+        if [{k: v for k, v in c.items() if k != 'fingerprint'} for c in cells] != expected_cells:
+            raise ValueError('Qualification cell execution differs from the frozen contract')
+    elif plan.get('qualification') is not None:
+        raise ValueError('Qualification configuration requires a qualification stage')
+
     expected_plan = _plan_fingerprint(plan)
     if plan.get("fingerprint") != expected_plan:
         raise ValueError("plan fingerprint does not match immutable content")
@@ -1109,8 +1141,19 @@ def create_plan(
     paired: Mapping[str, Any] | None = None,
     campaign_case: Mapping[str, Any] | None = None,
     profile_registry: Path | None = None,
+    qualification: Mapping[str, Any] | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     policy.validate()
+    frozen_qualification = None
+    if stage == 'qualification':
+        from benchmarks.compare import release_qualification
+        if qualification is None or campaign_case is not None:
+            raise ValueError('Qualification requires its explicit configuration and no paired campaign profile')
+        release_qualification.validate_policy(policy)
+        ids = release_qualification.select_ids(qualification, requested_ids)
+        frozen_qualification = release_qualification.prepare(qualification, ids)
+    elif qualification is not None:
+        raise ValueError('Qualification configuration requires --stage qualification')
     panel = _paired_panel(stage)
     if panel is None and paired is not None:
         raise ValueError("paired source configuration is only valid for paired stages")
@@ -1153,11 +1196,12 @@ def create_plan(
             raise ValueError(
                 "paired registry configuration does not match the plan inputs"
             )
-    ids = select_ids(
-        stage, baseline=baseline, dataset_registry=dataset_registry,
-        requested=requested_ids,
-        benchmark_registry=registry if campaign_case is not None else None,
-    )
+    if frozen_qualification is None:
+        ids = select_ids(
+            stage, baseline=baseline, dataset_registry=dataset_registry,
+            requested=requested_ids,
+            benchmark_registry=registry if campaign_case is not None else None,
+        )
     provenance = collect_provenance(
         repo_root=repo_root, registry=registry,
         dataset_registry=dataset_registry, baseline=baseline,
@@ -1185,6 +1229,9 @@ def create_plan(
     if paired is not None:
         paired_provenance = _prepare_paired_provenance(paired, ids)
         provenance = _add_paired_provenance(provenance, paired_provenance)
+    if frozen_qualification is not None:
+        provenance['qualification'] = frozen_qualification
+        provenance['fingerprint'] = canonical_hash({k: v for k, v in provenance.items() if k != 'fingerprint'})
     if run_id is None:
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"{stamp}-{stage}-{provenance['fingerprint'][:8]}"
@@ -1193,6 +1240,7 @@ def create_plan(
     cells = build_cells(
         stage, ids, run_dir=run_dir, policy=policy,
         dataset_registry=dataset_registry, paired=paired,
+        qualification=frozen_qualification,
         paired_inputs=(
             paired_provenance["inputs"]
             if paired_provenance is not None else None
@@ -1225,6 +1273,8 @@ def create_plan(
     }
     if paired is not None:
         plan["paired"] = paired
+    if frozen_qualification is not None:
+        plan['qualification'] = frozen_qualification
     if campaign_case is not None:
         plan["campaign_case"] = campaign_case
         plan["inputs"]["profile_registry"] = str(
@@ -1282,7 +1332,9 @@ def validate_plan_layout(plan: Mapping[str, Any]) -> None:
             raise ValueError(f"cell directory escapes the run root: {cell_dir}")
         if cell["kind"] == "gate":
             continue
-        if cell["kind"] == "paired_release":
+        if cell['kind'] == 'release_qualification':
+            output_names = ('result_json',)
+        elif cell["kind"] == "paired_release":
             output_names = (
                 "result_json",
                 "candidate_gff", "reference_gff",
@@ -1320,6 +1372,11 @@ def collect_current_provenance(plan: Mapping[str, Any]) -> dict[str, Any]:
         provenance = _add_paired_provenance(
             provenance, _current_paired_provenance(plan),
         )
+    if plan.get('qualification') is not None:
+        from benchmarks.compare import release_qualification
+        frozen = plan['qualification']
+        provenance['qualification'] = release_qualification.prepare(frozen['configuration'], frozen['expected_cells'])
+        provenance['fingerprint'] = canonical_hash({k: v for k, v in provenance.items() if k != 'fingerprint'})
     return provenance
 
 
@@ -1538,6 +1595,8 @@ def _terminate_process_group(
 
 
 def _hard_timeout_seconds(cell: Mapping[str, Any], policy: Policy) -> float:
+    if cell['kind'] == 'release_qualification':
+        return 2 * (policy.full_timeout_seconds if cell['full_job'] else policy.subset_timeout_seconds)
     if cell["kind"] == "paired_release":
         panel = cell.get("panel")
         if panel == "e2e":
@@ -2912,6 +2971,9 @@ def validate_artifacts(
 
     if cell["kind"] == "gate":
         return [], {"gate": "exit-code only"}
+    if cell['kind'] == 'release_qualification':
+        from benchmarks.compare import release_qualification
+        return release_qualification.validate_artifacts(cell, started_ns)
     if cell["kind"] == "paired_release":
         return _validate_paired_artifacts(
             cell,
@@ -3115,6 +3177,15 @@ def execute_cell(run_dir: Path, cell_id: str) -> int:
     if success_path.exists():
         success = read_json(success_path)
         if success.get("fingerprint") == cell["fingerprint"]:
+            if cell['kind'] == 'release_qualification':
+                try:
+                    assert_matching_provenance(plan)
+                    errors, _ = validate_artifacts(cell, int(success.get('exit', {}).get('started_ns', 0)))
+                except (OSError, RuntimeError, ValueError, KeyError) as error:
+                    errors = [str(error)]
+                if errors:
+                    _mark_failed(cell, errors, returncode=None, attempt=_read_status(cell).get('attempts', 0))
+                    return 2
             return 0
 
     try:
@@ -4115,7 +4186,7 @@ def reconcile_run(run_dir: Path, *, deep: bool = False) -> dict[str, Any]:
                 errors.append(
                     f"validated artifact hash changed after success: {name}={path}"
                 )
-        if deep and not errors and cell["kind"] != "gate":
+        if (deep or cell['kind'] == 'release_qualification') and not errors and cell["kind"] != "gate":
             started_ns = int(success.get("exit", {}).get("started_ns", 0))
             deep_errors, _ = validate_artifacts(
                 cell,
@@ -4327,7 +4398,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--stage",
         choices=(
             "gates", "subset-canary", "subset", "full-canary", "full",
-            "e2e-canary", "e2e", *PAIRED_STAGES,
+            "e2e-canary", "e2e", "qualification", *PAIRED_STAGES,
         ),
         default=None,
     )
@@ -4339,6 +4410,8 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--campaign-profile")
     start.add_argument("--campaign-id")
     start.add_argument("--profile-registry")
+    start.add_argument('--qualification-config', type=Path,
+                       help='JSON with exact candidate/reference sources and explicit qualification cell inputs')
     start.add_argument("--candidate-root")
     start.add_argument("--candidate-sha")
     start.add_argument("--reference-root")
@@ -4623,6 +4696,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parser.error(f"existing run stage is {plan['stage']!r}, not {args.stage!r}")
             if args.ids and list(args.ids) != plan["ids"]:
                 parser.error("existing run ids do not match the requested ids")
+            if args.qualification_config is not None:
+                from benchmarks.compare import release_qualification
+                requested_qualification = release_qualification.prepare(read_json(args.qualification_config), plan['ids'])
+                if requested_qualification != plan.get('qualification'):
+                    parser.error('Existing qualification source/input configuration differs')
             for option, supplied, requested_path, planned_path in (
                 ("--registry", args.registry, registry, plan["inputs"]["registry"]),
                 (
@@ -4677,6 +4755,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     dataset_registry=dataset_registry,
                     baseline=baseline, policy=_policy_from_args(args),
                     paired=paired,
+                    qualification=(read_json(args.qualification_config) if args.qualification_config else None),
                     campaign_case=campaign_case,
                     profile_registry=(
                         Path(args.profile_registry or DEFAULT_PROFILE_REGISTRY)

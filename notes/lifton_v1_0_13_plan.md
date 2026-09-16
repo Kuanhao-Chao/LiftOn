@@ -33,8 +33,8 @@ historical evidence are preserved. v1.0.11 comparisons remain historical.
 | Step | Status | Evidence / next action |
 |---|---|---|
 | Release synchronization and dependency audit | Complete | Fresh origin fetch and release API confirm v1.0.12 at 6c86d1b; dependencies audited without upgrades. |
-| Task 1: release evidence | Review fixes implemented; verification underway | b7a9033 plus fixes for required campaign/attempt history, source import isolation and CDS-based reference inventory. Independent re-review pending. |
-| Task 2: controller integration | Pending | Reuse scheduler with the new role schema. |
+| Task 1: release evidence | Review fixes committed; independent re-review pending | b7a9033 + c0fbe4a; 138 evidence/evaluator/inventory tests pass. Required campaign/attempt history, guarded imports and annotated coding inventory implemented. |
+| Task 2: controller integration | Implemented; native canary next | Existing scheduler dispatches qualification with frozen inputs/sources, exact environment and separate retry directories. 189 controller/evidence tests pass. |
 | Task 3: sparse coding models | Implemented; independent review pending | 54df064; 31 focused tests, supplied-FASTA combinations, both strands, mixed inputs and 30 fast/native tests pass. |
 | Task 4: GTF hierarchy | Review fix implemented; re-review pending | f0d63fa + 9fe9f7e; real panel and fast benchmark pass. Direct GTF backend fallback: 44 focused tests pass in isolated Python 3.11. |
 | Tasks 5–6: translation and reproducibility | Pending | Initial phase, alternative genetic codes and fresh copy variation remain explicit release gates. |

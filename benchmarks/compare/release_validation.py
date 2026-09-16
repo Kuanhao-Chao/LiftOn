@@ -54,9 +54,12 @@ class Configuration:
     threads: int = 8
     copies: bool = False
     resume: bool = False
+    paths: dict | None = None
+    metadata: dict | None = None
+    role_options: dict | None = None
 
 
-def _argv(python, paths, anndb, threads, out_gff, *, root, copies=False):
+def _argv(python, paths, anndb, threads, out_gff, *, root, copies=False, options=()):
     # lifton.lifton does not have a __main__ block. Invoke the actual CLI main,
     # using the interpreter and import path whose provenance was just verified.
     argv = [python, "-c", provenance.guarded_code(root, "from lifton.lifton import main; main()"),
@@ -64,7 +67,7 @@ def _argv(python, paths, anndb, threads, out_gff, *, root, copies=False):
             "-o", str(out_gff)]
     if copies:
         argv.append("-copies")
-    return argv + [str(paths["tgt_fa"]), str(paths["ref_fa"])]
+    return argv + list(options) + [str(paths["tgt_fa"]), str(paths["ref_fa"])]
 
 
 def _run_arm(bid, arm, tree, paths, anndb, config, log=print):
@@ -74,7 +77,10 @@ def _run_arm(bid, arm, tree, paths, anndb, config, log=print):
     manifest = statedir / "lifton_output" / "run_manifest.json"
     receipt_path = statedir / "completion.json"
     env = provenance.isolated_env(tree)
-    argv = _argv(config.python, paths, anndb, config.threads, out_gff, root=tree, copies=config.copies)
+    env.update({'OMP_NUM_THREADS': '1', 'OPENBLAS_NUM_THREADS': '1', 'MKL_NUM_THREADS': '1',
+                'LIFTON_MINIPROT_THREADS': str(config.threads)})
+    argv = _argv(config.python, paths, anndb, config.threads, out_gff, root=tree, copies=config.copies,
+                 options=(config.role_options or {}).get(arm, ()))
     expected = provenance.run_evidence(python=config.python, root=tree, inputs=paths,
                                       argv=argv, cwd=statedir, env=env)
     receipt = provenance.read_receipt(receipt_path, expected, out_gff, manifest)
@@ -85,7 +91,7 @@ def _run_arm(bid, arm, tree, paths, anndb, config, log=print):
         raise RuntimeError(f"{statedir}: existing evidence does not authorize reuse; choose a new run ID")
     atomic_write_json(statedir / "expected.json", expected)
     profile = run_profiled(argv, label=arm, log_dir=statedir / "logs", env=env,
-                           cwd=statedir, log=log)
+                           cwd=statedir, inherit_env=False, log=log)
     if profile.exit_code != 0 or not out_gff.is_file() or out_gff.stat().st_size == 0:
         raise RuntimeError(f"{bid}/{arm} failed (exit {profile.exit_code}); see {profile.stderr_path}")
     receipt = provenance.write_receipt(receipt_path, expected=expected, output=out_gff,
@@ -255,8 +261,10 @@ def _isolated_inputs(paths, destination):
 
 
 def run_cell(bid, config, log=print):
-    bench = fc._bench(bid)
-    paths = fc._full_paths(bid)
+    if (config.paths is None) != (config.metadata is None):
+        raise ValueError('Explicit qualification inputs require matching benchmark metadata')
+    bench = config.metadata if config.metadata is not None else fc._bench(bid)
+    paths = config.paths if config.paths is not None else fc._full_paths(bid)
     anndb = bench.get("annotation_database", "RefSeq")
     root = config.output / "cells" / bid
     arms = {}
@@ -276,7 +284,8 @@ def run_cell(bid, config, log=print):
     genes = gene_level.load_transcript_genes(str(paths["ref_gff"]))
     record = {"schema_version": REPORT_SCHEMA_VERSION, "cell": bid, "threads": config.threads,
               "divergence": bench.get("divergence_class", ""), "arms": {},
-              "protocol": {"fresh_alignment": True, "copies": config.copies},
+              "protocol": {"fresh_alignment": True, "copies": config.copies,
+                           "role_options": config.role_options or {}},
               "evaluator": evaluation_evidence, "inputs": inputs}
     rows_by_arm = {}
     for arm, (gff, receipt) in arms.items():

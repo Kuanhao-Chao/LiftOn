@@ -436,6 +436,7 @@ def _wall_clock_str_to_seconds(s: str) -> float:
 def run_profiled(argv: list[str], *, label: str, log_dir: Path,
                  env: Optional[dict] = None,
                  cwd: Optional[Path] = None,
+                 inherit_env: bool = True,
                  log=print) -> ProfileResult:
     """Run ``argv`` under the platform `time` utility and capture
     stdout/stderr + a peak-RSS report. Falls back to in-process
@@ -462,7 +463,7 @@ def run_profiled(argv: list[str], *, label: str, log_dir: Path,
     group_profile: dict[str, Any] = {}
     try:
         with open(out_path, "wb") as out_fh, open(err_path, "wb") as err_fh:
-            selected_env = {**os.environ, **(env or {})}
+            selected_env = {**(os.environ if inherit_env else {}), **(env or {})}
             if (
                 platform.system() == "Linux"
                 and selected_env.get(PROCESS_GROUP_PROFILE_ENV) == "1"
