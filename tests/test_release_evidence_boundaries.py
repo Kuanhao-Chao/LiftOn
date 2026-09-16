@@ -16,6 +16,14 @@ def write_json(path, value):
     path.write_text(json.dumps(value))
 
 
+def seal_attempt(destination, record):
+    history = destination / 'attempt_history' / record['cell'] / 'test-attempt.json'
+    state = {'cell': record['cell'], 'status': 'success', 'attempt': str(history),
+             'report': p.fingerprint(destination / 'results' / (record['cell'] + '.json'))}
+    write_json(history, state)
+    write_json(destination / 'attempts' / (record['cell'] + '.json'), state)
+
+
 @pytest.fixture
 def legacy(tmp_path, monkeypatch):
     data = tmp_path / 'external data'
@@ -201,11 +209,44 @@ def test_reference_validation_does_not_require_lifton_attributes(legacy):
     assert not any(i['check'].startswith('lifton_') for i in result['issues'])
 
 
+@pytest.mark.parametrize('recovered', ['0', '1'])
+def test_reference_extraction_failure_remains_coding_and_unresolved(legacy, recovered):
+    from tests.test_release_validation import _record, row
+    source, destination, paths = legacy
+    paths['ref_fa'].write_text('>other_chromosome\nATGAAATAA\n')
+    ref, _ = rv.evaluator.build_reference(str(paths['ref_gff']), str(paths['ref_fa']), log=lambda _: None)
+    assert ref['tx1']['is_coding'] is True
+    assert ref['tx1']['prot'] == ''
+    inventory = rv.reference_inventory(ref)
+    assert inventory['coding_ids'] == ['tx1']
+    assert inventory['unresolved_coding_ids'] == ['tx1']
+    record = _record()
+    rows = [dict(row('tx1', '', recovered=recovered), n_cds_lifted='0', lifted_prot_len='0')]
+    record['common_set'] = rv.common_set(rows, rows, expected_ids=ref,
+                                        expected_coding_ids=inventory['coding_ids'])
+    record['reference_inventory'] = inventory
+    assert not rv._finish(record)['gate_pass']
+    assert record['gate']['reference_scoring_resolved'] is False
+
+
+def test_stop_codon_alone_is_not_reference_coding_evidence(legacy):
+    _, _, paths = legacy
+    paths['ref_gff'].write_text(paths['ref_gff'].read_text().replace('\tCDS\t', '\tstop_codon\t'))
+    ref, _ = rv.evaluator.build_reference(str(paths['ref_gff']), str(paths['ref_fa']), log=lambda _: None)
+    assert ref['tx1']['is_coding'] is False and ref['tx1']['n_cds'] == 0
+
+
 @pytest.fixture
 def complete_report(legacy, monkeypatch):
     source, destination, paths = legacy
+    import sys
+    write_json(destination / 'campaign.json', {
+        'expected_cells': ['demo'], 'candidate': str(Path.cwd()), 'reference': str(destination),
+        'python': sys.executable, 'threads': 8, 'copies': False, 'rescore': None})
     record = rv.rescore('demo', source, destination, log=lambda _: None)
     record.pop('legacy_source')
+    record['reference_inventory'] = {'schema_version': 1, 'all_ids': ['tx1'], 'coding_ids': ['tx1'],
+                                     'unresolved_coding_ids': []}
     record['protocol'] = {'fresh_alignment': True, 'copies': False}
     source_evidence = {'root': str(source), 'commit': 'a' * 40}
     monkeypatch.setattr(p, 'snapshot', lambda _: source_evidence)
@@ -227,8 +268,34 @@ def complete_report(legacy, monkeypatch):
         details['provenance_verified'] = True
     rv._finish(record)
     rv._write_report(destination, 'demo', record)
+    seal_attempt(destination, record)
     assert rv.merge(destination, ['demo']) == 0
     return destination, record
+
+
+@pytest.mark.parametrize('damage', ['campaign', 'attempt', 'history', 'history_changed'])
+def test_required_campaign_and_attempt_evidence_cannot_disappear(complete_report, damage):
+    destination, _ = complete_report
+    paths = {'campaign': destination / 'campaign.json', 'attempt': destination / 'attempts/demo.json',
+             'history': destination / 'attempt_history/demo/test-attempt.json'}
+    if damage == 'history_changed':
+        state = json.loads(paths['history'].read_text())
+        state['status'] = 'running'
+        write_json(paths['history'], state)
+    else:
+        paths[damage].unlink()
+    assert rv.merge(destination, ['demo']) == 1
+    assert not json.loads((destination / 'release_validation.json').read_text())['gate_pass']
+
+
+def test_resume_cannot_recreate_deleted_campaign(complete_report):
+    destination, _ = complete_report
+    (destination / 'campaign.json').unlink()
+    with pytest.raises(SystemExit) as exc:
+        rv.main(['demo', '--resume', '--run-id', destination.name,
+                 '--output-root', str(destination.parent), '--reference-tree', str(destination)])
+    assert exc.value.code != 0
+    assert not (destination / 'campaign.json').exists()
 
 
 @pytest.mark.parametrize('damage', ['output', 'table', 'receipt', 'report', 'evaluator',
@@ -269,9 +336,10 @@ def test_cli_failed_retry_invalidates_previous_success(complete_report, monkeypa
         raise RuntimeError('retry failed')
     monkeypatch.setattr(rv, 'run_cell', fail)
     assert rv.main(['demo', '--resume', '--run-id', destination.name,
-                    '--output-root', str(destination.parent), '--reference-tree', str(destination)]) == 1
+                    '--output-root', str(destination.parent), '--reference-tree', str(destination),
+                    '--candidate-tree', str(Path.cwd())]) == 1
     assert rv.merge(destination, ['demo']) == 1
-    assert len(list((destination / 'attempt_history/demo').glob('*.json'))) == 1
+    assert len(list((destination / 'attempt_history/demo').glob('*.json'))) == 2
     assert json.loads((destination / 'results/demo.json').read_text())['gate_pass'] is True
 
 
@@ -279,6 +347,30 @@ def test_cli_rejects_changed_campaign_expected_set(complete_report):
     destination, record = complete_report
     write_json(destination / 'campaign.json', {'expected_cells': ['demo', 'missing']})
     assert rv.merge(destination, ['demo']) == 1
+
+
+def test_successful_retry_supersedes_failure_without_erasing_history(complete_report, monkeypatch):
+    destination, record = complete_report
+    failed = {'cell': 'demo', 'status': 'failed', 'error': 'previous failure'}
+    history = destination / 'attempt_history/demo/previous-failed.json'
+    write_json(history, failed)
+    write_json(destination / 'failures/demo.json', failed)
+    write_json(destination / 'attempts/demo.json', failed)
+    monkeypatch.setattr(rv, 'run_cell', lambda *args: rv._write_report(destination, 'demo', record))
+    assert rv.main(['demo', '--resume', '--run-id', destination.name,
+                    '--output-root', str(destination.parent), '--reference-tree', str(destination),
+                    '--candidate-tree', str(Path.cwd())]) == 0
+    assert json.loads(history.read_text()) == failed
+    assert rv.merge(destination, ['demo']) == 0
+
+
+def test_coding_membership_cannot_be_reclassified_by_the_evaluator():
+    from tests.test_release_validation import _record, row
+    record = _record()
+    noncoding = dict(row('a'), is_coding='0')
+    record['common_set'] = rv.common_set([noncoding], [noncoding], expected_ids=['a'], expected_coding_ids=['a'])
+    assert not rv._finish(record)['gate_pass']
+    assert record['gate']['coding_membership_consistent'] is False
 
 
 def test_corrupt_report_cannot_leave_stale_successful_summary(complete_report):
@@ -330,6 +422,7 @@ def test_version_neutral_reports_preserve_release_metadata(complete_report):
                              'commit': 'a' * 40}
                       for role, label in [('candidate', rv.NEW_LABEL), ('reference', rv.OLD_LABEL)]}
     rv._write_report(destination, 'demo', record)
+    seal_attempt(destination, record)
     assert rv.merge(destination, ['demo']) == 0
     merged = json.loads((destination / 'release_validation.json').read_text())['records'][0]
     assert set(merged['arms']) == {'candidate', 'reference'}

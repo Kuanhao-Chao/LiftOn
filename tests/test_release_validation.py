@@ -62,6 +62,8 @@ def _record():
            'validity': {'exit': 0, 'n_errors': 0, 'n_warnings': 0,
                         'valid': True, 'issues': [], 'complete': True}}
     return {'arms': {rv.NEW_LABEL: copy.deepcopy(arm), rv.OLD_LABEL: copy.deepcopy(arm)},
+            'reference_inventory': {'schema_version': 1, 'all_ids': ['a'], 'coding_ids': ['a'],
+                                    'unresolved_coding_ids': []},
             'common_set': rv.common_set([row('a')], [row('a')])}
 
 
