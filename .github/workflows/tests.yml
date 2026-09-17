@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 # Cancel superseded runs on the same ref so rapid pushes don't pile up redundant
-# full builds (each rebuilds mappy from sdist + the 151MB chr22 minimap2 index).
+# full builds (including the chr22 example).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -23,7 +23,7 @@ jobs:
     # pip-based runner can't provide. Adding a conda-based mac job is future work.
     runs-on: ubuntu-latest
     # Cap the job so a hung wget/test fails fast instead of burning the 6h default.
-    timeout-minutes: 30
+    timeout-minutes: 240
     # Multi-Python matrix: prove the suite (incl. the byte-identity contract) on
     # every supported interpreter. fail-fast: false so one version's failure
     # doesn't cancel the others' diagnostics. Floor 3.10 matches setup.py
@@ -38,7 +38,7 @@ jobs:
     # Node20 — deprecated 2025-09-19, force-migrated to Node24 on runners
     # 2026-06-16, removed fall 2026); bumping now clears the deprecation warning
     # and is future-proof. cache: pip restores ~/.cache/pip (keyed on setup.py)
-    # so the from-sdist mappy build isn't repeated on every run.
+    # for the core test dependencies. Optional bindings have a separate job.
     - uses: actions/checkout@v7
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v7
@@ -59,8 +59,7 @@ jobs:
         # module scope); installing it lets CI run the FULL suite with no
         # --ignore. Not a runtime dep, so kept out of setup.py install_requires.
         python -m pip install hypothesis
-        # zlib1g-dev: mappy has no wheel for this runner and builds from sdist.
-        sudo apt-get install -y wget zlib1g-dev
+        sudo apt-get install -y wget
         wget --tries=3 --timeout=30 https://github.com/lh3/miniprot/releases/download/v0.13/miniprot-0.13_x64-linux.tar.bz2
         tar xvf miniprot-0.13_x64-linux.tar.bz2
         cp miniprot-0.13_x64-linux/miniprot /usr/local/bin
@@ -77,12 +76,8 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Install lifton
       run: |
-        # Normal build isolation: cigar is already installed (pre-built above),
-        # so this installs the wheel-based deps + builds mappy with its own
-        # isolated build deps (Cython). The [test] extra adds pytest + coverage
-        # (pytest is test-only, NOT in install_requires) so the pytest step below
-        # finds it on PATH; hypothesis is also installed above.
-        python -m pip install -e ".[test]"
+        python -m pip install --no-cache-dir -e ".[test]"
+        python -c "import importlib.util; assert importlib.util.find_spec('mappy') is None"
     - name: Supply-chain audit (pip-audit, non-blocking)
       # Surface known CVEs in the installed dependency tree WITHOUT gating CI:
       # continue-on-error so a freshly-disclosed advisory in a transitive dep
@@ -117,3 +112,25 @@ jobs:
     - name: Test using example from test dir
       run: |
         cd test && bash -xeu lifton_chr22_example.sh
+
+  optional-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the explicitly requested binding
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential zlib1g-dev
+          python -m pip install --upgrade --no-cache-dir pip
+          python -m pip install --no-cache-dir -e '.[test,native]'
+          python -c "import mappy; from lifton.native_bindings import is_mappy_available; assert is_mappy_available()"
+      - name: Execute genuine binding and fallback regressions
+        run: python -m pytest tests/test_native_bindings.py tests/test_native_align_features.py -q

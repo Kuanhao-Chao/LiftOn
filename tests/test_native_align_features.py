@@ -180,6 +180,7 @@ class TestNativeDispatcher:
         # Stderr warning emitted
         err = capsys.readouterr().err
         assert "mappy" in err
+        assert 'lifton[native]' in err
 
     def test_native_path_invoked_when_mappy_available(self, monkeypatch,
                                                      tmp_path):

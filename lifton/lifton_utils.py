@@ -6,6 +6,7 @@ from lifton.liftoff import liftoff_main
 # leaf module lifton.coreutils to break the lifton_utils <-> lifton_class
 # import cycle. Re-exported here so lifton_utils.<helper> keeps resolving.
 from lifton import coreutils
+from lifton.tool_execution import EXTERNAL_ALIGNER_INSTALL_HELP
 import gffutils
 from lifton.coreutils import (  # noqa: F401
     custom_bisect_insert,
@@ -26,9 +27,7 @@ def check_miniprot_installed():
     miniprot_installed = run_miniprot.check_miniprot_installed()
     # print("miniprot_installed: ", miniprot_installed)
     if not miniprot_installed:
-        if not miniprot_installed:
-            print("miniprot is not properly installed.")
-        return sys.exit(1)
+        sys.exit("miniprot is not installed. " + EXTERNAL_ALIGNER_INSTALL_HELP)
 
 
 def get_truncated_protein(ref_proteins):

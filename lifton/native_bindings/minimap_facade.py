@@ -86,7 +86,9 @@ class MinimapAligner:
         if not is_mappy_available():
             raise RuntimeError(
                 "mappy is not installed; install it via "
-                "`pip install mappy` or `conda install -c bioconda mappy`."
+                "`pip install \"lifton[native]\"` (source builds need a C compiler "
+                "and zlib development headers) or "
+                "`conda install -c conda-forge -c bioconda mappy`."
             )
         import mappy
         # Translate Liftoff's mm2_options into the mappy-honourable subset.

@@ -38,9 +38,9 @@ dependencies:
       - iniconfig==2.0.0
       - interlap==0.2.7
       - intervaltree==3.1.0
-      # Phase 16 Tier 5: mappy unlocks the in-process minimap2 path
-      # under `--native` in lifton/liftoff/native_align.py. It is also a
-      # declared LiftOn runtime dependency, so keep it in the dev environment.
+      # Test the optional native binding in the maintainer environment.
+      # Plain pip installs do not need mappy; source builds need a C compiler
+      # and zlib development headers. Conda provides a prebuilt alternative.
       - mappy
       - networkx==3.3
       - numpy==2.1.1
