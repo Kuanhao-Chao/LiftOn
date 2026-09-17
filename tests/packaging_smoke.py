@@ -34,7 +34,7 @@ def constructed_reference(directory):
     """Two independently specified coding proteins, split across both strands."""
     rng = random.Random(780013)
     alphabet = [('GCT', 'A'), ('TTC', 'F'), ('GAA', 'E'), ('CAA', 'Q'), ('TGG', 'W'), ('AAC', 'N')]
-    sequences, lines, expected = [], ['##gff-version 3'], {}
+    sequences, lines, expected, coordinates = [], ['##gff-version 3'], {}, {}
     for number, strand in enumerate(('+', '-'), 1):
         middle = [rng.choice(alphabet) for _ in range(199)]
         coding = 'ATG' + ''.join(codon for codon, _ in middle) + 'TAA'
@@ -54,6 +54,9 @@ def constructed_reference(directory):
             return f'{chrom}\ttest\t{kind}\t{start}\t{end}\t.\t{strand}\t{phase}\t{attrs}'
 
         start, end = min(s for s, _ in blocks), max(e for _, e in blocks)
+        coordinates[trans] = {'seqid': chrom, 'strand': strand, 'bounds': (start, end),
+                              'blocks': sorted((s, e, str(0 if i == 0 else 2))
+                                               for i, (s, e) in enumerate(blocks))}
         lines += [row('gene', start, end, '.', f'ID={gene};gene_biotype=protein_coding'),
                   row('mRNA', start, end, '.', f'ID={trans};Parent={gene}')]
         for index, (start, end) in enumerate(blocks):
@@ -63,7 +66,7 @@ def constructed_reference(directory):
     fasta, annotation = directory / 'reference.fa', directory / 'reference.gff3'
     fasta.write_text(''.join(sequences))
     annotation.write_text('\n'.join(lines) + '\n')
-    return fasta, annotation, expected
+    return fasta, annotation, expected, coordinates
 
 
 def main():
@@ -103,7 +106,7 @@ def main():
         for command in (cli + ['-V'], cli + ['-h'], validator + ['-h'],
                         [sys.executable, '-m', 'pip', 'check']):
             evidence['checks'].append(run(command, directory, environment))
-        fasta, annotation, proteins = constructed_reference(directory)
+        fasta, annotation, proteins, coordinates = constructed_reference(directory)
         evidence['inputs'] = {str(path): sha256(path) for path in (fasta, annotation)}
         # Hide executables without manufacturing a different Python environment.
         absent_tools = dict(environment, PATH=str(directory / 'empty-bin'))
@@ -138,6 +141,12 @@ def main():
                     for trans, expected_protein in proteins.items():
                         feature = database[trans]
                         cds = list(database.children(feature, featuretype='CDS', order_by='start'))
+                        truth = coordinates[trans]
+                        assert (feature.seqid, feature.strand) == (truth['seqid'], truth['strand'])
+                        assert (feature.start, feature.end) == truth['bounds']
+                        assert [(c.start, c.end, c.frame) for c in cds] == truth['blocks']
+                        exons = list(database.children(feature, featuretype='exon', order_by='start'))
+                        assert [(e.start, e.end) for e in exons] == [(s, e) for s, e, _ in truth['blocks']]
                         bases = ''.join(str(genome[c.seqid][c.start - 1:c.end]) for c in cds)
                         if feature.strand == '-':
                             bases = str(Seq(bases).reverse_complement())
