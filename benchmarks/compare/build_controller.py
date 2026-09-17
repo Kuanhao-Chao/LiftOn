@@ -67,14 +67,13 @@ STATUS_EXIT_INCOMPLETE = 3
 REQUIRED_RUNTIME_DISTRIBUTIONS = (
     "duckdb",
     "gffutils",
-    "mappy",
     "numpy",
     "parasail",
     "pyarrow",
     "pyfaidx",
     "pysam",
 )
-OPTIONAL_RUNTIME_DISTRIBUTIONS = ("lifton",)
+OPTIONAL_RUNTIME_DISTRIBUTIONS = ("lifton", "mappy")
 PROVENANCE_TOOLING_FILES = {
     "tooling_build_controller": Path(__file__).resolve(),
     "tooling_evaluator": HERE / "evaluator.py",
