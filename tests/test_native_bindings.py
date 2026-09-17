@@ -45,10 +45,12 @@ from lifton.native_bindings import (
 # ---------------------------------------------------------------------------
 
 class TestAvailabilityFlags:
-    def test_mappy_available_in_test_env(self):
-        # The test conda env ships mappy; flip if you ever run
-        # without it.
-        assert is_mappy_available() is True
+    @pytest.mark.parametrize('available', [False, True])
+    def test_mappy_is_optional(self, monkeypatch, available):
+        import sys
+        from types import ModuleType
+        monkeypatch.setitem(sys.modules, 'mappy', ModuleType('mappy') if available else None)
+        assert is_mappy_available() is available
 
     def test_pyminiprot_native_not_yet_available(self):
         """The real PyO3 binding has not been built yet. The flag
@@ -121,6 +123,7 @@ def tiny_fasta(tmp_path):
     return fp, seq
 
 
+@pytest.mark.skipif(not is_mappy_available(), reason='requires optional lifton[native] binding')
 class TestMinimapAlignerRealRoundTrip:
     def test_construction(self, tiny_fasta):
         fp, _ = tiny_fasta
@@ -185,6 +188,7 @@ class TestMm2OptionsTranslation:
         assert not (flags & MM_F_EQX)
 
 
+@pytest.mark.skipif(not is_mappy_available(), reason='requires optional lifton[native] binding')
 class TestEqxCigarRoundTrip:
     """End-to-end proof of the fresh-`--native` fix at the facade level:
     with Liftoff's `--eqx` in mm2_options, mappy must emit extended

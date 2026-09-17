@@ -187,8 +187,9 @@ def align_features_to_target_native(
         sys.stderr.write(
             "\n[LiftOn] --native requested but `mappy` is not installed; "
             "falling back to the subprocess minimap2 path. "
-            "Install via `pip install mappy` or "
-            "`conda install -c bioconda mappy` to unlock the native path.\n"
+            "Install via `pip install \"lifton[native]\"` (source builds need "
+            "a C compiler and zlib development headers) or "
+            "`conda install -c conda-forge -c bioconda mappy` to unlock the native path.\n"
         )
         return _af.align_features_to_target(
             ref_chroms, target_chroms, args,

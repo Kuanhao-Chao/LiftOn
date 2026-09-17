@@ -4,6 +4,21 @@
 Changelog
 ===========
 
+v1.0.13
+--------
+
+Packaging release candidate (2026-09-16), addressing GH #78.
+
+- Standard pip installs exclude mappy; ``lifton[native]`` or prebuilt Conda mappy
+  supplies the optional, explicitly enabled experimental binding.
+- Missing-aligner messages give an installation command. Pip installs Python
+  packages, while fresh standard lifts require minimap2 and miniprot on PATH.
+- Correct pip/macOS/source instructions and document complete Seqera environments.
+- Qualify built wheel/sdist in compiler-free containers and execute fresh native
+  lifts before publishing. Genuine optional binding tests remain separately tested.
+- Updated Bioconda recipe preparation removes cigar and the obsolete setuptools
+  cap and retains the DuckDB exclusions, prebuilt mappy and both aligners.
+
 v1.0.12
 --------
 
