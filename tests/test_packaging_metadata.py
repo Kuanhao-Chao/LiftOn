@@ -193,6 +193,7 @@ def test_test_extra_contains_direct_test_dependencies():
         "hypothesis",
         "packaging",
         "pytest",
+        "setuptools",
     } <= requirements
 
 
