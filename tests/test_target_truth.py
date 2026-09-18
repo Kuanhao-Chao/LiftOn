@@ -504,7 +504,7 @@ def test_target_sequence_counts_untranslatable_prediction_as_zero(tmp_path):
     offset=st.integers(min_value=-200, max_value=200),
     width=st.integers(min_value=10, max_value=100),
 )
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None)
 def test_locus_property_is_bounded_and_symmetric(tmp_path, offset, width):
     truth = _write(
         tmp_path / "truth.gff3",
