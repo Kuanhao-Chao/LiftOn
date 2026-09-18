@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+import pytest
 
 # `benchmarks/run_benchmarks.py` is a script, not part of the `lifton`
 # package, so we put the benchmarks dir on sys.path and import by name.
@@ -20,6 +21,27 @@ _HARNESS_DIR = Path(__file__).resolve().parent.parent / "benchmarks"
 sys.path.insert(0, str(_HARNESS_DIR))
 
 import run_benchmarks as harness  # noqa: E402
+
+
+@pytest.mark.parametrize('available', [False, True])
+def test_lift_cache_provenance_accepts_optional_mappy_and_records_it(monkeypatch, available):
+    class FakeDistribution:
+        version = '2.31'
+        metadata = {'Name': 'mappy'}
+
+        @staticmethod
+        def read_text(filename):
+            return None
+
+    def distribution(name):
+        if name == 'mappy' and not available:
+            raise harness.importlib_metadata.PackageNotFoundError(name)
+        return FakeDistribution()
+
+    monkeypatch.setattr(harness.importlib_metadata, 'distribution', distribution)
+    record = harness._lift_tool_provenance()
+    assert ('mappy' in record['distributions']) == available
+    assert 'mappy' not in harness.LIFT_CACHE_DISTRIBUTIONS
 
 
 GNU_TIME_SAMPLE = """\

@@ -29,9 +29,16 @@ System requirements
    * ujson>=3.2.0
    * duckdb>=1.0,!=1.5.3,!=1.5.4
    * pyarrow>=14
-   * mappy   (installed by pip; used only by the explicitly enabled native Liftoff path)
+   * mappy   (optional; install ``lifton[native]`` or a prebuilt Conda package)
 
-These dependencies are resolved automatically when you ``pip install lifton`` (a bioconda recipe has been submitted and is under review). On macOS / Apple Silicon, install the compiled dependencies via conda first (see the note below), then ``pip install lifton``. LiftOn declares **mappy** as a runtime dependency so supported pip installs are ready for the ``--native`` plus ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` path; ordinary runs do not activate that path. The two external binaries **miniprot** and **minimap2** are not on PyPI and must be installed manually and be on your ``PATH`` (LiftOn preflight-checks both at startup and exits with a clear message if either is missing). Please see the `miniprot installation guide <https://github.com/lh3/miniprot?tab=readme-ov-file#install>`_ and the `minimap2 installation guide <https://github.com/lh3/minimap2#install>`_ on GitHub. (miniprot drives the protein-to-genome alignment; minimap2 drives the Liftoff DNA lift-over.)
+Pip resolves LiftOn's **Python dependencies**. It does **not** install the external
+**minimap2** and **miniprot** executables. Fresh standard lifts require both on
+``PATH``: minimap2 supplies Liftoff's DNA alignment and miniprot supplies protein
+alignment. LiftOn checks the tools it will use before starting a run. Evaluation
+and valid precomputed ``-L``/``-M`` inputs do not require the corresponding aligner.
+Install the executables through Conda as shown below, or follow their upstream
+`minimap2 <https://github.com/lh3/minimap2#install>`_ and
+`miniprot <https://github.com/lh3/miniprot#install>`_ installation guides.
 
 .. admonition:: Version warning
    :class: important
@@ -49,35 +56,26 @@ These dependencies are resolved automatically when you ``pip install lifton`` (a
    version rather than risk the known long-sequence limitation. Other
    targets retain the general miniprot >= 0.10 minimum.
 
-   If your numpy version is >= 1.25.0, then it requires Python version >= 3.9.
-
    Check out the scientific python ecosystem coordination guideline `SPEC 0 <https://scientific-python.org/specs/spec-0000/>`_ — Minimum Supported Versions to configure the package version compatibility.
 
 
-.. admonition:: Native dependencies — use conda
+.. admonition:: Compiled Python dependencies and macOS
    :class: note
 
-   Several runtime dependencies ship as compiled extensions (``parasail``,
-   ``pysam``, ``pyfaidx``, ``gffutils``, ``duckdb``, ``pyarrow``). On
-   **macOS / Apple Silicon (ARM)**, ``pip install parasail`` fails to build
-   from source — install via **conda** (bioconda / conda-forge) instead, which
-   ships pre-built wheels:
+   Dependencies such as ``parasail``, ``pysam``, ``duckdb`` and ``pyarrow`` contain
+   compiled code. Wheels are available on common Linux platforms. When a wheel
+   is unavailable, particularly on macOS / Apple Silicon, use **prebuilt Conda
+   packages** rather than relying on a local source build:
 
    .. code-block:: bash
 
-      $ conda create -n lifton -y python=3.11
+      $ conda create -n lifton -y --override-channels -c conda-forge -c bioconda \
+            --strict-channel-priority python=3.11 pip numpy biopython \
+            parasail-python pysam pyfaidx gffutils intervaltree interlap \
+            networkx ujson 'python-duckdb>=1.0,!=1.5.3,!=1.5.4' 'pyarrow>=14' \
+            minimap2 miniprot
       $ conda activate lifton
-      $ conda install -y -c bioconda -c conda-forge \
-            parasail-python pysam pyfaidx gffutils intervaltree \
-            biopython networkx ujson cigar duckdb pyarrow
-      $ pip install mappy     # preinstall the declared native-path dependency
-      $ pip install lifton
-
-   ``mappy`` is declared in LiftOn's package metadata, but it is used only when
-   ``--native`` and ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` explicitly select the
-   experimental Liftoff alignment path. Otherwise LiftOn keeps the proven
-   subprocess path. If a manually managed environment lacks mappy, the opt-in
-   path falls back gracefully.
+      $ python -m pip install lifton
 
    The vendored ``gffbase`` backend runs **pure-Python by default** (no
    pre-built ``.so`` ships in the package), so no Rust toolchain is required to
@@ -93,11 +91,42 @@ There are three ways that you can install LiftOn:
 Install through pip
 -------------------------
 
-LiftOn is on `PyPi <https://pypi.org/project/lifton/>`_ now. Check out all the releases `here <https://pypi.org/manage/project/lifton/releases/>`_. Pip automatically resolves and installs any dependencies required by LiftOn.
+Install the Python runtime from `PyPI <https://pypi.org/project/lifton/>`_, then
+install the two external aligners. Activate the intended environment first:
 
 .. code-block:: bash
    
-   $ pip install LiftOn
+   $ python -m pip install lifton
+   $ conda install --override-channels -c conda-forge -c bioconda \
+         --strict-channel-priority minimap2 miniprot
+   $ minimap2 --version
+   $ miniprot --version
+   $ lifton -V
+
+Optional experimental mappy binding
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Standard runs and ``--native`` compatibility hooks do not require mappy. Only
+``--native`` **together with** ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` activates the
+experimental in-process Liftoff alignment path. To supply its optional binding:
+
+.. code-block:: bash
+
+   $ python -m pip install 'lifton[native]'
+
+Mappy often builds from source, requiring a **C compiler and zlib development
+headers** (for example, ``build-essential`` and ``zlib1g-dev`` on Debian/Ubuntu).
+These build tools are unnecessary for a standard LiftOn install on a platform
+with wheels for its compiled dependencies. A prebuilt alternative is:
+
+.. code-block:: bash
+
+   $ conda install --override-channels -c conda-forge -c bioconda \
+         --strict-channel-priority mappy
+
+Installing mappy does not install the miniprot executable or activate the
+experimental path. If the binding is absent, an explicitly requested path falls
+back to subprocess minimap2 with a warning; minimap2 must then be available.
 
 |
 
@@ -112,7 +141,13 @@ dependencies:
 
 .. code-block:: bash
 
-   $ conda install -c bioconda lifton
+   $ conda create -n lifton --override-channels -c conda-forge -c bioconda \
+         --strict-channel-priority python=3.11 lifton
+   $ conda activate lifton
+
+The recipe includes prebuilt mappy, minimap2 and miniprot. Check the available
+LiftOn version before relying on this command; a submitted recipe is not yet
+an installable channel package.
 
 |
 
@@ -128,7 +163,41 @@ You can also install LiftOn from source. Check out the latest version on `GitHub
 
    $ git clone https://github.com/Kuanhao-Chao/LiftOn
 
-   $ python setup.py install
+   $ cd LiftOn
+   $ python -m pip install .
+
+.. _seqera-containers:
+
+Seqera Containers / Wave
+-----------------------
+
+A pip-only container installs Python packages but lacks the aligner executables.
+For a complete standard environment, select Conda Python, minimap2 and miniprot,
+plus pip LiftOn. Pin Python explicitly instead of accepting Wave's latest default.
+The equivalent environment specification for the packaging release is:
+
+.. code-block:: yaml
+
+   channels:
+     - conda-forge
+     - bioconda
+   dependencies:
+     - python=3.11
+     - pip
+     - minimap2
+     - miniprot
+     - pip:
+         - lifton==1.0.13
+
+Use the new version after its PyPI publication; older distributions still declare
+mappy as mandatory and can require GCC/zlib headers. Once the updated Bioconda
+recipe is published, use Conda ``lifton=1.0.13`` instead of the pip subsection.
+No compiler package is needed to install its prebuilt dependencies.
+
+Check ``lifton -V``, ``minimap2 --version`` and ``miniprot --version`` in the
+container, then execute a representative lift. Help output alone does not confirm
+that an annotation container is ready. Retain Wave's build report, environment
+lockfile and image digest with workflow results.
 
 |
 
@@ -164,7 +233,7 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.12
+      v1.0.13
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE]
                     [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A]

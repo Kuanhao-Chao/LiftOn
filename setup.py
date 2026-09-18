@@ -45,22 +45,22 @@ setuptools.setup(
 	],
 	install_requires=['numpy>= 1.22.0', "biopython>=1.76", "parasail>=1.2.4", 'intervaltree>=3.1.0', 'interlap>=0.2.6', 'networkx>=3.3', 'pyfaidx>=0.5.8', 'pysam>=0.19.1', 'gffutils>=0.10.1', 'ujson>=3.2.0',
 	# Phase 6.1 (vendored gffbase) runtime requirements:
-	'duckdb>=1.0,!=1.5.3,!=1.5.4', 'pyarrow>=14',
-	# Phase 16 Tier 5: mappy unlocks the in-process minimap2 path under
-	# `--native` (lifton/liftoff/native_align.py). Without it, --native
-	# silently degrades to the subprocess path with a stderr warning
-	# per call. Declaring it here makes the advertised flag actually
-	# deliver native speed; the runtime still falls back gracefully if
-	# the wheel is unavailable on a given platform.
-	'mappy'],
+	'duckdb>=1.0,!=1.5.3,!=1.5.4', 'pyarrow>=14'],
 	# pytest/hypothesis/coverage are test-only; not pulled by a plain install.
 	extras_require={
+		# The experimental in-process Liftoff path is explicitly enabled.
+		# mappy source builds need a compiler/zlib headers; ordinary runs
+		# must not require that toolchain (GH #78).
+		'native': ['mappy'],
 		'test': [
 			'pytest>=7.0.0',
 			'hypothesis>=6.0',
 			'coverage>=6.0',
 			'flake8>=6.0',
 			'packaging>=21',
+			# Metadata tests import the build backend; Python 3.12+ venvs
+			# no longer include setuptools by default.
+			'setuptools>=61',
 			# `tomllib` is standard-library only from 3.11; the backport keeps
 			# the packaging-metadata checks running on the declared 3.10 floor.
 			'tomli>=2.0; python_version < "3.11"',

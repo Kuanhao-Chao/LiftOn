@@ -21,7 +21,7 @@ LiftOn
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.12
+      v1.0.13
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S]
                     [-min_miniprot MIN_MINIPROT] [-max_miniprot MAX_MINIPROT] [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH] [-f TYPES] [-infer-genes]
@@ -281,6 +281,8 @@ scheduling), and which flag restores the older behaviour.
        ``LIFTON_NATIVE_LIFTOFF_ALIGN=1``, opt into mappy for Liftoff; miniprot
        keeps its guarded subprocess/direct-stream path and bounded locus
        workers do not require this flag.
+       Mappy is optional (``pip install 'lifton[native]'`` or prebuilt Conda);
+       the requested in-process path falls back to minimap2 when it is absent.
    * - ``--serial-aligners`` / ``--parallel-aligners``
      - Force sequential or concurrent native alignment. By default LiftOn
        overlaps the tools through 4,000,000,000 target bases and serializes

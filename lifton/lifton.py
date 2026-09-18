@@ -19,6 +19,7 @@ from lifton.exceptions import (
 from lifton.run_manifest import RunManifest
 from lifton.locus_pipeline import safe_exception_text
 from lifton.tool_execution import (
+    EXTERNAL_ALIGNER_INSTALL_HELP,
     MAX_CONCURRENT_TARGET_BASES,
     MINIPROT_LONG_SEQUENCE_BASES,
     miniprot_long_sequence_compatibility,
@@ -2182,8 +2183,8 @@ An accurate homology lift-over tool between assemblies
             if (needs_miniprot
                     and not run_miniprot.check_miniprot_installed()):
                 sys.exit(
-                    "miniprot is not installed. Please install miniprot before "
-                    "running LiftOn, or provide a valid precomputed -M file."
+                    "miniprot is not installed. " + EXTERNAL_ALIGNER_INSTALL_HELP
+                    + " Alternatively, provide a valid precomputed -M file."
                 )
 
             needs_minimap2 = not (
@@ -2212,7 +2213,7 @@ An accurate homology lift-over tool between assemblies
                     f"minimap2 is not installed or runnable at "
                     f"'{minimap2_path}'. Install it, pass -m PATH, provide a "
                     "valid precomputed -L file, or use the supported native "
-                    "Liftoff path."
+                    "Liftoff path. " + EXTERNAL_ALIGNER_INSTALL_HELP
                 )
         # Create the run manifest only AFTER the preflight has passed. Constructing it
         # submits a full SHA-256 of the target genome, reference genome and reference

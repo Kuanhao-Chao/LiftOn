@@ -8,6 +8,29 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
+## [1.0.13] - 2026-09-16
+
+### Fixed
+
+- Standard pip installations no longer build the experimental mappy binding,
+  which failed in compiler-free Seqera containers (GH #78). Install
+  `lifton[native]` or prebuilt Conda mappy when explicitly requesting that path.
+- Missing external-aligner errors provide the Conda installation command.
+  Pip supplies Python dependencies; minimap2 and miniprot executables must be
+  installed separately for fresh standard lifts.
+- Installation instructions distinguish Python packages, external executables
+  and optional source-build tools; correct macOS/source commands and document
+  complete Seqera environments.
+
+### Development
+
+- Qualify wheel and sdist installs in compiler-free Python 3.10–3.12/3.14
+  containers and execute fresh native lifts from the built wheel before publishing.
+- Run the complete core suite without mappy; run genuine optional-binding tests
+  separately on Python 3.10–3.12. Keep the 24-configuration byte-identity gate.
+- Prepare an updated Bioconda recipe with prebuilt aligners and mappy, removal
+  of cigar/the obsolete setuptools cap, and the existing DuckDB exclusions.
+
 ## [1.0.12] - 2026-09-14
 
 Fixes a `-copies` bug that dropped every extra gene copy's transcript, exons

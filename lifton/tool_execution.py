@@ -29,6 +29,12 @@ MAX_CONCURRENT_TARGET_BASES = 4_000_000_000
 MINIPROT_LONG_SEQUENCE_BASES = 1 << 31
 MINIPROT_LONG_SEQUENCE_MIN_VERSION = (0, 14)
 STDERR_TAIL_BYTES = 64 << 10
+EXTERNAL_ALIGNER_INSTALL_HELP = (
+    "pip does not install the minimap2/miniprot executables. Install them with "
+    "`conda install --override-channels -c conda-forge -c bioconda "
+    "--strict-channel-priority minimap2 miniprot` and ensure they are on PATH. "
+    "See https://khchao.com/LiftOn/content/installation.html."
+)
 
 
 @dataclass(frozen=True)

@@ -22,7 +22,7 @@ from lifton.liftoff.native_align import (
     cigar_str_to_pysam_tuples,
     parse_alignment_from_hits,
 )
-from lifton.native_bindings import MinimapHit
+from lifton.native_bindings import MinimapHit, is_mappy_available
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +180,9 @@ class TestNativeDispatcher:
         # Stderr warning emitted
         err = capsys.readouterr().err
         assert "mappy" in err
+        assert 'lifton[native]' in err
 
+    @pytest.mark.skipif(not is_mappy_available(), reason="mappy optional")
     def test_native_path_invoked_when_mappy_available(self, monkeypatch,
                                                      tmp_path):
         # Build a tiny target FASTA and a tiny features FASTA so mappy
@@ -201,7 +203,7 @@ class TestNativeDispatcher:
         )
 
         args = SimpleNamespace(target=str(target), mm2_options="",
-                               threads=1)
+                               threads=1, subcommand=None)
         unmapped = []
         result = align_features_to_target_native(
             ["chr1"], ["chr1"], args, hierarchy,

@@ -193,15 +193,21 @@ def test_test_extra_contains_direct_test_dependencies():
         "hypothesis",
         "packaging",
         "pytest",
+        "setuptools",
     } <= requirements
 
 
-def test_mappy_is_a_declared_runtime_dependency():
+def test_mappy_is_only_in_the_native_extra():
     runtime_names = {
         Requirement(requirement).name.lower()
         for requirement in _setup_keyword("install_requires")
     }
-    assert "mappy" in runtime_names
+    assert "mappy" not in runtime_names
+    native_names = {
+        Requirement(requirement).name.lower()
+        for requirement in _setup_keyword("extras_require")["native"]
+    }
+    assert native_names == {"mappy"}
 
 
 def test_wheel_discovery_excludes_vendored_liftoff_tests():
