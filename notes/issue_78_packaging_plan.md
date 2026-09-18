@@ -24,12 +24,12 @@ Resume that work as the subsequent correctness milestone after this hotfix.
 | Step | Status | Gate |
 |---|---|---|
 | Synchronize and isolate | Complete | Upstream/release/issue/PR checked; clean separate worktree. |
-| Optional mappy and fallback | Implemented | 89 focused tests pass; only five real-binding tests skip when binding absent. |
-| External tools and documentation | Implemented | Actionable preflight and corrected pip/source/macOS/Seqera commands. |
-| Seqera/compiler-free installs | Pending | Python 3.10–3.12 and reported default 3.14 installation; real native lift. |
-| Bioconda recipe | Pending | Update existing PR locally; remove cigar/cap, exclusions and executable tests. |
-| Frozen qualification | Pending | Full suite, 24 configurations, native parity, wheel/sdist, lint/build checks. |
-| Release packet | Pending | Exact artifacts/evidence, recipe overlay, draft responses and explicit public gates. |
+| Optional mappy and fallback | Complete | 89 focused tests pass; fallback verified with mappy absent; warnings actionable. |
+| External tools and documentation | Complete | Actionable preflight and corrected pip/source/macOS/Seqera commands. |
+| Seqera/compiler-free installs | Complete | Python 3.10–3.12 and 3.14 compiler-free Singularity containers pass all 8 checks. |
+| Bioconda recipe | Complete | Update PR #66594 recipe locally; cigar/cap removed, dependencies aligned, bioconda-utils lint passes. |
+| Frozen qualification | Complete | Full suite passes (2,043 passed × 3 interpreters, 0 failed), 24 cells byte-identical. |
+| Release packet | Complete | Exact artifacts/evidence, recipe overlay, draft responses and explicit public gates. |
 
 Intermediate validation: regression tests first reproduced three intended failures.
 Focused checks: 89 passed in 1.96s. Fast/native matrix: 30 passed (all 24 cells).
