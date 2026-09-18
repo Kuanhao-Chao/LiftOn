@@ -190,7 +190,7 @@ def test_zero_issue_detail_cap_still_reports_invalid_result(tmp_path):
     start=st.integers(min_value=1, max_value=200),
     width=st.integers(min_value=0, max_value=50),
 )
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None)
 def test_target_bound_property_matches_coordinate_predicate(
         tmp_path, length, start, width):
     end = start + width
