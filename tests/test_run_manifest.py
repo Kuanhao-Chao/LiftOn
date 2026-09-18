@@ -75,7 +75,9 @@ def test_fingerprint_input_hashes_files_and_tolerates_missing(tmp_path: Path) ->
     assert missing["error"].startswith("FileNotFoundError:")
 
 
-def test_missing_dependencies_tools_and_nonrepository_are_nonfatal(tmp_path: Path) -> None:
+def test_missing_dependencies_tools_and_nonrepository_are_nonfatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     distributions = run_manifest.collect_dependency_versions(("package-that-cannot-exist-lifton-test",))
     assert distributions == {"package-that-cannot-exist-lifton-test": None}
 
@@ -84,6 +86,7 @@ def test_missing_dependencies_tools_and_nonrepository_are_nonfatal(tmp_path: Pat
     assert tool["version"] is None
     assert tool["error"] == "not found"
 
+    monkeypatch.setattr(run_manifest, "_git_value", lambda *args, **kwargs: None)
     git = run_manifest.collect_git_metadata(tmp_path)
     assert git["repository"] is False
     assert git["commit"] is None
@@ -94,6 +97,10 @@ def test_manifest_records_timing_counts_validation_choices_and_json(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import os
+    for k in list(os.environ):
+        if k.startswith("LIFTON_"):
+            monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("LIFTON_TEST_MODE", "1")
     monkeypatch.setenv("UNRELATED_SECRET", "must-not-appear")
     source = tmp_path / "reference.gff3"

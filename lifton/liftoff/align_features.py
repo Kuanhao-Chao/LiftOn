@@ -69,7 +69,7 @@ def align_features_to_target(ref_chroms, target_chroms, args, feature_hierarchy,
             ref_chroms, target_chroms, args,
             feature_hierarchy, liftover_type, unmapped_features,
         )
-    if args.subcommand == "polish":
+    if getattr(args, "subcommand", None) == "polish":
         sam_files = [args.directory + "/polish.sam"]
     else:
         target_fasta_dict = split_target_sequence(target_chroms, args.target, args.directory)

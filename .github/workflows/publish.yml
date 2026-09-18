@@ -23,8 +23,9 @@
 #
 # RELEASE GATING
 # --------------------------------------------------------------------------
-# The `build` job intentionally `needs:` nothing heavier than a quick build —
-# it does NOT re-run the test suite. The repo's tests.yml (which runs the FULL
+# The `build` job calls packaging.yml, qualifying the exact distributions in
+# compiler-free containers and with fresh native lifts before publishing.
+# The repo's tests.yml (which runs the FULL
 # pytest suite INCLUDING the load-bearing 24-cell byte-identity matrix,
 # tests/test_native_matrix.py) is the gating test suite. Only cut a GitHub
 # Release from a commit whose tests.yml run is green.
@@ -50,41 +51,8 @@ permissions:
 
 jobs:
   build:
-    name: Build sdist + wheel
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-    - uses: actions/checkout@v7
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v7
-      with:
-        python-version: "3.11"
-        cache: pip
-        cache-dependency-path: setup.py
-    - name: Install build tooling
-      run: python -m pip install --upgrade pip build twine
-    - name: Build sdist + wheel
-      # PEP 517 build in an isolated env that honours pyproject.toml's
-      # setuptools>=61 floor.
-      run: python -m build
-    - name: Check metadata with twine
-      run: twine check dist/*
-    - name: Smoke-test the built wheel in a clean venv
-      # Install ONLY the freshly built wheel (not the source tree) so we verify
-      # the actual artifact users will get. The lifton CLI's heavy native deps
-      # (parasail/pysam/...) are pulled in by the wheel's install_requires.
-      run: |
-        python -m venv /tmp/lifton-smoke
-        /tmp/lifton-smoke/bin/python -m pip install --upgrade pip
-        /tmp/lifton-smoke/bin/python -m pip install dist/*.whl
-        /tmp/lifton-smoke/bin/lifton -h
-        /tmp/lifton-smoke/bin/lifton -V
-    - name: Upload dist artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: dist
-        path: dist/*
-        if-no-files-found: error
+    name: Build and qualify exact sdist + wheel
+    uses: ./.github/workflows/packaging.yml
 
   publish-testpypi:
     name: Publish to TestPyPI (dry-run path)

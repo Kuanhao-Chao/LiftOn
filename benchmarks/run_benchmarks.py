@@ -68,13 +68,13 @@ DEFAULT_RESULTS_DIR = HERE / "results"
 LIFT_CACHE_DISTRIBUTIONS = (
     "duckdb",
     "gffutils",
-    "mappy",
     "numpy",
     "parasail",
     "pyarrow",
     "pyfaidx",
     "pysam",
 )
+LIFT_CACHE_OPTIONAL_DISTRIBUTIONS = ("mappy",)
 
 
 # ---------------------------------------------------------------------------
@@ -997,10 +997,12 @@ def _lift_tool_provenance() -> dict[str, Any]:
     else:
         source = {"root": None, "n_files": 0, "sha256": None}
     distributions = {}
-    for requested in LIFT_CACHE_DISTRIBUTIONS:
+    for requested in (*LIFT_CACHE_DISTRIBUTIONS, *LIFT_CACHE_OPTIONAL_DISTRIBUTIONS):
         try:
             distribution = importlib_metadata.distribution(requested)
         except importlib_metadata.PackageNotFoundError as exc:
+            if requested in LIFT_CACHE_OPTIONAL_DISTRIBUTIONS:
+                continue
             raise RuntimeError(
                 f"required LiftOn distribution is unavailable: {requested}"
             ) from exc

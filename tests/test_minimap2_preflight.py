@@ -36,6 +36,8 @@ def test_main_exits_fast_when_minimap2_missing(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         lifton_main.main([])
     assert "minimap2 is not installed" in str(exc.value)
+    assert "conda install" in str(exc.value)
+    assert "pip does not install" in str(exc.value)
     assert reached == []          # never reached the pipeline
 
 
