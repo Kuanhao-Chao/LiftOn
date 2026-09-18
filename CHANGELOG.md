@@ -8,7 +8,7 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 Nothing yet.
 
-## [1.0.13] - 2026-09-16
+## [1.0.13] - 2026-09-18
 
 ### Fixed
 

@@ -7,7 +7,7 @@ Changelog
 v1.0.13
 --------
 
-Packaging release candidate (2026-09-16), addressing GH #78.
+Packaging release candidate (2026-09-18), addressing GH #78.
 
 - Standard pip installs exclude mappy; ``lifton[native]`` or prebuilt Conda mappy
   supplies the optional, explicitly enabled experimental binding.
