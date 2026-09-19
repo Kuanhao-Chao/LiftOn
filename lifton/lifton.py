@@ -1177,6 +1177,7 @@ def run_all_lifton_steps(args):
     from lifton import reference_models
     normalization = reference_models.normalize_sparse_coding(
         ref_db, os.path.join(intermediate_dir, "reference_models"),
+        strict=bool(getattr(args, "strict_gff", False)),
     )
     if normalization:
         requested_features = lifton_utils.get_parent_features_to_lift(args.features)

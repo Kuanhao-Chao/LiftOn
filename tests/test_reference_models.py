@@ -81,7 +81,13 @@ def test_ambiguous_sparse_models_fail_clearly(tmp_path, damage):
                       '-' if damage == 'strand' else '+', 'chr2' if damage == 'seqid' else 'chr1', '0')]
     ann = reference(tmp_path, lines)
     with pytest.raises(LiftOnInputError):
-        normalize_sparse_coding(ann, tmp_path / 'normalized')
+        normalize_sparse_coding(ann, tmp_path / 'normalized', strict=True)
+    if damage != 'dangling':
+        # Only a dangling Parent is a spec violation the run can survive; every
+        # other damage here makes the model itself ambiguous, so it is refused
+        # whatever the mode.
+        with pytest.raises(LiftOnInputError):
+            normalize_sparse_coding(ann, tmp_path / 'normalized')
 
 
 def test_generated_ids_avoid_real_ids_and_are_deterministic(tmp_path):
@@ -116,7 +122,36 @@ def test_dangling_secondary_parent_is_rejected_in_an_ordinary_hierarchy(tmp_path
     ann = reference(tmp_path, [row('gene', 1, 30, 'ID=g'), row('mRNA', 1, 30, 'ID=t;Parent=g'),
                                row('CDS', 1, 30, 'ID=c;Parent=t,missing', phase='0')])
     with pytest.raises(LiftOnInputError, match='missing'):
-        normalize_sparse_coding(ann, tmp_path / 'normalized')
+        normalize_sparse_coding(ann, tmp_path / 'normalized', strict=True)
+
+
+def test_a_dangling_parent_does_not_abort_an_ordinary_lift(tmp_path, capsys):
+    """A reference with broken rows must still lift, as it did before.
+
+    NCBI_RefSeq_no_rRNA.gff carries 111 CDS whose transcripts the rRNA
+    filtering removed. Refusing the whole reference aborted a
+    144,415-transcript human lift that v1.0.12 completed -- over 0.08 % of the
+    file, in an annotation with no flat model in it at all.
+    """
+    from lifton.reference_models import normalize_sparse_coding
+    ann = reference(tmp_path, [row('gene', 1, 30, 'ID=g'), row('mRNA', 1, 30, 'ID=t;Parent=g'),
+                               row('exon', 1, 30, 'ID=e;Parent=t'),
+                               row('CDS', 1, 30, 'ID=c;Parent=t', phase='0'),
+                               row('CDS', 40, 51, 'ID=orphan;Parent=gone', phase='0')])
+    assert normalize_sparse_coding(ann, tmp_path / 'normalized') is None
+    message = capsys.readouterr().err
+    assert "--strict-gff" in message and "gone" in message
+
+
+def test_a_damaged_anchor_is_excluded_but_a_real_flat_model_is_kept(tmp_path):
+    """One broken row must not cost the flat genes alongside it."""
+    from lifton.reference_models import normalize_sparse_coding
+    ann = reference(tmp_path, [row('CDS', 10, 21, 'ID=good', phase='0'),
+                               row('CDS', 40, 51, 'ID=orphan;Parent=gone', phase='0')])
+    result = normalize_sparse_coding(ann, tmp_path / 'normalized')
+    assert result is not None
+    models = json.loads(Path(result['mapping']).read_text())['models']
+    assert [m['source_id'] for m in models] == ['good']
 
 
 @pytest.mark.parametrize('sparse_first', [False, True])
