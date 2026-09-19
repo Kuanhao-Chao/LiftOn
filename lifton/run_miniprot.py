@@ -1,4 +1,5 @@
-from lifton import align, coreutils, logger, lifton_class, lifton_utils, orf_completion
+from lifton import (align, coding, coreutils, logger, lifton_class, lifton_utils,
+                    orf_completion)
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -103,7 +104,7 @@ def _resolve_miniprot_threads(threads):
 
 
 def _build_miniprot_command(miniprot_path, tgt_genome, ref_proteins_file,
-                            mp_options, threads):
+                            mp_options, threads, table=None):
     """Build the miniprot subprocess command list (Iteration 17).
 
     Plumbs LiftOn's -t/--threads into miniprot's own ``-t`` so it scales past
@@ -127,7 +128,59 @@ def _build_miniprot_command(miniprot_path, tgt_genome, ref_proteins_file,
     user_set_threads = any(opt.startswith("-t") for opt in opts)
     if n is not None and not user_set_threads:
         command += ["-t", str(n)]
+    if table is not None and table != coding.DEFAULT_TRANSL_TABLE:
+        # miniprot speaks one genetic code per invocation. Emitting -T only for
+        # a non-standard group keeps the ordinary command byte-identical, and
+        # -P keeps the extra group's MP ids from colliding with the first
+        # group's (both would otherwise start at MP000001).
+        if not any(opt.startswith("-T") for opt in opts):
+            command += ["-T", str(table)]
+        if not any(opt.startswith("-P") for opt in opts):
+            command += ["-P", f"MPT{table}"]
     return command
+
+
+def transl_table_groups(ref_proteins_file):
+    """Split the reference proteins into one group per declared genetic code.
+
+    Returns ``[(table, fasta_path), ...]`` with the standard-code group first.
+    An annotation that declares nothing unusual -- which is almost all of them
+    -- yields exactly ``[(1, ref_proteins_file)]``, so the file handed to
+    miniprot and the command built from it are unchanged.
+
+    Splitting matters because miniprot scores against one code per run: on the
+    13 human mitochondrial proteins, running them under the standard code
+    instead of table 2 costs every one of them identity (mean 1.0000 -> 0.9302,
+    up to 16 spurious in-frame stops on COX1) and moves 4 of the 13 hits'
+    coordinates.
+    """
+    from lifton import extract_sequence
+
+    overrides = extract_sequence.read_transl_table_sidecar(ref_proteins_file)
+    if not overrides:
+        return [(coding.DEFAULT_TRANSL_TABLE, ref_proteins_file)]
+    grouped = {}
+    with open(ref_proteins_file) as handle:
+        table, buffered = coding.DEFAULT_TRANSL_TABLE, None
+        for line in handle:
+            if line.startswith(">"):
+                identifier = line[1:].split()[0] if len(line) > 1 else ""
+                table = overrides.get(identifier, coding.DEFAULT_TRANSL_TABLE)
+                buffered = grouped.setdefault(table, [])
+            if buffered is not None:
+                buffered.append(line)
+    if len(grouped) <= 1 and coding.DEFAULT_TRANSL_TABLE in grouped:
+        return [(coding.DEFAULT_TRANSL_TABLE, ref_proteins_file)]
+    groups = []
+    for table in sorted(grouped, key=lambda t: (t != coding.DEFAULT_TRANSL_TABLE, t)):
+        if table == coding.DEFAULT_TRANSL_TABLE:
+            path = ref_proteins_file + ".table1.faa"
+        else:
+            path = f"{ref_proteins_file}.table{table}.faa"
+        with open(path, "w") as handle:
+            handle.writelines(grouped[table])
+        groups.append((table, path))
+    return groups
 
 
 @dataclass(frozen=True)
@@ -496,12 +549,30 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
     os.makedirs(miniprot_outdir, exist_ok=True)
     miniprot_output = miniprot_outdir + "miniprot.gff3"
     miniprot_path = "miniprot"
-    command = _build_miniprot_command(
-        miniprot_path, tgt_genome, ref_proteins_file,
-        args.mp_options, getattr(args, "threads", 1),
-    )
+    groups = transl_table_groups(ref_proteins_file)
+    commands = [
+        _build_miniprot_command(
+            miniprot_path, tgt_genome, path,
+            args.mp_options, getattr(args, "threads", 1), table=table,
+        )
+        for table, path in groups
+    ]
+    command = commands[0]
 
     stream_mode = bool(getattr(args, "stream", False))
+    if stream_mode and len(commands) > 1:
+        # --stream ingests ONE process's stdout. Rather than let it and the
+        # default path disagree on a multi-code reference -- they are required
+        # to produce the same annotation -- this run takes the file path, which
+        # runs every group. The only cost is the disk round-trip --stream
+        # exists to avoid.
+        logger.log_warning(
+            f"The reference declares {len(groups)} genetic codes "
+            f"({', '.join(str(t) for t, _ in groups)}); --stream runs one "
+            f"miniprot invocation, so this run writes miniprot.gff3 instead. "
+            f"Output is unaffected."
+        )
+        stream_mode = False
     if stream_mode:
         try:
             artifact = run_miniprot_streaming_db(
@@ -522,14 +593,41 @@ def run_miniprot(outdir, args, tgt_genome, ref_proteins_file):
         # Legacy file-write branch (Phase 5 baseline behaviour). Streaming
         # returned above after publishing its direct DuckDB artifact.
         execution_was_recorded = False
+        stderr_text, stderr_error_seen, return_code = "", False, 0
         with open(miniprot_output, "w") as fw:
-            proc = run_with_bounded_stderr(command, stdout=fw)
-        stderr_text = proc.stderr_tail
-        stderr_error_seen = bool(
-            getattr(proc, "stderr_error_seen", False)
-            or "ERROR" in stderr_text.upper()
-        )
-        return_code = proc.returncode
+            # The first group writes straight through, so a single-code
+            # reference -- which is nearly every reference -- produces exactly
+            # the bytes it always did. A further group goes via its own file so
+            # its repeated "##gff-version 3" can be dropped: one GFF3 may carry
+            # that directive only once, at the top.
+            proc = run_with_bounded_stderr(commands[0], stdout=fw)
+            stderr_text += proc.stderr_tail
+            stderr_error_seen = bool(
+                getattr(proc, "stderr_error_seen", False)
+                or proc.stderr_tail.upper().find("ERROR") >= 0
+            )
+            return_code = proc.returncode
+            for table, group_command in zip((t for t, _ in groups[1:]),
+                                            commands[1:]):
+                if return_code != 0:
+                    break
+                part = f"{miniprot_output}.table{table}.part"
+                with open(part, "w") as handle:
+                    proc = run_with_bounded_stderr(group_command, stdout=handle)
+                stderr_text += proc.stderr_tail
+                stderr_error_seen = stderr_error_seen or bool(
+                    getattr(proc, "stderr_error_seen", False)
+                    or proc.stderr_tail.upper().find("ERROR") >= 0
+                )
+                if proc.returncode != 0:
+                    # Report against the invocation that actually failed.
+                    return_code, command = proc.returncode, group_command
+                    break
+                with open(part) as handle:
+                    for line in handle:
+                        if not line.startswith("#"):
+                            fw.write(line)
+                os.remove(part)
         output_size = (os.path.getsize(miniprot_output)
                        if os.path.exists(miniprot_output) else 0)
 

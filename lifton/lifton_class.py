@@ -450,6 +450,12 @@ class Lifton_TRANS:
     # See `_cds_attr_carry_enabled`.
     _cds_attr_template = None
 
+    # The NCBI genetic code this transcript's reference CDS declares, captured
+    # alongside the attribute template. None until a CDS carrying one is added;
+    # a model with no declared code translates with the standard table, exactly
+    # as every LiftOn release before the attribute was read.
+    _transl_table = None
+
     def __init__(self, ref_trans_id, ref_gene_id, gene_id, copy_num, gffutil_entry_trans, ref_trans_attrs):
         # Assigning the reference transcripts & attributes
         if int(copy_num) > 0:
@@ -481,7 +487,20 @@ class Lifton_TRANS:
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         coreutils.custom_bisect_insert(self.exons, Lifton_exon)
 
+    def transl_table(self):
+        """The genetic code to translate and scan this model with."""
+        if self._transl_table is None:
+            return coding.DEFAULT_TRANSL_TABLE
+        return self._transl_table
+
     def add_cds(self, gffutil_entry_cds):
+        if self._transl_table is None:
+            # Same "first reference CDS wins" rule as the attribute template:
+            # the CDS rows of one transcript are segments of a single
+            # discontinuous feature and declare one code between them.
+            self._transl_table = coding.table_from_attributes(
+                getattr(gffutil_entry_cds, "attributes", None),
+                getattr(self.entry, "id", None))
         if self._cds_attr_template is None:
             # First reference CDS wins: every segment of one discontinuous CDS
             # carries the same descriptive attributes, so this is the whole
@@ -838,11 +857,7 @@ class Lifton_TRANS:
     def translate_coding_seq(self, coding_seq):
         protein_seq = None
         if coding_seq != "":
-            # Biopython has historically truncated a terminal partial codon
-            # while warning that it may become an error. Preserve that result
-            # explicitly so frameshift evaluation remains warning-free.
-            complete_length = len(coding_seq) - (len(coding_seq) % 3)
-            protein_seq = str(Seq(coding_seq[:complete_length]).translate())
+            protein_seq = coding.translate(coding_seq, self.transl_table())
         return protein_seq
 
     def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
@@ -923,8 +938,12 @@ class Lifton_TRANS:
         # to tolerate a Bio.Seq; doing it here keeps that safety while letting
         # the inner loop compare plain string slices.
         trans_seq = str(trans_seq).upper()
-        start_codon = "ATG"
-        stop_codons = {"TAA", "TAG", "TGA"}
+        table = self.transl_table()
+        start_codon = coding.ORF_START_CODON
+        # Under the standard code a vertebrate mitochondrial transcript is full
+        # of TGA tryptophans, so this scan used to stop at the first one and
+        # replace a correct CDS with the short spurious ORF in front of it.
+        stop_codons = coding.stop_codons(table)
         # One best ORF per frame (longest)
         best_orf_per_frame = [None, None, None]  # index = frame (0,1,2)
         max_orf_len = [0, 0, 0]
@@ -966,7 +985,7 @@ class Lifton_TRANS:
         max_identity = 0.0
         for orf in orf_list:
             orf_DNA_seq = trans_seq[orf.start:orf.end]
-            orf_protein_seq = str(Seq(orf_DNA_seq).translate())
+            orf_protein_seq = coding.translate(orf_DNA_seq, table)
             orf_parasail_res = align.parasail_align_protein_base(
                 orf_protein_seq, ref_protein_seq)
             orf_matches, orf_length = get_id_fraction.get_AA_id_fraction(
