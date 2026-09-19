@@ -159,6 +159,19 @@ def clone_attributes(attributes):
     if attributes is None:
         return None
     clone = attributes.__class__()
+    backing = getattr(attributes, "_d", None)
+    if backing is not None and getattr(clone, "_d", None) is not None:
+        # A gffutils Attributes stores its values in ``_d``, already as lists,
+        # and reaches them through two Python-level methods: ``items()`` builds
+        # a list and calls ``__getitem__`` per key, then ``__setitem__``
+        # re-wraps each value. Profiling Step 7 on dog to cat counted 85.5
+        # million ``__setitem__`` calls (33.7 s) behind 8.85 million clones
+        # (notes/step7_profile_2026-09.md). Copying ``_d`` reaches the same
+        # mapping without either.
+        clone._d = {key: (list(value) if isinstance(value, (list, tuple))
+                          else value)
+                    for key, value in backing.items()}
+        return clone
     for key, value in attributes.items():
         clone[key] = list(value) if isinstance(value, (list, tuple)) else value
     return clone
