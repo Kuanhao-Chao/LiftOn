@@ -1,4 +1,4 @@
-from lifton import align, coreutils, get_id_fraction, variants, logger
+from lifton import align, coding, coreutils, get_id_fraction, variants, logger
 from lifton.cds_id_allocator import CdsIdAllocator
 from lifton.io import feature_serializer
 import copy, os, re
@@ -804,12 +804,15 @@ class Lifton_TRANS:
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
                     cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
-        return coding_seq, cds_children, cdss_lens
+        phase = coding.initial_phase(cds_children, self.entry.strand)
+        return coding_seq[phase:], cds_children, coding.phase_adjusted_lengths(cdss_lens, phase)
 
     def get_coding_trans_seq(self, fai):
         trans_seq = ""
         coding_seq = ""
-        accum_cds_length = 0
+        initial_phase = coding.initial_phase([e.cds.entry for e in self.exons if e.cds is not None],
+                                             self.entry.strand)
+        accum_cds_length = -initial_phase
         lcl_exons = []
         lcl_exons = self.exons
         if len(self.exons) > 0 and self.exons[0].entry.strand == '-':
@@ -830,7 +833,7 @@ class Lifton_TRANS:
             trans_seq = str(trans_seq).upper()
         if coding_seq != None:
             coding_seq = str(coding_seq).upper()
-        return coding_seq, trans_seq
+        return coding_seq[initial_phase:], trans_seq
 
     def translate_coding_seq(self, coding_seq):
         protein_seq = None

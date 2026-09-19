@@ -6,7 +6,29 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- Sparse coding references (parentless CDS or gene-to-CDS) receive an explicit
+  gene/transcript/exon hierarchy, with preserved CDS attributes and a versioned
+  ID map. Supplied protein/transcript aliases are checked for ambiguity.
+- GTF conversion retains gene hierarchy and exon/CDS attributes using gffread's
+  gene-preserving options. Converted inputs and logs are private to each run;
+  the manifest records input/output hashes, command and converter provenance.
+- Direct GTF intake removes parser-generated self-parent relations, supplies
+  explicit hierarchy attributes and preserves transcript IDs during inference.
+- Strict GFF3 validation checks the converted GFF3 instead of rejecting valid
+  GTF attribute syntax. Ensembl `gene_biotype` is recognized for classification.
+
+### Development
+
+- Release qualification uses candidate/reference roles and verifies portable
+  input, tool, dependency, evaluator and artifact evidence. Incomplete, stale,
+  malformed and unsuccessful retry records cannot pass qualification.
+- Qualification requires pinned campaign and attempt-history evidence, prevents
+  imported LiftOn modules from falling through to another checkout, and retains
+  CDS-bearing references with failed protein extraction as unresolved coding
+  evaluation instead of counting them as noncoding.
+
 
 ## [1.0.13] - 2026-09-18
 
