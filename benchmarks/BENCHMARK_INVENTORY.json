@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "eeb0a0f3a7f9bca963d58ba17c37fe2a9cb4f0a136d033a69a5fc52a63bd5375",
-      "bytes": 499393,
+      "aggregate_sha256": "95cf8d36d02e2444e65c80e0a46afcb031ed44ca7e28934c1f868f7e9d0f05b5",
+      "bytes": 499441,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -184,13 +184,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "a02cbfaa320763ba68f44763d3c09826be6ca2eaa7890c691e955364ecb8c4a9",
-      "bytes": 341302,
+      "aggregate_sha256": "83e9b5ccf4f8f59a883ea29eff86ba8fb708f15bf1bf98f952eed680d31e645d",
+      "bytes": 356078,
       "claim_eligible": false,
       "classification": "historical",
       "completion_state": "superseded",
       "description": "Completed exploratory performance and accuracy A/B families; preserved but never pooled into canonical-v2.",
-      "file_count": 73,
+      "file_count": 75,
       "id": "historical_ab_experiments",
       "superseded_by": "canonical_release_baseline"
     },
@@ -2953,6 +2953,30 @@
       "sha256": "0192e6a14a6cd48efa4dea37cf3548f3c0c0ab2b2bb81ffe251300168d5af907"
     },
     {
+      "bytes": 3126,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": {
+        "document_type": "array",
+        "shape_sha256": "a459eeb85bf13f1e0dbda645ecaf3b8f0ceec386f77f5f0b023e4f243c3a6d0f",
+        "top_level_count": 8
+      },
+      "path": "benchmarks/compare/second_locus_ab.json",
+      "sha256": "5556d3bafb075fa3355bac09ec15e358b984c7723261c6d838ff1dfe03c3a4b9"
+    },
+    {
+      "bytes": 11650,
+      "claim_eligible": false,
+      "classification": "historical",
+      "completion_state": "superseded",
+      "family": "historical_ab_experiments",
+      "json_schema": null,
+      "path": "benchmarks/compare/second_locus_ab.py",
+      "sha256": "afb1547ebcf7c9ab7b7a8d1828fe7651c1ce68fcebf60bc206b6141ac20401e9"
+    },
+    {
       "bytes": 1034,
       "claim_eligible": false,
       "classification": "historical",
@@ -3387,18 +3411,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 12108,
+      "bytes": 12156,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "01d8ed3f4acce522c55802f3ef556c7ff16392cf7a876aaa9e2c7c75d5e7841a",
+        "shape_sha256": "63e121ebdcf983eaa07fea8d11a69b393746d0f420c402b9eb8b25336e0bf910",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "3c16d034c04bffa8fc736f2e2a43ed2ecafbfaff4e623e715c2e1999310909aa"
+      "sha256": "caed80ac183345c0e4d1c1614aea9ff5d8140bf3dbd80cbfc25e1a5bf4154d1b"
     },
     {
       "bytes": 34428,
@@ -3586,7 +3610,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "f94f73487fa631c133cbdc77217123a8503ef45f1d27e77fac56c7998f35ab5f",
+  "inventory_sha256": "053ae3f4816f46d060f0b7a8d2fc144d3d6115de10ce9c23534b471d55f6c787",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3630,19 +3654,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "02bca25b53ca66d7ce2f5ec2af1cb628c3b0adaa2c29b995ddce648a2eda458e",
+  "rules_sha256": "83b9b1f286a39f245f1460252b7d2c5ac12cd624851bd740e8b7102d15db6315",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "1651315d2764ca964124fe970ab7e3ffdffa657dce51bdc949d8cccd733ef9fa",
-    "bytes": 13523861,
+    "aggregate_sha256": "14d1518504a455b6738495f6602b6ed52091a885a93b8a3b641a93e1c5fd6924",
+    "bytes": 13538685,
     "classification_counts": {
       "canonical": 79,
       "diagnostic": 42,
-      "historical": 152,
+      "historical": 154,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 291
+    "file_count": 293
   }
 }

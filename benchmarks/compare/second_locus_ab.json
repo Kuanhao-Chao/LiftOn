@@ -1,0 +1,130 @@
+[
+  {
+    "benchmark": "drosophila",
+    "divergence": "D. melanogaster -> D. erecta",
+    "n_placed": 0,
+    "mean_pi_placed": null,
+    "n_lost": 0,
+    "common_improved": 0,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "human_to_mouse",
+    "divergence": "Human GRCh38 chr20 -> Mouse GRCm39",
+    "n_placed": 2,
+    "mean_pi_placed": 0.715,
+    "n_lost": 0,
+    "common_improved": 1,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "celegans_to_briggsae",
+    "divergence": "C. elegans -> C. briggsae",
+    "n_placed": 13,
+    "mean_pi_placed": 0.67254,
+    "n_lost": 0,
+    "common_improved": 0,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "rice_to_sorghum",
+    "divergence": "Rice IRGSP -> Sorghum bicolor",
+    "n_placed": 53,
+    "mean_pi_placed": 0.77313,
+    "n_lost": 0,
+    "common_improved": 37,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "drosophila_to_anopheles",
+    "divergence": "D. melanogaster -> Anopheles gambiae (fly->mosquito)",
+    "n_placed": 5,
+    "mean_pi_placed": 0.5478,
+    "n_lost": 0,
+    "common_improved": 2,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "zebrafish_to_medaka",
+    "divergence": "Zebrafish GRCz11 -> Medaka",
+    "n_placed": 6,
+    "mean_pi_placed": 0.68517,
+    "n_lost": 0,
+    "common_improved": 3,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "t4_human_to_chicken",
+    "divergence": "Homo sapiens (GRCh38) -> Gallus gallus (chicken)",
+    "n_placed": 5,
+    "mean_pi_placed": 0.7798,
+    "n_lost": 0,
+    "common_improved": 3,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  },
+  {
+    "benchmark": "t4_human_to_xenopus",
+    "divergence": "Homo sapiens (GRCh38) -> Xenopus tropicalis (frog)",
+    "n_placed": 4,
+    "mean_pi_placed": 0.70725,
+    "n_lost": 0,
+    "common_improved": 1,
+    "common_regressed": 0,
+    "n_overlapping_above_gate": 0,
+    "overlapping_examples": [],
+    "validity": {
+      "default": 1,
+      "second_locus": 1
+    },
+    "safety_gate_pass": true
+  }
+]
