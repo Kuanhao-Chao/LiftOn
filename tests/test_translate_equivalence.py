@@ -182,3 +182,67 @@ class TestAttributeEncoding:
         from lifton.io.gff3_writer import encode_attribute_value
         value = "rna-NM_001303012.2"
         assert encode_attribute_value(value) is value
+
+
+class TestCloneAttributes:
+    """Cloning a gffutils Attributes copies its backing mapping directly.
+
+    ``items()`` builds a list and calls ``__getitem__`` per key; ``__setitem__``
+    then re-wraps each value. Profiling Step 7 on dog to cat counted 85.5
+    million ``__setitem__`` calls behind 8.85 million clones.
+    """
+
+    @staticmethod
+    def _legacy(attributes):
+        if attributes is None:
+            return None
+        clone = attributes.__class__()
+        for key, value in attributes.items():
+            clone[key] = list(value) if isinstance(value, (list, tuple)) else value
+        return clone
+
+    def _attributes(self, pairs):
+        from gffutils.attributes import Attributes
+        attributes = Attributes()
+        for key, value in pairs:
+            attributes[key] = value
+        return attributes
+
+    @pytest.mark.parametrize("pairs", [
+        [],
+        [("ID", ["cds-NP_001.1"])],
+        [("ID", ["c"]), ("Parent", ["r"]),
+         ("Dbxref", ["GeneID:1", "HGNC:HGNC:2"]), ("product", ["a protein"])],
+        [("single", "not-a-list")],
+        [("tuple", ("a", "b"))],
+    ])
+    def test_it_matches_the_loop_it_replaced(self, pairs):
+        from lifton import coreutils
+        attributes = self._attributes(pairs)
+        assert dict(coreutils.clone_attributes(attributes)._d) == \
+            dict(self._legacy(attributes)._d)
+
+    def test_the_clone_is_independent_of_its_source(self):
+        from lifton import coreutils
+        attributes = self._attributes([("Dbxref", ["GeneID:1", "HGNC:2"])])
+        clone = coreutils.clone_attributes(attributes)
+        clone["Dbxref"].append("added")
+        clone["ID"] = ["new"]
+        assert attributes["Dbxref"] == ["GeneID:1", "HGNC:2"]
+        assert "ID" not in attributes
+
+    def test_the_class_is_preserved(self):
+        from gffutils.attributes import Attributes
+        from lifton import coreutils
+        assert isinstance(coreutils.clone_attributes(self._attributes([])),
+                          Attributes)
+        assert type(coreutils.clone_attributes({"a": ["b"]})) is dict
+
+    def test_none_and_plain_mappings_are_unchanged(self):
+        from lifton import coreutils
+        assert coreutils.clone_attributes(None) is None
+        plain = {"ID": ["x"], "count": 1}
+        clone = coreutils.clone_attributes(plain)
+        assert clone == plain and clone is not plain
+        clone["ID"].append("y")
+        assert plain["ID"] == ["x"]
