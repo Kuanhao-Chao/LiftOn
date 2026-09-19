@@ -2,7 +2,7 @@ import sys
 
 from Bio.Seq import Seq
 
-from lifton import logger
+from lifton import coding, logger
 from lifton.exceptions import LiftOnInputError
 
 def determine_file_format(file_path):
@@ -291,7 +291,7 @@ def merge_children_intervals(children):
     return merged
 
 
-def get_dna_sequence(parent_feature, fasta, features, warned=None):
+def get_dna_sequence(parent_feature, fasta, features, warned=None, *, pad=True):
     chrom = parent_feature.seqid
     strand = parent_feature.strand
     merged_features = merge_children_intervals(features)
@@ -325,7 +325,8 @@ def get_dna_sequence(parent_feature, fasta, features, warned=None):
         sequence += str(fasta[chrom][start -1: end])
     if strand == "-":
         sequence = str(Seq(sequence).reverse_complement())
-    sequence += 'N' * get_padding_length(len(sequence))
+    if pad:
+        sequence += 'N' * get_padding_length(len(sequence))
     return sequence
 
 
@@ -334,7 +335,11 @@ def get_padding_length(sequence_length):
 
 
 def get_protein_sequence(parent_feature, fasta, features, warned=None):
-    dna = get_dna_sequence(parent_feature, fasta, features, warned=warned)
+    features = list(features)
+    phase = coding.initial_phase(features, getattr(parent_feature, 'strand', '+'))
+    # Keep the legacy complete-model padding contract. Initial partial codons
+    # use raw sequence so padding cannot invent an amino acid after the trim.
+    dna = get_dna_sequence(parent_feature, fasta, features, warned=warned, pad=not phase)[phase:]
     # Biopython has historically truncated an incomplete terminal codon while
     # warning that this behavior may change. Make that established LiftOn
     # result explicit and warning-free.

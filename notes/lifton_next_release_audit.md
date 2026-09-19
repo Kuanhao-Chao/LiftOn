@@ -1,24 +1,51 @@
 # LiftOn next-release audit and implementation record
 
-Started 2026-09-14 against `devel` at
-`e30101dc314d89a6a07e21038fd2e0d19d2d3b1e`. The released comparison baseline is
-`v1.0.11`, `c623f0bddc5b5051a3670a3b0064c52cc61bb719`. This document distinguishes
-observations from release qualification; an unfinished gate is not a pass.
+Updated 2026-09-14 after **v1.0.12 was released**. Current release and primary
+comparison: `6c86d1bf8dc0d53744a4410dcb2d6d2deb17f5e3`. Next correctness
+candidate: **v1.0.13**, branch `next-v1.0.13`, worktree
+`/tmp/lifton-v1.0.13-build`. The [current execution plan](lifton_v1_0_13_plan.md)
+supersedes the earlier v1.0.12 build plan. Historical evidence below remains
+labelled by the source that produced it.
+
+## Current status
+
+- v1.0.12 release tag, PyPI artifacts and Linux Python 3.10–3.12 CI success were
+  verified on 2026-09-14. Wheel SHA-256:
+  `9c30f744181e28052b52ad775a00b4fb5797affe4e871e46089336126835068f`;
+  sdist: `b1069d124b3188260ee15a0ee6c14d212f2b0aa584792490a97b47c232ed808b`.
+- Released copy-hierarchy correction `6c86d1b` is included in the new baseline;
+  it must not be reimplemented. Released focused copy/native/evidence/shell
+  checks: **67 passed in 315.58 seconds**, including the native 24-way matrix.
+- The unfinished evidence patch was preserved and imported into the isolated
+  branch for completion and review. Its previous focused result was 60 passed;
+  this is not final qualification of the v1.0.13 branch.
+- Actual Ensembl GTF remains broken on v1.0.12: a retained chromosome-22 panel
+  produces exit zero with `partial_success`, 17 processing errors and no CDS.
+  Conversion preserving genes yields the independently counted 8 genes,
+  26 transcripts (17 coding), 116 exons and 69 CDS without processing errors.
+- Native sparse-CDS and gene-to-CDS probes fail while the equivalent ordinary
+  hierarchy succeeds. These input paths are pending production correction.
+- Fresh `-copies` placements have known run-to-run variability; controlled
+  shared native alignments isolate the released copy fix from that variation.
+- The legacy re-audit finished with failures/unresolved provenance; those reports
+  are historical diagnostics, not passing release evidence. Earlier unlimited
+  nonerror records made some reports over a gigabyte, motivating bounded reports.
+- Dependency versions were audited without upgrades; see
+  [dependency audit](lifton_v1_0_13_dependencies.md).
 
 ## Objective and constraints
 
-Prepare v1.0.12 with correct annotation behavior, reproducible evidence, and
-measured improvements to rescue runtime and working memory. Correctness takes
-precedence over resource gains. Qualify Linux on Python 3.10–3.12. Complete the
-advertised flat-CDS and GTF input paths. Additional-copy recovery is an optional,
-truth-gated experiment, not a default change. Publishing and contacting reporters
-are separate release actions.
+Prepare v1.0.13 with correct inputs, coding semantics and reproducible evidence,
+then continue measured rescue efficiency and optional copy experiments.
+Correctness precedes performance. Ordinary supported inputs retain all 24 native
+byte-identity configurations. Qualify Linux Python 3.10–3.12. New feature behavior
+requires focused regression and independent truth, not reference identity alone.
 
-Long runs use detached tmux and immutable source snapshots. Qualification uses
-8 threads per cell, at most two simultaneous whole-genome cells, an aggregate
-32-thread scheduling budget including concurrent aligners, and a 256-GiB host
-memory reserve. Timed comparisons run exclusively, three alternating paired
-replicates. Retain old results rather than overwriting release evidence.
+Long runs use tmux and frozen source: 8 threads per cell, at most two whole
+genomes, 32 aggregate scheduling threads including aligners, 256 GiB host reserve.
+Timed runs are exclusive with three alternating paired replicates. Historical
+results are preserved. Publication, tagging, pushes and reporter messages are
+outside this implementation task. An incomplete gate remains incomplete.
 
 ## How the current algorithm works
 
@@ -104,7 +131,7 @@ sequence extraction, target-coordinate concordance, and constructed truth must
 supplement it. An annotation's own invalidity is context, never blanket
 permission to introduce new output defects.
 
-## Prioritized work and acceptance
+## Historical initial milestone assessment (superseded by the current plan)
 
 | Milestone | Required result | Status |
 |---|---|---|

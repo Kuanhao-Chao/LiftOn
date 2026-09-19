@@ -124,6 +124,9 @@ def apply_terminal_stop(lifton_trans, fai):
         return None
     coding_length = sum(e.cds.entry.end - e.cds.entry.start + 1
                         for e in lifton_trans.exons if e.cds is not None)
+    from lifton.coding import initial_phase
+    coding_length -= initial_phase([e.cds.entry for e in lifton_trans.exons if e.cds is not None],
+                                    lifton_trans.entry.strand)
     if coding_length < STOP_CODON_LENGTH or coding_length % 3:
         return None
     minus = lifton_trans.entry.strand == "-"

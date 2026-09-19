@@ -426,6 +426,8 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                 # For GENCODE/ENSEMBL/CHESS, check gene_type first, then biotype as fallback
                 if "gene_type" in locus.attributes.keys():
                     gene_type_key = "gene_type"
+                elif "gene_biotype" in locus.attributes.keys():
+                    gene_type_key = "gene_biotype"
                 elif "biotype" in locus.attributes.keys():
                     gene_type_key = "biotype"
             else:

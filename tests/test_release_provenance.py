@@ -15,7 +15,9 @@ def receipt(tmp_path, monkeypatch):
     output.write_text('##gff-version 3\n')
     manifest = tmp_path / 'manifest.json'
     manifest.write_text(json.dumps({'run': {'status': 'success'}}))
-    expected = {'source': source, 'inputs': {}, 'argv': ['lifton'], 'runtime': {'version': '1'}}
+    expected = {'source': source, 'inputs': {}, 'argv': ['lifton'], 'runtime': {'version': '1'},
+                'cwd': str(tmp_path), 'environment': {}}
+    monkeypatch.setattr(p, 'runtime', lambda *args: {'version': '1'})
     path = tmp_path / 'completion.json'
     profile = SimpleNamespace(exit_code=0, wall_clock_seconds=1, peak_rss_mb=2)
     p.write_receipt(path, expected=expected, output=output, manifest=manifest,
@@ -56,3 +58,74 @@ def test_partial_manifest_cannot_receive_receipt(receipt):
     with pytest.raises(RuntimeError, match='Incomplete/partial'):
         p.write_receipt(path, expected=expected, output=output, manifest=manifest,
                         profile=SimpleNamespace(exit_code=0), validation={'complete': True})
+
+
+@pytest.mark.parametrize('in_tree', [False, True])
+def test_actual_cli_bootstrap_rejects_editable_submodule_fallthrough(tmp_path, in_tree):
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+    from benchmarks.compare import release_validation as rv
+    root, external = tmp_path / 'candidate', tmp_path / 'external'
+    package = root / 'lifton'
+    package.mkdir(parents=True)
+    external.mkdir()
+    (package / '__init__.py').write_text('__version__ = "test"\n')
+    (package / 'lifton.py').write_text('def main():\n    from lifton import late\n    print(late.VALUE)\n')
+    (external / 'late.py').write_text('VALUE = "wrong tree"\n')
+    (external / 'sitecustomize.py').write_text(
+        'import importlib.util, sys\n'
+        'class Fallback:\n'
+        '    @classmethod\n'
+        '    def find_spec(cls, fullname, path=None, target=None):\n'
+        '        if fullname == "lifton.late":\n'
+        f'            return importlib.util.spec_from_file_location(fullname, {str(external / "late.py")!r})\n'
+        'sys.meta_path.append(Fallback)\n')
+    if in_tree:
+        (package / 'late.py').write_text('VALUE = "correct tree"\n')
+    argv = rv._argv(sys.executable, dict(ref_gff='a', ref_fa='b', tgt_fa='c'),
+                    'RefSeq', 1, tmp_path / 'out.gff3', root=root)
+    result = subprocess.run(argv, cwd=tmp_path,
+                            env=dict(os.environ, PYTHONPATH=os.pathsep.join((str(root), str(external)))),
+                            capture_output=True, text=True, timeout=30)
+    if in_tree:
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == 'correct tree'
+    else:
+        assert result.returncode != 0
+        assert 'late' in result.stderr and 'wrong tree' not in result.stdout
+        control = list(argv)
+        control[2] = 'from lifton.lifton import main; main()'
+        unguarded = subprocess.run(control, cwd=tmp_path,
+                                  env=dict(os.environ, PYTHONPATH=os.pathsep.join((str(root), str(external)))),
+                                  capture_output=True, text=True, timeout=30)
+        assert unguarded.returncode == 0 and unguarded.stdout.strip() == 'wrong tree'
+
+
+def test_guard_rejects_an_already_loaded_outside_module(tmp_path):
+    import subprocess
+    import sys
+    source = ('import sys, types\n'
+              'm = types.ModuleType("lifton.escape")\n'
+              'm.__file__ = "/outside/escape.py"\n'
+              'sys.modules["lifton.escape"] = m\n')
+    code = source + p.guarded_code(tmp_path, 'print("accepted")')
+    result = subprocess.run([sys.executable, '-c', code], cwd=tmp_path,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode != 0 and 'outside' in result.stderr
+
+
+def test_profiled_qualification_does_not_inherit_shell_overrides(tmp_path, monkeypatch):
+    import json
+    import sys
+    from pathlib import Path
+    from benchmarks.compare.profiling import run_profiled
+    monkeypatch.setenv('LIFTON_USE_GFFBASE', 'inherited-unrecorded')
+    profile = run_profiled([sys.executable, '-c',
+                            'import json,os; print(json.dumps(dict(os.environ)))'],
+                           label='clean', log_dir=tmp_path, env={'PATH': '/usr/bin:/bin'},
+                           inherit_env=False, log=lambda _: None)
+    assert profile.exit_code == 0
+    observed = json.loads(Path(profile.stdout_path).read_text())
+    assert 'LIFTON_USE_GFFBASE' not in observed

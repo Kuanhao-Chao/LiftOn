@@ -933,6 +933,53 @@ def resolve_miniprot_candidate_args(args):
     return args
 
 
+def _check_reference_findings(args, findings, stats_dir):
+    """Report input findings and enforce the requested strict policy."""
+    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
+    # thousands of `unencoded_reserved_char` findings on Dbxref values
+    # (DBTAG:ID is technically reserved-char-bearing). The previous
+    # unconditional per-finding stderr dump produced 100+ MB stderr
+    # logs that buried real errors. Strict mode keeps per-row stderr
+    # output (users opted in); the default path now writes findings to
+    # a side-car file under stats/ and prints one summary line.
+    _strict_gff = getattr(args, "strict_gff", False)
+    if _strict_gff:
+        for f in findings:
+            logger.log(str(f), debug=True)
+    elif findings:
+        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
+        try:
+            with open(findings_path, "w") as fw:
+                for f in findings:
+                    fw.write(str(f) + "\n")
+            n_err = sum(1 for f in findings if f.severity == "error")
+            n_warn = len(findings) - n_err
+            logger.log_info(
+                f">> GFF3 input validator: {len(findings)} finding(s) "
+                f"({n_err} error, {n_warn} warning) written to "
+                f"{findings_path}; pass --strict-gff to also dump "
+                f"per-row to stderr."
+            )
+        except OSError as exc:
+            logger.log_warning(
+                f"GFF3 input validator: could not write findings to "
+                f"{findings_path}: {exc}; falling back to stderr dump."
+            )
+            for f in findings:
+                logger.log(str(f), debug=True)
+    if _strict_gff and any(f.severity == "error" for f in findings):
+        _record_pipeline_failure(
+            args, "validate_reference_annotation",
+            "reference annotation failed strict GFF3 validation",
+            details={"errors": sum(
+                1 for finding in findings if finding.severity == "error"
+            )},
+            fatal=True,
+        )
+        _finish_run_manifest(args, "failed")
+        sys.exit(2)
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
     # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
@@ -1018,49 +1065,11 @@ def run_all_lifton_steps(args):
             target_seqids=reference_seqids,
         )
         findings = list(reference_annotation_scan.ncbi_findings)
-    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
-    # thousands of `unencoded_reserved_char` findings on Dbxref values
-    # (DBTAG:ID is technically reserved-char-bearing). The previous
-    # unconditional per-finding stderr dump produced 100+ MB stderr
-    # logs that buried real errors. Strict mode keeps per-row stderr
-    # output (users opted in); the default path now writes findings to
-    # a side-car file under stats/ and prints one summary line.
-    _strict_gff = getattr(args, "strict_gff", False)
-    if _strict_gff:
-        for f in findings:
-            logger.log(str(f), debug=True)
-    elif findings:
-        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
-        try:
-            with open(findings_path, "w") as fw:
-                for f in findings:
-                    fw.write(str(f) + "\n")
-            n_err = sum(1 for f in findings if f.severity == "error")
-            n_warn = len(findings) - n_err
-            logger.log_info(
-                f">> GFF3 input validator: {len(findings)} finding(s) "
-                f"({n_err} error, {n_warn} warning) written to "
-                f"{findings_path}; pass --strict-gff to also dump "
-                f"per-row to stderr."
-            )
-        except OSError as exc:
-            logger.log_warning(
-                f"GFF3 input validator: could not write findings to "
-                f"{findings_path}: {exc}; falling back to stderr dump."
-            )
-            for f in findings:
-                logger.log(str(f), debug=True)
-    if _strict_gff and any(f.severity == "error" for f in findings):
-        _record_pipeline_failure(
-            args, "validate_reference_annotation",
-            "reference annotation failed strict GFF3 validation",
-            details={"errors": sum(
-                1 for finding in findings if finding.severity == "error"
-            )},
-            fatal=True,
-        )
-        _finish_run_manifest(args, "failed")
-        sys.exit(2)
+        if reference_annotation_scan.file_format == "GTF":
+            # GTF has no GFF3 version directive and uses quoted attributes.
+            # Keep coordinate/column checks; check GFF3 grammar after conversion.
+            findings = [f for f in findings if f.rule not in {"missing_gff_version", "bad_attribute"}]
+    _check_reference_findings(args, findings, stats_dir)
     ################################
     # Step 1: Building database from the reference annotation
     ################################
@@ -1077,7 +1086,48 @@ def run_all_lifton_steps(args):
         args.verbose,
         auto_convert_gtf,
         scan_result=reference_annotation_scan,
+        conversion_dir=intermediate_dir,
     )
+    manifest.set_backend_choice(
+        "reference_annotation_requested", ref_db.requested_backend,
+    )
+    if ref_db.backend_fallback_reason:
+        manifest.set_backend_choice(
+            "reference_annotation_fallback", ref_db.backend_fallback_reason,
+        )
+    if getattr(ref_db, "conversion_provenance", None):
+        manifest.set_input_statistics("reference_annotation_conversion", ref_db.conversion_provenance)
+        converted_scan = annotation.scan_annotation(ref_db.file_name, target_seqids=reference_seqids)
+        _check_reference_findings(args, list(converted_scan.ncbi_findings), stats_dir)
+    from lifton import reference_models
+    normalization = reference_models.normalize_sparse_coding(
+        ref_db, os.path.join(intermediate_dir, "reference_models"),
+    )
+    if normalization:
+        requested_features = lifton_utils.get_parent_features_to_lift(args.features)
+        if requested_features == ["CDS"]:
+            normalized_features = os.path.join(
+                intermediate_dir, "reference_models", "normalized_feature_types.txt")
+            with open(normalized_features, "w") as feature_handle:
+                feature_handle.write("gene\n")
+            args.features = normalized_features
+            normalization["feature_selection"] = {
+                "requested": ["CDS"], "effective": ["gene"],
+            }
+        manifest.set_input_statistics("reference_model_normalization", normalization)
+        backend = ref_db.backend
+        connection = ref_db.db_connection
+        if hasattr(connection, "conn"):
+            connection.conn.close()
+        args.reference_annotation = normalization["annotation"]
+        ref_db = annotation.Annotation(args.reference_annotation, False, False, backend=backend)
+        reference_annotation_scan = ref_db.scan_result
+        for argument, filename in (("proteins", "supplied_proteins.fa"), ("transcripts", "supplied_transcripts.fa")):
+            supplied = getattr(args, argument, None)
+            if supplied and os.path.exists(supplied):
+                aliased = reference_models.alias_fasta(
+                    supplied, normalization["mapping"], os.path.join(intermediate_dir, "reference_models", filename))
+                setattr(args, argument, aliased)
     manifest.set_backend_choice("reference_annotation", ref_db.backend)
     manifest.set_cache_choice(
         "reference_annotation", getattr(ref_db, "cache_status", "unknown")
@@ -1135,10 +1185,15 @@ def run_all_lifton_steps(args):
         # no in-memory dict materialisation. Then re-open via pyfaidx
         # so downstream consumers see the same lazy mmap-backed
         # interface as the user-supplied -P / -T branch below.
-        ref_trans_file, ref_proteins_file = \
-            extract_sequence.extract_features_to_fasta(
-                ref_db, features, ref_fai, intermediate_dir,
-            )
+        generated_trans, generated_proteins = extract_sequence.extract_features_to_fasta(
+            ref_db, features, ref_fai, intermediate_dir,
+        )
+        # Preserve individually supplied sequences for normalized references.
+        # Their IDs were checked against the explicit alias map above.
+        ref_trans_file = (ref_trans_file if normalization and ref_trans_file and os.path.exists(ref_trans_file)
+                          else generated_trans)
+        ref_proteins_file = (ref_proteins_file if normalization and ref_proteins_file and os.path.exists(ref_proteins_file)
+                             else generated_proteins)
         ref_trans = Fasta(ref_trans_file)
         ref_proteins = Fasta(ref_proteins_file)
     else:

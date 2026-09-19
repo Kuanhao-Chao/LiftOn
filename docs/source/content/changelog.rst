@@ -4,6 +4,22 @@
 Changelog
 ===========
 
+Unreleased
+----------
+
+- Normalize sparse coding references into explicit hierarchies, preserve CDS
+  attributes, record generated IDs and check supplied FASTA aliases.
+- Preserve genes and exon/CDS attributes when converting GTF with gffread.
+  Conversion files are private to each run, with hashes, command and tool
+  provenance recorded in the run manifest.
+- Repair direct-GTF self-parent relations and preserve transcript IDs during
+  inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
+  checks after conversion.
+- Strengthen release evidence with candidate/reference roles, artifact receipts,
+  explicit expected cells and rejection of incomplete or stale results.
+- Require campaign and attempt history, isolate imported source modules, and
+  keep failed reference protein extraction in unresolved coding accounting.
+
 v1.0.13
 --------
 
