@@ -729,6 +729,16 @@ def args_optional(parser):
              "Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
     )
     parser.add_argument(
+        '--rescue-max-inflight', dest='rescue_max_inflight',
+        type=int, default=None, metavar='N',
+        help='How many prefetched isoform-rescue jobs to hold at once '
+             '(default 8192; 0 for unbounded, the pre-v1.0.14 behaviour). The '
+             'isoform pass used to prefetch every job in the genome before '
+             'scoring any -- 55,852 of them on human to zebrafish, 3.7 GiB of '
+             'a 6.3 GiB peak. Output is identical at any value. Env '
+             'LIFTON_RESCUE_MAX_INFLIGHT overrides.'
+    )
+    parser.add_argument(
         '--rescue-second-locus', dest='rescue_second_locus',
         action='store_true', default=None,
         help='[EXPERIMENTAL] Let one reference gene be placed at a SECOND '
@@ -1995,9 +2005,14 @@ def run_all_lifton_steps(args):
         # Which rescue pass the time went to. On a distant transfer this is the
         # largest phase of the run, and the split is not otherwise visible.
         # Milliseconds, because record_count stores integers.
+        # Counts share the dict with timings, so they are named rather than
+        # assumed: anything not listed here is a duration and is scaled. A new
+        # counter that forgets to register lands in the manifest as
+        # "..._ms_<name>" with its value multiplied by a thousand.
+        rescue_counts = {"isoform_jobs", "isoform_jobs_high_water"}
         for name, value in getattr(args, "_rescue_timings", {}).items():
-            if name == "isoform_jobs":
-                manifest.record_count("miniprot_rescue_isoform_jobs", value)
+            if name in rescue_counts:
+                manifest.record_count(f"miniprot_rescue_{name}", int(value))
             else:
                 manifest.record_count(f"miniprot_rescue_ms_{name}",
                                       int(value * 1000))
