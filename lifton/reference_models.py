@@ -46,8 +46,12 @@ def _anchors(db):
     return list(result.values())
 
 
-def normalize_sparse_coding(ref_db, out_dir):
-    """Return normalization metadata, or None when no sparse model is selected."""
+def normalize_sparse_coding(ref_db, out_dir, strict=False):
+    """Return normalization metadata, or None when no sparse model is selected.
+
+    ``strict`` mirrors ``--strict-gff``: a reference whose hierarchy does not
+    parse is refused rather than reported.
+    """
     db = ref_db.db_connection
     anchors = sorted(_anchors(db), key=_feature_key)
     reserved = set()
@@ -71,8 +75,24 @@ def normalize_sparse_coding(ref_db, out_dir):
                       if parent not in declared_ids)
     if dangling:
         feature_id, parent = dangling[0]
-        raise LiftOnInputError(
-            f'CDS {feature_id!r} names missing Parent {parent!r}; repair the hierarchy first')
+        message = (f'CDS {feature_id!r} names missing Parent {parent!r}; '
+                   f'repair the hierarchy first')
+        if strict:
+            raise LiftOnInputError(message)
+        # Fatal by default aborted a 144,415-transcript human lift over 111
+        # broken rows in NCBI_RefSeq_no_rRNA.gff -- an artefact of the rRNA
+        # filtering that produced it, which left 14 transcripts' CDS behind.
+        # v1.0.12 completed that lift. A reference that violates the spec is
+        # what --strict-gff is for; the default path reports and continues,
+        # exactly as the input validator does a few steps earlier.
+        from lifton import logger
+        logger.log_warning(
+            f'{len(dangling)} CDS name a Parent no row declares (e.g. '
+            f'{message}). They are excluded from reference normalization and '
+            f'their transcripts cannot be lifted. Pass --strict-gff to make '
+            f'this fatal.')
+        damaged = {feature_id for feature_id, _ in dangling}
+        anchors = [anchor for anchor in anchors if anchor.id not in damaged]
     if not anchors:
         return None
 
