@@ -1,4 +1,6 @@
 """Coding semantics shared by extraction, scoring and model completion."""
+import os
+
 from lifton.exceptions import LiftOnInputError
 
 
@@ -134,16 +136,71 @@ def stop_codons(table_id=DEFAULT_TRANSL_TABLE):
     return frozenset(_codon_table(table_id).stop_codons)
 
 
+_FAST_TABLES = {}
+
+
+def _codon_map(table_id):
+    """``{codon: amino acid}`` over all 64 unambiguous codons, stops as ``*``.
+
+    Biopython reaches its table through ``CodonTable.__getitem__``, a
+    Python-level call made once per codon. Profiling Step 7 on whole genomes
+    (notes/step7_profile_2026-09.md) counted **62 million** of them on rice and
+    **257 million** on dog to cat -- 15 s and 60 s of pure interpreter
+    overhead, inside a translation block that is 8-9 % of the phase. A plain
+    dict answers the same question at C speed.
+    """
+    cached = _FAST_TABLES.get(table_id)
+    if cached is None:
+        table = _codon_table(table_id)
+        cached = dict(table.forward_table)
+        for stop in table.stop_codons:
+            # setdefault, NOT assignment. Tables 27, 28 and 31 (Karyorelict,
+            # Condylostoma and Blastocrithidia nuclear) list codons that are
+            # BOTH a stop and an amino acid, and Biopython translates those as
+            # the amino acid. Overwriting with '*' disagreed with it on TGA
+            # under table 27 and TAA under 28 and 31 -- caught by translating
+            # all 64 codons under all 25 tables, which is the only reason this
+            # is a fixed bug rather than a shipped one.
+            cached.setdefault(stop, '*')
+        _FAST_TABLES[table_id] = cached
+    return cached
+
+
+def _legacy_translate():
+    return os.environ.get("LIFTON_LEGACY_TRANSLATE", "").strip().lower() \
+        not in ("", "0", "false", "no", "off")
+
+
 def translate(dna, table_id=DEFAULT_TRANSL_TABLE):
     """Translate ``dna`` with this table, dropping a trailing partial codon.
 
     Biopython has historically truncated an incomplete terminal codon while
     warning that the behaviour may change. Every LiftOn translation depends on
     that result, so it is made explicit -- and warning-free -- in one place.
+
+    The codon-map path answers only what a 64-entry dict can answer exactly.
+    Anything else -- an ``N``, an ambiguity code, a gap -- raises ``KeyError``
+    and the whole sequence goes to Biopython untouched, so the two agree by
+    construction rather than by argument. ``LIFTON_LEGACY_TRANSLATE=1`` forces
+    the Biopython path.
     """
-    from Bio.Seq import Seq
     dna = str(dna)
     complete_length = len(dna) - (len(dna) % 3)
     if not complete_length:
         return ''
-    return str(Seq(dna[:complete_length]).translate(table=table_id))
+    dna = dna[:complete_length]
+    if not _legacy_translate():
+        codons = _codon_map(table_id)
+        try:
+            return "".join([codons[dna[i:i + 3]]
+                            for i in range(0, complete_length, 3)])
+        except KeyError:
+            pass
+        try:
+            upper = dna.upper()
+            return "".join([codons[upper[i:i + 3]]
+                            for i in range(0, complete_length, 3)])
+        except KeyError:
+            pass
+    from Bio.Seq import Seq
+    return str(Seq(dna).translate(table=table_id))
