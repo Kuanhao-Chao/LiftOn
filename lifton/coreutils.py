@@ -217,3 +217,20 @@ def clone_feature(feature):
     if isinstance(extra, (list, tuple)):
         clone.extra = list(extra)
     return clone
+
+
+#: UCSC-style GRCh38 marks an alternate locus with ``_alt`` and a patch with
+#: ``_fix``. Unlocalized (``_random``) and unplaced (``chrUn_``) scaffolds are
+#: part of the primary assembly and are NOT duplicates of anything, so they are
+#: deliberately absent. Accession-style names cannot be classified from the
+#: name alone and are reported as primary.
+_NON_PRIMARY_SUFFIXES = (("_alt", "alt"), ("_fix", "fix"))
+
+
+def non_primary_seqid_class(seqid):
+    """``'alt'``, ``'fix'``, or None for a sequence on the primary assembly."""
+    name = str(seqid)
+    for suffix, label in _NON_PRIMARY_SUFFIXES:
+        if name.endswith(suffix):
+            return label
+    return None

@@ -1007,6 +1007,54 @@ def _check_reference_findings(args, findings, stats_dir):
         sys.exit(2)
 
 
+def _report_non_primary_sequences(ref_db, args):
+    """Say when the reference carries alternate-locus or patch sequences.
+
+    14.6 % of GRCh38 RefSeq coding genes sit on ``_alt``/``_fix`` contigs as
+    copies of a gene on the primary assembly. They compete for the same target
+    locus, and the copy frequently wins -- on a full-GRCh38 lift to CHM13,
+    1,058 of the 1,611 contested GeneID groups end up represented only by the
+    copy. Nothing is mis-named (RefSeq gives the copy the same gene symbol,
+    Dbxrefs and unsuffixed accessions), so LiftOn does not override that
+    choice; see notes/primary_assembly_id_preference_nogo.md.
+
+    What it should not do is leave the user to discover the situation by
+    measuring it, which is what a reference restricted to the primary assembly
+    had to be built from by hand. So: count them, say so once, and record it.
+    """
+    from lifton import coreutils as _coreutils
+
+    manifest = getattr(args, "_run_manifest", None)
+    counts = {}
+    try:
+        rows = ref_db.db_connection.execute(
+            "SELECT seqid, COUNT(*) FROM features WHERE featuretype = 'gene' "
+            "GROUP BY seqid"
+        )
+        for seqid, count in rows:
+            label = _coreutils.non_primary_seqid_class(seqid)
+            if label is not None:
+                counts[label] = counts.get(label, 0) + int(count)
+                counts["sequences"] = counts.get("sequences", 0) + 1
+    except Exception:
+        # A backend without this table tells us nothing; that is not a failure.
+        return
+    genes = counts.get("alt", 0) + counts.get("fix", 0)
+    if not genes:
+        return
+    if manifest is not None:
+        manifest.record_count("reference_non_primary_sequences",
+                              counts.get("sequences", 0))
+        manifest.record_count("reference_genes_on_non_primary_sequences", genes)
+    logger.log_info(
+        f">> Reference carries {counts.get('sequences', 0)} alternate-locus / "
+        f"patch sequence(s) holding {genes} gene(s). These are copies of genes "
+        f"on the primary assembly and compete for the same target locus, so "
+        f"the annotation may represent a gene by its copy. Restrict the "
+        f"reference to the primary assembly if you want only primary genes."
+    )
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
     # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
@@ -1159,6 +1207,8 @@ def run_all_lifton_steps(args):
     manifest.set_cache_choice(
         "reference_annotation", getattr(ref_db, "cache_status", "unknown")
     )
+
+    _report_non_primary_sequences(ref_db, args)
 
     t3 = time.process_time()
     ################################
