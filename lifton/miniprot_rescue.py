@@ -202,9 +202,16 @@ def miniprot_protein_coverage(mtrans, ref_proteins, ref_trans_id):
 
 
 def _candidate_quality_key(mtrans, coverage):
-    """Order sub-pass B candidates best first: miniprot's per-protein ``Rank``,
-    then its alignment ``Identity``, then coverage, then position and ID so
-    the order is total and run-to-run deterministic."""
+    """Order candidates best first: miniprot's per-protein ``Rank``, then its
+    alignment ``Identity``, then coverage, then position and ID so the order is
+    total and run-to-run deterministic.
+
+    ``coverage`` is None for a sub-pass that has no coverage signal, which
+    orders on the rest. It has to be tolerated rather than assumed: negating
+    None raises, and the caller's ``except Exception`` turned that into a
+    silently dropped candidate -- a whole sub-pass doing nothing, reported as
+    per-candidate errors nobody reads.
+    """
     try:
         rank = int(_first_attribute(mtrans, "Rank"))
     except (TypeError, ValueError):
@@ -213,8 +220,8 @@ def _candidate_quality_key(mtrans, coverage):
         identity = float(_first_attribute(mtrans, "Identity"))
     except (TypeError, ValueError):
         identity = 0.0
-    return (rank, -identity, -coverage, mtrans.seqid, int(mtrans.start),
-            int(mtrans.end), mtrans.attributes["ID"][0])
+    return (rank, -identity, -(coverage or 0.0), mtrans.seqid,
+            int(mtrans.start), int(mtrans.end), mtrans.attributes["ID"][0])
 
 
 def _adaptive_floor_on(args):
@@ -373,7 +380,6 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
         floor = adapted
     started = _mark("enumerate_and_floor", started)
 
-    second_locus_counts, second_added = {}, 0
     for mtrans in mtranscripts:
         try:
             mtrans_id = mtrans.attributes["ID"][0]
@@ -389,17 +395,11 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             #     Step 8 (default miniprot), or an earlier rescue in this pass.
             #     This is what makes the pass 0-redundant + off ⊆ on.
             #
-            #     Measured against zebrafish's own GRCz11 annotation, this rule
-            #     is what hides 2,051 real target genes: a whole-genome
-            #     duplication gives the target two genes where the source has
-            #     one, and the second is not a redundant model but a different
-            #     gene at a different locus. _second_locus_allowed lets such a
-            #     gene through -- but only as far as gate (4), which still
-            #     requires the locus to be free, so nothing emitted is ever
-            #     displaced and off ⊆ on still holds by construction.
-            second_locus = ref_gene_id in emitted_ref_gene_ids
-            if second_locus and not _second_locus_allowed(
-                    ref_gene_id, second_locus_counts, args):
+            #     A reference gene that belongs at a SECOND target locus is
+            #     handled by its own sub-pass after this one, not here: letting
+            #     it through mid-walk occupies a locus a later default
+            #     candidate would have taken. See _second_locus_subpass.
+            if ref_gene_id in emitted_ref_gene_ids:
                 continue
 
             # (3) protein availability (mirror process_miniprot:381)
@@ -436,24 +436,16 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
                     mtrans, ref_gene_id, ref_trans_id, ratio, floor,
                     m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins,
                     ref_trans, ref_features_dict, emitted_ref_gene_ids,
-                    publisher, args,
-                    extra_attrs=(("lifton_rescue_second_locus", "true"),)
-                    if second_locus else ()):
+                    publisher, args):
                 added += 1
-                if second_locus:
-                    second_locus_counts[ref_gene_id] = (
-                        second_locus_counts.get(ref_gene_id, 0) + 1)
-                    second_added += 1
         except Exception as e:
             logger.log_error(f"miniprot-only rescue error ({mtrans.id}): {e}")
             _record_failure(args, mtrans, e)
 
     if added:
-        extra = (f", {second_added} at a second locus for a gene already "
-                 f"emitted" if second_added else "")
         sys.stderr.write(
             f"\n[LiftOn] miniprot-only rescue: {added} gene(s) added "
-            f"(protein-identity floor {floor:.2f}{extra}).\n")
+            f"(protein-identity floor {floor:.2f}).\n")
         sys.stderr.flush()
 
     # Sub-pass B runs only after sub-pass A has finished, and only adds genes
@@ -481,7 +473,31 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             m_id_2_ref_id_trans_dict, ref_features_len_dict,
             ref_features_reverse_dict, args)
         started = _mark("isoform_pass", started)
-        publisher.flush()
+
+    # Sub-pass C runs LAST, after the isoform pass, and that ordering is the
+    # whole point. Placed before it, a second-locus gene occupies ground a
+    # default gene needed to widen into, and `_extension_collides` then refuses
+    # the isoform: on human to zebrafish that silently dropped 21 transcripts
+    # of mean identity 0.662 -- `gene-CCND3` lost four isoforms scoring
+    # 0.584-0.628 to make room for a second-locus model scoring 0.356. The
+    # gene-level gate did not see it, because the gene survived and only its
+    # transcripts vanished.
+    #
+    # Running last costs some second-locus genes, since a widened default gene
+    # now holds ground they wanted. That is the right trade: it makes the
+    # default output -- every gene, every isoform, every span -- provably
+    # untouched, which is what "additive" has to mean.
+    second_locus_added = 0
+    if _second_locus_on(args):
+        second_locus_added = _second_locus_subpass(
+            mtranscripts, floor, m_feature_db, ref_db, tree_dict, tgt_fai,
+            ref_proteins, ref_trans, ref_features_dict,
+            m_id_2_ref_id_trans_dict, ref_features_len_dict,
+            ref_trans_exon_num_dict, ref_features_reverse_dict,
+            emitted_ref_gene_ids, publisher, args)
+        started = _mark("subpass_c_second_locus", started)
+    args._rescue_second_locus_added = second_locus_added
+    publisher.flush()
     _mark("publish", started)
     args._rescue_isoforms_added = isoforms_added
     return added + coverage_added
@@ -680,6 +696,103 @@ def _coverage_gate_subpass(mtranscripts, floor, m_feature_db, ref_db,
             f"[LiftOn] miniprot-only rescue, protein-coverage gate: {added} "
             f"gene(s) added (coverage >= {coverage_min:.2f}, protein-identity "
             f"floor {floor:.2f}).\n")
+        sys.stderr.flush()
+    return added
+
+
+def _second_locus_subpass(mtranscripts, floor, m_feature_db, ref_db,
+                          tree_dict, tgt_fai, ref_proteins, ref_trans,
+                          ref_features_dict, m_id_2_ref_id_trans_dict,
+                          ref_features_len_dict, ref_trans_exon_num_dict,
+                          ref_features_reverse_dict, emitted_ref_gene_ids,
+                          publisher, args):
+    """Sub-pass C: place a reference gene at a SECOND target locus.
+
+    A whole-genome duplication gives the target two genes where the reference
+    has one, and the rescue's reference-gene dedup refuses the second. Measured
+    against zebrafish's own GRCz11 annotation, that refusal hides 2,051 real
+    target genes on human to zebrafish
+    (notes/coortholog_recall_measurement_2026-09.md).
+
+    This runs AFTER sub-passes A and B, for the reason sub-pass B runs after A.
+    A first cut relaxed the dedup inside sub-pass A instead, reasoning that the
+    overlap gate would keep it additive. It does not: an acceptance commits its
+    interval into the shared tree, so an extra gene placed early in the walk
+    suppresses a later default candidate that wanted the same free locus. The
+    A/B measured the cost -- 119 genes lost, 165 models overlapping one already
+    emitted, 33 transcripts regressed against 7 improved -- which is the
+    Iteration-22 swap in a new place. Deferring the whole sub-pass restores the
+    property the design claimed: every default decision is already committed,
+    so nothing here can change one.
+
+    ``emitted_ref_gene_ids`` is therefore inverted relative to its use above:
+    here a gene must ALREADY be in it. The per-gene cap bounds how many extra
+    loci one reference gene may take, so a repeat family cannot spray copies.
+    """
+    maximum = _second_locus_max(args)
+    if maximum <= 0:
+        return 0
+    candidates = []
+    for mtrans in mtranscripts:
+        try:
+            mtrans_id = mtrans.attributes["ID"][0]
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
+                ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
+            if ref_gene_id is None or ref_trans_id is None:
+                continue
+            # The inversion: only a gene already placed is a candidate here.
+            if ref_gene_id not in emitted_ref_gene_ids:
+                continue
+            if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                continue
+            ref_len = ref_features_len_dict.get(ref_gene_id)
+            if not ref_len:
+                continue
+            ratio = (mtrans.end - mtrans.start + 1) / ref_len
+            if not run_miniprot._miniprot_rescue_band_ok(ratio, args):
+                continue
+            cds_children = list(m_feature_db.children(mtrans, featuretype='CDS'))
+            candidates.append((_candidate_quality_key(mtrans, None), mtrans,
+                               ref_gene_id, ref_trans_id, ratio,
+                               len(cds_children)))
+        except Exception as e:
+            logger.log_error(
+                f"miniprot-only rescue (second locus) error ({mtrans.id}): {e}")
+            _record_failure(args, mtrans, e)
+    # Best first, so when two hits compete for one free locus the better wins.
+    candidates.sort(key=lambda candidate: candidate[0])
+
+    added = 0
+    counts = {}
+    for _, mtrans, ref_gene_id, ref_trans_id, ratio, n_cds in candidates:
+        try:
+            if counts.get(ref_gene_id, 0) >= maximum:
+                continue
+            mtrans_interval = Interval(mtrans.start, mtrans.end,
+                                       mtrans.attributes["ID"][0])
+            if lifton_utils.check_ovps_ratio(mtrans, mtrans_interval,
+                                             args.overlap, tree_dict):
+                continue
+            if n_cds == 1 and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1:
+                continue
+            if _build_and_accept(
+                    mtrans, ref_gene_id, ref_trans_id, ratio, floor,
+                    m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins,
+                    ref_trans, ref_features_dict, emitted_ref_gene_ids,
+                    publisher, args,
+                    extra_attrs=(("lifton_rescue_second_locus", "true"),)):
+                added += 1
+                counts[ref_gene_id] = counts.get(ref_gene_id, 0) + 1
+        except Exception as e:
+            logger.log_error(
+                f"miniprot-only rescue (second locus) error ({mtrans.id}): {e}")
+            _record_failure(args, mtrans, e)
+
+    if added:
+        sys.stderr.write(
+            f"[LiftOn] miniprot-only rescue, second locus: {added} gene(s) "
+            f"placed at a locus no emitted model reaches (at most {maximum} "
+            f"per reference gene).\n")
         sys.stderr.flush()
     return added
 
