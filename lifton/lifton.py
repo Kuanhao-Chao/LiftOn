@@ -729,6 +729,33 @@ def args_optional(parser):
              "Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
     )
     parser.add_argument(
+        '--rescue-second-locus', dest='rescue_second_locus',
+        action='store_true', default=None,
+        help='[EXPERIMENTAL] Let one reference gene be placed at a SECOND '
+             'target locus, when miniprot finds it there and no emitted model '
+             'reaches that locus. A whole-genome duplication gives the target '
+             'two genes where the reference has one, and the rescue normally '
+             'refuses the second because the reference gene was already '
+             'emitted. Measured against zebrafish own GRCz11 annotation, that '
+             'refusal hides 2,051 real target genes on human to zebrafish. '
+             'Off by default until the A/B gate says otherwise. Env '
+             'LIFTON_RESCUE_SECOND_LOCUS=1/0 overrides.'
+    )
+    parser.add_argument(
+        '--no-rescue-second-locus', dest='rescue_second_locus',
+        action='store_false', default=None,
+        help='Never place a reference gene at a second target locus (the '
+             'default).'
+    )
+    parser.add_argument(
+        '--rescue-second-locus-max', dest='rescue_second_locus_max',
+        type=int, default=None, metavar='N',
+        help='How many EXTRA loci one reference gene may be given by '
+             '--rescue-second-locus (default 1). A duplicated genome wants '
+             'one; the cap keeps a repeat family from spraying copies. Env '
+             'LIFTON_RESCUE_SECOND_LOCUS_MAX overrides.'
+    )
+    parser.add_argument(
         '--rescue-isoforms', dest='rescue_isoforms',
         action='store_true', default=None,
         help='No-op alias: isoform-aware rescue is the default (v1.0.12). Pass '

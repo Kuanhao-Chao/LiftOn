@@ -373,6 +373,7 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
         floor = adapted
     started = _mark("enumerate_and_floor", started)
 
+    second_locus_counts, second_added = {}, 0
     for mtrans in mtranscripts:
         try:
             mtrans_id = mtrans.attributes["ID"][0]
@@ -387,7 +388,18 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             # (2) DEDUP: skip a ref gene already emitted by Step 7 (DNA lift),
             #     Step 8 (default miniprot), or an earlier rescue in this pass.
             #     This is what makes the pass 0-redundant + off ⊆ on.
-            if ref_gene_id in emitted_ref_gene_ids:
+            #
+            #     Measured against zebrafish's own GRCz11 annotation, this rule
+            #     is what hides 2,051 real target genes: a whole-genome
+            #     duplication gives the target two genes where the source has
+            #     one, and the second is not a redundant model but a different
+            #     gene at a different locus. _second_locus_allowed lets such a
+            #     gene through -- but only as far as gate (4), which still
+            #     requires the locus to be free, so nothing emitted is ever
+            #     displaced and off ⊆ on still holds by construction.
+            second_locus = ref_gene_id in emitted_ref_gene_ids
+            if second_locus and not _second_locus_allowed(
+                    ref_gene_id, second_locus_counts, args):
                 continue
 
             # (3) protein availability (mirror process_miniprot:381)
@@ -424,16 +436,24 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
                     mtrans, ref_gene_id, ref_trans_id, ratio, floor,
                     m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins,
                     ref_trans, ref_features_dict, emitted_ref_gene_ids,
-                    publisher, args):
+                    publisher, args,
+                    extra_attrs=(("lifton_rescue_second_locus", "true"),)
+                    if second_locus else ()):
                 added += 1
+                if second_locus:
+                    second_locus_counts[ref_gene_id] = (
+                        second_locus_counts.get(ref_gene_id, 0) + 1)
+                    second_added += 1
         except Exception as e:
             logger.log_error(f"miniprot-only rescue error ({mtrans.id}): {e}")
             _record_failure(args, mtrans, e)
 
     if added:
+        extra = (f", {second_added} at a second locus for a gene already "
+                 f"emitted" if second_added else "")
         sys.stderr.write(
             f"\n[LiftOn] miniprot-only rescue: {added} gene(s) added "
-            f"(protein-identity floor {floor:.2f}).\n")
+            f"(protein-identity floor {floor:.2f}{extra}).\n")
         sys.stderr.flush()
 
     # Sub-pass B runs only after sub-pass A has finished, and only adds genes
@@ -465,6 +485,44 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
     _mark("publish", started)
     args._rescue_isoforms_added = isoforms_added
     return added + coverage_added
+
+
+#: Off until the strict A/B says otherwise. Source-annotation recall cannot
+#: see what this recovers, so the gate has to be re-scored against the target's
+#: own annotation.
+SECOND_LOCUS_DEFAULT = False
+
+#: How many EXTRA loci one reference gene may be given. A duplicated genome
+#: wants one; a repeat family must not be allowed to spray copies.
+SECOND_LOCUS_MAX_DEFAULT = 1
+
+
+def _second_locus_on(args):
+    """Is the second-locus rescue on? ``LIFTON_RESCUE_SECOND_LOCUS`` wins over
+    the resolved flag, as every other rescue switch does."""
+    env = os.environ.get("LIFTON_RESCUE_SECOND_LOCUS")
+    if env is not None:
+        return env.strip().lower() not in ("", "0", "false", "no", "off")
+    resolved = getattr(args, "rescue_second_locus", None)
+    return SECOND_LOCUS_DEFAULT if resolved is None else bool(resolved)
+
+
+def _second_locus_max(args):
+    env = os.environ.get("LIFTON_RESCUE_SECOND_LOCUS_MAX")
+    if env is not None:
+        try:
+            return max(0, int(env))
+        except ValueError:
+            pass
+    value = getattr(args, "rescue_second_locus_max", None)
+    return SECOND_LOCUS_MAX_DEFAULT if value is None else max(0, int(value))
+
+
+def _second_locus_allowed(ref_gene_id, counts, args):
+    """May this already-emitted reference gene be placed at one more locus?"""
+    if not _second_locus_on(args):
+        return False
+    return counts.get(ref_gene_id, 0) < _second_locus_max(args)
 
 
 def _build_and_accept(mtrans, ref_gene_id, ref_trans_id, ratio, floor,
