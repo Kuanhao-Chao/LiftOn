@@ -126,9 +126,25 @@ def lift_all_features_parallel(alns, threshold, feature_db, feature_hierarchy,
         earlier=dict(lifted_feature_list),
     )
     try:
-        with multiprocessing.get_context("fork").Pool(
-                workers, initializer=_reset_inherited_signal_handlers) as pool:
-            results = pool.map(_lift_batch, batches, chunksize=1)
+        try:
+            with multiprocessing.get_context("fork").Pool(
+                    workers, initializer=_reset_inherited_signal_handlers) as pool:
+                results = pool.map(_lift_batch, batches, chunksize=1)
+        except OSError as error:
+            # fork() can fail even with plenty of RAM free. Under strict overcommit
+            # accounting (vm.overcommit_memory=2, no swap) the kernel reserves the
+            # parent's whole address space for each child with no copy-on-write
+            # credit, so a large parent forking many workers exceeds CommitLimit:
+            # observed here as ENOMEM from a ~35 GB parent at 32 workers while
+            # ~930 GB was physically free. The serial path below produces the same
+            # result, so degrade to it instead of losing a whole-genome run.
+            from lifton import logger
+            logger.log_warning(
+                f"Parallel lift could not start {workers} worker(s) ({error}); "
+                f"falling back to the serial lift. Set LIFTON_PARALLEL_LIFT_WORKERS "
+                f"to a smaller value to keep the parallel path."
+            )
+            return False
     finally:
         _SHARED.clear()
     for lifted, unmapped in results:

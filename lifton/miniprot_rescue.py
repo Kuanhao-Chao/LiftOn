@@ -928,6 +928,18 @@ def _isoform_workers(args, n_jobs):
     return max(1, int(getattr(args, "threads", 1) or 1))
 
 
+def _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins, ref_trans):
+    """The in-process scoring loop the forked pool parallelises."""
+    results = []
+    for job in jobs:
+        try:
+            results.append(_score_isoform(*job, tgt_fai, ref_proteins,
+                                          ref_trans))
+        except Exception as error:
+            results.append(error)
+    return results
+
+
 def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
     """Score every prefetched isoform job, in order; an exception is returned
     in place of its result. Output is identical whichever way it runs."""
@@ -935,14 +947,8 @@ def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
     paths = tuple(getattr(fasta, "filename", None)
                   for fasta in (tgt_fai, ref_proteins, ref_trans))
     if workers <= 1 or None in paths:
-        results = []
-        for job in jobs:
-            try:
-                results.append(_score_isoform(*job, tgt_fai, ref_proteins,
-                                              ref_trans))
-            except Exception as error:
-                results.append(error)
-        return results
+        return _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins,
+                                          ref_trans)
     import multiprocessing
     chunks = max(1, min(len(jobs), workers * 4))
     step = -(-len(jobs) // chunks)
@@ -950,9 +956,23 @@ def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
               for start in range(0, len(jobs), step)]
     _ISOFORM_SHARED.update(jobs=jobs, paths=paths)
     try:
-        with multiprocessing.get_context("fork").Pool(
-                workers, initializer=_isoform_worker_init) as pool:
-            parts = pool.map(_score_isoform_range, ranges, chunksize=1)
+        try:
+            with multiprocessing.get_context("fork").Pool(
+                    workers, initializer=_isoform_worker_init) as pool:
+                parts = pool.map(_score_isoform_range, ranges, chunksize=1)
+        except OSError as error:
+            # Same hazard as the parallel lift: under strict overcommit the
+            # kernel charges each fork the parent's whole address space, so a
+            # large parent can fail to start workers with hundreds of GB free.
+            # Scoring is identical in-process, so degrade instead of aborting.
+            logger.log_warning(
+                f"Isoform rescue could not start {workers} worker(s) ({error}); "
+                f"scoring {len(jobs)} isoform job(s) in-process. Set "
+                f"LIFTON_RESCUE_ISOFORM_WORKERS to a smaller value to keep the "
+                f"parallel path."
+            )
+            return _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins,
+                                              ref_trans)
     finally:
         _ISOFORM_SHARED.clear()
     return [result for part in parts for result in part]

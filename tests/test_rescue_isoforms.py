@@ -10,6 +10,7 @@ applies to isoforms too.
 """
 from __future__ import annotations
 
+import errno
 import textwrap
 import types
 
@@ -238,6 +239,32 @@ class TestIsoformWorkers:
         pooled = _run(_build_workspace(tmp_path / "pooled"), "--rescue-isoforms")
         assert "rescue_isoform=true" in inline
         assert pooled == inline
+
+    def test_enomem_starting_the_pool_falls_back_to_inline_scoring(
+            self, tmp_path, hermetic_pipeline, monkeypatch):
+        # fork() can fail with memory free: under strict overcommit the kernel
+        # charges each child the parent's whole address space. Losing the pool
+        # must cost speed, not the rescue.
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "0")
+        inline = _run(_build_workspace(tmp_path / "inline"), "--rescue-isoforms")
+        assert "rescue_isoform=true" in inline
+
+        import multiprocessing
+
+        def _enomem_pool(*_args, **_kwargs):
+            raise OSError(errno.ENOMEM, "Cannot allocate memory")
+
+        real_get_context = multiprocessing.get_context
+
+        def _fake_get_context(*args, **kwargs):
+            context = real_get_context(*args, **kwargs)
+            return types.SimpleNamespace(Pool=_enomem_pool, _real=context)
+
+        monkeypatch.setattr(multiprocessing, "get_context", _fake_get_context)
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "2")
+        fallback = _run(_build_workspace(tmp_path / "fallback"), "--rescue-isoforms")
+        assert fallback == inline
+        assert miniprot_rescue._ISOFORM_SHARED == {}
 
     def test_worker_count(self, monkeypatch):
         monkeypatch.delenv("LIFTON_RESCUE_ISOFORM_WORKERS", raising=False)
