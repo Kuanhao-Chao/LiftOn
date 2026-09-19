@@ -200,6 +200,7 @@
         "benchmarks/compare/native_liftoff_ab.*",
         "benchmarks/compare/orf_best_match_ab.*",
         "benchmarks/compare/parallel_aligners_ab.*",
+        "benchmarks/compare/second_locus_ab.*",
         "benchmarks/compare/speed_ab.*",
         "benchmarks/compare/step8_rescue_ab.*",
         "benchmarks/compare/structural_rescore*"

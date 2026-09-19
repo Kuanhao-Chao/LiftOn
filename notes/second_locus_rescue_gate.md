@@ -75,3 +75,62 @@ stays off until then.
 
 Reproduce: `c1_ab/run.sh` (arms), `c1_ab/replicate.sh` (the control),
 `c1_ab/score.py` (the gate).
+
+## The ladder: does it generalise?
+
+Human → zebrafish is the most favourable cell that exists for this idea — the
+teleost whole-genome duplication is the reason the idea exists — so one cell
+proves nothing about anything else. Eight cells, deterministic `-t 1`, cached
+`-L`/`-M`, both arms pinned to one build.
+
+**What the ladder can and cannot say.** The neutral evaluator keys on
+`ref_mrna_id` and keeps the best model per reference transcript, so a second
+target gene for a reference gene that is *already scored* is invisible to it.
+Reference-keyed recall is exactly the instrument that cannot see this feature.
+The ladder therefore runs a **safety** gate — nothing lost, nothing regressed,
+nothing placed on top of an emitted model, validity not worse — and reports how
+many genes were placed and how good they look. Whether they are real needs the
+target's own annotation, which is on disk for zebrafish only.
+
+| cell | placed | per 1,000 ref proteins | mean PI |
+|---|---:|---:|---:|
+| rice → sorghum | 53 | **9.06** | 0.773 |
+| human → zebrafish *(whole genome)* | 689 | 4.74 | 0.651 |
+| zebrafish → medaka | 6 | 2.02 | 0.685 |
+| C. elegans → briggsae | 13 | 1.72 | 0.673 |
+| human → chicken | 5 | 1.62 | 0.780 |
+| human → xenopus | 4 | 1.30 | 0.707 |
+| drosophila → anopheles | 5 | 0.69 | 0.548 |
+| human → mouse | 2 | 0.65 | 0.715 |
+| **drosophila (same species)** | **0** | **0.00** | — |
+
+**Safety gate: 8/8.** Zero lost, zero regressed, zero placed above the
+pipeline's own `-overlap 0.10` gate, validity unchanged, on every cell.
+
+Three things make this more than a count:
+
+* **The same-species control places exactly nothing.** A transfer between two
+  *D. melanogaster* assemblies has no second copies to find, and the feature
+  finds none. Had it placed anything there, the rest of the table would mean
+  nothing.
+* **It is not a zebrafish artefact.** The strongest per-gene rate is rice →
+  sorghum, not the teleost cell.
+* **The ordering tracks duplication history.** Grasses (ancient WGD plus heavy
+  segmental duplication) above teleosts, above nematode/bird/amphibian, above
+  fly and mouse, above zero for same-species. That is the ranking the mechanism
+  predicts, arrived at without being told.
+
+Every mean identity sits above the 0.5 rescue floor.
+
+## Where this leaves promotion
+
+The evidence supports the feature doing what it claims, safely, across
+divergence regimes. It does not yet establish that the placed genes are correct
+anywhere except zebrafish, where the target's own annotation says +690 of them
+are real. Whether that is enough to turn it on by default is a judgement about
+how much weight one target annotation carries, and that belongs to the
+maintainer, not to this note.
+
+Reproduce: `python -m benchmarks.compare.second_locus_ab`
+(`LIFTON_AB_PYTHONPATH` pins the build, `LIFTON_AB_WORK` points at the subset
+trees).
