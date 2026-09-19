@@ -30,6 +30,26 @@ from lifton.io.ncbi_gff3_spec import RESERVED_CHARS
 _PCT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
 
 
+#: Ordinal -> replacement, for ``str.translate``. Same mapping the
+#: per-character loop applied, expressed so CPython can walk the string in C.
+#: Profiling Step 7 on whole genomes (notes/step7_profile_2026-09.md) counted
+#: 5.8 M calls to this function on rice and 17.3 M on dog to cat -- 5 % and 3 %
+#: of the phase -- and every one of them ran a Python-level loop over every
+#: character of every attribute value, almost always to return it unchanged.
+_ENCODE_TRANSLATION = {ord("%"): "%25"}
+_ENCODE_TRANSLATION.update(
+    {ord(ch): "%{:02X}".format(ord(ch)) for ch in RESERVED_CHARS}
+)
+
+#: 86 % of real attribute values contain nothing that needs encoding, so the
+#: cheapest correct answer is to notice that in C and hand back the string
+#: itself. Translating unconditionally is only 1.3x the old loop; checking
+#: first is 3.2x.
+_NEEDS_ENCODING = re.compile(
+    "[" + re.escape("".join(sorted(RESERVED_CHARS | {"%"}))) + "]"
+)
+
+
 def encode_attribute_value(value: str) -> str:
     """Percent-encode reserved characters per NCBI GFF3 spec.
 
@@ -41,17 +61,9 @@ def encode_attribute_value(value: str) -> str:
     if value is None:
         return ""
     s = str(value)
-    if not s:
+    if not s or _NEEDS_ENCODING.search(s) is None:
         return s
-    out_chars: list[str] = []
-    for ch in s:
-        if ch == "%":
-            out_chars.append("%25")
-        elif ch in RESERVED_CHARS:
-            out_chars.append("%{:02X}".format(ord(ch)))
-        else:
-            out_chars.append(ch)
-    return "".join(out_chars)
+    return s.translate(_ENCODE_TRANSLATION)
 
 
 # Backward-compatible private name retained for focused tests and in-tree

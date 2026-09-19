@@ -123,3 +123,62 @@ class TestEscapeHatch:
         legacy = coding.translate(sequence, 2)
         monkeypatch.delenv("LIFTON_LEGACY_TRANSLATE")
         assert legacy == coding.translate(sequence, 2) == _biopython(sequence, 2)
+
+
+class TestAttributeEncoding:
+    """The GFF3 attribute encoder answers from `str.translate` behind a guard
+    that returns the string untouched when nothing needs encoding.
+
+    5.8 M calls on rice and 17.3 M on dog to cat (5 % and 3 % of Step 7) ran a
+    Python-level loop over every character of every value, almost always to
+    hand it back unchanged.
+    """
+
+    @staticmethod
+    def _legacy(value):
+        """The per-character loop this replaced, kept verbatim as the oracle."""
+        from lifton.io.ncbi_gff3_spec import RESERVED_CHARS
+        if value is None:
+            return ""
+        text = str(value)
+        if not text:
+            return text
+        out = []
+        for ch in text:
+            if ch == "%":
+                out.append("%25")
+            elif ch in RESERVED_CHARS:
+                out.append("%{:02X}".format(ord(ch)))
+            else:
+                out.append(ch)
+        return "".join(out)
+
+    def test_every_code_point_a_value_can_hold(self):
+        from lifton.io.gff3_writer import encode_attribute_value
+        for code_point in range(0x3000):
+            character = chr(code_point)
+            assert encode_attribute_value(character) == \
+                self._legacy(character), hex(code_point)
+
+    @pytest.mark.parametrize("value", [
+        None, "", "GeneID:1,HGNC:HGNC:2", "a%00b", "%25", "tab\there",
+        "semi;colon", "eq=uals", "amp&ersand", "new\nline", "cr\rlf",
+        "%already%encoded%", "no-reserved-characters-at-all",
+    ])
+    def test_edge_cases(self, value):
+        from lifton.io.gff3_writer import encode_attribute_value
+        assert encode_attribute_value(value) == self._legacy(value)
+
+    def test_fuzz(self):
+        from lifton.io.gff3_writer import encode_attribute_value
+        rng = random.Random(20260919)
+        alphabet = ("ABCXYZabcxyz0189_.:-|%;=&,\t\n\r")
+        for _ in range(5000):
+            value = "".join(rng.choice(alphabet)
+                            for _ in range(rng.randrange(0, 60)))
+            assert encode_attribute_value(value) == self._legacy(value), value
+
+    def test_a_clean_value_is_returned_unchanged(self):
+        from lifton.io.gff3_writer import encode_attribute_value
+        value = "rna-NM_001303012.2"
+        assert encode_attribute_value(value) is value
