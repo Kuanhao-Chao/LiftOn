@@ -47,6 +47,8 @@ from lifton import align, coreutils
 #: revert is a one-line change (the pattern the other rescue switches follow).
 STOP_COMPLETION_DEFAULT = True
 
+#: Standard-code stop codons. A model whose annotation declares another code
+#: is completed against that code's stops instead -- see `_stop_codons`.
 STOP_CODONS = frozenset(("TAA", "TAG", "TGA"))
 
 #: Bases added when the downstream codon is a stop.
@@ -72,6 +74,15 @@ def _codon(entry, fai, start, end):
         return str(probe.sequence(fai)).upper()
     except (KeyError, ValueError, IndexError):
         return ""
+
+
+def _stop_codons(lifton_trans):
+    """The stop codons of the code this model declares."""
+    resolve = getattr(lifton_trans, "transl_table", None)
+    if resolve is None:
+        return STOP_CODONS
+    from lifton import coding
+    return coding.stop_codons(resolve())
 
 
 def _terminal_exon(lifton_trans):
@@ -144,9 +155,10 @@ def apply_terminal_stop(lifton_trans, fai):
         nxt = (cds.entry.end + 1, cds.entry.end + STOP_CODON_LENGTH)
         if nxt[1] > sequence_length:
             return None
-    if _codon(cds.entry, fai, *last) in STOP_CODONS:
+    stops = _stop_codons(lifton_trans)
+    if _codon(cds.entry, fai, *last) in stops:
         return None
-    if _codon(cds.entry, fai, *nxt) not in STOP_CODONS:
+    if _codon(cds.entry, fai, *nxt) not in stops:
         return None
     before = (exon.entry.start, exon.entry.end, cds.entry.start, cds.entry.end)
     if minus:
