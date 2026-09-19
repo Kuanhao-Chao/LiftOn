@@ -988,6 +988,46 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
         if ref_gene_id is not None and ref_trans_id is not None:
             hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
 
+    max_inflight = _rescue_max_inflight(args)
+    timings = getattr(args, "_rescue_timings", None)
+    elapsed = {"prefetch": 0.0, "score": 0.0, "attach": 0.0}
+    counters = {"jobs": 0, "high_water": 0}
+    added = 0
+
+    def _drain(plans, jobs):
+        """Score and attach one bounded batch, then let it go.
+
+        Scoring reads nothing that attachment writes -- ``tree_dict`` is
+        touched only by ``_attach_scored_isoforms`` -- and records are attached
+        in acceptance order either way, so draining in batches gives the same
+        output as draining once at the end. That is what makes the bound free.
+        """
+        nonlocal added
+        if not plans:
+            return
+        counters["jobs"] += len(jobs)
+        counters["high_water"] = max(counters["high_water"], len(jobs))
+        started = time.perf_counter()
+        results = _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans,
+                                      args)
+        elapsed["score"] += time.perf_counter() - started
+        started = time.perf_counter()
+        for record, slots in plans:
+            if not slots:
+                continue
+            scored = [(mtrans,
+                       value if isinstance(value, BaseException)
+                       else results[value])
+                      for mtrans, value in slots]
+            try:
+                added += _attach_scored_isoforms(record, scored, tree_dict, args)
+            except Exception as e:
+                logger.log_error(
+                    f"miniprot-only rescue (isoforms) error "
+                    f"({record.mtrans.id}): {e}")
+                _record_failure(args, record.mtrans, e)
+        elapsed["attach"] += time.perf_counter() - started
+
     plans, jobs = [], []
     phase_started = time.perf_counter()
     stop_completion = orf_completion.enabled(args)
@@ -1017,31 +1057,25 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             slots.append((mtrans, len(jobs)))
             jobs.append(prefetched)
         plans.append((record, slots))
+        # Hold at most `max_inflight` prefetched jobs at once. Unbounded, this
+        # list held every isoform job in the genome: 55,852 of them on human to
+        # zebrafish, each keeping an mRNA row, its CDS rows and an attribute
+        # map alive, and the pass accounted for 3.72 GiB of a 6.26 GiB peak.
+        if max_inflight and len(jobs) >= max_inflight:
+            elapsed["prefetch"] += time.perf_counter() - phase_started
+            _drain(plans, jobs)
+            plans, jobs = [], []
+            phase_started = time.perf_counter()
 
-    timings = getattr(args, "_rescue_timings", None)
+    elapsed["prefetch"] += time.perf_counter() - phase_started
+    _drain(plans, jobs)
+    plans, jobs = [], []
     if timings is not None:
-        timings["isoform_prefetch"] = round(time.perf_counter() - phase_started, 3)
-    scoring_started = time.perf_counter()
-    results = _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args)
-    if timings is not None:
-        timings["isoform_score"] = round(time.perf_counter() - scoring_started, 3)
-        timings["isoform_jobs"] = len(jobs)
-    attach_started = time.perf_counter()
-
-    added = 0
-    for record, slots in plans:
-        if not slots:
-            continue
-        scored = [(mtrans, value if isinstance(value, BaseException) else results[value])
-                  for mtrans, value in slots]
-        try:
-            added += _attach_scored_isoforms(record, scored, tree_dict, args)
-        except Exception as e:
-            logger.log_error(
-                f"miniprot-only rescue (isoforms) error ({record.mtrans.id}): {e}")
-            _record_failure(args, record.mtrans, e)
-    if timings is not None:
-        timings["isoform_attach"] = round(time.perf_counter() - attach_started, 3)
+        timings["isoform_prefetch"] = round(elapsed["prefetch"], 3)
+        timings["isoform_score"] = round(elapsed["score"], 3)
+        timings["isoform_attach"] = round(elapsed["attach"], 3)
+        timings["isoform_jobs"] = counters["jobs"]
+        timings["isoform_jobs_high_water"] = counters["high_water"]
     if added:
         sys.stderr.write(
             f"[LiftOn] miniprot-only rescue: {added} additional isoform(s) "
@@ -1088,6 +1122,23 @@ def _score_isoform_range(bounds):
             # Any exception must survive pickling back to the parent.
             out.append(RuntimeError(f"{type(error).__name__}: {error}"))
     return out
+
+
+#: How many prefetched isoform jobs may be held at once. Output is identical at
+#: any value -- scoring reads nothing attachment writes -- so this trades peak
+#: memory against pool restarts. 0 restores the unbounded single batch.
+RESCUE_MAX_INFLIGHT_DEFAULT = 8192
+
+
+def _rescue_max_inflight(args):
+    env = os.environ.get("LIFTON_RESCUE_MAX_INFLIGHT")
+    if env is not None:
+        try:
+            return max(0, int(env))
+        except ValueError:
+            pass
+    value = getattr(args, "rescue_max_inflight", None)
+    return RESCUE_MAX_INFLIGHT_DEFAULT if value is None else max(0, int(value))
 
 
 def _isoform_workers(args, n_jobs):
