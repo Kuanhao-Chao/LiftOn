@@ -46,8 +46,8 @@ import sys
 import types
 from collections import ChainMap
 
-from lifton import (miniprot_rescue, orf_completion, run_miniprot, lifton_utils,
-                    logger)
+from lifton import (drop_ledger, miniprot_rescue, orf_completion,
+                    run_miniprot, lifton_utils, logger)
 
 #: How far back to scan for a neighbouring emitted model. Genes longer than
 #: this from their start are rare, and the scan is a guard, not a proof.
@@ -432,6 +432,8 @@ def cross_locus_rescue_pass(out_path, score_path, m_feature_db, ref_db, tree_dic
                 ref_features_reverse_dict, mtrans.attributes["ID"][0],
                 m_id_2_ref_id_trans_dict)
         except Exception:
+            drop_ledger.record("cross_locus_candidate",
+                               getattr(mtrans, "id", None))
             continue
         if gene_id is not None and trans_id is not None:
             hits_by_gene.setdefault(gene_id, []).append((mtrans, trans_id))

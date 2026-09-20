@@ -19,7 +19,7 @@ from typing import Any, Iterable, Iterator
 from intervaltree import Interval
 import gffutils
 
-from lifton import lifton_utils, run_miniprot
+from lifton import drop_ledger, lifton_utils, logger, run_miniprot
 from lifton.locus_pipeline import (
     DeferredStateJournal,
     commit_locus_delta,
@@ -165,6 +165,16 @@ def materialize_miniprot_payload(index, transcript, ref_db, m_feature_db,
                     ref_db.db_connection[feature_id]
                 )
             except (KeyError, gffutils.exceptions.FeatureNotFoundError):
+                # A narrow except tuple over a bare continue, with no log and
+                # no count -- the shape that let the Iteration-21 crash and the
+                # -copies loss both hide. The candidate is still scored, just
+                # without this row, so this is a warning rather than a failure.
+                logger.log_warning(
+                    f"miniprot candidate {transcript.id}: reference feature "
+                    f"{feature_id!r} is not in the reference annotation; "
+                    f"scoring without it."
+                )
+                drop_ledger.record("miniprot_reference_missing", feature_id)
                 continue
         return MiniprotPayload(
             index=index,

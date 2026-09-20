@@ -1,7 +1,7 @@
 import subprocess
 import os, copy, sys
 import gffutils  # noqa: F401  (kept: part of this module's public surface)
-from lifton import align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
+from lifton import drop_ledger, align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
 from lifton.tool_execution import collect_execution_events
@@ -524,7 +524,10 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
             with_exons=len(exon_children) > 0,
             state_journal=state_journal,
         )
-        if lifton_gene.ref_gene_id is None: return None
+        if lifton_gene.ref_gene_id is None:
+            # Dropping the whole gene, silently, until now.
+            drop_ledger.record("unresolvable_gene", getattr(locus, "id", None))
+            return None
     if len(exon_children) == 0:
         parent_feature = None
         if ENTRY_FEATURE: # Gene (1st) features without direct exons
@@ -576,6 +579,9 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
                 f"Skipping {locus.id}: reference transcript "
                 f"{ref_trans_id!r} was not found in the reference annotation."
             )
+            # The line above was printed ~4,400 times across the benchmark
+            # corpus without anyone noticing. Count it too.
+            drop_ledger.record("unresolvable_transcript", locus.id)
             return None
         ref_trans_id = _resolved_trans_id
         lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
