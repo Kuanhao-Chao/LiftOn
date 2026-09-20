@@ -409,7 +409,15 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
             if parents and any(
                 _parent_type(ref_db, pid) in feature_set for pid in parents):
                 continue
-            CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS'))
+            # ONE recursive CDS query per locus, answering both consumers: the
+            # coding test below needs only a count, and ref_features_len_dict
+            # needs the ordered extremes. This used to be the same recursive
+            # query issued twice -- once unordered here and once ordered below
+            # -- which is the Iteration-18 pattern collapsed in Step 3 and
+            # never applied here. Ordering cannot change a count, so the
+            # coding test sees exactly what it saw before.
+            CDS_children = list(ref_db.db_connection.children(
+                locus, featuretype='CDS', order_by='start'))
             feature = lifton_class.Lifton_feature(locus.id)
             feature.feature_type = locus.featuretype
             # Write out reference gene features IDs
@@ -472,7 +480,7 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                     else:
                         fw_trans.write(f"{transcript.id}\tother\n")
             ref_features_dict[locus.id if not args.evaluation_liftoff_chm13 else locus.id[5:]] = feature
-            all_CDS_children = list(ref_db.db_connection.children(locus, featuretype='CDS', order_by='start'))
+            all_CDS_children = CDS_children
             if len(all_CDS_children) > 0:
                 ref_features_len_dict[locus.id if not args.evaluation_liftoff_chm13 else locus.id[5:]] = all_CDS_children[-1].end - all_CDS_children[0].start + 1
             else:
