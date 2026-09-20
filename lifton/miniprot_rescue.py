@@ -503,10 +503,16 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
     return added + coverage_added
 
 
-#: Off until the strict A/B says otherwise. Source-annotation recall cannot
-#: see what this recovers, so the gate has to be re-scored against the target's
-#: own annotation.
-SECOND_LOCUS_DEFAULT = False
+#: PROMOTED to default-on. The gate was re-scored against the target's own
+#: annotation, because source-annotation recall structurally cannot see what
+#: this recovers: on human to zebrafish it covers 690 more real GRCz11
+#: protein-coding genes, with 0 genes and 0 transcripts lost, 0 default genes
+#: moved and 0 regressions, and the off arm byte-identical to the default.
+#: The divergence ladder passes its safety gate on 8 of 8 cells, the rate
+#: tracks known duplication history (rice to sorghum highest, at 9.06 genes per
+#: 1,000 reference proteins), and the same-species control places exactly
+#: nothing. See notes/second_locus_rescue_gate.md.
+SECOND_LOCUS_DEFAULT = True
 
 #: How many EXTRA loci one reference gene may be given. A duplicated genome
 #: wants one; a repeat family must not be allowed to spray copies.

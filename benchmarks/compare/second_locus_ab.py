@@ -213,7 +213,10 @@ def main(argv=None):
         root = work / "_second_locus_ab"
         root.mkdir(parents=True, exist_ok=True)
 
-        off = _run_state(bid, "default", [], paths, root, args.pythonpath)
+        # The feature is default-on since the promotion, so the baseline arm
+        # has to say so explicitly. Passing [] here would compare on with on.
+        off = _run_state(bid, "default", ["--no-rescue-second-locus"],
+                         paths, root, args.pythonpath)
         reference, ref_index = evaluator.build_reference(
             paths["ref_gff"], paths["ref_fa"], log=print)
         eval_dir = root / "eval"

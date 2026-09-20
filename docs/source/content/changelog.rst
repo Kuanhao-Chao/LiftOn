@@ -7,6 +7,26 @@ Changelog
 Unreleased
 ----------
 
+- Honour the genetic code an annotation declares (``transl_table``) in protein
+  extraction, model translation, the ORF search and stop completion, and run
+  miniprot once per declared code. Four of the 13 human mitochondrial genes in
+  the published CHM13 annotation were truncated by translating table-2 CDS with
+  the standard code. Table 1 output is unchanged.
+- Place a reference gene at a second target locus when miniprot finds it there
+  and nothing else reaches it, which is what a whole-genome duplication
+  produces (+690 verified genes on human to zebrafish).
+  ``--no-rescue-second-locus`` opts out.
+- Count every class of dropped reference feature and report it once at the end
+  of the run, and in ``run_manifest.json``.
+- Bound the isoform rescue's in-flight prefetch with ``--rescue-max-inflight``
+  (default 8192): 24.7 % less peak memory for 4.4 % wall.
+- Fall back to in-process work when a worker pool cannot fork, instead of
+  aborting the run.
+- Do not abort a lift because a CDS names a ``Parent`` the annotation does not
+  declare; the check becomes fatal under ``--strict-gff``.
+- Report alternate-locus and patch contigs in the reference.
+- Speed up Step 7 by roughly a tenth, and stop re-deriving reference-side work.
+
 - Normalize sparse coding references into explicit hierarchies, preserve CDS
   attributes, record generated IDs and check supplied FASTA aliases.
 - Preserve genes and exon/CDS attributes when converting GTF with gffread.

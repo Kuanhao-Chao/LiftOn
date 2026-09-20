@@ -146,20 +146,28 @@ class TestSwitch:
     def _args(self, *flags):
         return lifton.parse_args(["t.fa", "r.fa", "-g", "r.gff3", *flags])
 
-    def test_off_by_default(self):
-        assert not miniprot_rescue._second_locus_on(self._args())
+    def test_on_by_default(self):
+        # PROMOTED: +690 real GRCz11 genes on human to zebrafish with 0 lost at
+        # gene and transcript level, safety gate 8/8 across the ladder.
+        assert miniprot_rescue._second_locus_on(self._args())
 
-    def test_the_flag_turns_it_on_and_the_cap_defaults_to_one(self):
-        args = self._args("--rescue-second-locus")
-        assert miniprot_rescue._second_locus_on(args)
-        assert miniprot_rescue._second_locus_max(args) == 1
+    def test_the_opt_out_turns_it_off_and_the_alias_is_a_no_op(self):
+        assert not miniprot_rescue._second_locus_on(
+            self._args("--no-rescue-second-locus"))
+        assert miniprot_rescue._second_locus_on(
+            self._args("--rescue-second-locus"))
+
+    def test_the_cap_defaults_to_one(self):
+        assert miniprot_rescue._second_locus_max(self._args()) == 1
 
     def test_the_environment_wins(self, monkeypatch):
-        monkeypatch.setenv("LIFTON_RESCUE_SECOND_LOCUS", "1")
-        assert miniprot_rescue._second_locus_on(self._args())
         monkeypatch.setenv("LIFTON_RESCUE_SECOND_LOCUS", "0")
+        assert not miniprot_rescue._second_locus_on(self._args())
         assert not miniprot_rescue._second_locus_on(
             self._args("--rescue-second-locus"))
+        monkeypatch.setenv("LIFTON_RESCUE_SECOND_LOCUS", "1")
+        assert miniprot_rescue._second_locus_on(
+            self._args("--no-rescue-second-locus"))
 
     def test_the_cap_gates_each_reference_gene_separately(self):
         args = self._args("--rescue-second-locus")
@@ -175,16 +183,17 @@ class TestSwitch:
 
 
 class TestFreeLocus:
-    def test_off_emits_one_model_for_the_reference_gene(
+    def test_the_opt_out_emits_one_model_for_the_reference_gene(
             self, tmp_path, hermetic_pipeline):
-        genes = _genes(_run(_build_workspace(tmp_path / "off")))
+        genes = _genes(_run(_build_workspace(tmp_path / "off"),
+                            "--no-rescue-second-locus"))
         gene2 = [g for g in genes if g[0].startswith("gene2")]
         assert [(g[1], g[2]) for g in gene2] == [(601, 699)]
 
     def test_on_places_the_second_target_copy_and_tags_it(
             self, tmp_path, hermetic_pipeline):
-        off = _run(_build_workspace(tmp_path / "off"))
-        on = _run(_build_workspace(tmp_path / "on"), "--rescue-second-locus")
+        off = _run(_build_workspace(tmp_path / "off"), "--no-rescue-second-locus")
+        on = _run(_build_workspace(tmp_path / "on"))
         off_genes, on_genes = _genes(off), _genes(on)
 
         # off subset of on: nothing the default emitted may move or disappear.
@@ -199,15 +208,13 @@ class TestFreeLocus:
         assert "lifton_rescue_second_locus" not in off
 
     def test_the_first_model_keeps_its_own_id(self, tmp_path, hermetic_pipeline):
-        on = _genes(_run(_build_workspace(tmp_path / "on"),
-                         "--rescue-second-locus"))
+        on = _genes(_run(_build_workspace(tmp_path / "on")))
         first = [g for g in on if (g[1], g[2]) == (601, 699)]
         assert [g[0] for g in first] == ["gene2"]
 
     def test_the_cap_bounds_how_many_extra_loci_a_gene_gets(
             self, tmp_path, hermetic_pipeline):
         capped = _genes(_run(_build_workspace(tmp_path / "capped"),
-                             "--rescue-second-locus",
                              "--rescue-second-locus-max", "0"))
         assert [(g[1], g[2]) for g in capped if g[0].startswith("gene2")] \
             == [(601, 699)]
@@ -220,10 +227,10 @@ class TestOccupiedLocusIsStillRefused:
         # placed again only where no emitted model reaches.
         workspace = _build_workspace(tmp_path / "occupied",
                                      occupy_second_locus=True)
-        off = _genes(_run(workspace))
+        off = _genes(_run(workspace, "--no-rescue-second-locus"))
         workspace = _build_workspace(tmp_path / "occupied_on",
                                      occupy_second_locus=True)
-        on = _genes(_run(workspace, "--rescue-second-locus"))
+        on = _genes(_run(workspace))
         assert set(on) == set(off)
         assert [(g[1], g[2]) for g in on if g[0].startswith("gene2")] \
             == [(601, 699)]

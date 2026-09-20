@@ -6,7 +6,56 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- The genetic code an annotation declares (`transl_table`) is honoured when
+  extracting the reference protein, translating a lifted model, searching for a
+  rescue ORF and completing a terminal stop, and miniprot is run once per
+  declared code. Translating a vertebrate mitochondrial CDS with the standard
+  code reads its TGA tryptophans as stops: on the published CHM13 annotation
+  that truncated four of the 13 human mitochondrial genes (ND2 to 144 bp of
+  1,042; ND4 to 177 of 1,378; CYTB to 564 of 1,141; COX3 to 405 of 784) and
+  left the other nine scored between 0.012 and 0.739 where the truth is 1.000.
+  Table 1 output is unchanged; table 11, which covers plant plastid genes,
+  translates identically to table 1 and is unaffected.
+- A reference gene can be placed at a second target locus when miniprot finds
+  it there and no emitted model reaches it, which is what a whole-genome
+  duplication produces. Measured against zebrafish's own GRCz11 annotation,
+  refusing it hid 690 real target genes on human to zebrafish. Default on;
+  `--no-rescue-second-locus` opts out.
+- Every class of dropped reference feature is counted and reported once at the
+  end of a run, and recorded in `run_manifest.json`. The warnings were always
+  printed - 550 lines in one rice run - but nothing added them up, which is how
+  a bug that dropped ~4,400 transcripts stayed unnoticed across three releases.
+- `--rescue-max-inflight` bounds how many isoform-rescue jobs are held at once
+  (default 8192). The pass used to prefetch every job in the genome before
+  scoring any, which accounted for 3.72 GiB of a 6.26 GiB peak on human to
+  zebrafish; bounding it costs 4.4 % wall for 24.7 % less peak memory.
+- A reference carrying alternate-locus or patch contigs is reported at startup
+  and in the manifest. They are copies of primary-assembly genes and compete
+  for the same target locus.
+
 ### Fixed
+
+- A worker pool that cannot fork no longer aborts the run. Under strict
+  overcommit accounting the kernel charges each child the parent's whole
+  address space, so a large parent can fail to start workers with hundreds of
+  gigabytes free; both fork sites now fall back to doing the work in process.
+- A CDS naming a `Parent` no row declares no longer aborts a lift that
+  previously worked. `NCBI_RefSeq_no_rRNA.gff` has 111 such rows left behind by
+  its rRNA filtering, in a file with 144,415 mRNA and no flat model in it at
+  all. The validation is kept and becomes fatal under `--strict-gff`.
+
+### Changed
+
+- Step 7 is faster by roughly a tenth on the same-species and mammalian runs
+  where it dominates: translation answers from a flat codon map rather than
+  Biopython's table (2.11x), attribute encoding returns the string untouched
+  when nothing needs encoding (3.21x), and attribute cloning copies the backing
+  mapping rather than going through two Python-level methods per key (1.70x).
+  All byte-identical, each verified exhaustively rather than by sampling.
+- Reference ingest no longer walks the whole annotation to discard the result,
+  and issues one recursive CDS query per locus instead of two.
 
 - Sparse coding references (parentless CDS or gene-to-CDS) receive an explicit
   gene/transcript/exon hierarchy, with preserved CDS attributes and a versioned
