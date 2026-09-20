@@ -221,6 +221,10 @@ def _build_argv(version, paths, anndb, threads, L, M, out_gff, devel_fast):
         # four-way column -- that column's whole point is comparability with
         # v1.0.8, which has no rescue at all.
         argv += ["--no-miniprot-rescue"]
+        # The second-locus rescue was promoted to default-on after these
+        # baselines were frozen. Same reasoning, same pin: the committed column
+        # must keep describing the engine it described when it was measured.
+        argv += ["--no-rescue-second-locus"]
     argv += ["-o", str(out_gff), str(paths["tgt_fa"]), str(paths["ref_fa"])]
     return argv
 
