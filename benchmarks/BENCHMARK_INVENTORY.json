@@ -140,8 +140,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "96d4ac8bb4193381650e479a80a4e1023c36190adb9b0ef223be3c2423dc674b",
-      "bytes": 1047894,
+      "aggregate_sha256": "ae3e39d5a87fd4afa7caa9008b6a77b9c8aa82fd547efc0697b467c2dcf17ade",
+      "bytes": 1048050,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -615,14 +615,14 @@
       "sha256": "11101da3317e5d4d88805397f54d57d9f4a00ff6a4a7213576c95e8b89e96419"
     },
     {
-      "bytes": 188659,
+      "bytes": 188654,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/build_controller.py",
-      "sha256": "6f49e65d3f6d72a8f7493c50db70a929eef6e76cad279020313ccee243f5d4ce"
+      "sha256": "1c5097fc0849a5b7533fe7a10b27008a38b05a839eab20f86e3ecfb6549b44de"
     },
     {
       "bytes": 3366,
@@ -3479,14 +3479,14 @@
       "sha256": "da01a3b27d02b16a9e1bc2fffc8a37147b35a510fca923d0cc9708b5ad57ad32"
     },
     {
-      "bytes": 55933,
+      "bytes": 56094,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/run_benchmarks.py",
-      "sha256": "33b7a7d23a718994e9614b837b5efb7d1303790529b7ee8b7f592e4a9b983593"
+      "sha256": "80f6c768ceebd96e1e0270b2f7b2ca18604b4aa49c1427b775e653fce8c6ebd4"
     },
     {
       "bytes": 1154,
@@ -3576,7 +3576,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "1151d6aadb109408e7b7cd4794c8d466316bc80001f792b40d314a217e6893ec",
+  "inventory_sha256": "a59d8cf524e1b342505fcb25be8807b836ca391683148c4d4671aa4c3b205ebf",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3624,8 +3624,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "a4b5b15107ab69d9043186453bcad6f73f888670ce7154afba2f426cf9d69258",
-    "bytes": 13480599,
+    "aggregate_sha256": "f3d561588d78a413b29ecadd745de56b05ba5c15a9f002f8e0787a0aa931f086",
+    "bytes": 13480755,
     "classification_counts": {
       "canonical": 78,
       "diagnostic": 42,

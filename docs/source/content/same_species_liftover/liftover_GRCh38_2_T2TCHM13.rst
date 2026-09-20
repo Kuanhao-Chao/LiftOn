@@ -69,6 +69,14 @@ There is only one command you need to run LiftOn:
 
 After successfully running LiftOn, you will get the following file and output directory:
 
+.. note::
+
+    The published annotation was regenerated on 2026-09-15 with **LiftOn v1.0.12**, lifting the
+    GRCh38.p14 RefSeq annotation (release **RS_2025_08**, primary assembly) onto T2T-CHM13v2.0.
+    It is also available under a versioned name:
+    `JHU_LiftOn_v1.0.12_chm13v2.0.gff3 <ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/JHU_LiftOn_v1.0.12_chm13v2.0.gff3>`_.
+    The BigBed conversion below still derives from the earlier v1.0 annotation.
+
 * **Output**: 
     1. LiftOn annotation file in GFF3: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton.gff3
     2. LiftOn output directory: ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/human_refseq/lifton_output/

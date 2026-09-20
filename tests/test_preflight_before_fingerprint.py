@@ -41,6 +41,8 @@ def test_missing_miniprot_does_not_fingerprint_first(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         lifton_main.main([])
     assert "miniprot is not installed" in str(exc.value)
+    assert "conda install" in str(exc.value)
+    assert "pip does not install" in str(exc.value)
 
 
 def test_missing_minimap2_does_not_fingerprint_first(tmp_path, monkeypatch):

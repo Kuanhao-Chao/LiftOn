@@ -490,6 +490,27 @@ def test_runtime_dependency_manifest_fails_closed_when_required_is_missing(
         controller.collect_runtime_dependencies()
 
 
+@pytest.mark.parametrize('available', [False, True])
+def test_runtime_dependency_manifest_accepts_optional_mappy_and_records_it(monkeypatch, available):
+    class FakeDistribution:
+        version = '2.31'
+        metadata = {'Name': 'mappy'}
+
+        @staticmethod
+        def read_text(filename):
+            return None
+
+    def distribution(name):
+        if name == 'mappy' and not available:
+            raise controller.importlib_metadata.PackageNotFoundError(name)
+        return FakeDistribution()
+
+    monkeypatch.setattr(controller.importlib_metadata, 'distribution', distribution)
+    record = controller.collect_runtime_dependencies()
+    assert ('mappy' in record['distributions']) == available
+    assert 'mappy' not in controller.REQUIRED_RUNTIME_DISTRIBUTIONS
+
+
 def test_runtime_dependency_drift_invalidates_resume_provenance(
         tmp_path, monkeypatch):
     registry = tmp_path / "benchmarks.json"
