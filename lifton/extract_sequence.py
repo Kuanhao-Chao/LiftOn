@@ -135,7 +135,7 @@ import os as _os
 TRANSL_TABLE_SIDECAR_SUFFIX = ".transl_tables.json"
 
 
-def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
+def extract_features_to_fasta(ref_db, features, ref_fai, out_dir, stats=None):
     """Streaming alternative to :func:`extract_features`.
 
     Writes ``transcripts.fa`` and ``proteins.fa`` under ``out_dir`` as
@@ -155,6 +155,10 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
     feature_set = set(features)
     warned = set()
     tables = {}
+    # Counted here because the protein string is in hand. The caller used to
+    # re-open the finished FASTA and materialise every record through pyfaidx
+    # to produce this one integer.
+    tally = {"proteins": 0, "truncated_proteins": 0}
     with open(trans_path, "w") as ft, open(prot_path, "w") as fp:
         for feature in features:
             for locus in ref_db.db_connection.features_of_type(feature):
@@ -169,7 +173,7 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
                     continue
                 counter += 1
                 _stream_inner(ref_db, locus, ref_fai, ft, fp, warned=warned,
-                              tables=tables)
+                              tables=tables, tally=tally)
     print(
         f"Extracted features (streaming) for {counter} features",
         file=sys.stderr,
@@ -195,6 +199,8 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
             f"seqids) and re-run."
         )
     write_transl_table_sidecar(prot_path, tables)
+    if stats is not None:
+        stats.update(tally)
     return trans_path, prot_path
 
 
@@ -241,7 +247,8 @@ def read_transl_table_sidecar(proteins_path):
     return resolved
 
 
-def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None):
+def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None,
+                  tally=None):
     # Phase 18: one ordered children() query + an in-Python featuretype
     # partition replaces the prior three per-feature queries (2x fewer
     # SQLite round-trips on the common exon/CDS-bearing path, 3x on a bare
@@ -276,6 +283,11 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None):
                 if protein_seq:
                     protein_seq = protein_seq.upper()
                     fp.write(f">{feature.id}\n{protein_seq}\n")
+                    if tally is not None:
+                        from lifton import lifton_utils as _lifton_utils
+                        tally["proteins"] += 1
+                        if not _lifton_utils.check_protein_valid(protein_seq):
+                            tally["truncated_proteins"] += 1
                     if tables is not None and table != coding.DEFAULT_TRANSL_TABLE:
                         # Recorded only for a non-standard code, so the sidecar
                         # is absent on every ordinary annotation and Step 4's
@@ -289,7 +301,7 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None):
     else:
         for child in all_children:
             _stream_inner(ref_db, child, ref_fai, ft, fp, warned=warned,
-                          tables=tables)
+                          tables=tables, tally=tally)
 
 
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins,

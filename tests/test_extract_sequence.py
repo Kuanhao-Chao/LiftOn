@@ -334,3 +334,38 @@ class TestSeqidMismatchLoud:
         assert ref_trans == {}
         assert ref_proteins == {}
         assert "[WARNING]" in capsys.readouterr().err
+
+
+class TestStreamedProteinTally:
+    """The truncated-protein count is taken during the write.
+
+    The caller used to re-open the finished protein FASTA and materialise every
+    record through pyfaidx to produce one integer, on a file the run had just
+    written. The number must be the same either way -- that is the whole claim.
+    """
+
+    def test_it_matches_the_sweep_it_replaced(self, tmp_path, fasta_standard,
+                                              gff_standard):
+        from pyfaidx import Fasta
+        from lifton import annotation, extract_sequence, lifton_utils
+
+        ref_db = annotation.Annotation(str(gff_standard), False, False)
+        stats = {}
+        _, prot_path = extract_sequence.extract_features_to_fasta(
+            ref_db, ["gene"], Fasta(str(fasta_standard)),
+            str(tmp_path / "out"), stats=stats)
+
+        swept = lifton_utils.count_truncated_proteins(Fasta(prot_path))
+        assert stats["truncated_proteins"] == swept
+        assert stats["proteins"] == len(Fasta(prot_path).keys())
+
+    def test_the_stats_argument_is_optional(self, tmp_path, fasta_standard,
+                                            gff_standard):
+        # Every other caller in the tree, and the tests, pass no stats dict.
+        from pyfaidx import Fasta
+        from lifton import annotation, extract_sequence
+
+        ref_db = annotation.Annotation(str(gff_standard), False, False)
+        result = extract_sequence.extract_features_to_fasta(
+            ref_db, ["gene"], Fasta(str(fasta_standard)), str(tmp_path / "out"))
+        assert len(result) == 2 and all(result)

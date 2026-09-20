@@ -741,21 +741,21 @@ def args_optional(parser):
     parser.add_argument(
         '--rescue-second-locus', dest='rescue_second_locus',
         action='store_true', default=None,
-        help='[EXPERIMENTAL] Let one reference gene be placed at a SECOND '
-             'target locus, when miniprot finds it there and no emitted model '
-             'reaches that locus. A whole-genome duplication gives the target '
-             'two genes where the reference has one, and the rescue normally '
-             'refuses the second because the reference gene was already '
-             'emitted. Measured against zebrafish own GRCz11 annotation, that '
-             'refusal hides 2,051 real target genes on human to zebrafish. '
-             'Off by default until the A/B gate says otherwise. Env '
-             'LIFTON_RESCUE_SECOND_LOCUS=1/0 overrides.'
+        help='No-op alias: placing a reference gene at a second target locus '
+             'is the default. Pass --no-rescue-second-locus to opt out.'
     )
     parser.add_argument(
         '--no-rescue-second-locus', dest='rescue_second_locus',
         action='store_false', default=None,
         help='Never place a reference gene at a second target locus (the '
-             'default).'
+             'pre-v1.0.14 behaviour). By default, when miniprot finds a '
+             'reference gene at a locus no emitted model reaches, LiftOn '
+             'places it there as well: a whole-genome duplication gives the '
+             'target two genes where the reference has one, and the rescue '
+             'used to refuse the second because the reference gene had '
+             'already been emitted. Measured against zebrafish own GRCz11 '
+             'annotation, that refusal hid 690 real target genes on human to '
+             'zebrafish. Env LIFTON_RESCUE_SECOND_LOCUS=1/0 overrides.'
     )
     parser.add_argument(
         '--rescue-second-locus-max', dest='rescue_second_locus_max',
@@ -1268,7 +1268,8 @@ def run_all_lifton_steps(args):
     ################################
     _switch_manifest_phase(args, "load_reference_sequences")
     ref_trans_file = args.transcripts    
-    ref_proteins_file = args.proteins    
+    ref_proteins_file = args.proteins
+    _extract_stats = {}
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
         logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
         logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
@@ -1276,8 +1277,9 @@ def run_all_lifton_steps(args):
         # no in-memory dict materialisation. Then re-open via pyfaidx
         # so downstream consumers see the same lazy mmap-backed
         # interface as the user-supplied -P / -T branch below.
+        _extract_stats = {}
         generated_trans, generated_proteins = extract_sequence.extract_features_to_fasta(
-            ref_db, features, ref_fai, intermediate_dir,
+            ref_db, features, ref_fai, intermediate_dir, stats=_extract_stats,
         )
         # Preserve individually supplied sequences for normalized references.
         # Their IDs were checked against the explicit alias map above.
@@ -1294,9 +1296,13 @@ def run_all_lifton_steps(args):
         ref_proteins = Fasta(ref_proteins_file)
     logger.log("\t * number of transcripts: ", len(ref_trans.keys()), debug=True)
     logger.log("\t * number of proteins: ", len(ref_proteins.keys()), debug=True)
-    # Count, don't collect: the dict was built only to be measured, then held
-    # for the rest of the run.
-    trunc_ref_protein_count = lifton_utils.count_truncated_proteins(ref_proteins)
+    # Counted during the streaming write, where the protein string is already
+    # in hand. Falling back to the sweep keeps the user-supplied -P branch --
+    # which does no extraction -- reporting the same number.
+    if "truncated_proteins" in _extract_stats:
+        trunc_ref_protein_count = _extract_stats["truncated_proteins"]
+    else:
+        trunc_ref_protein_count = lifton_utils.count_truncated_proteins(ref_proteins)
     logger.log("\t\t * number of truncated proteins: ", trunc_ref_protein_count, debug=True)
     manifest.record_count("reference_transcripts", len(ref_trans.keys()))
     manifest.record_count("reference_proteins", len(ref_proteins.keys()))
