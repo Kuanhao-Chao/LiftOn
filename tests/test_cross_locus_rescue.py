@@ -420,7 +420,44 @@ class TestReplacementKeepsIsoforms:
         assert len(genes) == 1 and genes[0].startswith("chr2\t")
 
     def test_flag_off_keeps_the_weak_lift(self, tmp_path, hermetic_pipeline):
+        """Without the flag the weak lift is not REPLACED.
+
+        It is no longer alone, though. Since the second-locus rescue was
+        promoted, the default also places a model at the better locus, which
+        nothing occupied -- so the user gets the weak lift they always got plus
+        a correct model beside it. What cross-locus adds on top is the
+        *replacement*: dropping the weak one and moving the gene.
+        """
         body = _run_xlocus(_xlocus_workspace(tmp_path / "off"))
         rows = _mrnas(body, "gene2")
-        assert all(r[0] == "chr1" for r in rows)
+        weak = [r for r in rows if r[0] == "chr1"]
+        assert weak, "the weak lift must still be there; nothing replaced it"
         assert "lifton_rescue=cross_locus" not in body
+        # ... and the second-locus rescue surfaced the right model as well.
+        added = [r for r in rows if "lifton_rescue_second_locus=true" in r[8]]
+        assert len(added) == 1 and added[0][0] == "chr2"
+
+    def test_the_weak_lift_stands_alone_when_both_are_off(
+            self, tmp_path, hermetic_pipeline):
+        # The pre-promotion default, still reachable.
+        body = _run_xlocus(_xlocus_workspace(tmp_path / "bothoff"),
+                           "--no-rescue-second-locus")
+        rows = _mrnas(body, "gene2")
+        assert rows and all(r[0] == "chr1" for r in rows)
+        assert "lifton_rescue=cross_locus" not in body
+
+    def test_cross_locus_wins_when_it_is_asked_for(self, tmp_path,
+                                                   hermetic_pipeline):
+        """The two features answer the same question with opposite policies.
+
+        Cross-locus MOVES a weak gene; the second-locus rescue ADDS one beside
+        it. Run together, the move cannot happen -- the locus it wanted is
+        already taken -- and the gene stays at identity 0.061 instead of being
+        replaced at 1.000. Asking for cross-locus explicitly settles it.
+        """
+        body = _run_xlocus(_xlocus_workspace(tmp_path / "both"),
+                           "--miniprot-cross-locus-rescue")
+        rows = _mrnas(body, "gene2")
+        assert all(r[0] == "chr2" for r in rows), "the gene should have moved"
+        assert "lifton_rescue_second_locus=true" not in body
+        assert "lifton_rescue=cross_locus" in body
