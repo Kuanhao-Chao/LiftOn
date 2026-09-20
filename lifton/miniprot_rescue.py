@@ -521,11 +521,23 @@ SECOND_LOCUS_MAX_DEFAULT = 1
 
 def _second_locus_on(args):
     """Is the second-locus rescue on? ``LIFTON_RESCUE_SECOND_LOCUS`` wins over
-    the resolved flag, as every other rescue switch does."""
+    the resolved flag, as every other rescue switch does.
+
+    It defers to the cross-locus rescue when that is explicitly requested.
+    Both answer the same question -- this gene's DNA lift is weak and miniprot
+    found it somewhere else -- with opposite policies: cross-locus MOVES the
+    gene, this ADDS a second one. Running both means the move cannot happen,
+    because the locus it wanted is already taken; on the cross-locus fixture
+    the gene stayed at protein identity 0.061 instead of being replaced at
+    1.000. They only collide where the lift is weak, which is cross-locus's
+    whole domain, so the explicitly-requested feature wins.
+    """
     env = os.environ.get("LIFTON_RESCUE_SECOND_LOCUS")
     if env is not None:
         return env.strip().lower() not in ("", "0", "false", "no", "off")
     resolved = getattr(args, "rescue_second_locus", None)
+    if resolved is None and getattr(args, "cross_locus_rescue", False):
+        return False
     return SECOND_LOCUS_DEFAULT if resolved is None else bool(resolved)
 
 
