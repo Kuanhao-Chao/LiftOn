@@ -2,7 +2,7 @@ import sys
 
 from Bio.Seq import Seq
 
-from lifton import coding, logger
+from lifton import coding, drop_ledger, logger
 from lifton.exceptions import LiftOnInputError
 
 def determine_file_format(file_path):
@@ -266,6 +266,7 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None):
                 logger.log_warning(
                     f"extract_features_to_fasta: transcript {feature.id}: {e}"
                 )
+                drop_ledger.record("reference_transcript_sequence", feature.id)
         if len(children_CDSs) > 0:
             try:
                 table = coding.resolve_transl_table(
@@ -284,6 +285,7 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None):
                 logger.log_warning(
                     f"extract_features_to_fasta: protein {feature.id}: {e}"
                 )
+                drop_ledger.record("reference_protein_sequence", feature.id)
     else:
         for child in all_children:
             _stream_inner(ref_db, child, ref_fai, ft, fp, warned=warned,

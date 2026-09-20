@@ -1,4 +1,4 @@
-from lifton import intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
+from lifton import drop_ledger, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
 from intervaltree import IntervalTree
 import argparse
 from pyfaidx import Fasta
@@ -1077,6 +1077,9 @@ def run_all_lifton_steps(args):
     _align.configure_alignment(band=not getattr(args, "full_dp_align", False))
     resolve_miniprot_rescue_args(args)
     resolve_miniprot_candidate_args(args)
+    # The tally is module-level, so a process that runs several pipelines --
+    # every test in the suite does -- must start each one from zero.
+    drop_ledger.reset()
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -2046,6 +2049,9 @@ def run_all_lifton_steps(args):
     # but nothing surfaced it: `gff3-validate` reports it as a WARNING and the
     # release gates count errors. Report the number here so a user sees it
     # without running the validator.
+    # Everything this run dropped, in one place. The per-event warnings were
+    # always printed; what was missing was the number.
+    drop_ledger.report(manifest)
     _childless_genes = getattr(args, "_childless_gene_count", 0)
     manifest.record_count("genes_emitted_without_children", _childless_genes)
     if _childless_genes:
