@@ -2058,14 +2058,23 @@ def run_all_lifton_steps(args):
     # Everything this run dropped, in one place. The per-event warnings were
     # always printed; what was missing was the number.
     drop_ledger.report(manifest)
+    # Two different numbers. `genes_emitted_without_children` is the one to act
+    # on: the reference gave the gene children and we emitted none. The raw
+    # tally of bare gene lines is kept beside it because most of them are
+    # faithful -- RefSeq declares 10,626 single-row pseudogenes in the CHM13
+    # reference alone -- and reporting those as losses buried the real ones
+    # 11,130 to 2 across the benchmark corpus.
     _childless_genes = getattr(args, "_childless_gene_count", 0)
     manifest.record_count("genes_emitted_without_children", _childless_genes)
+    manifest.record_count("bare_gene_lines_emitted",
+                          getattr(args, "_bare_gene_line_count", 0))
     if _childless_genes:
         _childless_examples = getattr(args, "_childless_gene_ids", []) or []
         _shown = ", ".join(_childless_examples[:5])
         logger.log_warning(
             f"{_childless_genes} gene(s) were emitted with no child features "
-            f"(no transcript, exon or CDS)"
+            f"although the reference gives them children (no transcript, exon "
+            f"or CDS was written)"
             + (f"; e.g. {_shown}" if _shown else "")
         )
     try:

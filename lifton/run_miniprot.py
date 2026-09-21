@@ -1,4 +1,4 @@
-from lifton import (align, coding, coreutils, logger, lifton_class, lifton_utils,
+from lifton import (align, coding, coreutils, drop_ledger, logger, lifton_class, lifton_utils,
                     orf_completion)
 from dataclasses import dataclass
 from io import BytesIO
@@ -783,9 +783,11 @@ def process_miniprot(
     lifton_trans = None
     if not is_overlapped:
         ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-        if ref_gene_id is None or ref_trans_id is None:
+        if lifton_utils.record_unresolved_miniprot_hit(
+                ref_gene_id, ref_trans_id, mtrans_id):
             return None
         if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+            drop_ledger.record("reference_protein_sequence", ref_trans_id)
             return None
         # Check if the additional copy is valid:
         # 1. Remove processed pseudogenes: one miniprot CDS but >1 ref exon.
@@ -793,7 +795,8 @@ def process_miniprot(
         if (len(list(m_feature_db.children(mtrans, featuretype='CDS'))) == 1
                 and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1):
             return None
-        ref_feature_len = ref_features_len_dict.get(ref_gene_id)
+        ref_feature_len = lifton_utils.reference_length_or_none(
+            ref_features_len_dict, ref_gene_id)
         if not ref_feature_len:
             return None
         miniprot_trans_ratio = (

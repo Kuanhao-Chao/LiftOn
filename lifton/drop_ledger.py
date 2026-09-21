@@ -61,6 +61,22 @@ CLASSES: dict[str, str] = {
     "hierarchy_depth_exceeded":
         "feature nested deeper than the pre-fetch depth limit (its own row is "
         "emitted, but every transcript, exon and CDS below it was dropped)",
+    "miniprot_hit_unmapped":
+        "miniprot hit could not be tied to any reference transcript (its "
+        "Target= names a protein the id map does not contain)",
+    "miniprot_gene_unresolved":
+        "miniprot hit named a known reference transcript, but no reference "
+        "gene could be found for it, so the hit could not be rescued",
+    "reference_feature_length_missing":
+        "reference gene's CDS span was not in the length index, so the "
+        "length checks could not be applied and the candidate was skipped",
+    "rescue_candidate_error":
+        "miniprot-only rescue candidate raised while being built or scored "
+        "(the error was recorded as a pipeline failure and the candidate "
+        "abandoned)",
+    "cds_spanning_exons":
+        "CDS spanned more than one exon of its transcript (it was kept on the "
+        "exon it overlaps most; the part outside that exon is not emitted)",
 }
 
 _lock = threading.Lock()

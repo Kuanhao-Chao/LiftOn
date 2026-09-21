@@ -30,8 +30,8 @@ from collections import defaultdict
 
 from intervaltree import Interval
 
-from lifton import (align, coreutils, lifton_class, orf_completion,
-                    run_miniprot, lifton_utils, logger)
+from lifton import (align, coreutils, drop_ledger, lifton_class,
+                    orf_completion, run_miniprot, lifton_utils, logger)
 from lifton.intervals import _make_interval
 from lifton.locus_pipeline import DeferredStateJournal, commit_locus_delta
 
@@ -350,7 +350,15 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             key=lambda m: (m.seqid, m.start, m.end, m.attributes["ID"][0]),
         )
     except Exception as e:
-        logger.log_error(f"miniprot-only rescue: failed to enumerate mRNAs: {e}")
+        # Returning 0 here is indistinguishable, in every report, from "there
+        # was nothing to rescue". On a distant transfer the rescue supplies
+        # most of the recovered genes, so a silent no-op is a large, invisible
+        # loss. Count it and say so.
+        logger.log_error(
+            f"miniprot-only rescue: failed to enumerate mRNAs: {e}. The whole "
+            f"rescue pass was abandoned -- no gene was rescued, and this run's "
+            f"recall is NOT what a successful rescue would have produced.")
+        drop_ledger.record("rescue_candidate_error", "<whole rescue pass>")
         return 0
 
     # Divergence-adaptive PI floor (default ON): the DNA-lift gene recall is the
@@ -366,7 +374,15 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
                 _gid, _tid = lifton_utils.get_ref_ids_miniprot(
                     ref_features_reverse_dict, _m.attributes["ID"][0],
                     m_id_2_ref_id_trans_dict)
-            except Exception:
+            except Exception as exc:
+                # This set is the denominator of the adaptive floor, so losing
+                # entries here silently makes the rescue STRICTER genome-wide.
+                # It used to be swallowed without a log or a count.
+                logger.log_warning(
+                    f"miniprot-only rescue: could not resolve {_m.id!r} while "
+                    f"measuring DNA-lift recall ({exc}); the adaptive floor is "
+                    f"computed without it.")
+                drop_ledger.record("rescue_candidate_error", getattr(_m, "id", None))
                 _gid = None
             if _gid is not None:
                 universe.add(_gid)
@@ -388,7 +404,8 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             #     get_ref_ids_liftoff harvest -> dedup is comparable).
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-            if ref_gene_id is None or ref_trans_id is None:
+            if lifton_utils.record_unresolved_miniprot_hit(
+                    ref_gene_id, ref_trans_id, mtrans_id):
                 continue
 
             # (2) DEDUP: skip a ref gene already emitted by Step 7 (DNA lift),
@@ -404,6 +421,10 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
 
             # (3) protein availability (mirror process_miniprot:381)
             if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                # miniprot found this protein in the target, but the reference
+                # protein or transcript it names was never extracted, so the
+                # candidate cannot be scored against anything.
+                drop_ledger.record("reference_protein_sequence", ref_trans_id)
                 continue
 
             # (4) overlap suppression vs the FINAL tree_dict: a gene already
@@ -423,7 +444,8 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             # (6) length-ratio sanity band (the WIDE rescue band; the PI floor
             #     at step 8 is the real quality gate). Guards against a
             #     catastrophically mis-scaled miniprot hit.
-            ref_len = ref_features_len_dict.get(ref_gene_id)
+            ref_len = lifton_utils.reference_length_or_none(
+                ref_features_len_dict, ref_gene_id)
             if not ref_len:
                 continue
             ratio = (mtrans.end - mtrans.start + 1) / ref_len
@@ -650,13 +672,19 @@ def _coverage_gate_subpass(mtranscripts, floor, m_feature_db, ref_db,
             mtrans_id = mtrans.attributes["ID"][0]
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-            if ref_gene_id is None or ref_trans_id is None:
+            if lifton_utils.record_unresolved_miniprot_hit(
+                    ref_gene_id, ref_trans_id, mtrans_id):
                 continue
             if ref_gene_id in emitted_ref_gene_ids:
                 continue
             if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                # miniprot found this protein in the target, but the reference
+                # protein or transcript it names was never extracted, so the
+                # candidate cannot be scored against anything.
+                drop_ledger.record("reference_protein_sequence", ref_trans_id)
                 continue
-            ref_len = ref_features_len_dict.get(ref_gene_id)
+            ref_len = lifton_utils.reference_length_or_none(
+                ref_features_len_dict, ref_gene_id)
             if not ref_len:
                 continue
             ratio = (mtrans.end - mtrans.start + 1) / ref_len
@@ -756,14 +784,20 @@ def _second_locus_subpass(mtranscripts, floor, m_feature_db, ref_db,
             mtrans_id = mtrans.attributes["ID"][0]
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-            if ref_gene_id is None or ref_trans_id is None:
+            if lifton_utils.record_unresolved_miniprot_hit(
+                    ref_gene_id, ref_trans_id, mtrans_id):
                 continue
             # The inversion: only a gene already placed is a candidate here.
             if ref_gene_id not in emitted_ref_gene_ids:
                 continue
             if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                # miniprot found this protein in the target, but the reference
+                # protein or transcript it names was never extracted, so the
+                # candidate cannot be scored against anything.
+                drop_ledger.record("reference_protein_sequence", ref_trans_id)
                 continue
-            ref_len = ref_features_len_dict.get(ref_gene_id)
+            ref_len = lifton_utils.reference_length_or_none(
+                ref_features_len_dict, ref_gene_id)
             if not ref_len:
                 continue
             ratio = (mtrans.end - mtrans.start + 1) / ref_len
@@ -860,6 +894,9 @@ def _isoform_candidates(accepted, hits, ref_proteins, ref_trans):
         if mtrans.end < primary.start or mtrans.start > primary.end:
             continue
         if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+            # An isoform of a gene we DID rescue, dropped because its own
+            # reference protein was never extracted.
+            drop_ledger.record("reference_protein_sequence", ref_trans_id)
             continue
         key = _candidate_quality_key(mtrans, 0.0)
         if ref_trans_id not in best or key < best[ref_trans_id][0]:
@@ -1001,10 +1038,21 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans.attributes["ID"][0],
                 m_id_2_ref_id_trans_dict)
-        except Exception:
+        except Exception as exc:
+            # The quietest site in the module: a hit dropped out of the index
+            # with no log, no count and no trace, so the gene simply never saw
+            # that isoform.
+            logger.log_warning(
+                f"miniprot-only rescue: could not resolve {mtrans.id!r} while "
+                f"indexing isoform hits ({exc}); its gene will not be offered "
+                f"this isoform.")
+            drop_ledger.record("rescue_candidate_error",
+                               getattr(mtrans, "id", None))
             continue
-        if ref_gene_id is not None and ref_trans_id is not None:
-            hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
+        if lifton_utils.record_unresolved_miniprot_hit(
+                ref_gene_id, ref_trans_id, mtrans.attributes["ID"][0]):
+            continue
+        hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
 
     max_inflight = _rescue_max_inflight(args)
     timings = getattr(args, "_rescue_timings", None)

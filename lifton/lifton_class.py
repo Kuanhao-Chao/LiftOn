@@ -1,4 +1,4 @@
-from lifton import align, coding, coreutils, get_id_fraction, variants, logger
+from lifton import align, coding, coreutils, drop_ledger, get_id_fraction, variants, logger
 from lifton.cds_id_allocator import CdsIdAllocator
 from lifton.io import feature_serializer
 import copy, os, re
@@ -602,22 +602,41 @@ class Lifton_TRANS:
                 (gffutil_entry_cds.start, gffutil_entry_cds.end))[1]
         ]
         if len(overlapping) > 1:
-            # "A CDS lies in exactly one exon" is assumed throughout the model
-            # but was never checked, so a CDS spanning an intron was attached to
-            # every exon it touched -- emitting the same CDS several times, and
-            # (because they shared ONE Feature object) letting a later edit to
-            # any copy silently rewrite the others.
+            # "A CDS lies in exactly one exon" is assumed throughout the model.
+            # This used to attach the CDS to EVERY exon it touched, so the
+            # transcript emitted the same coding block two or more times -- the
+            # duplicate-CDS defect reached from the other direction, and it
+            # doubled the protein.
+            #
+            # It also blamed the input ("The reference model is malformed
+            # here"), which on real data was false: the extra exon was one
+            # LiftOn had just created by ingesting miniprot's redundant
+            # `stop_codon`. With that fixed this branch stops firing entirely
+            # (CHM13 8,546 -> 0, rice 4,468 -> 0, bee 3,614 -> 0, drosophila
+            # 2,632 -> 0), so what remains is a reference CDS that genuinely
+            # spans an intron.
+            #
+            # Keep it on the exon it overlaps most and count the rest. Emitting
+            # it once is a loss of the overhanging bases; emitting it twice is
+            # a wrong protein, which is worse and silent.
+            best = max(overlapping, key=lambda exon: (
+                coreutils.segments_overlap_length(
+                    (exon.entry.start, exon.entry.end),
+                    (gffutil_entry_cds.start, gffutil_entry_cds.end))[0],
+                -exon.entry.start))
             logger.log_warning(
                 f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
                 f"({gffutil_entry_cds.start}-{gffutil_entry_cds.end}) spans "
-                f"{len(overlapping)} exons of {self.entry.id}; each will carry "
-                "its own copy. The reference model is malformed here."
+                f"{len(overlapping)} exons of {self.entry.id}; keeping it on "
+                f"exon {best.entry.start}-{best.entry.end} only, so the coding "
+                "sequence is not counted twice."
             )
+            drop_ledger.record("cds_spanning_exons",
+                               getattr(gffutil_entry_cds, "id", None))
+            overlapping = [best]
         for exon in overlapping:
-            entry = (gffutil_entry_cds if len(overlapping) == 1
-                     else coreutils.clone_feature(gffutil_entry_cds))
-            entry.attributes['Parent'] = [self.entry.id]
-            exon.add_cds(entry)
+            gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
+            exon.add_cds(gffutil_entry_cds)
 
     def update_gffutil_entry_trans(self, gffutil_entry_trans):
         for key, atr in gffutil_entry_trans.attributes.items():

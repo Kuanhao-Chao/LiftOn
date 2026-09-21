@@ -50,19 +50,33 @@ class TestCdsSpanningSeveralExons:
         # Unchanged for the single-exon case: the caller's object is used.
         assert trans.exons[0].cds.entry is cds
 
-    def test_a_spanning_cds_gives_each_exon_its_own_object(self, make_gffutils_feature):
+    def test_a_spanning_cds_is_attached_to_one_exon_only(self, make_gffutils_feature):
+        """Supersedes an earlier test that required each exon to get its own
+        COPY of the CDS.
+
+        That was the right fix for the bug of the day -- all the exons had been
+        handed the SAME Feature object, so editing one rewrote the others --
+        but it left the deeper problem in place: the transcript still emitted
+        the same coding block twice, and the protein still counted those bases
+        twice. Attaching it once makes the aliasing impossible rather than
+        merely survivable, which is the stronger guarantee.
+
+        The overhanging part of the CDS is no longer emitted; that is a loss of
+        bases, recorded in the drop ledger, and it is the lesser of the two
+        wrongs. See tests/test_cds_spanning_exons.py for the full contract.
+        """
         trans = self._trans(make_gffutils_feature, [(100, 200), (300, 400)])
         cds = make_gffutils_feature(featuretype="CDS", start=150, end=350,
                                     feature_id="cds-1",
                                     attributes={"ID": ["cds-1"]})
         trans.add_cds(cds)
 
-        first, second = trans.exons[0].cds, trans.exons[1].cds
-        assert first is not None and second is not None
-        assert first.entry is not second.entry
-
-        first.entry.attributes["ID"] = ["rewritten"]
-        assert second.entry.attributes["ID"] == ["cds-1"]
+        carried = [exon for exon in trans.exons if exon.cds is not None]
+        assert len(carried) == 1, (
+            "a CDS emitted under two exons doubles the coding sequence")
+        # 150-200 shares 51 bp with exon 1, 300-350 shares 51 with exon 2; the
+        # tie is broken toward the earlier exon, deterministically.
+        assert (carried[0].entry.start, carried[0].entry.end) == (100, 200)
 
     def test_a_spanning_cds_is_reported(self, make_gffutils_feature, monkeypatch):
         from lifton import lifton_class
