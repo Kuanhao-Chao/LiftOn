@@ -5,7 +5,7 @@ from lifton.liftoff import liftoff_main
 # Iteration 16: the three pure helpers below moved to the dependency-free
 # leaf module lifton.coreutils to break the lifton_utils <-> lifton_class
 # import cycle. Re-exported here so lifton_utils.<helper> keeps resolving.
-from lifton import coreutils
+from lifton import coreutils, drop_ledger
 from lifton.tool_execution import EXTERNAL_ALIGNER_INSTALL_HELP
 import gffutils
 from lifton.coreutils import (  # noqa: F401
@@ -468,24 +468,44 @@ def get_ref_liffover_features(features, ref_db, intermediate_dir, args):
                 fw_gene.write(f"{locus.id}\tother\n")
             exon_children = list(ref_db.db_connection.children(locus, featuretype='exon', level=1, order_by='start'))
             if len(exon_children) > 0:
+                # This feature carries its own exons, so it acts as its own
+                # transcript for the lift. It may ALSO have a transcript child:
+                # RefSeq's organellar convention lists a plastid gene's exons
+                # twice, once directly under the gene and once under its mRNA.
+                #
+                # This branch used to stop here, which left that mRNA out of
+                # `ref_features_reverse_dict` entirely -- so a miniprot hit
+                # naming it could not be mapped back to a gene and every rescue
+                # candidate for it was abandoned in silence (12 genes in the
+                # rice reference, 0 in human RefSeq), and `Lifton_feature.
+                # children` stayed empty, which hid a real bare-gene-line loss
+                # from the childless-gene counter.
+                #
+                # Index the transcript children as well. Nothing about the
+                # exon-bearing locus itself changes.
                 __process_ref_liffover_features(locus, ref_db, None)
+                transcripts = [
+                    child for child
+                    in ref_db.db_connection.children(locus, level=1)
+                    if child.featuretype != 'exon'
+                ]
             else:
-                transcripts = ref_db.db_connection.children(locus, level=1)
-                for transcript in list(transcripts):
-                    __process_ref_liffover_features(transcript, ref_db, feature)
-                    ref_features_reverse_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = locus.id
-                    all_CDS_in_trans = list(ref_db.db_connection.children(transcript, featuretype='CDS', order_by='start'))
-                    if len(all_CDS_in_trans) > 0:
-                        ref_trans_exon_num_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = len(all_CDS_in_trans)
-                    else:
-                        ref_trans_exon_num_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = 0
-                    # Write out reference trans feature IDs
-                    if feature.is_protein_coding and transcript.featuretype == "mRNA":
-                        fw_trans.write(f"{transcript.id}\tcoding\n")
-                    elif feature.is_non_coding and (transcript.featuretype == "ncRNA" or transcript.featuretype == "nc_RNA" or transcript.featuretype == "lncRNA" or transcript.featuretype == "lnc_RNA"):
-                        fw_trans.write(f"{transcript.id}\tnon-coding\n")
-                    else:
-                        fw_trans.write(f"{transcript.id}\tother\n")
+                transcripts = list(ref_db.db_connection.children(locus, level=1))
+            for transcript in list(transcripts):
+                __process_ref_liffover_features(transcript, ref_db, feature)
+                ref_features_reverse_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = locus.id
+                all_CDS_in_trans = list(ref_db.db_connection.children(transcript, featuretype='CDS', order_by='start'))
+                if len(all_CDS_in_trans) > 0:
+                    ref_trans_exon_num_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = len(all_CDS_in_trans)
+                else:
+                    ref_trans_exon_num_dict[transcript.id if not args.evaluation_liftoff_chm13 else locus.id[4:]] = 0
+                # Write out reference trans feature IDs
+                if feature.is_protein_coding and transcript.featuretype == "mRNA":
+                    fw_trans.write(f"{transcript.id}\tcoding\n")
+                elif feature.is_non_coding and (transcript.featuretype == "ncRNA" or transcript.featuretype == "nc_RNA" or transcript.featuretype == "lncRNA" or transcript.featuretype == "lnc_RNA"):
+                    fw_trans.write(f"{transcript.id}\tnon-coding\n")
+                else:
+                    fw_trans.write(f"{transcript.id}\tother\n")
             ref_features_dict[locus.id if not args.evaluation_liftoff_chm13 else locus.id[5:]] = feature
             all_CDS_children = CDS_children
             if len(all_CDS_children) > 0:
@@ -674,6 +694,44 @@ def get_ref_ids_miniprot(ref_features_reverse_dict, miniprot_trans_id, m_id_2_re
     if ref_trans_id not in ref_features_reverse_dict.keys():
         return None, ref_trans_id
     return ref_features_reverse_dict[ref_trans_id], ref_trans_id
+
+
+def record_unresolved_miniprot_hit(ref_gene_id, ref_trans_id,
+                                   miniprot_trans_id):
+    """Count a miniprot hit that could not be tied back to a reference gene.
+
+    ``get_ref_ids_miniprot`` already distinguishes the two failures by what it
+    puts in the second slot -- ``(None, None)`` when the hit is not in the id
+    map at all, ``(None, ref_trans_id)`` when the transcript is known but no
+    gene could be found for it. Every caller collapsed both into one
+    ``continue``, so the distinction existed and was thrown away five times
+    over, and the rescue reported no losses because it counted none.
+
+    Returns True when the caller should abandon the candidate, so a call site
+    keeps reading as the single guard it was.
+    """
+    if ref_gene_id is not None:
+        return False
+    if ref_trans_id is None:
+        drop_ledger.record("miniprot_hit_unmapped", miniprot_trans_id)
+    else:
+        drop_ledger.record("miniprot_gene_unresolved", ref_trans_id)
+    return True
+
+
+def reference_length_or_none(ref_features_len_dict, ref_gene_id):
+    """The reference gene's CDS span, or None if the index has no entry.
+
+    ``ref_features_len_dict.get(x)`` returning ``None`` (the gene is not in the
+    index at all) and returning ``0`` (the gene is in the index and genuinely
+    has no CDS rows) were both consumed by ``if not ref_len: continue``. The
+    first is a lookup failure worth counting; the second is a correct decision
+    about a non-coding gene. Only the first is recorded.
+    """
+    length = ref_features_len_dict.get(ref_gene_id)
+    if length is None:
+        drop_ledger.record("reference_feature_length_missing", ref_gene_id)
+    return length
 
 
 def print_lifton_status(transcript_id, transcript, lifton_status, DEBUG=False):
