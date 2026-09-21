@@ -247,3 +247,39 @@ def non_primary_seqid_class(seqid):
         if name.endswith(suffix):
             return label
     return None
+
+
+def drop_redundant_stop_codons(children):
+    """Drop a ``stop_codon`` row that a sibling ``CDS`` already covers.
+
+    miniprot emits the terminal ``CDS`` of a hit *including* its stop codon and
+    then repeats those same three bases as a nested ``stop_codon`` row. Every
+    one of the 3,963 ``stop_codon`` rows in a whole-genome human miniprot run
+    is fully contained in a sibling CDS -- not one carries a base the CDS list
+    does not already have.
+
+    The consumers of ``children(featuretype=('CDS','stop_codon'))`` add every
+    row as an exon *and* as a CDS, so each redundant row became a 3 bp exon
+    nested inside the terminal exon (an overlapping-exon pair the reference
+    does not have, and an overlapping -- sometimes exactly duplicated -- CDS),
+    while ``add_cds`` overwrote the real terminal CDS. It also fired the
+    "spans 2 exons ... each will carry its own copy" warning 8,537 times in one
+    CHM13 run.
+
+    Only *covered* rows are dropped. A ``stop_codon`` that sits outside every
+    sibling CDS -- the GTF convention, where the CDS stops short of it -- still
+    carries sequence, so it is kept and this function is a no-op for it.
+    """
+    rows = list(children)
+    cds_spans = [(int(row.start), int(row.end)) for row in rows
+                 if row.featuretype == "CDS"]
+    if not cds_spans:
+        return rows
+    kept = []
+    for row in rows:
+        if row.featuretype == "stop_codon":
+            start, end = int(row.start), int(row.end)
+            if any(lo <= start and end <= hi for lo, hi in cds_spans):
+                continue
+        kept.append(row)
+    return kept

@@ -12,7 +12,7 @@ conventions:
   • Exon / CDS containment within parent transcript
   • Transcript containment within parent gene
   • CDS coordinates contained within corresponding exon
-  • No overlapping CDS within one transcript
+  • No overlapping exons, and no overlapping CDS, within one transcript
   • No duplicate gene/transcript IDs in the file
   • LiftOn-specific attribute checks (protein_identity, dna_identity, annotation_source)
 
@@ -985,6 +985,9 @@ def _validate_streaming(
             containment_issues.extend(_check_containment(
                 records, id_to_record, max_issues_per_check,
                 shared_counts=containment_counts))
+            containment_issues.extend(_check_sibling_overlap(
+                parent_to_children, id_to_record, max_issues_per_check,
+                shared_counts=containment_counts))
         if check_cds_phase:
             phase_issues.extend(_check_cds_phase(
                 parent_to_children, id_to_record, max_issues_per_check,
@@ -1194,6 +1197,10 @@ def validate_gff3_file(
     if check_containment:
         result.issues.extend(
             _check_containment(records, id_to_record, max_issues_per_check)
+        )
+        result.issues.extend(
+            _check_sibling_overlap(parent_to_children, id_to_record,
+                                   max_issues_per_check)
         )
 
     # ── CDS phase validation ─────────────────────────────────────────────────
@@ -1772,6 +1779,51 @@ def _check_containment(
                     f"parent '{parent.feat_id}' [{parent.start}, {parent.end}]"
                 ))
 
+    return issues
+
+
+def _check_sibling_overlap(
+    parent_to_children: Dict[str, List[GFF3Record]],
+    id_to_record: Dict[str, GFF3Record],
+    max_issues: int,
+    shared_counts: Optional[Dict[str, int]] = None,
+) -> List[GFF3Issue]:
+    """Two exons -- or two CDS -- of one transcript must not overlap.
+
+    An overlap between two exons of the same transcript says there is no intron
+    between them, so they are one exon; an overlap between two CDS makes the
+    translated protein count those bases twice. Reference annotations have
+    neither. The module docstring has claimed this check since the file was
+    written, and until now it did not exist -- so LiftOn shipped both classes
+    past a validator that reported the file clean.
+
+    Segments of one discontinuous feature share an ID by design, and they still
+    must not overlap each other, so they are checked like any other pair.
+    """
+    issues: List[GFF3Issue] = []
+    issue_counts: Dict[str, int] = (
+        defaultdict(int) if shared_counts is None else shared_counts)
+
+    for parent_id, children in parent_to_children.items():
+        parent = id_to_record.get(parent_id)
+        if parent is None or not is_transcript_type(parent.ftype):
+            continue
+        for ftype, check in (("exon", "exon_overlap"), ("CDS", "cds_overlap")):
+            rows = sorted(
+                (rec for rec in children if rec.ftype == ftype),
+                key=lambda rec: (rec.start, rec.end),
+            )
+            for earlier, later in zip(rows, rows[1:]):
+                if later.start > earlier.end:
+                    continue
+                issue_counts[check] += 1
+                if issue_counts[check] <= max_issues:
+                    issues.append(GFF3Issue(
+                        Severity.ERROR, later.lineno, later.feat_id, check,
+                        f"{ftype} [{later.start}, {later.end}] overlaps "
+                        f"{ftype} [{earlier.start}, {earlier.end}] of the same "
+                        f"transcript '{parent_id}'"
+                    ))
     return issues
 
 
