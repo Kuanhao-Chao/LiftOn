@@ -35,6 +35,18 @@ Unreleased
 - Repair direct-GTF self-parent relations and preserve transcript IDs during
   inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
   checks after conversion.
+- Attach a CDS spanning more than one exon to a single exon instead of
+  cloning it onto every exon it touches, which emitted the same coding block
+  twice and doubled the protein.
+- Count what the miniprot-only rescue abandons: it is on by default, abandons
+  candidates in ~40 places and recorded none, so a drop total of 0 meant
+  "nothing was counted". Deliberate filters stay uncounted; failed lookups do
+  not.
+- Index the transcript of a reference gene that also declares its own exons
+  (RefSeq's organellar convention), so a miniprot hit on it can be resolved.
+- Report ``genes_emitted_without_children`` only where the reference gave the
+  gene children; the raw tally is now ``bare_gene_lines_emitted``. It was
+  11,130 reported across four genomes against 2 real.
 - Make ``--threads 1`` and ``--threads N`` agree again: the per-locus runtime
   asked for a transcript's exons recursively while the Step-7 proxy cached the
   direct children. On RefSeq's organellar convention that returned each exon
