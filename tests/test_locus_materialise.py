@@ -642,3 +642,211 @@ class TestNativeExceptionIsolation:
         # locus 2 silently skipped; all others emitted in order
         assert "2" not in emitted
         assert emitted == ["0", "1", "3", "4"]
+
+
+class TestNestedExonAgreement:
+    """A transcript's exon set must not absorb a child transcript's exons.
+
+    RefSeq encodes a microRNA precursor as ``primary_transcript`` -> its own
+    exon, plus a nested ``miRNA`` -> that miRNA's exon. The precursor has ONE
+    exon of its own; the miRNA's exon belongs to the miRNA.
+
+    ``run_liftoff.lifton_add_trans_exon_cds`` asked for exons with no ``level``,
+    which is recursive, so a serial run attached the miRNA's exon to the
+    precursor as well -- a second, nested exon the reference does not have. The
+    Step-7 proxy served level-1 only, so a threaded run did not. Same input,
+    different GFF3: 46 such features in ``test/GRCh38_chr22.gff3`` and 1,915 in
+    the human RefSeq reference.
+
+    Both halves are pinned here: the two paths agree, AND they agree on the
+    answer the reference supports.
+    """
+
+    def _nested_hierarchy(self):
+        gene = SimpleNamespace(id="gene1", start=1, end=500, featuretype="gene")
+        # The precursor: one exon of its own, plus a nested transcript.
+        precursor = SimpleNamespace(id="tx1", start=10, end=200,
+                                    featuretype="primary_transcript")
+        exon1 = SimpleNamespace(id="exon1", start=10, end=200,
+                                featuretype="exon")
+        mirna = SimpleNamespace(id="mir1", start=40, end=61, featuretype="miRNA")
+        mirna_exon = SimpleNamespace(id="exon-mir1", start=40, end=61,
+                                     featuretype="exon")
+        db = _RecordingBatchedLDB({
+            "gene1": (precursor,),
+            "tx1": (exon1, mirna),
+            "mir1": (mirna_exon,),
+        })
+        return gene, db
+
+    def _ctx(self, db):
+        return StepContext(
+            ref_db=_FakeRefDB({}), l_feature_db=db, m_feature_db=None,
+            ref_id_2_m_id_trans_dict={}, tree_dict={},
+            tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
+            ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
+            args=SimpleNamespace(native=True, threads=8),
+        )
+
+    def test_the_precursor_keeps_only_its_own_exon(self):
+        """The reference's own answer: one exon, not two."""
+        gene, db = self._nested_hierarchy()
+        payload = materialise_locus(0, gene, self._ctx(db))
+        cached = payload.feature_cache["tx1"]
+        assert [child.id for child in cached.exon_children_full] == ["exon1"], (
+            "the precursor must not absorb the nested miRNA's exon"
+        )
+
+    def test_the_runtime_asks_for_level_1_exons(self):
+        """Pin the coupling, not a copy of the query.
+
+        The proxy caches level-1 exons. The two execution paths agree only
+        while the runtime asks for level-1 too -- so this asserts what
+        ``lifton_add_trans_exon_cds`` actually sends, and fails if anyone
+        restores the recursive form without also changing the cache.
+        """
+        from lifton import run_liftoff
+
+        seen = []
+
+        class _SpyDb:
+            def children(self, feature, featuretype=None, level=None,
+                         order_by=None):
+                seen.append({"featuretype": featuretype, "level": level,
+                             "order_by": order_by})
+                return iter([])
+
+        class _SpyGene:
+            entry = SimpleNamespace(id="tx1")
+
+            def add_transcript(self, *a, **kw):
+                return SimpleNamespace(entry=SimpleNamespace(id="tx1"))
+
+            def add_exon(self, *a, **kw):
+                pass
+
+            def add_cds(self, *a, **kw):
+                pass
+
+        locus = SimpleNamespace(id="tx1", start=10, end=200, seqid="chr1",
+                                source="test", score=".", strand="+",
+                                frame=".", attributes={},
+                                featuretype="primary_transcript")
+        run_liftoff.lifton_add_trans_exon_cds(
+            _SpyGene(), locus, _FakeRefDB({"r1": SimpleNamespace(
+                attributes={}, id="r1")}), _SpyDb(), "r1")
+
+        exon_query = next(q for q in seen if q["featuretype"] == "exon")
+        assert exon_query["level"] == 1, (
+            "a recursive exon query attaches a nested transcript's exons to "
+            "its parent, and disagrees with the proxy's level-1 cache"
+        )
+
+    def test_proxy_and_database_answer_the_runtime_query_identically(self):
+        """The two execution paths must not disagree.
+
+        `--threads 1` runs against the real database and `--threads N` against
+        the proxy, so any difference here is a `-t 1` vs `-t N` byte difference.
+        """
+        gene, db = self._nested_hierarchy()
+        payload = materialise_locus(0, gene, self._ctx(db))
+
+        def exons_seen(hierarchy_db, feature_id):
+            feature = SimpleNamespace(id=feature_id)
+            return [child.id for child in hierarchy_db.children(
+                feature, featuretype="exon", level=1, order_by="start")]
+
+        proxy = locus_pipeline._LFeatureDbProxy(payload.feature_cache)
+        assert exons_seen(proxy, "tx1") == exons_seen(db, "tx1") == ["exon1"]
+
+    def test_the_scalar_walker_agrees_with_the_batched_one(self, monkeypatch):
+        """Both walkers feed the same proxy and must cache the same thing."""
+        gene, db = self._nested_hierarchy()
+        monkeypatch.setattr(db, "batched", False, raising=False)
+        payload = materialise_locus(0, gene, self._ctx(db))
+        cached = payload.feature_cache["tx1"]
+        assert [child.id for child in cached.exon_children_full] == ["exon1"]
+
+
+class TestDepthGuardIsCounted:
+    """A hierarchy deeper than the pre-fetch limit must not vanish quietly.
+
+    Both walkers stop at ``max_depth``. The features past it never reach
+    ``payload.feature_cache``, and ``_LFeatureDbProxy.children`` answers an
+    un-cached id with an **empty iterator** -- not the ``KeyError`` the scalar
+    walker's warning promised. So the truncated feature's row is still emitted
+    while its entire subtree (transcripts, exons, CDS) is dropped: no error, no
+    failure record, and until now no count. That is the exact shape of the
+    ``-copies`` bug that shipped for three releases.
+    """
+
+    def _deep_chain(self, depth):
+        """A chain of containers: no level-1 exons, so the walk recurses."""
+        children = {}
+        for i in range(depth):
+            children[f"c{i}"] = (
+                SimpleNamespace(id=f"c{i + 1}", start=10 + i, end=400 - i,
+                                featuretype="mRNA"),
+            )
+        # A real leaf at the bottom, so a complete walk has something to find.
+        children[f"c{depth}"] = (
+            SimpleNamespace(id="deep-exon", start=100, end=120,
+                            featuretype="exon"),
+        )
+        root = SimpleNamespace(id="c0", start=1, end=500, featuretype="gene")
+        return root, _RecordingBatchedLDB(children)
+
+    def _ctx(self, db):
+        return StepContext(
+            ref_db=_FakeRefDB({}), l_feature_db=db, m_feature_db=None,
+            ref_id_2_m_id_trans_dict={}, tree_dict={},
+            tgt_fai=mock.Mock(), ref_proteins={}, ref_trans={},
+            ref_features_dict={}, fw_score=io.StringIO(), fw_chain=None,
+            args=SimpleNamespace(native=True, threads=8),
+        )
+
+    def test_the_scalar_walker_counts_what_it_truncates(self):
+        from lifton import drop_ledger
+        drop_ledger.reset()
+        root, db = self._deep_chain(8)
+        payload = MaterialisedLocus(submission_index=0, locus=root,
+                                   locus_id=root.id)
+        locus_pipeline._walk_and_cache_features(
+            root, self._ctx(db), payload, max_depth=3)
+
+        assert "c5" not in payload.feature_cache, "fixture must truncate"
+        assert drop_ledger.counts().get("hierarchy_depth_exceeded"), (
+            "a subtree dropped for depth must be counted, not only logged"
+        )
+
+    def test_the_batched_walker_counts_what_it_truncates(self):
+        from lifton import drop_ledger
+        drop_ledger.reset()
+        root, db = self._deep_chain(8)
+        payload = MaterialisedLocus(submission_index=0, locus=root,
+                                   locus_id=root.id)
+        locus_pipeline._walk_and_cache_features_batched(
+            root, self._ctx(db), payload,
+            HierarchyBatchLoader(db), max_depth=3)
+
+        assert "c5" not in payload.feature_cache, "fixture must truncate"
+        assert drop_ledger.counts().get("hierarchy_depth_exceeded"), (
+            "the batched walker exits on its loop condition and logged nothing"
+        )
+
+    def test_the_proxy_truncates_silently_rather_than_raising(self):
+        """Why the count is the only signal: the promised KeyError never comes."""
+        from lifton import drop_ledger
+        drop_ledger.reset()
+        root, db = self._deep_chain(8)
+        payload = MaterialisedLocus(submission_index=0, locus=root,
+                                   locus_id=root.id)
+        locus_pipeline._walk_and_cache_features(
+            root, self._ctx(db), payload, max_depth=3)
+
+        proxy = locus_pipeline._LFeatureDbProxy(payload.feature_cache)
+        truncated = SimpleNamespace(id="c5")
+        assert list(proxy.children(truncated, level=1)) == [], (
+            "an un-cached id yields an empty iterator, so the runtime cannot "
+            "tell a truncated subtree from a childless feature"
+        )
