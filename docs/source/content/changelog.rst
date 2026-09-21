@@ -35,6 +35,20 @@ Unreleased
 - Repair direct-GTF self-parent relations and preserve transcript IDs during
   inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
   checks after conversion.
+- Make ``--threads 1`` and ``--threads N`` agree again: the per-locus runtime
+  asked for a transcript's exons recursively while the Step-7 proxy cached the
+  direct children. On RefSeq's organellar convention that returned each exon
+  twice, so a default single-threaded rice lift emitted 17 genes with
+  duplicated exons and a doubled CDS.
+- Stop emitting overlapping exons within one transcript (the open half of
+  GH #26): miniprot's redundant ``stop_codon`` is no longer ingested as a
+  second exon, and a rebuilt exon is reconciled against the one it ran into.
+  Reference annotations have none of these; LiftOn emitted 27 on CHM13, 96 on
+  human to zebrafish, 47 on drosophila, 30 on rice and 13 on bee.
+- Add the overlapping-exon and overlapping-CDS checks ``gff3-validate``'s
+  documentation has always claimed.
+- Index the windowed aligner's reference only over the query's k-mers: same
+  anchors, same windows, 1.3-1.9x faster anchor construction.
 - Strengthen release evidence with candidate/reference roles, artifact receipts,
   explicit expected cells and rejection of incomplete or stale results.
 - Require campaign and attempt history, isolate imported source modules, and
