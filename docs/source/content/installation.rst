@@ -239,14 +239,15 @@ Run the following command to make sure LiftOn is properly installed:
                     [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A]
                     [-s S] [-min_miniprot MIN_MINIPROT] [-max_miniprot MAX_MINIPROT]
                     [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH] [-f TYPES]
-                    [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT]
-                    [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO]
-                    [-gap_extend GE] [-polish] [-cds] [-time] [--validate-output]
-                    [--validate-verbose] [--allow-partial-output]
-                    [--strict-completeness] [--strict-gff] [--stream]
-                    [--inmemory-liftoff] [--locus-pipeline] [--no-locus-pipeline]
-                    [--parallel-lift] [--no-parallel-lift] [--step7-max-inflight N]
-                    [--step8-max-inflight N] [--evaluation-max-inflight N] [--native]
+                    [-infer-genes] [-infer_transcripts] [-chroms TXT]
+                    [-unplaced TXT] [-copies] [-sc SC] [-overlap O] [-mismatch M]
+                    [-gap_open GO] [-gap_extend GE] [-polish] [-cds] [-time]
+                    [--validate-output] [--validate-verbose]
+                    [--allow-partial-output] [--strict-completeness] [--strict-gff]
+                    [--stream] [--inmemory-liftoff] [--locus-pipeline]
+                    [--no-locus-pipeline] [--parallel-lift] [--no-parallel-lift]
+                    [--step7-max-inflight N] [--step8-max-inflight N]
+                    [--evaluation-max-inflight N] [--native]
                     [--serial-aligners | --parallel-aligners] [--optimize]
                     [--legacy-merge] [--full-dp-align] [--fast-align] [--gene-only]
                     [--lift-gene-like] [--no-miniprot-rescue] [--miniprot-rescue]
@@ -254,7 +255,9 @@ Run the following command to make sure LiftOn is properly installed:
                     [--miniprot-candidate] [--no-adaptive-rescue-floor]
                     [--adaptive-rescue-floor] [--coverage-rescue-gate]
                     [--no-coverage-rescue-gate] [-dir PATH] [--orf-stop-completion]
-                    [--no-orf-stop-completion] [--rescue-isoforms]
+                    [--no-orf-stop-completion] [--rescue-max-inflight N]
+                    [--rescue-second-locus] [--no-rescue-second-locus]
+                    [--rescue-second-locus-max N] [--rescue-isoforms]
                     [--no-rescue-isoforms] -g GFF [-P FASTA] [-T FASTA] [-L gff]
                     [-M gff]
                     [--merge-strategy {create_unique,merge,error,warning,replace}]
@@ -267,7 +270,7 @@ Run the following command to make sure LiftOn is properly installed:
       Run `lifton -h` for the complete option list. The full, current flag
       reference -- every option's default, which flags CHANGE the output vs. the
       byte-identical fast-paths, and the kept no-op aliases -- is documented in
-      the User Manual / Function manual page. The most-used v1.0.12 options:
+      the User Manual / Function manual page. The most-used options:
 
         Output-changing defaults (each ships with an opt-out flag):
           (default) lift all gene-like types ......... --gene-only
@@ -279,6 +282,7 @@ Run the following command to make sure LiftOn is properly installed:
           (default) protein-coverage rescue gate ..... --no-coverage-rescue-gate
           (default) isoform-aware rescue ............. --no-rescue-isoforms
           (default) terminal-stop completion ......... --no-orf-stop-completion
+          (default) second-locus placement ........... --no-rescue-second-locus
 
         Byte-identical fast-paths (output unchanged; pinned by the 24-cell matrix):
           --threads N (per-locus fan-out and the parallel Liftoff lift loop

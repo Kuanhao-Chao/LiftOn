@@ -37,6 +37,29 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ### Fixed
 
+- `--threads 1` and `--threads N` produce the same annotation again. The
+  per-locus runtime asked for a transcript's exons recursively while the
+  Step-7 proxy has always cached the direct children, so the two paths read
+  different exon sets wherever a lifted feature has both. RefSeq's organellar
+  convention is exactly that shape - a chloroplast gene lists its exons once
+  directly and once under its mRNA - and the recursive query returned each
+  coordinate pair twice, so a default single-threaded rice lift emitted 17
+  genes with duplicated exons and a doubled CDS where a `-t 8` run emitted them
+  correctly. The default was the wrong arm.
+- No transcript is emitted with overlapping exons (the open half of #26).
+  miniprot writes a hit's terminal CDS including its stop codon and then
+  repeats those three bases as a nested `stop_codon`; all 3,963 such rows in a
+  whole-genome human run are already covered by a sibling CDS, and ingesting
+  them added a 3 bp exon inside the terminal exon while overwriting the real
+  terminal CDS. Separately, a rebuilt exon could take its end from a chained
+  CDS reaching into the next Liftoff exon, which was then appended untouched.
+  Across CHM13, human to zebrafish, drosophila, rice and bee the reference
+  annotations have none of these and LiftOn emitted 27, 96, 47, 30 and 13.
+  `LIFTON_NO_EXON_OVERLAP_RECONCILE=1` restores the old behaviour.
+- `gff3-validate` now checks that no two exons, and no two CDS, of one
+  transcript overlap. The module docstring had claimed the CDS half since the
+  file was written and neither check existed, which is why a published
+  annotation with 27 such transcripts validated clean.
 - A worker pool that cannot fork no longer aborts the run. Under strict
   overcommit accounting the kernel charges each child the parent's whole
   address space, so a large parent can fail to start workers with hundreds of
@@ -47,6 +70,12 @@ All notable changes to **LiftOn** are documented here. This project follows
   all. The validation is kept and becomes fatal under `--strict-gff`.
 
 ### Changed
+
+- The windowed aligner indexes the reference only over k-mers the query
+  contributes. An anchor must be unique in both sequences, so the restriction
+  yields the same anchors and the same windows; `_unique_anchors`, the largest
+  single component of the aligner's self time on a mammalian lift, runs
+  1.3-1.9x faster, the wider margin at higher divergence.
 
 - Step 7 is faster by roughly a tenth on the same-species and mammalian runs
   where it dominates: translation answers from a flat codon map rather than
