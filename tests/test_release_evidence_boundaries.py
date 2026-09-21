@@ -511,6 +511,44 @@ def test_dependency_evidence_follows_runtime_closure_and_requested_extras(tmp_pa
     assert 'pytest' not in evidence and 'wrong-platform' not in evidence
 
 
+def test_an_absent_optional_extra_is_recorded_not_fatal(tmp_path, monkeypatch):
+    """`mappy` is an optional extra and CI asserts it is ABSENT.
+
+    Listing it beside the runtime requirements made every release-evidence test
+    fail on a correctly provisioned machine -- a supported configuration read as
+    a broken one. Its absence is recorded so the evidence still says which of
+    the two environments produced it.
+    """
+    import importlib.metadata
+    package = tmp_path / 'package.py'
+    package.write_text('value = 1\n')
+
+    def distribution(name):
+        if name == 'mappy':
+            raise importlib.metadata.PackageNotFoundError(name)
+        return SimpleNamespace(version='1.0', files=[Path('package.py')], requires=[],
+                               locate_file=lambda name: tmp_path / name)
+
+    monkeypatch.setattr(importlib.metadata, 'distribution', distribution)
+    evidence = p.dependency_evidence()
+    assert evidence['mappy'] == {'installed': False}
+    assert evidence['numpy']['version'] == '1.0'
+
+
+def test_an_installed_optional_extra_is_fingerprinted(tmp_path, monkeypatch):
+    import importlib.metadata
+    package = tmp_path / 'package.py'
+    package.write_text('value = 1\n')
+    monkeypatch.setattr(
+        importlib.metadata, 'distribution',
+        lambda name: SimpleNamespace(version='2.28', files=[Path('package.py')],
+                                     requires=[],
+                                     locate_file=lambda name: tmp_path / name))
+    evidence = p.dependency_evidence()
+    assert evidence['mappy']['version'] == '2.28'
+    assert 'sha256' in evidence['mappy']
+
+
 def test_missing_mandatory_dependency_fails_evidence(tmp_path, monkeypatch):
     import importlib.metadata
     def missing(name):

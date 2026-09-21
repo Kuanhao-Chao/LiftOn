@@ -122,8 +122,16 @@ def dependency_evidence():
     from packaging.utils import canonicalize_name
     packages = {}
     names = ("numpy", "biopython", "parasail", "intervaltree", "interlap", "networkx",
-             "pyfaidx", "pysam", "gffutils", "ujson", "duckdb", "pyarrow", "mappy")
-    pending = [(name, frozenset()) for name in names]
+             "pyfaidx", "pysam", "gffutils", "ujson", "duckdb", "pyarrow")
+    # `mappy` is an OPTIONAL extra (setup.py `extras_require['native']`) as of
+    # v1.0.13, and the CI build job asserts it is ABSENT -- so its absence is a
+    # supported configuration, not a broken environment. Listing it beside the
+    # runtime requirements made every release-evidence test fail on a correctly
+    # provisioned machine. Its presence is still worth recording, because it is
+    # what makes the native path available, so it is probed and the answer
+    # written down either way.
+    optional = {canonicalize_name("mappy")}
+    pending = [(name, frozenset()) for name in names + tuple(optional)]
     visited = set()
     while pending:
         name, extras = pending.pop()
@@ -134,6 +142,9 @@ def dependency_evidence():
         try:
             distribution = importlib.metadata.distribution(name)
         except importlib.metadata.PackageNotFoundError as error:
+            if name in optional:
+                packages.setdefault(name, {"installed": False})
+                continue
             raise RuntimeError(f"Missing required dependency: {name}") from error
         for specification in distribution.requires or []:
             requirement = Requirement(specification)
