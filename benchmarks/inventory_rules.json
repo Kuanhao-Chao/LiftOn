@@ -284,6 +284,17 @@
         "benchmarks/compare/cross_locus_rescue_ab.*",
         "benchmarks/compare/rescue_extension_ab.*"
       ]
+    },
+    {
+      "id": "promotion_ab_v1014",
+      "classification": "diagnostic",
+      "claim_eligible": false,
+      "completion_state": "complete",
+      "description": "Cycle-3 (v1.0.14) promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/windowed_anchor_ab.*"
+      ]
     }
   ]
 }

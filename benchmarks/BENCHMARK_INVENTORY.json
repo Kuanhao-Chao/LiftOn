@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "95cf8d36d02e2444e65c80e0a46afcb031ed44ca7e28934c1f868f7e9d0f05b5",
-      "bytes": 499441,
+      "aggregate_sha256": "40e982a2073f191f6e222285ca852ccda82b67357e39ef665acd9d2029a2f0c3",
+      "bytes": 499876,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -236,6 +236,17 @@
       "description": "Strict A/B evidence behind the v1.0.12 rescue promotions (protein-coverage sub-pass, isoform-aware rescue) on the eight-cell ladder and five distant whole genomes.",
       "file_count": 9,
       "id": "promotion_ab_v1012",
+      "superseded_by": null
+    },
+    {
+      "aggregate_sha256": "f186e48cb37aeec87e72d687dcbe60e539a401ba0c54fcaf397a47b9fa156bdb",
+      "bytes": 3329,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "description": "Cycle-3 (v1.0.14) promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed.",
+      "file_count": 1,
+      "id": "promotion_ab_v1014",
       "superseded_by": null
     }
   ],
@@ -3367,6 +3378,16 @@
       "sha256": "ae87c4eba35aaeb882d5da2b1b5c4a0a200014921df356629341dc587a1e096c"
     },
     {
+      "bytes": 3329,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1014",
+      "json_schema": null,
+      "path": "benchmarks/compare/windowed_anchor_ab.py",
+      "sha256": "6d41a74c75732caec78ce5765e6b5b5cfa35c96ed9842163999b5b58c4b23a57"
+    },
+    {
       "bytes": 4492,
       "claim_eligible": false,
       "classification": "canonical",
@@ -3411,18 +3432,18 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 12156,
+      "bytes": 12591,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_v2_provenance",
       "json_schema": {
         "document_type": "object",
-        "shape_sha256": "63e121ebdcf983eaa07fea8d11a69b393746d0f420c402b9eb8b25336e0bf910",
+        "shape_sha256": "f652cdc15e2b339d6e3ec1b7174977678c7560b075cb8280e774f95b0dcae674",
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "caed80ac183345c0e4d1c1614aea9ff5d8140bf3dbd80cbfc25e1a5bf4154d1b"
+      "sha256": "6abde9478ee64882a8fb9bee71951b847fa8262cae3529961f88fb5f6b0e4248"
     },
     {
       "bytes": 34428,
@@ -3610,7 +3631,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "1a370ffe4a63d6a42a572829b41960c9efc37238dcec5227e0a36d1e7a564f57",
+  "inventory_sha256": "fe3a810ecd88d697936cdc2dd2dbd32f6013284a92777dad3fd9b9707e1b4745",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3654,19 +3675,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "83b9b1f286a39f245f1460252b7d2c5ac12cd624851bd740e8b7102d15db6315",
+  "rules_sha256": "c82b84f6432564c5bd56b2f202c7e335c2d5a009de37a88df5560eb882bad90f",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "4ccae6face9ceb674fa9dda49dd7cea732939295c1fc7a1c85f76346f87c5bb6",
-    "bytes": 13539166,
+    "aggregate_sha256": "fb26341d0e8e29eb18a4d0cc185b8d23f252188404a305d8eaf06cb54d07764a",
+    "bytes": 13542930,
     "classification_counts": {
       "canonical": 79,
-      "diagnostic": 42,
+      "diagnostic": 43,
       "historical": 154,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 293
+    "file_count": 294
   }
 }
