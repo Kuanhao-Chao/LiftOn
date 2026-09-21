@@ -37,6 +37,27 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ### Fixed
 
+- A CDS that spans more than one exon is attached to one exon, not to every
+  exon it touches. It was cloned onto all of them, so the transcript emitted
+  the same coding block twice and the protein counted those bases twice. The
+  warning it printed blamed the input - "The reference model is malformed here"
+  - which was false on real data: the second exon was one LiftOn had created by
+  ingesting miniprot's redundant `stop_codon`. With that fixed the path stops
+  firing at all (CHM13 8,546 such warnings to 0, rice 4,468 to 0, bee 3,614 to
+  0, drosophila 2,632 to 0).
+- The miniprot-only rescue counts what it abandons. It is on by default,
+  abandons candidates in roughly forty places, and recorded none of them, so
+  five whole genomes reported a drop total of 0 that meant "nothing was
+  counted". The ~25 deliberate filters stay uncounted; the ~15 failed lookups
+  now have classes. On this corpus the total is still 0 - 151,967 miniprot
+  candidates on human to zebrafish, none abandoned for a failed lookup - but
+  the 0 is now evidence rather than silence.
+- A reference gene that declares its own exons AND a transcript child now has
+  that transcript indexed. RefSeq's organellar convention writes a plastid
+  gene's exons twice, once under the gene and once under its mRNA, and such a
+  gene took a branch that built no reverse index - so a miniprot hit on it
+  could not be mapped back to a gene and every rescue candidate for it was
+  abandoned in silence (12 genes in the rice reference, 0 in human RefSeq).
 - `--threads 1` and `--threads N` produce the same annotation again. The
   per-locus runtime asked for a transcript's exons recursively while the
   Step-7 proxy has always cached the direct children, so the two paths read
@@ -70,6 +91,13 @@ All notable changes to **LiftOn** are documented here. This project follows
   all. The validation is kept and becomes fatal under `--strict-gff`.
 
 ### Changed
+
+- `genes_emitted_without_children` reports only losses. It counted every gene
+  emitted with no children, including the 10,626 single-row pseudogenes RefSeq
+  itself declares in the CHM13 reference: 11,130 reported across four genomes,
+  of which 2 were real. It now counts only where the reference gave the gene
+  children and none were emitted, with the raw tally kept as
+  `bare_gene_lines_emitted`.
 
 - The windowed aligner indexes the reference only over k-mers the query
   contributes. An anchor must be unique in both sequences, so the restriction
