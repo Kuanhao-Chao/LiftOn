@@ -6,6 +6,91 @@ from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
 
 
+def _exon_overlap_reconcile_enabled():
+    """Overlapping-exon reconciliation in ``update_cds_list`` (default ON).
+
+    Set ``LIFTON_NO_EXON_OVERLAP_RECONCILE=1`` to reproduce the pre-fix bytes.
+    """
+    return os.environ.get("LIFTON_NO_EXON_OVERLAP_RECONCILE", "") not in ("1", "true", "True")
+
+
+def reconcile_overlapping_exons(exons):
+    """Collapse exons of one transcript that overlap each other.
+
+    Two exons of a transcript cannot overlap: an overlap says there is no
+    intron between them, so they are one exon. The reference annotations have
+    none; LiftOn introduces them when a rebuilt exon takes its end from a
+    chained CDS that reaches into the next Liftoff exon, which is then appended
+    verbatim.
+
+    Returns the ORIGINAL list object, unmodified, when nothing overlaps -- so
+    a valid transcript keeps its exact bytes, including its exon order, and
+    ``LIFTON_NO_CONTAINMENT_NORMALIZE=1`` still reproduces the old output.
+
+    An exon carries at most one CDS. When both sides of an overlap carry one,
+    the two coding blocks are merged if they overlap or abut (they describe one
+    contiguous block, and the overlap means the protein was double-counting
+    those bases). If they are genuinely disjoint, merging would have to invent
+    coding sequence, so the pair is left intact for the validator to report
+    rather than silently mangled. A pair that disagrees on strand is refused
+    for the same reason: that is a trans-spliced model, where an overlap does
+    not mean the two are one exon.
+    """
+    if len(exons) < 2:
+        return exons
+    ordered = sorted(exons, key=lambda e: (e.entry.start, e.entry.end))
+    if all(ordered[i + 1].entry.start > ordered[i].entry.end
+           for i in range(len(ordered) - 1)):
+        return exons
+
+    # Copy-on-write. Case 1 appends elements of `self.exons` itself rather than
+    # clones, so mutating one in place would reach back into the caller's exon
+    # list; an exon is only copied once it is actually about to be widened.
+    kept = [ordered[0]]
+    owned = [False]
+    for exon in ordered[1:]:
+        prev = kept[-1]
+        if exon.entry.start > prev.entry.end:
+            kept.append(exon)
+            owned.append(False)
+            continue
+        if (exon.entry.strand != prev.entry.strand
+                or exon.entry.seqid != prev.entry.seqid):
+            # Exons of one transcript share a strand and a sequence; a pair that
+            # does not is a trans-spliced model, where an overlap is not
+            # evidence that the two are one exon -- and merging coordinates
+            # across two sequences would be meaningless. Rice really does carry
+            # such models (`nad5`, `exception=trans-splicing`, whose rows land
+            # on a different seqid from their gene). Across five whole genomes
+            # not one OVERLAPPING pair crossed either, so this never fires on
+            # the corpus; it is here so that the one place it could be wrong is
+            # refused rather than merged silently.
+            kept.append(exon)
+            owned.append(False)
+            continue
+        if not owned[-1]:
+            prev = copy.deepcopy(prev)
+            kept[-1] = prev
+            owned[-1] = True
+        if exon.cds is not None:
+            if prev.cds is None:
+                prev.cds = exon.cds
+            else:
+                a, b = prev.cds.entry, exon.cds.entry
+                # Mergeable only if the coding blocks touch; `+ 1` because the
+                # coordinates are inclusive, so 100-150 abuts 151-200.
+                if b.start <= a.end + 1 and a.start <= b.end + 1:
+                    a.start = min(a.start, b.start)
+                    a.end = max(a.end, b.end)
+                else:
+                    kept.append(exon)
+                    owned.append(False)
+                    continue
+        prev.entry.start = min(prev.entry.start, exon.entry.start)
+        prev.entry.end = max(prev.entry.end, exon.entry.end)
+    return kept
+
+
 def _containment_normalize_enabled():
     """Iteration-24 GFF3 parent-child containment normalization (default ON).
 
@@ -782,6 +867,12 @@ class Lifton_TRANS:
                 new_exon.update_exon_info(cds.entry.start, cds.entry.end)
                 new_exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                 new_exons.append(new_exon)
+        if _exon_overlap_reconcile_enabled():
+            # Reconcile BEFORE installing, not at the write funnel: the
+            # best-of-outcome compare and the ORF rescue both read `self.exons`
+            # straight out of here, so an overlapping pair fixed only at write
+            # time would still have been scored and searched.
+            new_exons = reconcile_overlapping_exons(new_exons)
         self.exons = new_exons
         if self.exons:  # guard against empty exon list
             if _containment_normalize_enabled():

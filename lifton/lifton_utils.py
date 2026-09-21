@@ -337,8 +337,15 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
             # objects because `Lifton_EXON.__init__` rewrites `featuretype`, so
             # feeding it the exons' features would hand `add_cds` rows already
             # relabelled 'exon'. Cloning costs ~5 us against a SQL round-trip.
-            children = list(m_feature_db.children(
-                m_entry, featuretype=('CDS', 'stop_codon'), order_by='start'))
+            children = coreutils.drop_redundant_stop_codons(
+                m_feature_db.children(
+                    m_entry, featuretype=('CDS', 'stop_codon'),
+                    order_by='start'))
+            # miniprot repeats the terminal CDS's stop codon as a nested
+            # `stop_codon` row. Every one of those rows is already covered by a
+            # sibling CDS, so ingesting it added a 3 bp exon inside the terminal
+            # exon and let `add_cds` overwrite the real terminal CDS. A stop
+            # codon that genuinely sits outside the CDS is still kept.
             for exon in children:
                 miniprot_trans.add_exon(exon)
             cds_num = 0
