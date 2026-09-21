@@ -327,3 +327,74 @@ def test_full_dp_align_keeps_midsize_on_full_dp():
     on = align.parasail_align_protein_base(q, ref)
     assert isinstance(on, windowed_align._ShimResult)
     assert abs(_aa_id(on) - _aa_id(exp)) < 1e-3       # homolog → identity preserved
+
+
+class TestUniqueAnchorsReferenceRestriction:
+    """Indexing the reference only over the query's unique k-mers is exact.
+
+    An anchor requires a k-mer unique in BOTH sequences, so a k-mer absent from
+    the query -- or repeated in it -- can never become one. Restricting the
+    reference pass to the query's surviving k-mers therefore yields the same
+    set; these tests pin that against a deliberately naive reimplementation of
+    the original definition, over inputs designed to hit every branch.
+    """
+
+    @staticmethod
+    def _by_definition(query, ref, k):
+        """Straight from the docstring: unique in both, paired, sorted by q."""
+        if len(query) < k or len(ref) < k:
+            return []
+
+        def counts(seq):
+            first, count = {}, {}
+            for i in range(len(seq) - k + 1):
+                km = seq[i:i + k]
+                count[km] = count.get(km, 0) + 1
+                first.setdefault(km, i)
+            return first, count
+
+        q_first, q_count = counts(query)
+        r_first, r_count = counts(ref)
+        return sorted((q_first[km], r_first[km]) for km in q_count
+                      if q_count[km] == 1 and r_count.get(km) == 1)
+
+    def _agree(self, query, ref, k):
+        from lifton import windowed_align
+        assert windowed_align._unique_anchors(query, ref, k) == \
+            self._by_definition(query, ref, k)
+
+    def test_identical_sequences(self):
+        self._agree("ACDEFGHIKLMNPQRSTVWY" * 6, "ACDEFGHIKLMNPQRSTVWY" * 6, 8)
+
+    def test_a_kmer_repeated_in_the_query_is_not_an_anchor(self):
+        """The query-side `del` branch: a repeat must disqualify the k-mer."""
+        repeat = "ACDEFGHI"
+        self._agree(repeat + "KLMNPQRS" + repeat, repeat + "KLMNPQRS", 8)
+
+    def test_a_kmer_repeated_in_the_reference_is_not_an_anchor(self):
+        repeat = "ACDEFGHI"
+        self._agree(repeat + "KLMNPQRS", repeat + "KLMNPQRS" + repeat, 8)
+
+    def test_no_shared_kmers(self):
+        self._agree("A" * 50, "C" * 50, 8)
+
+    def test_sequences_shorter_than_k(self):
+        self._agree("ACD", "ACDEFGH", 8)
+
+    def test_dna_alphabet_at_the_dna_seed_length(self):
+        import random
+        rng = random.Random(11)
+        ref = "".join(rng.choice("ACGT") for _ in range(4000))
+        query = "".join(ch if rng.random() > 0.12 else rng.choice("ACGT")
+                        for ch in ref)
+        self._agree(query, ref, 15)
+
+    def test_randomised_agreement_across_divergences(self):
+        import random
+        rng = random.Random(7)
+        for divergence in (0.0, 0.05, 0.25, 0.6):
+            ref = "".join(rng.choice("ACDEFGHIKLMNPQRSTVWY") for _ in range(900))
+            query = "".join(
+                ch if rng.random() > divergence
+                else rng.choice("ACDEFGHIKLMNPQRSTVWY") for ch in ref)
+            self._agree(query, ref, 8)
