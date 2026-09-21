@@ -21,7 +21,7 @@ import os as _os
 import threading as _threading
 import traceback as _traceback
 
-from lifton import coreutils
+from lifton import coreutils, drop_ledger
 from collections import OrderedDict as _OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -524,7 +524,10 @@ class _FeaturePreFetch:
 
     - ``children_l1``         — ``children(level=1)``
     - ``exon_children_l1``    — ``children(featuretype='exon', level=1, order_by='start')``
-    - ``exon_children_full``  — ``children(featuretype='exon', order_by='start')`` (no level)
+    - ``exon_children_full``  — ``children(featuretype='exon', level=1, order_by='start')``
+      the second, post-classification exon read. Named "full" for historical
+      reasons: it once answered a recursive query, which is what made a serial
+      run disagree with a threaded one on a nested-exon hierarchy.
     - ``cds_stop_children``   — ``children(featuretype=('CDS','stop_codon'), order_by='start')``
     """
     feature: Any
@@ -822,6 +825,27 @@ class HierarchyBatchLoader:
         return result
 
 
+def _record_depth_truncation(frontier, max_depth: int) -> None:
+    """Count (and name) every feature whose subtree the depth guard dropped."""
+    if not frontier:
+        return
+    from lifton import logger
+    seen = set()
+    for current in frontier:
+        feature_id = getattr(current, "id", None)
+        if feature_id is None or feature_id in seen:
+            continue
+        seen.add(feature_id)
+        drop_ledger.record("hierarchy_depth_exceeded", feature_id)
+    if seen:
+        logger.log_warning(
+            f"_walk_and_cache_features_batched: exceeded max depth "
+            f"{max_depth} at {len(seen)} feature(s); their descendants were "
+            f"NOT pre-fetched and will be read as absent, so they are dropped "
+            f"from this locus (e.g. {', '.join(sorted(seen)[:3])})."
+        )
+
+
 def _walk_and_cache_features_batched(
     feature, ctx: StepContext, payload: MaterialisedLocus,
     loader: HierarchyBatchLoader, *, max_depth: int = 8,
@@ -894,6 +918,11 @@ def _walk_and_cache_features_batched(
         frontier = next_frontier
         depth += 1
 
+    # Falling out of the loop with work still queued is the same silent
+    # truncation the scalar walker guards against -- and here it was not even
+    # logged, because the loop condition just stops being true.
+    _record_depth_truncation(frontier, max_depth)
+
 
 def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLocus,
                              *, depth: int = 0, max_depth: int = 8) -> None:
@@ -919,10 +948,16 @@ def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLoc
     if feature_id is None or feature_id in payload.feature_cache:
         return
     if depth > max_depth:
+        # NOT a KeyError, which is what this warning used to promise:
+        # `_LFeatureDbProxy.children` answers an un-cached id with an empty
+        # iterator, so the runtime reads this feature as childless. Its row is
+        # still emitted; its whole subtree disappears without an error or a
+        # failure record. Count it, or nobody will ever know it happened.
+        drop_ledger.record("hierarchy_depth_exceeded", feature_id)
         logger.log_warning(
             f"_walk_and_cache_features({feature_id}): exceeded max depth "
-            f"{max_depth}; deeper hierarchy not pre-fetched (recursion "
-            f"will surface as KeyError on the proxy)."
+            f"{max_depth}; its descendants were NOT pre-fetched and will be "
+            f"read as absent, so they are dropped from this locus."
         )
         return
 

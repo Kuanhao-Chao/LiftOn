@@ -58,6 +58,9 @@ CLASSES: dict[str, str] = {
     "cross_locus_candidate":
         "cross-locus rescue candidate could not be read (it cannot carry its "
         "isoforms)",
+    "hierarchy_depth_exceeded":
+        "feature nested deeper than the pre-fetch depth limit (its own row is "
+        "emitted, but every transcript, exon and CDS below it was dropped)",
 }
 
 _lock = threading.Lock()

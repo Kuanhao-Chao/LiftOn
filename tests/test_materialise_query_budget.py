@@ -43,6 +43,13 @@ class _CountingDB:
             return iter([TX]) if (featuretype is None and level == 1) else iter([])
         if fid == "tx1":
             if featuretype == "exon":
+                # Honour `level`. The fake used to ignore it and answer every
+                # exon query with the same list, which made any assertion about
+                # the query SHAPE vacuous -- and a real `-t 1` vs `-t N`
+                # divergence lived in exactly that gap for several releases.
+                assert level == 1, (
+                    "a recursive exon query reaches a nested transcript's "
+                    "exons; the proxy caches level-1 and cannot match it")
                 return iter(EXONS)
             if featuretype == ("CDS", "stop_codon"):
                 return iter(CDSS)
