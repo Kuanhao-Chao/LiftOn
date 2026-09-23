@@ -349,9 +349,20 @@ def LiftOn_miniprot_alignment(chromosome, transcript, m_id_dict, m_feature_db, t
             for exon in children:
                 miniprot_trans.add_exon(exon)
             cds_num = 0
-            for cds in children:
-                cds_num += 1
-                miniprot_trans.add_cds(coreutils.clone_feature(cds))
+            try:
+                for cds in children:
+                    cds_num += 1
+                    miniprot_trans.add_cds(coreutils.clone_feature(cds))
+            except ValueError as exc:
+                # `add_cds` refuses a CDS it cannot split at exon boundaries
+                # unambiguously. That rejects this CANDIDATE: letting it escape
+                # would reach the per-locus handler and drop the Liftoff gene
+                # whose DNA lift was fine -- the same failure recorded below for
+                # a candidate whose alignment cannot be built. `add_cds` has
+                # already counted the rejection in the drop ledger.
+                logger.log_warning(
+                    f"miniprot candidate {m_id} for {ref_trans_id} skipped: {exc}")
+                continue
             tmp_m_lifton_aln = align.lifton_parasail_align(miniprot_trans, m_entry, fai, ref_proteins, ref_trans_id)
             if tmp_m_lifton_aln is None:
                 # `lifton_parasail_align` returns None when it cannot build a protein
