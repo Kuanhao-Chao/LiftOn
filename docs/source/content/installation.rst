@@ -104,7 +104,7 @@ install the two external aligners. Activate the intended environment first:
    $ lifton -V
 
 Optional experimental mappy binding
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Standard runs and ``--native`` compatibility hooks do not require mappy. Only
 ``--native`` **together with** ``LIFTON_NATIVE_LIFTOFF_ALIGN=1`` activates the
@@ -169,7 +169,7 @@ You can also install LiftOn from source. Check out the latest version on `GitHub
 .. _seqera-containers:
 
 Seqera Containers / Wave
------------------------
+------------------------
 
 A pip-only container installs Python packages but lacks the aligner executables.
 For a complete standard environment, select Conda Python, minimap2 and miniprot,
@@ -187,11 +187,12 @@ The equivalent environment specification for the packaging release is:
      - minimap2
      - miniprot
      - pip:
-         - lifton==1.0.13
+         - lifton==1.0.14
 
-Use the new version after its PyPI publication; older distributions still declare
-mappy as mandatory and can require GCC/zlib headers. Once the updated Bioconda
-recipe is published, use Conda ``lifton=1.0.13`` instead of the pip subsection.
+Use the v1.0.14 pin after its PyPI publication. v1.0.13 already excludes mappy
+from a standard pip install; v1.0.12 and older can require GCC/zlib headers.
+Once the updated Bioconda
+recipe is published, use Conda ``lifton=1.0.14`` instead of the pip subsection.
 No compiler package is needed to install its prebuilt dependencies.
 
 Check ``lifton -V``, ``minimap2 --version`` and ``miniprot --version`` in the
@@ -233,7 +234,7 @@ Run the following command to make sure LiftOn is properly installed:
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.13
+      v1.0.14
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE]
                     [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A]
