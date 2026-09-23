@@ -376,7 +376,7 @@ class TestV1_9_GTFConversionSilentFallback:
         with pytest.raises(LiftOnInputError):
             annotation.Annotation(
                 str(gtf), infer_genes=False, infer_transcripts=False,
-                auto_convert_gtf=True,
+                auto_convert_gtf=True, conversion_dir=tmp_path / "conversion",
             )
 
 

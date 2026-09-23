@@ -16,7 +16,6 @@ Measured on the corpus it never fires (no miniprot mRNA in rice, human ->
 zebrafish, drosophila or dog -> cat has overlapping CDS rows), so the test is
 constructed.
 """
-from types import SimpleNamespace
 
 import pytest
 from intervaltree import IntervalTree

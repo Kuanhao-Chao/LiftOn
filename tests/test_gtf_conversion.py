@@ -28,12 +28,12 @@ def gtf(tmp_path):
 @pytest.mark.skipif(not shutil.which('gffread'), reason='requires native gffread')
 @pytest.mark.parametrize('inferred', [False, True])
 @pytest.mark.parametrize('backend', ['gffutils', 'gffbase'])
-def test_conversion_retains_genes_transcripts_and_child_attributes(gtf, inferred, backend):
+def test_conversion_retains_genes_transcripts_and_child_attributes(gtf, inferred, backend, tmp_path):
     if inferred:
         gtf.write_text(''.join(line for line in gtf.read_text().splitlines(True)
                                if line.split('\t')[2] not in {'gene', 'transcript'}))
     original = gtf.read_bytes()
-    ann = Annotation(gtf, False, False, backend=backend)
+    ann = Annotation(gtf, False, False, backend=backend, conversion_dir=tmp_path / 'conversion')
     db = ann.db_connection
     assert ann.backend == backend
     assert {f.id for f in db.features_of_type('gene')} == {'g1', 'g2'}
@@ -90,7 +90,7 @@ def test_direct_gtf_opt_out_keeps_explicit_hierarchy(
 def test_ensembl_gene_biotype_drives_coding_classification(gtf, tmp_path):
     from types import SimpleNamespace
     from lifton import lifton_utils
-    ann = Annotation(gtf, False, False)
+    ann = Annotation(gtf, False, False, conversion_dir=tmp_path / 'conversion')
     args = SimpleNamespace(annotation_database='Ensembl', evaluation_liftoff_chm13=False)
     features, _, _, _ = lifton_utils.get_ref_liffover_features(['gene'], ann, str(tmp_path), args)
     assert features['g1'].is_protein_coding
@@ -184,3 +184,12 @@ def test_direct_gtf_inference_preserves_original_transcript_ids(gtf, backend):
     assert {f.id for f in ann.db_connection.features_of_type('transcript')} == {'t1', 't2'}
     assert ann.db_connection['t1'].attributes['Parent'] == ['g1']
     assert ann.backend == 'gffutils'
+
+
+def test_no_converter_leaves_no_conversion_directory(gtf, tmp_path):
+    """With nothing to run there is no attempt to preserve, so nothing may be
+    left behind -- the default directory is the system temp dir, where every
+    such call used to leave an empty `gtf-conversion-*`."""
+    from lifton.annotation_conversion import convert_gtf
+    assert convert_gtf(gtf, directory=tmp_path / 'run', gffread=False, agat=None) == (None, None)
+    assert not (tmp_path / 'run').exists()

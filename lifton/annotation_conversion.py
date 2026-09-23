@@ -20,14 +20,16 @@ def convert_gtf(source, *, directory=None, gffread=False, agat=None):
     """
     source = str(Path(source).resolve())
     original = _fingerprint(source)
-    if directory is not None:
-        Path(directory).mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix='gtf-conversion-', dir=directory))
     commands = []
     if gffread:
         commands.append(['gffread', '-E', '-F', '--keep-exon-attrs', '--keep-genes', source])
     if agat:
         commands.append([agat, '--gtf' if 'gtf2gff' in agat else '--gff', source])
+    if not commands:
+        return None, None
+    if directory is not None:
+        Path(directory).mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix='gtf-conversion-', dir=directory))
     for index, command in enumerate(commands, 1):
         output = work / f'converted-{index}.gff3'
         command = command + ['-o', str(output)]
