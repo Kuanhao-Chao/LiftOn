@@ -1231,6 +1231,11 @@ def _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins, ref_trans):
 def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
     """Score every prefetched isoform job, in order; an exception is returned
     in place of its result. Output is identical whichever way it runs."""
+    if not jobs:
+        # Rescued genes with no other isoform to try leave an empty batch.
+        # A forced worker count (LIFTON_RESCUE_ISOFORM_WORKERS) used to reach
+        # the chunking below with it, cut it into steps of 0 and abort the run.
+        return []
     workers = _isoform_workers(args, len(jobs))
     paths = tuple(getattr(fasta, "filename", None)
                   for fasta in (tgt_fai, ref_proteins, ref_trans))
