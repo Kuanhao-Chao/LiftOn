@@ -60,6 +60,13 @@ All notable changes to **LiftOn** are documented here. This project follows
   as a candidate. The error would otherwise have reached the per-locus handler
   and dropped the Liftoff gene the candidate was competing with. Never
   observed on the corpus; guarded because the cost of being wrong is a gene.
+- A transcript whose lifted CDS encodes no protein - Liftoff can lift a CDS
+  down to less than one codon after its phase - no longer costs its gene. The
+  empty protein reached the aligner's guard, whose error no caller catches, so
+  the whole gene was left out and the run reported only `partial_success`: on
+  dog to cat a 37-transcript gene was lost over one 3-bp CDS. In every release
+  since the guard arrived in v1.0.9. The transcript is now kept as lifted, like
+  any other that has no protein to score.
 - Setting `LIFTON_RESCUE_ISOFORM_WORKERS` - the remedy LiftOn's own
   fork-failure warning recommends - no longer aborts a run in which the
   rescued genes have no other isoform to try. The empty batch was cut into
