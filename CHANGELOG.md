@@ -49,6 +49,10 @@ All notable changes to **LiftOn** are documented here. This project follows
   binds a transcript to its unique containing fragment on the same sequence.
   Rice `nad5` previously acquired a cross-sequence parent and wrong `part`
   attribute after gffutils import; the correction preserves its source part.
+  The same misbinding on one sequence - drosophila `mod(mdg4)`, five
+  fragments whose 31 transcripts all bound to the fragment containing none of
+  them - wrote that fragment at another's coordinates and left its own locus
+  with no gene row; each fragment is now written at its own span.
   When two fragments could hold the transcript the input cannot say which, so
   it is left as bound, warned once and counted
   (`liftoff_same_seqid_parent_ambiguous`) rather than aborting the run.

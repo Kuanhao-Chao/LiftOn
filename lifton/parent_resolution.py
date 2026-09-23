@@ -1,13 +1,20 @@
 """Repair duplicate-ID Liftoff parent links without changing its source file.
 
 Liftoff can emit separate fragments of a trans-spliced gene with the same GFF3
-ID. gffutils' ``create_unique`` keeps both roots but attaches a child naming
-that ID to the first root, even when the child is on the second root's seqid.
-Only a unique same-seqid, same-strand, containing family member is reassigned;
-all other relationships retain their original database behavior. When more
-than one member qualifies the branch is left as the database bound it and
-counted: the input cannot say which fragment it belongs to, and aborting the
-run would lose every other gene over one that earlier releases lifted.
+ID. gffutils' ``create_unique`` keeps every root but attaches a child naming
+that ID to the FIRST root, wherever the child lies -- on another fragment's
+sequence (rice mitochondrial ``nad5``), or on the same sequence inside another
+fragment (drosophila ``mod(mdg4)``: five fragments, all 31 transcripts bound to
+the fragment containing none of them). The first root's span is then
+normalised to its children, so that fragment is written at another's
+coordinates and its own locus has no gene row.
+
+A child its bound root does not contain is reassigned to the unique family
+member on its sequence, of a compatible strand, that does. All other
+relationships retain their original database behavior. When more than one
+member qualifies the branch is left as the database bound it and counted: the
+input cannot say which fragment it belongs to, and aborting the run would lose
+every other gene over one that earlier releases lifted.
 """
 
 from collections import defaultdict
@@ -24,6 +31,11 @@ def _attribute_id(feature):
 
 def _same_strand(left, right):
     return (left == right or left in (".", "?") or right in (".", "?"))
+
+
+def _contains(root, child):
+    return (root.seqid == child.seqid
+            and root.start <= child.start <= child.end <= root.end)
 
 
 class SameSeqidParentOverlay:
@@ -60,16 +72,15 @@ class SameSeqidParentOverlay:
             family = list(members.values())
             for source in family:
                 for child in database.children(source, level=1):
-                    if child.seqid == source.seqid:
+                    if _contains(source, child):
                         continue
                     candidates = [
                         root for root in family
-                        if (root.seqid == child.seqid
-                            and _same_strand(root.strand, child.strand)
-                            and root.start <= child.start <= child.end <= root.end)
+                        if (_contains(root, child)
+                            and _same_strand(root.strand, child.strand))
                     ]
                     if not candidates:
-                        # A genuine trans-spliced branch can have no same-seqid
+                        # A genuine trans-spliced branch can have no containing
                         # gene fragment; leave its relationship untouched.
                         continue
                     if len(candidates) != 1:
@@ -82,10 +93,10 @@ class SameSeqidParentOverlay:
 
         if self.ambiguous:
             logger.log_warning(
-                f"{len(self.ambiguous)} transcript(s) sit on a different "
-                "sequence from their parent gene, and more than one fragment "
-                "of that duplicate-ID gene could hold them; left as the input "
-                f"binds them (e.g. {self.ambiguous[0]!r}).")
+                f"{len(self.ambiguous)} transcript(s) lie outside the gene "
+                "they are bound to, and more than one fragment of that "
+                "duplicate-ID gene could hold them; left as the input binds "
+                f"them (e.g. {self.ambiguous[0]!r}).")
 
     @property
     def repaired_branches(self):

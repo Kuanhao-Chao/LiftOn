@@ -165,3 +165,47 @@ def test_counts_report_a_repair(tmp_path):
 def test_unique_ids_keep_original_database_object(tmp_path):
     database = _database(tmp_path)
     assert bind_same_seqid_parents(database, ["mRNA"]) is database
+
+
+def _family_on_one_sequence(tmp_path, first_root_span):
+    """drosophila mod(mdg4) in miniature: fragments of one trans-spliced gene
+    on the SAME sequence, the transcript lying inside the second."""
+    start, end = first_root_span
+    lines = [
+        "##gff-version 3",
+        f"chrA\tLiftoff\tgene\t{start}\t{end}\t.\t-\t.\tID=g;part=2;exception=trans-splicing",
+        "chrA\tLiftoff\tgene\t100\t200\t.\t-\t.\tID=g;part=1;exception=trans-splicing",
+        "chrA\tLiftoff\tmRNA\t120\t180\t.\t-\t.\tID=t;Parent=g;exception=trans-splicing",
+        "chrA\tLiftoff\texon\t120\t180\t.\t-\t.\tID=e;Parent=t",
+        "chrA\tLiftoff\tCDS\t120\t180\t.\t-\t0\tID=c;Parent=t",
+    ]
+    path = tmp_path / "same_sequence.gff3"
+    path.write_text("\n".join(lines) + "\n")
+    return gffutils.create_db(
+        str(path), dbfn=str(tmp_path / "same_sequence.db"), force=True,
+        merge_strategy="create_unique", disable_infer_genes=True,
+        disable_infer_transcripts=True,
+    )
+
+
+def test_same_sequence_transcript_moves_to_the_fragment_that_contains_it(tmp_path):
+    """Bound to a fragment that does not contain it, the transcript made that
+    fragment's span normalise to the other fragment's coordinates -- written
+    twice at one locus, and no gene row at its own."""
+    database = _family_on_one_sequence(tmp_path, (10, 30))
+    counts = {}
+    bound = bind_same_seqid_parents(database, ["gene"], counts)
+    assert counts == {"repaired": 1, "ambiguous": 0}
+    assert list(bound.children("g", level=1)) == []
+    assert [child.id for child in bound.children("g_1", level=1)] == ["t"]
+    assert {child.id for child in bound.children("g_1")} == {"t", "e", "c"}
+
+
+def test_a_transcript_its_bound_fragment_contains_never_moves(tmp_path):
+    """Overlapping fragments can both contain a child. Its bound root holding
+    it is the database's own answer, and nothing here second-guesses it."""
+    database = _family_on_one_sequence(tmp_path, (90, 210))
+    counts = {}
+    bound = bind_same_seqid_parents(database, ["gene"], counts)
+    assert counts == {"repaired": 0, "ambiguous": 0}
+    assert bound is database

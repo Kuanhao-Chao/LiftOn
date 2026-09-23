@@ -38,7 +38,8 @@ v1.0.14 (2026-09-22)
 - Split a CDS spanning an intron into exonic segments with transcript-order
   phases. Reject ambiguous overlaps, and validate CDS-within-exon containment.
 - Rebind a trans-spliced transcript in precomputed Liftoff annotations to its
-  unique same-sequence gene fragment; preserve that fragment's ``part``. An
+  unique containing gene fragment, including on the same sequence
+  (drosophila ``mod(mdg4)``); preserve that fragment's ``part``. An
   ambiguous family is left as bound and counted instead of aborting the run.
 - Skip a miniprot candidate whose CDS cannot be split at exon boundaries
   instead of letting the error drop the competing Liftoff gene.
