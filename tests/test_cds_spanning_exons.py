@@ -1,25 +1,11 @@
-"""A CDS may belong to one exon, not to every exon it touches.
-
-`Lifton_TRANS.add_cds` collected every exon a CDS overlapped and attached the
-CDS to all of them, cloning the feature. The transcript then emitted the same
-CDS two or more times -- the duplicate-CDS shape the overlapping-exon work of
-the previous cycle existed to remove, arrived at from the other direction.
-
-After that cycle this fires zero times across CHM13, human -> zebrafish,
-drosophila, rice and bee (the "spans 2 exons" warning count went 8,546 / 4,468 /
-3,614 / 2,632 -> 0), because the thing that used to produce a CDS straddling two
-exons was miniprot's redundant `stop_codon` being ingested as a 3 bp exon. It
-is still reachable on a reference CDS that genuinely spans an intron, so these
-tests are constructed rather than drawn from the corpus.
-
-The old warning also told the user "The reference model is malformed here",
-which on the corpus was false -- the second exon was one LiftOn had just made.
-"""
-import copy
+"""A spanning CDS is split at exon boundaries, never written across an intron."""
+import io
 
 import pytest
+from Bio.Seq import Seq
 
 from lifton import drop_ledger, lifton_class
+from lifton.gff3_validator import validate_gff3_file
 
 
 @pytest.fixture
@@ -27,52 +13,71 @@ def make_feature(make_gffutils_feature):
     return make_gffutils_feature
 
 
-def _trans(make_feature, exons):
+def _trans(make_feature, exons, strand="+"):
     trans = lifton_class.Lifton_TRANS.__new__(lifton_class.Lifton_TRANS)
-    trans.entry = make_feature(featuretype="mRNA", start=100, end=900,
+    trans.entry = make_feature(featuretype="mRNA", start=100, end=900, strand=strand,
                                attributes={"ID": ["tx1"], "Parent": ["gene1"]})
     trans.exons = [
         lifton_class.Lifton_EXON(make_feature(
-            featuretype="exon", start=s, end=e,
-            attributes={"Parent": ["tx1"]}))
-        for s, e in exons
+            featuretype="exon", start=s, end=e, strand=strand,
+            attributes={"ID": [f"exon{i}"], "Parent": ["tx1"]}))
+        for i, (s, e) in enumerate(exons, 1)
     ]
     trans._cds_attr_template = None
     return trans
 
 
-def _cds(make_feature, start, end):
-    return make_feature(featuretype="CDS", start=start, end=end, frame="0",
+def _cds(make_feature, start, end, strand="+", frame="0"):
+    return make_feature(featuretype="CDS", start=start, end=end, strand=strand, frame=frame,
                         attributes={"ID": ["cds1"], "Parent": ["tx1"]})
 
 
 class TestCdsSpanningTwoExons:
-    def test_it_is_attached_once_not_to_every_exon(self, make_feature):
-        """The whole point: one CDS row out, not two."""
+    def test_split_serializes_only_exonic_bases_and_validates(self, make_feature, tmp_path):
         drop_ledger.reset()
         trans = _trans(make_feature, [(100, 300), (500, 700)])
         trans.add_cds(_cds(make_feature, 250, 550))
-        carried = [e for e in trans.exons if e.cds is not None]
-        assert len(carried) == 1, (
-            f"the CDS was attached to {len(carried)} exons; emitting it more "
-            f"than once duplicates coding sequence")
+        assert [(e.cds.entry.start, e.cds.entry.end, e.cds.entry.frame)
+                for e in trans.exons] == [(250, 300, "0"), (500, 550, "0")]
+        assert drop_ledger.total() == 0
 
-    def test_it_goes_to_the_exon_it_overlaps_most(self, make_feature):
-        """250-550 shares 51 bp with exon 1 and 51 with exon 2 -- so use a
-        clearly asymmetric case, where the answer is not a coin toss."""
-        drop_ledger.reset()
-        trans = _trans(make_feature, [(100, 300), (500, 700)])
-        trans.add_cds(_cds(make_feature, 280, 690))   # 21 bp vs 191 bp
-        carried = [e for e in trans.exons if e.cds is not None]
-        assert [(e.entry.start, e.entry.end) for e in carried] == [(500, 700)]
+        trans.normalize_containment()
+        assert [(e.entry.start, e.entry.end) for e in trans.exons] == [(100, 300), (500, 700)]
+        buffer = io.StringIO()
+        assert trans.write_entry(buffer)
+        path = tmp_path / "split.gff3"
+        path.write_text("##gff-version 3\nchr1\ttest\tgene\t100\t900\t.\t+\t.\tID=gene1\n" + buffer.getvalue())
+        assert validate_gff3_file(path).errors == []
+        cds_rows = [line.split("\t") for line in buffer.getvalue().splitlines()
+                    if "\tCDS\t" in line]
+        assert [(int(row[3]), int(row[4])) for row in cds_rows] == [(250, 300), (500, 550)]
+        assert all("ID=cds1" in row[8] for row in cds_rows)
 
-    def test_the_discarded_attachment_is_counted(self, make_feature):
+        # An independent synthetic target sequence makes intron inclusion or
+        # double-counting observable at the amino-acid level.
+        genome = ["C"] * 900
+        first = "ATG" + "GCT" * 16
+        second = "GCT" * 16 + "TAA"
+        genome[249:300] = first
+        genome[499:550] = second
+        sequence = "".join(genome)
+        coding = "".join(sequence[int(row[3])-1:int(row[4])] for row in cds_rows)
+        assert str(Seq(coding).translate()) == "M" + "A" * 32 + "*"
+
+    def test_minus_strand_phase_follows_transcript_order(self, make_feature):
         drop_ledger.reset()
-        trans = _trans(make_feature, [(100, 300), (500, 700)])
-        trans.add_cds(_cds(make_feature, 250, 550))
-        assert drop_ledger.counts().get("cds_spanning_exons"), (
-            "a CDS that could not be placed in one exon must be counted, not "
-            "silently duplicated or silently dropped")
+        trans = _trans(make_feature, [(100, 300), (500, 700)], strand="-")
+        trans.add_cds(_cds(make_feature, 250, 552, strand="-"))
+        assert [(e.cds.entry.start, e.cds.entry.end, e.cds.entry.frame)
+                for e in trans.exons] == [(250, 300, "1"), (500, 552, "0")]
+
+    def test_ambiguous_overlapping_exons_are_counted_and_rejected(self, make_feature):
+        drop_ledger.reset()
+        trans = _trans(make_feature, [(100, 300), (290, 700)])
+        with pytest.raises(ValueError, match="cannot be split unambiguously"):
+            trans.add_cds(_cds(make_feature, 250, 550))
+        assert drop_ledger.counts()["cds_spanning_exons"] == 1
+        assert all(exon.cds is None for exon in trans.exons)
 
     def test_a_cds_inside_one_exon_is_untouched(self, make_feature):
         """The overwhelmingly common case must not change at all."""
