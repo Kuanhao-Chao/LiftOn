@@ -243,7 +243,14 @@ class Lifton_GENE:
                 ref_gene_id, self.entry, ref_features_dict,
             )
         self.tmp = tmp
+        source_part = self.entry.attributes.get("part", [])
+        source_exception = self.entry.attributes.get("exception", [])
         self.entry.attributes = ref_gene_attrs
+        if source_part and any("trans-splicing" in value for value in source_exception):
+            # Distinct RefSeq fragments of one trans-spliced gene share an ID.
+            # A database lookup by that ID returns the first reference row,
+            # whose `part` is wrong for every other lifted fragment.
+            self.entry.attributes["part"] = list(source_part)
         # Bug fix #1 (Phase 5): build the ID as a list-of-str per the
         # gffutils attribute contract. Previously a bare string was
         # assigned, and the subsequent `[0]` reduced it to one character.

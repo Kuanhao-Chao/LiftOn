@@ -1579,6 +1579,18 @@ def run_all_lifton_steps(args):
         getattr(l_feature_db, "cache_status", "unknown"),
     )
     l_feature_db = l_feature_db.db_connection
+    # A precomputed Liftoff GFF3 may contain multiple trans-spliced gene
+    # fragments with one declared ID. The database keeps both roots but can
+    # bind a transcript to the first fragment on a different sequence. Give
+    # Step 7 a read-only corrected hierarchy when a unique same-seqid parent
+    # exists; the common no-duplicate case retains the original DB object.
+    from lifton.parent_resolution import bind_same_seqid_parents
+    parent_counts = {}
+    l_feature_db = bind_same_seqid_parents(l_feature_db, features, parent_counts)
+    manifest.record_count("liftoff_same_seqid_parent_repairs",
+                          parent_counts["repaired"])
+    manifest.record_count("liftoff_same_seqid_parent_ambiguous",
+                          parent_counts["ambiguous"])
     t8 = time.process_time()
     logger.log(f">> Creating miniprot annotation database : {_describe_annotation_source(miniprot_annotation)}", debug=True)
     if miniprot_annotation is not None:

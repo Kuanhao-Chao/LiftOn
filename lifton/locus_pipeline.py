@@ -1391,6 +1391,17 @@ class _ThreadLocalCtxFactory:
                 "materialisation database is not reopenable; refusing to "
                 "share its parent connection with a worker"
             )
+        # A corrected Liftoff hierarchy must be rebuilt around each worker's
+        # own connection. Calling its wrapper class with only dbfn would fail,
+        # and unwrapping without rebinding would restore the wrong parent.
+        reopen = getattr(parent_db, "reopen_for_thread", None)
+        if callable(reopen):
+            try:
+                return reopen(dbfn)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"could not reopen materialisation database {dbfn!r}"
+                ) from exc
         # Match the parent's class (gffutils vs gffbase).
         cls = type(parent_db)
         try:
@@ -1421,7 +1432,8 @@ class _ThreadLocalCtxFactory:
                 raise
             return self._parent_ctx.l_feature_db
         conn = getattr(db, "conn", None)
-        if conn is not None and type(db).__module__.startswith("gffutils"):
+        base_db = getattr(db, "database", db)
+        if conn is not None and type(base_db).__module__.startswith("gffutils"):
             try:
                 conn.execute("PRAGMA query_only=ON")
             except Exception:
