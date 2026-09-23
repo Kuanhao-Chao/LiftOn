@@ -31,7 +31,8 @@ from collections import defaultdict
 from intervaltree import Interval
 
 from lifton import (align, coreutils, drop_ledger, lifton_class,
-                    orf_completion, run_miniprot, lifton_utils, logger)
+                    orf_completion, run_miniprot, lifton_utils, logger,
+                    transl_except)
 from lifton.intervals import _make_interval
 from lifton.locus_pipeline import DeferredStateJournal, commit_locus_delta
 
@@ -942,7 +943,8 @@ def _score_isoform(view, mtrans, m_entry, cds_children, ref_trans_attrs,
                      if ref_trans_id in ref_trans.keys() else None)
     transcript.orf_search_protein(tgt_fai, ref_protein_seq, ref_trans_seq,
                                   status, is_non_coding=view.is_non_coding,
-                                  eval_only=False)
+                                  eval_only=False,
+                                  readthrough=transl_except.readthrough(ref_trans_id))
     orf_completion.complete_and_rescore(
         transcript, m_entry, tgt_fai, ref_proteins, ref_trans_id, status,
         enabled_override=view.stop_completion)

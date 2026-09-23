@@ -135,13 +135,19 @@ import os as _os
 TRANSL_TABLE_SIDECAR_SUFFIX = ".transl_tables.json"
 
 
-def extract_features_to_fasta(ref_db, features, ref_fai, out_dir, stats=None):
+def extract_features_to_fasta(ref_db, features, ref_fai, out_dir, stats=None,
+                              transl_except=None):
     """Streaming alternative to :func:`extract_features`.
 
     Writes ``transcripts.fa`` and ``proteins.fa`` under ``out_dir`` as
     each reference feature's sequence is computed; nothing is held in
     Python dict form. Returns the two file paths so callers can hand
     them straight to ``pyfaidx.Fasta(path)``.
+
+    ``transl_except``, when a dict, receives ``{transcript id:
+    (coding.TranslExcept, ...)}`` for every transcript whose CDS declares a
+    codon exception, placed on the protein just written. It never changes
+    what is written.
 
     The byte content of each FASTA record is identical to the legacy
     path's ``write_seq_2_file`` output (same record header, same
@@ -173,7 +179,8 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir, stats=None):
                     continue
                 counter += 1
                 _stream_inner(ref_db, locus, ref_fai, ft, fp, warned=warned,
-                              tables=tables, tally=tally)
+                              tables=tables, tally=tally,
+                              transl_except=transl_except)
     print(
         f"Extracted features (streaming) for {counter} features",
         file=sys.stderr,
@@ -247,8 +254,33 @@ def read_transl_table_sidecar(proteins_path):
     return resolved
 
 
+def transl_excepts_of(feature, fasta, cds_children, protein=None, table=None):
+    """``transl_except`` declarations of one transcript, placed on its protein.
+
+    Uses the same children, merged intervals and initial phase that
+    :func:`get_protein_sequence` translates, so residue ``r`` is the protein's
+    ``r``-th residue. Empty when no CDS row declares anything.
+    """
+    values = []
+    for child in cds_children:
+        if getattr(child, "featuretype", "CDS") == "CDS":
+            values = coding.transl_except_values(getattr(child, "attributes", None))
+            if values:
+                break
+    if not values:
+        return ()
+    strand = getattr(feature, "strand", "+")
+    if protein is None:
+        protein = (get_protein_sequence(feature, fasta, cds_children, table=table)
+                   or "").upper()
+    return coding.transl_excepts_for(
+        values, merge_children_intervals(cds_children), strand,
+        coding.initial_phase(cds_children, strand), protein,
+        context=getattr(feature, "id", None))
+
+
 def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None,
-                  tally=None):
+                  tally=None, transl_except=None):
     # Phase 18: one ordered children() query + an in-Python featuretype
     # partition replaces the prior three per-feature queries (2x fewer
     # SQLite round-trips on the common exon/CDS-bearing path, 3x on a bare
@@ -293,6 +325,17 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None,
                         # is absent on every ordinary annotation and Step 4's
                         # command is unchanged there.
                         tables[feature.id] = table
+                    if transl_except is not None:
+                        try:
+                            placed = transl_excepts_of(
+                                feature, ref_fai, children_CDSs, protein=protein_seq)
+                        except Exception as error:
+                            logger.log_warning(
+                                f"extract_features_to_fasta: {feature.id}: "
+                                f"transl_except not placed ({error})")
+                            placed = ()
+                        if placed:
+                            transl_except[feature.id] = placed
             except Exception as e:
                 logger.log_warning(
                     f"extract_features_to_fasta: protein {feature.id}: {e}"
@@ -301,7 +344,8 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None,
     else:
         for child in all_children:
             _stream_inner(ref_db, child, ref_fai, ft, fp, warned=warned,
-                          tables=tables, tally=tally)
+                          tables=tables, tally=tally,
+                          transl_except=transl_except)
 
 
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins,

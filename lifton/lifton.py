@@ -1080,6 +1080,9 @@ def run_all_lifton_steps(args):
     # The tally is module-level, so a process that runs several pipelines --
     # every test in the suite does -- must start each one from zero.
     drop_ledger.reset()
+    # Same for the declared codon exceptions (transl_except) of the reference.
+    from lifton import transl_except as _transl_except
+    _transl_except.clear()
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -1270,6 +1273,7 @@ def run_all_lifton_steps(args):
     ref_trans_file = args.transcripts    
     ref_proteins_file = args.proteins
     _extract_stats = {}
+    _declared_exceptions = None
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
         logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
         logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
@@ -1278,8 +1282,10 @@ def run_all_lifton_steps(args):
         # so downstream consumers see the same lazy mmap-backed
         # interface as the user-supplied -P / -T branch below.
         _extract_stats = {}
+        _declared_exceptions = {}
         generated_trans, generated_proteins = extract_sequence.extract_features_to_fasta(
             ref_db, features, ref_fai, intermediate_dir, stats=_extract_stats,
+            transl_except=_declared_exceptions,
         )
         # Preserve individually supplied sequences for normalized references.
         # Their IDs were checked against the explicit alias map above.
@@ -1307,6 +1313,17 @@ def run_all_lifton_steps(args):
     manifest.record_count("reference_transcripts", len(ref_trans.keys()))
     manifest.record_count("reference_proteins", len(ref_proteins.keys()))
     manifest.record_count("truncated_reference_proteins", trunc_ref_protein_count)
+    # Codons the reference declares to translate differently (transl_except):
+    # selenocysteines and other read-through stops are scored as read through,
+    # and the attribute is rewritten into target coordinates on output.
+    # Installed before evaluation, Step 4 and any thread or fork.
+    if _declared_exceptions is None:
+        _declared_exceptions = _transl_except.scan_reference(ref_db, ref_fai)
+    _n_declared = _transl_except.install(_declared_exceptions, ref_proteins, tgt_fai)
+    if _n_declared:
+        logger.log(f"\t * reference transcripts declaring transl_except: {_n_declared}",
+                   debug=True)
+        manifest.record_count("reference_transl_except_transcripts", _n_declared)
 
     ################################
     # optional Step: Evaluation mode
@@ -2070,6 +2087,10 @@ def run_all_lifton_steps(args):
     # Everything this run dropped, in one place. The per-event warnings were
     # always printed; what was missing was the number.
     drop_ledger.report(manifest)
+    if _n_declared:
+        _written = _transl_except.counts()
+        manifest.record_count("transl_except_written", _written["emitted"])
+        manifest.record_count("transl_except_not_applicable", _written["dropped"])
     # Two different numbers. `genes_emitted_without_children` is the one to act
     # on: the reference gave the gene children and we emitted none. The raw
     # tally of bare gene lines is kept beside it because most of them are

@@ -35,6 +35,10 @@ v1.0.14 (2026-09-22)
 - Repair direct-GTF self-parent relations and preserve transcript IDs during
   inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
   checks after conversion.
+- Honour ``transl_except``: read declared selenocysteine and other recoded
+  stops through when scoring, calling variants and chaining, and rewrite the
+  attribute into the lifted model's coordinates (it kept the reference's).
+  All 25 human selenoprotein genes were mis-scored or truncated before.
 - Split a CDS spanning an intron into exonic segments with transcript-order
   phases. Reject ambiguous overlaps, and validate CDS-within-exon containment.
 - Rebind a trans-spliced transcript in precomputed Liftoff annotations to its

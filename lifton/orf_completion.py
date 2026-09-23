@@ -41,7 +41,7 @@ so no measurement depends on the attribute.
 """
 import os
 
-from lifton import align, coreutils
+from lifton import align, coreutils, transl_except
 
 #: Default for the terminal-stop completion, in one place so a promotion or a
 #: revert is a one-line change (the pattern the other rescue switches follow).
@@ -177,6 +177,18 @@ def undo_terminal_stop(applied):
     cds.entry.start, cds.entry.end = cds_start, cds_end
 
 
+def _ends_on_readthrough(alignment, residues):
+    """True when the model's final residue is a stop aligned to a reference
+    residue declared to read through."""
+    if not residues or alignment is None:
+        return False
+    query, ref = alignment.query_aln, alignment.ref_aln
+    last = max((i for i, char in enumerate(query) if char != "-"), default=-1)
+    if last < 0 or query[last] != "*" or ref[last] == "-":
+        return False
+    return len(ref[:last].replace("-", "")) in residues
+
+
 def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
                          lifton_status, args=None, enabled_override=None):
     """Complete this miniprot-derived model and refresh its identity.
@@ -202,6 +214,12 @@ def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
                                             ref_proteins, ref_trans_id)
     identity = getattr(alignment, "identity", None)
     if identity is None or (before is not None and identity < before):
+        undo_terminal_stop(applied)
+        return False
+    if _ends_on_readthrough(alignment, transl_except.readthrough(ref_trans_id)):
+        # The codon just appended is one the reference declares to read
+        # through (transl_except: a selenocysteine UGA). Completing there
+        # would declare the protein truncated at it.
         undo_terminal_stop(applied)
         return False
     lifton_status.lifton_aa = identity
