@@ -42,7 +42,6 @@ import argparse
 import csv
 import json
 import os
-import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -183,12 +182,18 @@ def _overlapping(off_path, on_path, overlap_gate=0.10):
     return sorted(worst, reverse=True)
 
 
-def _validate(gff):
-    result = subprocess.run(
-        [TOOLS["lifton_python"], "-m", "lifton.gff3_validator", str(gff)],
-        env=_compose_env(TOOLS), capture_output=True, text=True)
-    text = (result.stdout or "") + (result.stderr or "")
-    return sum(1 for line in text.splitlines() if "error" in line.lower())
+def _validate(gff, pythonpath=""):
+    """Validator error count, from the structured summary the other A/B
+    harnesses share -- a line grep for "error" counts the clean summary line
+    `Errors : 0` itself -- and run on the build under test: without the
+    PYTHONPATH pin the validator came from whatever `lifton` the tool
+    environment has installed."""
+    env = dict(_compose_env(TOOLS))
+    if pythonpath:
+        existing = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = (f"{pythonpath}{os.pathsep}{existing}"
+                             if existing else pythonpath)
+    return evaluator.count_gff3_validator_errors(gff, TOOLS["lifton_python"], env)
 
 
 def _mean(values):
@@ -225,7 +230,7 @@ def main(argv=None):
                                 manifest, eval_dir, None, log=print,
                                 ref_index=ref_index, threads=8)
         pi_off = _pi_by_ref(eval_dir / "default.transcripts.tsv")
-        validity_off = _validate(off)
+        validity_off = _validate(off, args.pythonpath)
 
         on = _run_state(bid, "second_locus", ["--rescue-second-locus"],
                         paths, root, args.pythonpath)
@@ -233,7 +238,7 @@ def main(argv=None):
                                 reference, manifest, eval_dir, None, log=print,
                                 ref_index=ref_index, threads=8)
         pi_on = _pi_by_ref(eval_dir / "second_locus.transcripts.tsv")
-        validity_on = _validate(on)
+        validity_on = _validate(on, args.pythonpath)
 
         lost = set(pi_off) - set(pi_on)
         common = set(pi_off) & set(pi_on)
