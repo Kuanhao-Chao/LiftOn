@@ -597,43 +597,56 @@ class Lifton_TRANS:
                 self._cds_attr_template = template
         overlapping = [
             exon for exon in self.exons
-            if coreutils.segments_overlap_length(
-                (exon.entry.start, exon.entry.end),
-                (gffutil_entry_cds.start, gffutil_entry_cds.end))[1]
+            if (exon.entry.seqid == gffutil_entry_cds.seqid
+                and (exon.entry.strand == gffutil_entry_cds.strand
+                     or exon.entry.strand in (".", "?")
+                     or gffutil_entry_cds.strand in (".", "?"))
+                and coreutils.segments_overlap_length(
+                    (exon.entry.start, exon.entry.end),
+                    (gffutil_entry_cds.start, gffutil_entry_cds.end))[1])
         ]
         if len(overlapping) > 1:
-            # "A CDS lies in exactly one exon" is assumed throughout the model.
-            # This used to attach the CDS to EVERY exon it touched, so the
-            # transcript emitted the same coding block two or more times -- the
-            # duplicate-CDS defect reached from the other direction, and it
-            # doubled the protein.
-            #
-            # It also blamed the input ("The reference model is malformed
-            # here"), which on real data was false: the extra exon was one
-            # LiftOn had just created by ingesting miniprot's redundant
-            # `stop_codon`. With that fixed this branch stops firing entirely
-            # (CHM13 8,546 -> 0, rice 4,468 -> 0, bee 3,614 -> 0, drosophila
-            # 2,632 -> 0), so what remains is a reference CDS that genuinely
-            # spans an intron.
-            #
-            # Keep it on the exon it overlaps most and count the rest. Emitting
-            # it once is a loss of the overhanging bases; emitting it twice is
-            # a wrong protein, which is worse and silent.
-            best = max(overlapping, key=lambda exon: (
-                coreutils.segments_overlap_length(
-                    (exon.entry.start, exon.entry.end),
-                    (gffutil_entry_cds.start, gffutil_entry_cds.end))[0],
-                -exon.entry.start))
+            # A reference CDS row crossing an intron must be emitted as
+            # discontinuous exonic segments. Attaching the full row to one exon
+            # makes containment normalization bridge the intron; attaching it
+            # to every exon duplicates coding bases. Refuse ambiguous exon
+            # structures instead of making either change silently.
+            ordered = sorted(overlapping, key=lambda exon: exon.entry.start)
+            spans = [(max(exon.entry.start, gffutil_entry_cds.start),
+                      min(exon.entry.end, gffutil_entry_cds.end))
+                     for exon in ordered]
+            unambiguous = (
+                ordered[0].entry.start <= gffutil_entry_cds.start <= ordered[0].entry.end
+                and ordered[-1].entry.start <= gffutil_entry_cds.end <= ordered[-1].entry.end
+                and all(left[1] < right[0] for left, right in zip(spans, spans[1:]))
+                and all(exon.cds is None for exon in ordered)
+                and gffutil_entry_cds.frame in ("0", "1", "2", ".")
+            )
+            if not unambiguous:
+                drop_ledger.record("cds_spanning_exons", getattr(gffutil_entry_cds, "id", None))
+                raise ValueError(
+                    f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
+                    f"cannot be split unambiguously across exons of {self.entry.id}"
+                )
+            phase = int(gffutil_entry_cds.frame) if gffutil_entry_cds.frame != "." else 0
+            coding_length = 0
+            if gffutil_entry_cds.strand == "-":
+                ordered.reverse()
+                spans.reverse()
+            for exon, (start, end) in zip(ordered, spans):
+                segment = coreutils.clone_feature(gffutil_entry_cds)
+                segment.start, segment.end = start, end
+                segment.frame = str((phase - coding_length) % 3)
+                segment.attributes["Parent"] = [self.entry.id]
+                exon.add_cds(segment)
+                coding_length += end - start + 1
             logger.log_warning(
                 f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
                 f"({gffutil_entry_cds.start}-{gffutil_entry_cds.end}) spans "
-                f"{len(overlapping)} exons of {self.entry.id}; keeping it on "
-                f"exon {best.entry.start}-{best.entry.end} only, so the coding "
-                "sequence is not counted twice."
+                f"{len(overlapping)} exons of {self.entry.id}; emitted "
+                "discontinuous exonic CDS segments."
             )
-            drop_ledger.record("cds_spanning_exons",
-                               getattr(gffutil_entry_cds, "id", None))
-            overlapping = [best]
+            return
         for exon in overlapping:
             gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
             exon.add_cds(gffutil_entry_cds)

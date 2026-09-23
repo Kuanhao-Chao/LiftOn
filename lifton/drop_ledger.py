@@ -75,8 +75,10 @@ CLASSES: dict[str, str] = {
         "(the error was recorded as a pipeline failure and the candidate "
         "abandoned)",
     "cds_spanning_exons":
-        "CDS spanned more than one exon of its transcript (it was kept on the "
-        "exon it overlaps most; the part outside that exon is not emitted)",
+        "CDS spanned more than one exon and could not be split at exon "
+        "boundaries unambiguously, so the model carrying it was rejected "
+        "rather than written across an intron or with coding bases counted "
+        "twice",
 }
 
 _lock = threading.Lock()

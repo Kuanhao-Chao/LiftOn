@@ -101,11 +101,22 @@ ingesting miniprot's redundant `stop_codon`. With that fixed the branch stops
 firing entirely — CHM13 8,546 → 0, rice 4,468 → 0, bee 3,614 → 0, drosophila
 2,632 → 0 — so what remains is a reference CDS that genuinely spans an intron.
 
-It is now kept on the exon it overlaps most (ties broken toward the earlier
-exon, deterministically) and the rest is counted as `cds_spanning_exons`.
-Emitting it once loses the overhanging bases; emitting it twice is a wrong
-protein, silently. The tests are constructed, because the corpus no longer
-reaches this path.
+~~It is now kept on the exon it overlaps most (ties broken toward the earlier
+exon, deterministically) and the rest is counted as `cds_spanning_exons`.~~
+
+**Correction (2026-09-23).** That fix was wrong, and the test that pinned it
+stopped before serialization. The CDS was attached *unclipped* to one exon, so
+`normalize_containment` later widened that exon to cover it — across the
+intron, recreating the overlap in the written file. The v1.0.14 behaviour
+(from the Codex session) splits the CDS into one clipped segment per exon it
+covers, with each segment's GFF3 phase recomputed in transcript order; only a
+split that is ambiguous (the CDS does not start in the first exon and end in
+the last, or an exon already carries CDS) is refused and counted as
+`cds_spanning_exons`, rejecting that model. From a miniprot candidate, the
+refusal rejects only the candidate — the Liftoff gene it was competing with
+is kept. `tests/test_cds_spanning_exons.py` now asserts at the level that
+matters: the written GFF3 validates and translates to the expected protein.
+The corpus still does not reach this path.
 
 ## A reference index built for only one annotation shape
 
