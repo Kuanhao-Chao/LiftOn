@@ -439,3 +439,26 @@ class TestStopCompletion:
         assert not orf_completion._ends_on_readthrough(whole, frozenset({2}))
         assert not orf_completion._ends_on_readthrough(ends_at_sec, None)
 
+
+class TestEvaluator:
+    def test_every_tool_is_scored_through_the_declared_codon(self, tmp_path, hermetic_pipeline):
+        """The benchmark evaluator imports LiftOn's alignment, so it rated an
+        identical selenoprotein as truncated -- for Liftoff, miniprot and
+        LiftOn alike. It now reads the declaration from the REFERENCE."""
+        import pyfaidx
+        from benchmarks.compare import evaluator
+        work = _workspace(tmp_path / "w")
+        _run(work, "out")
+        ref, _ = evaluator.build_reference(str(work / "ref.gff3"), str(work / "ref.fa"),
+                                           log=lambda *args: None)
+        assert ref["txA"]["readthrough"] == frozenset({2})
+        assert ref["txD"]["readthrough"] == frozenset()
+        db = evaluator._build_db(str(work / "out.gff3"))
+        fasta = pyfaidx.Fasta(str(work / "tgt.fa"))
+        for tx in ("txA", "txB"):
+            mrna = db[tx]
+            record = evaluator._eval_one_mrna(
+                mrna, evaluator._children(db, mrna, "exon"),
+                evaluator._children(db, mrna, ("CDS", "stop_codon")), tx, ref, fasta, False)
+            assert record["protein_identity"] == 1.0, tx
+            assert record["orf_valid"] == 1, tx
