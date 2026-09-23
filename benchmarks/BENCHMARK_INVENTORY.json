@@ -184,7 +184,7 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "be732912590c8b6e1d5126888932b5e09b8f44f6ef244497167ab4d7a17c09da",
+      "aggregate_sha256": "33ceeba93dfa7ac72c51b34fe7b2a60237e7e4aaf58346c93f202ead0be672a9",
       "bytes": 356647,
       "claim_eligible": false,
       "classification": "historical",
@@ -2975,7 +2975,7 @@
         "top_level_count": 8
       },
       "path": "benchmarks/compare/second_locus_ab.json",
-      "sha256": "5556d3bafb075fa3355bac09ec15e358b984c7723261c6d838ff1dfe03c3a4b9"
+      "sha256": "7248aa94f95ecc702530976b0f7a928f9adcae713f998767347e120ac30cafc2"
     },
     {
       "bytes": 12219,
@@ -3641,7 +3641,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "ce5cd8e034c8ff340eb5466523743efc3b64833a1b6ed802b483538d8f9c6a59",
+  "inventory_sha256": "7ccea7924630b54938305020046c3297dc4002afc0554087be14c9ddb2a96767",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3689,7 +3689,7 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "68b44afca5a6e4b0eff5c4fd185abac0e1977a4c659defc1058d36e34a75aa1d",
+    "aggregate_sha256": "af8d04b0e5d9492c5c60fba1f384280568ec7ec6aba505e00fc53ee7125cb34c",
     "bytes": 13557423,
     "classification_counts": {
       "canonical": 79,
