@@ -275,6 +275,19 @@ class TestIsoformWorkers:
         monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "3")
         assert miniprot_rescue._isoform_workers(args, 10) == 3
 
+    def test_an_empty_batch_with_the_worker_count_forced_is_not_an_error(
+            self, monkeypatch):
+        """A rescued gene with no other isoform to try leaves the batch empty.
+        With the worker count forced -- the remedy LiftOn's own fork-failure
+        warning recommends -- the chunking cut an empty batch into steps of 0
+        and `range()` raised, aborting a run whose lifting had finished.
+        Shipped in v1.0.12 and v1.0.13; found by the v1.0.14 ladder on the
+        drosophila subset at `-t 1`."""
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "4")
+        fasta = types.SimpleNamespace(filename="on-disk.fa")
+        assert miniprot_rescue._score_isoform_jobs(
+            [], fasta, fasta, fasta, types.SimpleNamespace(threads=1)) == []
+
 
 class TestBoundedInFlight:
     """The isoform pass holds at most ``--rescue-max-inflight`` jobs at once.

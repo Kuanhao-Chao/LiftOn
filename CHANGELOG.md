@@ -56,6 +56,11 @@ All notable changes to **LiftOn** are documented here. This project follows
   as a candidate. The error would otherwise have reached the per-locus handler
   and dropped the Liftoff gene the candidate was competing with. Never
   observed on the corpus; guarded because the cost of being wrong is a gene.
+- Setting `LIFTON_RESCUE_ISOFORM_WORKERS` - the remedy LiftOn's own
+  fork-failure warning recommends - no longer aborts a run in which the
+  rescued genes have no other isoform to try. The empty batch was cut into
+  steps of zero and `range()` raised after all the lifting had finished.
+  Shipped in v1.0.12 and v1.0.13; without the variable the run was unaffected.
 - GTF conversion no longer leaves `gtf-conversion-*` directories in the system
   temp directory: evaluation mode (`-E`) now converts a GTF target into the
   run's intermediate directory, and no directory is created when no converter
