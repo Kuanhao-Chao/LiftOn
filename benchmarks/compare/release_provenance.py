@@ -155,12 +155,33 @@ def dependency_evidence():
             continue
         if distribution.files is None:
             raise RuntimeError(f"Dependency has no file inventory: {name}")
+        # A wheel install lists what it installed (RECORD). A legacy egg-info
+        # install can instead yield its SOURCES.txt, which lists the SOURCE
+        # tree -- setup.py, LICENSE, the egg-info itself -- most of which were
+        # never installed; Python 3.10's importlib does so even when the
+        # egg-info also kept installed-files.txt. A legacy interlap install
+        # listed nine such files and failed every release-evidence test on an
+        # intact 3.10 env. Only when the list IS the source list is an absent
+        # file expected: it is skipped and the weaker inventory recorded.
+        # Everywhere else a listed file must exist.
+        read_text = getattr(distribution, "read_text", None)
+        sources = read_text("SOURCES.txt") if callable(read_text) else None
+        source_inventory = (
+            sources is not None and read_text("RECORD") is None
+            and {str(item) for item in distribution.files}
+            == {line for line in sources.splitlines() if line.strip()})
         digest = hashlib.sha256()
         count = 0
         for relative in sorted(distribution.files, key=str):
             if str(relative).endswith((".pyc", ".pyo")):
                 continue
             path = Path(distribution.locate_file(relative))
+            if not path.exists():
+                if source_inventory:
+                    continue
+                raise RuntimeError(
+                    f"Dependency {name} lists {relative} as installed, but it "
+                    f"is missing: {path}")
             before = path.stat()
             file_hash = hashlib.sha256()
             with path.open("rb") as handle:
@@ -175,6 +196,8 @@ def dependency_evidence():
         if not count:
             raise RuntimeError(f"Dependency has an empty file inventory: {name}")
         packages[name] = {"version": distribution.version, "files": count, "sha256": digest.hexdigest()}
+        if source_inventory:
+            packages[name]["inventory"] = "egg-info SOURCES.txt"
     return packages
 
 
