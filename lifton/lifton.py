@@ -1580,9 +1580,9 @@ def run_all_lifton_steps(args):
     )
     l_feature_db = l_feature_db.db_connection
     # A precomputed Liftoff GFF3 may contain multiple trans-spliced gene
-    # fragments with one declared ID. The database keeps both roots but can
-    # bind a transcript to the first fragment on a different sequence. Give
-    # Step 7 a read-only corrected hierarchy when a unique same-seqid parent
+    # fragments with one declared ID. The database keeps every root but binds
+    # each transcript to the first fragment, which need not contain it. Give
+    # Step 7 a read-only corrected hierarchy when a unique containing fragment
     # exists; the common no-duplicate case retains the original DB object.
     from lifton.parent_resolution import bind_same_seqid_parents
     parent_counts = {}
