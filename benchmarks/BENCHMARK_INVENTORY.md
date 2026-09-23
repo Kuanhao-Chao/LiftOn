@@ -5,7 +5,7 @@ This inventory is generated deterministically from Git-tracked benchmark files a
 - Curated files: **295** (13,557,423 bytes)
 - Registered benchmark IDs: **35**
 - Frozen artifacts verified: **1**
-- Inventory digest: `ce5cd8e034c8ff340eb5466523743efc3b64833a1b6ed802b483538d8f9c6a59`
+- Inventory digest: `7ccea7924630b54938305020046c3297dc4002afc0554087be14c9ddb2a96767`
 
 ## Classifications
 

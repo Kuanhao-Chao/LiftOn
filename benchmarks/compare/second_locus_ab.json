@@ -10,8 +10,8 @@
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -21,13 +21,13 @@
     "n_placed": 2,
     "mean_pi_placed": 0.715,
     "n_lost": 0,
-    "common_improved": 1,
+    "common_improved": 0,
     "common_regressed": 0,
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -42,8 +42,8 @@
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -53,13 +53,13 @@
     "n_placed": 53,
     "mean_pi_placed": 0.77313,
     "n_lost": 0,
-    "common_improved": 37,
+    "common_improved": 32,
     "common_regressed": 0,
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -74,8 +74,8 @@
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -85,13 +85,13 @@
     "n_placed": 6,
     "mean_pi_placed": 0.68517,
     "n_lost": 0,
-    "common_improved": 3,
+    "common_improved": 2,
     "common_regressed": 0,
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -106,8 +106,8 @@
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   },
@@ -122,8 +122,8 @@
     "n_overlapping_above_gate": 0,
     "overlapping_examples": [],
     "validity": {
-      "default": 1,
-      "second_locus": 1
+      "default": 0,
+      "second_locus": 0
     },
     "safety_gate_pass": true
   }
