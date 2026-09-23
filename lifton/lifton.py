@@ -1326,7 +1326,7 @@ def run_all_lifton_steps(args):
         logger.log(">> Creating target database : ", tgt_annotation, debug=True)
         os.makedirs(lifton_outdir, exist_ok=True)
         auto_convert_gtf = not args.no_auto_convert_gtf
-        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf, conversion_dir=intermediate_dir).db_connection
         from lifton.output_transaction import OutputTransaction
         evaluation_transaction = OutputTransaction(
             os.path.join(lifton_outdir, "eval.txt")

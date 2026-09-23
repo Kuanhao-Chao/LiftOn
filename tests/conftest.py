@@ -514,14 +514,13 @@ def gff_duplicate_id_collision(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _scrub_gffutils_db_cache(tmp_path):
+def _scrub_gffutils_db_cache():
     """gffutils writes <gff>_db next to the GFF; tmp_path is per-test so
     no manual cleanup is normally needed, but defensively wipe any
-    leftovers from prior failed runs in the repo root."""
+    leftovers from prior failed runs inside the tests tree."""
     yield
-    for stale in REPO_ROOT.glob("**/*.gff3_db"):
-        # Only delete inside tmp / tests, never in source data
-        if "tests" in stale.parts and stale.is_file():
+    for stale in (REPO_ROOT / "tests").glob("**/*.gff3_db"):
+        if stale.is_file():
             try:
                 stale.unlink()
             except OSError:
