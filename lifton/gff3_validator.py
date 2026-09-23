@@ -983,7 +983,8 @@ def _validate_streaming(
                 max_issues_per_check, shared_counts=hierarchy_counts))
         if check_containment:
             containment_issues.extend(_check_containment(
-                records, id_to_record, max_issues_per_check,
+                records, id_to_record, parent_to_children,
+                max_issues_per_check,
                 shared_counts=containment_counts))
             containment_issues.extend(_check_sibling_overlap(
                 parent_to_children, id_to_record, max_issues_per_check,
@@ -1196,7 +1197,8 @@ def validate_gff3_file(
     # ── Containment validation ───────────────────────────────────────────────
     if check_containment:
         result.issues.extend(
-            _check_containment(records, id_to_record, max_issues_per_check)
+            _check_containment(records, id_to_record, parent_to_children,
+                               max_issues_per_check)
         )
         result.issues.extend(
             _check_sibling_overlap(parent_to_children, id_to_record,
@@ -1726,12 +1728,13 @@ def _check_hierarchy(
 def _check_containment(
     records: List[GFF3Record],
     id_to_record: Dict[str, GFF3Record],
+    parent_to_children: Dict[str, List[GFF3Record]],
     max_issues: int,
     shared_counts: Optional[Dict[str, int]] = None,
 ) -> List[GFF3Issue]:
     """
-    Validate that every child feature is contained within its parent coordinates.
-    Also validates that all features on the same seqid share the parent's seqid.
+    Validate parent bounds and require every CDS segment to lie in an exon of
+    the same parent when that parent has exon records.
     """
     issues: List[GFF3Issue] = []
     # A caller driving these checks block by block passes its own counter so
@@ -1777,6 +1780,29 @@ def _check_containment(
                     "coord_containment",
                     f"{rec.ftype} [{rec.start}, {rec.end}] extends outside "
                     f"parent '{parent.feat_id}' [{parent.start}, {parent.end}]"
+                ))
+
+    for parent_id, children in parent_to_children.items():
+        exons = [child for child in children if child.ftype in EXON_TYPES]
+        if not exons:
+            # Valid sparse GFF3 can have CDS children without explicit exons.
+            continue
+        for cds in (child for child in children if child.ftype in CDS_TYPES):
+            if any(
+                exon.seqid == cds.seqid
+                and (exon.strand == cds.strand
+                     or exon.strand in (".", "?") or cds.strand in (".", "?"))
+                and exon.start <= cds.start and cds.end <= exon.end
+                for exon in exons
+            ):
+                continue
+            issue_counts["cds_outside_exon"] += 1
+            if issue_counts["cds_outside_exon"] <= max_issues:
+                issues.append(GFF3Issue(
+                    Severity.ERROR, cds.lineno, cds.feat_id or parent_id,
+                    "cds_exon_containment",
+                    f"CDS [{cds.start}, {cds.end}] is not contained in an "
+                    f"exon of parent '{parent_id}' on {cds.seqid}"
                 ))
 
     return issues
