@@ -151,8 +151,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "40e982a2073f191f6e222285ca852ccda82b67357e39ef665acd9d2029a2f0c3",
-      "bytes": 499876,
+      "aggregate_sha256": "2e263c8e04f23a3210f8ea4e1000ed059ad277281d7673a52f180bf11186938f",
+      "bytes": 500071,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -239,13 +239,13 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "f186e48cb37aeec87e72d687dcbe60e539a401ba0c54fcaf397a47b9fa156bdb",
-      "bytes": 3329,
+      "aggregate_sha256": "6b98f4f7199b9de21263c24779d3b2e236853de49e1b28de3ef0ec7fa88a7f57",
+      "bytes": 15207,
       "claim_eligible": false,
       "classification": "diagnostic",
       "completion_state": "complete",
-      "description": "Cycle-3 (v1.0.14) promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed.",
-      "file_count": 1,
+      "description": "v1.0.14 promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed; and the independent second-locus truth gate, which scores rescued models against the target assembly's own RefSeq annotation with shifted-locus controls.",
+      "file_count": 2,
       "id": "promotion_ab_v1014",
       "superseded_by": null
     }
@@ -2988,6 +2988,16 @@
       "sha256": "d6cf4f37850125c627ddc284de84beedc4722694511d4d376b103ff6f044ca96"
     },
     {
+      "bytes": 11878,
+      "claim_eligible": false,
+      "classification": "diagnostic",
+      "completion_state": "complete",
+      "family": "promotion_ab_v1014",
+      "json_schema": null,
+      "path": "benchmarks/compare/second_locus_truth.py",
+      "sha256": "8658b0464596016aecfee578a04d7a75a48dbe74882de6cc3716fb59f2041332"
+    },
+    {
       "bytes": 1034,
       "claim_eligible": false,
       "classification": "historical",
@@ -3432,7 +3442,7 @@
       "sha256": "e1cb23078d1c69a23871b9518fb5b83ec316521d8d47c7175a2994c4411b63d4"
     },
     {
-      "bytes": 12591,
+      "bytes": 12786,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -3443,7 +3453,7 @@
         "top_level_count": 7
       },
       "path": "benchmarks/inventory_rules.json",
-      "sha256": "6abde9478ee64882a8fb9bee71951b847fa8262cae3529961f88fb5f6b0e4248"
+      "sha256": "a9e18f4a0e559dd77f58cde73e992f5b2ed8e563b7028d18b7d4ccff3a471608"
     },
     {
       "bytes": 34428,
@@ -3631,7 +3641,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "1933fbad4859c4e80a471d1e47898ff81c8d695a46ea6fceb27e3b8ed77dfd60",
+  "inventory_sha256": "12129da39b28aa26146e3cd5a34b3ef9e5fc18c3a1cfdc4d1b038ee167a78316",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3675,19 +3685,19 @@
     "path": "benchmarks/compare/benchmarks.json",
     "schema_incomplete_ids": []
   },
-  "rules_sha256": "c82b84f6432564c5bd56b2f202c7e335c2d5a009de37a88df5560eb882bad90f",
+  "rules_sha256": "aa5a8218249abfbc9b445d9a604feeff9c7928dab73729b4a5f486fa56c4290c",
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "a0bf9281f8ff25733cb2b9272d74d7fdaf0cd60ba17f538dad487a083108266c",
-    "bytes": 13543609,
+    "aggregate_sha256": "43bcc89fafbf210d2248fef36f79ae2f339423b2ed684f1988a6c38163a6f802",
+    "bytes": 13555682,
     "classification_counts": {
       "canonical": 79,
-      "diagnostic": 43,
+      "diagnostic": 44,
       "historical": 154,
       "ineligible": 1,
       "obsolete": 17
     },
-    "file_count": 294
+    "file_count": 295
   }
 }

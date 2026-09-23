@@ -290,9 +290,10 @@
       "classification": "diagnostic",
       "claim_eligible": false,
       "completion_state": "complete",
-      "description": "Cycle-3 (v1.0.14) promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed.",
+      "description": "v1.0.14 promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed; and the independent second-locus truth gate, which scores rescued models against the target assembly's own RefSeq annotation with shifted-locus controls.",
       "superseded_by": null,
       "patterns": [
+        "benchmarks/compare/second_locus_truth.*",
         "benchmarks/compare/windowed_anchor_ab.*"
       ]
     }
