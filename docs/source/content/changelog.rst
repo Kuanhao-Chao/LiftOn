@@ -45,6 +45,8 @@ v1.0.14 (2026-09-22)
   instead of letting the error drop the competing Liftoff gene.
 - Keep a gene when one of its lifted transcripts encodes no protein; it was
   dropped whole in every release since v1.0.9.
+- Stop revisiting a gene's tRNA/rRNA children as loci of their own, which
+  recorded hundreds of false pipeline failures on mammalian RefSeq lifts.
 - Do not abort the isoform rescue on an empty batch when
   ``LIFTON_RESCUE_ISOFORM_WORKERS`` is set (affected v1.0.12 and v1.0.13).
 - Keep GTF conversions out of the system temp directory in evaluation mode and

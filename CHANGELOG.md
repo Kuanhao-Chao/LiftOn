@@ -67,6 +67,13 @@ All notable changes to **LiftOn** are documented here. This project follows
   dog to cat a 37-transcript gene was lost over one 3-bp CDS. In every release
   since the guard arrived in v1.0.9. The transcript is now kept as lifted, like
   any other that has no protein to score.
+- A tRNA or rRNA that is a lifted gene's child is no longer visited a second
+  time as a locus of its own. The gene-like lift detects those types from
+  their top-level instances, and Step 7 then visited every instance: each
+  child failed to resolve a reference gene and was recorded as a pipeline
+  failure. On dog to cat that was 395 of 396 failures and a `partial_success`
+  status for rows already in the output, which hid the one real loss. The
+  annotation is unchanged; the run now reports what actually failed.
 - Setting `LIFTON_RESCUE_ISOFORM_WORKERS` - the remedy LiftOn's own
   fork-failure warning recommends - no longer aborts a run in which the
   rescued genes have no other isoform to try. The empty batch was cut into

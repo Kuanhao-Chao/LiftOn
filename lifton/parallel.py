@@ -180,6 +180,30 @@ class _OrderedWriter:
             self._drain_ready()
 
 
+def _nested_in_lifted_parent(features, scan):
+    """Predicate: is this locus a child of a feature of a lifted type?
+
+    The gene-like lift auto-detects every type with a top-level instance; on
+    dog RefSeq that includes `tRNA` and `rRNA`. Every instance of those types
+    was then visited as a locus, including the ones that are a lifted gene's
+    children and had already been emitted under it. Each failed to resolve a
+    reference gene and became a pipeline failure: 395 of 396 on the dog -> cat
+    whole-genome lift, all rows already in the output. The Iteration-20 rule
+    (`extract_sequence.parent_is_listed_type`) applies: skip an instance whose
+    parent is of a lifted type. The lifted ids are collected in one scan up
+    front, so nothing queries the handle while a root scan is open on it.
+    """
+    lifted = set()
+    for feature in features:
+        for locus in scan(feature):
+            lifted.add(locus.id)
+
+    def nested(locus):
+        parents = getattr(locus, "attributes", {}).get("Parent") or ()
+        return any(parent in lifted for parent in parents)
+    return nested
+
+
 def _iter_loci(features: Iterable[str], l_feature_db) -> Iterator[Tuple[str, object]]:
     """Yield ``(feature_type, locus)`` pairs in the same order the
     legacy serial loop visits them.
@@ -189,9 +213,12 @@ def _iter_loci(features: Iterable[str], l_feature_db) -> Iterator[Tuple[str, obj
     parallel path, and the serial baseline is byte-equal to it by
     construction.
     """
+    features = list(features)
+    nested = _nested_in_lifted_parent(features, l_feature_db.features_of_type)
     for feature in features:
         for locus in l_feature_db.features_of_type(feature):
-            yield feature, locus
+            if not nested(locus):
+                yield feature, locus
 
 
 def _iter_loci_serial_safe(
@@ -199,11 +226,13 @@ def _iter_loci_serial_safe(
 ) -> Iterator[Tuple[str, object]]:
     """Root scan safe to interleave with hierarchy reads on one handle."""
     safe_scan = getattr(l_feature_db, "features_of_type_stream_safe", None)
+    scan = safe_scan if callable(safe_scan) else l_feature_db.features_of_type
+    features = list(features)
+    nested = _nested_in_lifted_parent(features, scan)
     for feature in features:
-        loci = (safe_scan(feature) if callable(safe_scan)
-                else l_feature_db.features_of_type(feature))
-        for locus in loci:
-            yield feature, locus
+        for locus in scan(feature):
+            if not nested(locus):
+                yield feature, locus
 
 
 def _backend_supports_threads(*dbs, native: bool = False) -> bool:
