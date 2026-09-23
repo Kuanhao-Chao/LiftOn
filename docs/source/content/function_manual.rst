@@ -21,7 +21,7 @@ LiftOn
          ███████╗██║██║        ██║   ╚██████╔╝██║ ╚████║
          ╚══════╝╚═╝╚═╝        ╚═╝    ╚═════╝ ╚═╝  ╚═══╝
 
-      v1.0.13
+      v1.0.14
 
       usage: lifton [-h] [-E] [-EL] [-c] [--no-orf-search] [-o FILE] [-u FILE] [-exclude_partial] [-mm2_options =STR] [-mp_options =STR] [-a A] [-s S] [-min_miniprot MIN_MINIPROT] [-max_miniprot MAX_MINIPROT]
                     [-d D] [-flank F] [-V] [-D] [-t THREADS] [-m PATH] [-f TYPES] [-infer-genes] [-infer_transcripts] [-chroms TXT] [-unplaced TXT] [-copies] [-sc SC] [-overlap O] [-mismatch M] [-gap_open GO]

@@ -4,8 +4,8 @@
 Changelog
 ===========
 
-Unreleased
-----------
+v1.0.14 (2026-09-22)
+--------------------
 
 - Honour the genetic code an annotation declares (``transl_table``) in protein
   extraction, model translation, the ORF search and stop completion, and run
@@ -35,9 +35,15 @@ Unreleased
 - Repair direct-GTF self-parent relations and preserve transcript IDs during
   inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
   checks after conversion.
-- Attach a CDS spanning more than one exon to a single exon instead of
-  cloning it onto every exon it touches, which emitted the same coding block
-  twice and doubled the protein.
+- Split a CDS spanning an intron into exonic segments with transcript-order
+  phases. Reject ambiguous overlaps, and validate CDS-within-exon containment.
+- Rebind a trans-spliced transcript in precomputed Liftoff annotations to its
+  unique same-sequence gene fragment; preserve that fragment's ``part``. An
+  ambiguous family is left as bound and counted instead of aborting the run.
+- Skip a miniprot candidate whose CDS cannot be split at exon boundaries
+  instead of letting the error drop the competing Liftoff gene.
+- Keep GTF conversions out of the system temp directory in evaluation mode and
+  when no converter is installed.
 - Count what the miniprot-only rescue abandons: it is on by default, abandons
   candidates in ~40 places and recorded none, so a drop total of 0 meant
   "nothing was counted". Deliberate filters stay uncounted; failed lookups do
@@ -65,6 +71,8 @@ Unreleased
   explicit expected cells and rejection of incomplete or stale results.
 - Require campaign and attempt history, isolate imported source modules, and
   keep failed reference protein extraction in unresolved coding accounting.
+- Check second-locus rescue against assembly-matched target RefSeq coding
+  models and seeded shifted-locus controls, retaining every baseline feature.
 
 v1.0.13
 --------

@@ -4,7 +4,7 @@ All notable changes to **LiftOn** are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions and
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.14] - 2026-09-22
 
 ### Added
 
@@ -37,14 +37,29 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ### Fixed
 
-- A CDS that spans more than one exon is attached to one exon, not to every
-  exon it touches. It was cloned onto all of them, so the transcript emitted
-  the same coding block twice and the protein counted those bases twice. The
-  warning it printed blamed the input - "The reference model is malformed here"
-  - which was false on real data: the second exon was one LiftOn had created by
-  ingesting miniprot's redundant `stop_codon`. With that fixed the path stops
-  firing at all (CHM13 8,546 such warnings to 0, rice 4,468 to 0, bee 3,614 to
-  0, drosophila 2,632 to 0).
+- A CDS crossing an intron is emitted as exonic segments with the correct
+  transcript-order phase, rather than cloned whole onto multiple exons or
+  attached whole to one exon and extended across the intron at write time.
+  Ambiguous overlapping-exon cases are counted and rejected. The validator now
+  checks that each CDS segment lies within an exon when exons are present.
+  The redundant miniprot `stop_codon` fix makes this path inert on the five
+  measured whole-genome runs (CHM13 8,546 warnings to 0; rice 4,468 to 0;
+  bee 3,614 to 0; drosophila 2,632 to 0).
+- A trans-spliced gene family with duplicate IDs in a precomputed Liftoff GFF3
+  binds a transcript to its unique containing fragment on the same sequence.
+  Rice `nad5` previously acquired a cross-sequence parent and wrong `part`
+  attribute after gffutils import; the correction preserves its source part.
+  When two fragments could hold the transcript the input cannot say which, so
+  it is left as bound, warned once and counted
+  (`liftoff_same_seqid_parent_ambiguous`) rather than aborting the run.
+- A miniprot candidate whose CDS cannot be split at exon boundaries is skipped
+  as a candidate. The error would otherwise have reached the per-locus handler
+  and dropped the Liftoff gene the candidate was competing with. Never
+  observed on the corpus; guarded because the cost of being wrong is a gene.
+- GTF conversion no longer leaves `gtf-conversion-*` directories in the system
+  temp directory: evaluation mode (`-E`) now converts a GTF target into the
+  run's intermediate directory, and no directory is created when no converter
+  is installed.
 - The miniprot-only rescue counts what it abandons. It is on by default,
   abandons candidates in roughly forty places, and recorded none of them, so
   five whole genomes reported a drop total of 0 that meant "nothing was
@@ -134,6 +149,8 @@ All notable changes to **LiftOn** are documented here. This project follows
   imported LiftOn modules from falling through to another checkout, and retains
   CDS-bearing references with failed protein extraction as unresolved coding
   evaluation instead of counting them as noncoding.
+- Independent second-locus truth qualification uses assembly-matched RefSeq
+  coding models, reciprocal CDS overlap, and seeded shifted-locus controls.
 
 
 ## [1.0.13] - 2026-09-18
