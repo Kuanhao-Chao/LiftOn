@@ -17,7 +17,7 @@ delegations to these functions, preserving the recursive dispatch
 import io
 import os
 
-from lifton import logger
+from lifton import logger, transl_except
 from lifton.exceptions import LiftOnError
 from lifton.io import gff3_writer
 
@@ -33,8 +33,31 @@ def _render_exon(exon) -> str:
     return gff3_writer.format_feature(exon.entry) + "\n"
 
 
-def _render_cds(cds) -> str:
-    return gff3_writer.format_feature(cds.entry) + "\n"
+class _AttributeView:
+    """A feature with different attributes, leaving the feature itself alone
+    (the stage-then-write paths render the same objects twice)."""
+
+    def __init__(self, entry, attributes):
+        self._entry = entry
+        self.attributes = attributes
+
+    def __getattr__(self, name):
+        return getattr(self._entry, name)
+
+
+def _render_cds(cds, transl_except_values=None) -> str:
+    """One CDS row. ``transl_except_values`` from :func:`transl_except.cds_values`:
+    None leaves the row as it is; otherwise the row carries exactly those
+    values (target coordinates), or none."""
+    entry = cds.entry
+    if transl_except_values is not None:
+        attributes = dict(getattr(entry, "attributes", None) or {})
+        if transl_except_values:
+            attributes["transl_except"] = list(transl_except_values)
+        else:
+            attributes.pop("transl_except", None)
+        entry = _AttributeView(entry, attributes)
+    return gff3_writer.format_feature(entry) + "\n"
 
 
 def _render_trans(trans) -> str:
@@ -44,13 +67,17 @@ def _render_trans(trans) -> str:
             for e in getattr(trans, "exons", [])):
         trans.entry.featuretype = "mRNA"
 
+    # A declared codon exception (transl_except) is rewritten into this
+    # model's own coordinates; a carried reference-coordinate value is never
+    # written. None -- no declaration, nothing carried -- leaves the rows alone.
+    transl_except_values = transl_except.cds_values(trans)
     out = io.StringIO()
     out.write(gff3_writer.format_feature(trans.entry) + "\n")
     for exon in trans.exons:
         out.write(_render_exon(exon))
     for exon in trans.exons:
         if exon.cds is not None:
-            out.write(_render_cds(exon.cds))
+            out.write(_render_cds(exon.cds, transl_except_values))
     return out.getvalue()
 
 

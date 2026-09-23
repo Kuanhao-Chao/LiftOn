@@ -1,4 +1,4 @@
-from lifton import align, coding, coreutils, drop_ledger, get_id_fraction, variants, logger
+from lifton import align, coding, coreutils, drop_ledger, get_id_fraction, transl_except, variants, logger
 from lifton.cds_id_allocator import CdsIdAllocator
 from lifton.io import feature_serializer
 import copy, os, re
@@ -183,6 +183,10 @@ class Lifton_Status:
 
 
 class Lifton_Alignment:
+    # Alignment columns where the model reads through a stop its reference
+    # declares (transl_except). Empty for every other alignment.
+    readthrough_cols = frozenset()
+
     def __init__(self, extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry):
         self.identity = extracted_identity
         self.cds_children = cds_children
@@ -356,12 +360,12 @@ class Lifton_GENE:
         if trans_id not in self.transcripts.keys():
             return None, False
         if not eval_liftoff_chm13:
-            ref_protein_seq = str(ref_proteins[ref_trans_id]) if ref_trans_id in ref_proteins.keys() else None
-            ref_trans_seq = str(fai_trans[ref_trans_id]) if ref_trans_id in fai_trans.keys() else None
+            ref_key = ref_trans_id
         else:
-            ref_protein_seq = str(ref_proteins["rna-"+ref_trans_id]) if "rna-"+ref_trans_id in ref_proteins.keys() else None
-            ref_trans_seq = str(fai_trans["rna-"+ref_trans_id]) if "rna-"+ref_trans_id in fai_trans.keys() else None
-        lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only)
+            ref_key = "rna-" + ref_trans_id
+        ref_protein_seq = str(ref_proteins[ref_key]) if ref_key in ref_proteins.keys() else None
+        ref_trans_seq = str(fai_trans[ref_key]) if ref_key in fai_trans.keys() else None
+        lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only, readthrough=transl_except.readthrough(ref_key))
         return lifton_aln, good_trans
 
     def update_cds_list(self, trans_id, cds_list, optimize=False):
@@ -487,6 +491,7 @@ class LiftOn_FEATURE:
         return child.orf_search_protein(
             fai, ref_protein_seq, ref_trans_seq, lifton_status,
             is_non_coding=False, eval_only=eval_only,
+            readthrough=transl_except.readthrough(ref_trans_id),
         )
 
     def add_lifton_gene_status_attrs(self, source):
@@ -990,7 +995,7 @@ class Lifton_TRANS:
             protein_seq = coding.translate(coding_seq, self.transl_table())
         return protein_seq
 
-    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
+    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status, readthrough=None):
         if ref_protein_seq == "" or ref_protein_seq == None:
             lifton_aa_aln = None
             peps = None
@@ -998,8 +1003,14 @@ class Lifton_TRANS:
             lifton_aa_aln = None
             peps = None
         else:
-            peps = protein_seq.split("*")
-            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
+            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq, readthrough)
+            # A declared read-through (transl_except: Sec, Pyl, stop
+            # readthrough) is not a gained stop: split only on the stops that
+            # end translation, so find_variants does not call stop_codon_gain
+            # -- and trigger the ORF search -- on a selenocysteine.
+            peps = get_id_fraction.mask_readthrough(
+                protein_seq, lifton_aa_aln.query_aln,
+                lifton_aa_aln.readthrough_cols).split("*")
             # Update lifton sequence identity
             lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aa_aln.identity)
         return lifton_aa_aln, peps
@@ -1014,11 +1025,11 @@ class Lifton_TRANS:
             lifton_status.lifton_dna = lifton_tran_aln.identity
         return lifton_tran_aln
 
-    def orf_search_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding, eval_only=False):
+    def orf_search_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding, eval_only=False, readthrough=None):
         coding_seq, trans_seq = self.get_coding_trans_seq(fai)
         protein_seq = self.translate_coding_seq(coding_seq)
         # Aligning the LiftOn protein & DNA sequences
-        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
+        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status, readthrough)
         lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
         # GH #46: the CDS is a contiguous block in the spliced transcript
         # (5'UTR + CDS + 3'UTR), so locate it to scope frameshift detection to the

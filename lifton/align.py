@@ -1,7 +1,7 @@
 import os
 import parasail
 from Bio.Seq import Seq
-from lifton import get_id_fraction, lifton_class, windowed_align
+from lifton import get_id_fraction, lifton_class, transl_except, windowed_align
 from lifton.coreutils import parse_cigar_items
 from lifton.exceptions import LiftOnAlignmentError
 
@@ -226,13 +226,15 @@ def parasail_align_protein_base(protein_seq, ref_protein_seq):
     return extracted_parasail_res
 
 
-def protein_align(protein_seq, ref_protein_seq):
+def protein_align(protein_seq, ref_protein_seq, readthrough=None):
     """
         This function aligns the protein sequence to the reference protein sequence and extracts the alignment information.
 
         Parameters:
         - protein_seq: protein sequence in string format
         - ref_protein_seq: reference protein sequence in string format
+        - readthrough: reference residues declared to read through a stop
+          (``transl_except``), or None
 
         Returns:
         lifton_aln: Lifton_Alignment object
@@ -241,9 +243,12 @@ def protein_align(protein_seq, ref_protein_seq):
     alignment_query = extracted_parasail_res.traceback.query
     alignment_comp = extracted_parasail_res.traceback.comp
     alignment_ref = extracted_parasail_res.traceback.ref
-    extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
+    columns = get_id_fraction.readthrough_columns(alignment_ref, alignment_query, readthrough)
+    extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, columns)
     extracted_identity = extracted_matches/extracted_length
     lifton_aln = lifton_class.Lifton_Alignment(extracted_identity, None, alignment_query, alignment_comp, alignment_ref, None, None, protein_seq, ref_protein_seq, None)
+    if columns:
+        lifton_aln.readthrough_cols = columns
     return lifton_aln
 
 
@@ -375,7 +380,13 @@ def lifton_parasail_align(lifton_trans, db_entry, fai, ref_proteins, ref_trans_i
             cdss_protein_aln_boundary = adjust_cdss_protein_boundary(cdss_protein_aln_boundary, cigar_accum_len, length)
         cigar_accum_len += length
         # print("cigar_accum_len: ", cigar_accum_len)
-    extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query)
+    # Codons the reference declares to read through (transl_except: Sec, Pyl,
+    # stop readthrough). None for every other transcript -- the original path.
+    columns = get_id_fraction.readthrough_columns(
+        alignment_ref, alignment_query, transl_except.readthrough(ref_trans_id))
+    extracted_matches, extracted_length = get_id_fraction.get_AA_id_fraction(extracted_parasail_res.traceback.ref, extracted_parasail_res.traceback.query, columns)
     extracted_identity = extracted_matches/extracted_length
     aln = lifton_class.Lifton_Alignment(extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, protein_seq, ref_protein_seq, db_entry)
+    if columns:
+        aln.readthrough_cols = columns
     return aln

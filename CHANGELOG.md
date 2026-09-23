@@ -37,6 +37,21 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 ### Fixed
 
+- Codons an annotation declares to translate differently (`transl_except`)
+  are honoured. RefSeq declares every selenocysteine this way, and LiftOn read
+  the UGA as a premature stop: an identical selenoprotein scored
+  residue/length, the variant call became `stop_codon_gain`, and the correct
+  lifted model lost to a truncated one. On GRCh38 to CHM13 all 25 human
+  selenoprotein genes were affected - 53 transcripts at a mean protein
+  identity of 0.666, SEPHS2 losing its first 118 residues to a miniprot
+  fragment. A declared read-through (selenocysteine, pyrrolysine, stop
+  readthrough, an amino acid declared over a stop) is now read through by the
+  identity score, the variant call, chaining and stop completion, and the
+  benchmark evaluator applies the same rule to every tool. The `transl_except`
+  written to the output is rewritten into the lifted model's own coordinates
+  - it used to keep the reference's - and is left off where the target codon
+  no longer needs it (a selenocysteine replaced by cysteine). Reported by a
+  user lifting MANE v1.5 to CHM13.
 - A CDS crossing an intron is emitted as exonic segments with the correct
   transcript-order phase, rather than cloned whole onto multiple exons or
   attached whole to one exon and extended across the intron at write time.
