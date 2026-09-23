@@ -583,3 +583,37 @@ def test_evaluation_cannot_substitute_an_unexpected_reference_id():
                                          expected_ids={'a', 'b'})
     assert record['common_set']['unexpected_evaluation_new_ids'] == ['extra']
     assert not rv._finish(record)['gate_pass']
+
+
+def _legacy_distribution(tmp_path, listings):
+    """A distribution whose file list is its SOURCES.txt -- `setup.py`, not
+    installed, beside `package.py`, installed. `listings` are the other
+    inventory files it has."""
+    (tmp_path / 'package.py').write_text('value = 1\n')
+    texts = {'SOURCES.txt': 'setup.py\npackage.py\n'}
+    texts.update({name: 'listed\n' for name in listings})
+    return SimpleNamespace(
+        version='0.2.7', requires=[], files=[Path('setup.py'), Path('package.py')],
+        locate_file=lambda name: tmp_path / name, read_text=texts.get)
+
+
+@pytest.mark.parametrize('listings', [set(), {'installed-files.txt'}])
+def test_a_legacy_source_inventory_hashes_what_is_installed(tmp_path, monkeypatch, listings):
+    """An egg-info install whose file list is its SOURCES.txt -- the source
+    tree. Python 3.10 returns that list even when installed-files.txt exists.
+    A legacy interlap install listed nine files never installed and failed
+    evidence on an intact env."""
+    import importlib.metadata
+    monkeypatch.setattr(importlib.metadata, 'distribution',
+                        lambda name: _legacy_distribution(tmp_path, listings))
+    evidence = p.dependency_evidence()
+    assert evidence['interlap']['files'] == 1
+    assert evidence['interlap']['inventory'] == 'egg-info SOURCES.txt'
+
+
+def test_a_file_missing_from_an_install_record_is_fatal(tmp_path, monkeypatch):
+    import importlib.metadata
+    monkeypatch.setattr(importlib.metadata, 'distribution',
+                        lambda name: _legacy_distribution(tmp_path, {'RECORD'}))
+    with pytest.raises(RuntimeError, match='lists setup.py as installed'):
+        p.dependency_evidence()

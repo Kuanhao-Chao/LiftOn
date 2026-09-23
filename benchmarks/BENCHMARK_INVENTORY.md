@@ -2,10 +2,10 @@
 
 This inventory is generated deterministically from Git-tracked benchmark files and explicitly managed provenance files. Local run trees are excluded from release evidence.
 
-- Curated files: **295** (13,556,045 bytes)
+- Curated files: **295** (13,557,423 bytes)
 - Registered benchmark IDs: **35**
 - Frozen artifacts verified: **1**
-- Inventory digest: `777e8296098b35edc419c7d97cf0ed5d934066d39685010f927661507b35865d`
+- Inventory digest: `ce5cd8e034c8ff340eb5466523743efc3b64833a1b6ed802b483538d8f9c6a59`
 
 ## Classifications
 
