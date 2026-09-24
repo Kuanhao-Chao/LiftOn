@@ -568,3 +568,102 @@ class TestEvaluator:
                 evaluator._children(db, mrna, ("CDS", "stop_codon")), tx, ref, fasta, False)
             assert record["protein_identity"] == 1.0, tx
             assert record["orf_valid"] == 1, tx
+
+
+# ---------------------------------------------------------------------------
+# Ensembl / GENCODE: selenocysteine as its own row, not transl_except
+# ---------------------------------------------------------------------------
+
+def _ensembl_rows(source):
+    """The Sec codons of genes A and C as Ensembl/GENCODE GFF3 writes them:
+    a 3-bp row under the CDS, no transl_except attribute anywhere."""
+    return ("\n".join([
+        f"chr1\t{source}\tstop_codon_redefined_as_selenocysteine\t107\t109\t.\t+\t.\tID=secA;Parent=cdsA",
+        f"chr1\t{source}\tstop_codon_redefined_as_selenocysteine\t840\t842\t.\t+\t.\tID=secC;Parent=cdsC",
+    ]) + "\n")
+
+
+class TestEnsemblSelenocysteine:
+    def test_gff3_rows_are_read_as_declarations(self, tmp_path):
+        import gffutils
+        text = _gff("test", 0, 0, 0, 801, 1001, False) + _ensembl_rows("test") + (
+            "chr1\ttest\tstop_codon_redefined_as_selenocysteine\t559\t561\t.\t-\t.\tID=secB;Parent=cdsB\n")
+        db = gffutils.create_db(text, dbfn=":memory:", from_string=True,
+                                merge_strategy="create_unique", keep_order=True)
+        found = transl_except.selenocysteine_declarations(SimpleNamespace(db_connection=db))
+        assert found == {"txA": ["(pos:107..109,aa:Sec)"],
+                         "txB": ["(pos:complement(559..561),aa:Sec)"],
+                         "txC": ["(pos:840..842,aa:Sec)"]}
+
+    def test_gtf_rows_are_read_before_conversion_drops_them(self, tmp_path):
+        import gffutils
+        gtf = tmp_path / "ref.gtf"
+        gtf.write_text(
+            'chr1\tHAVANA\tSelenocysteine\t25802093\t25802095\t.\t+\t.\tgene_id "G"; transcript_id "ENST1.7";\n'
+            'chr1\tHAVANA\tCDS\t25802000\t25802200\t.\t+\t0\tgene_id "G"; transcript_id "ENST1.7";\n'
+            'chr1\tHAVANA\tSelenocysteine\t500\t502\t.\t-\t.\tgene_id "H"; transcript_id "ENST2.1";\n')
+        empty = gffutils.create_db(  # a database with no Sec rows of its own
+            "##gff-version 3\nchr1\tt\tgene\t1\t9\t.\t+\t.\tID=g\n",
+            dbfn=":memory:", from_string=True)
+        found = transl_except.selenocysteine_declarations(
+            SimpleNamespace(db_connection=empty), gtf_source=str(gtf))
+        assert found == {"ENST1.7": ["(pos:25802093..25802095,aa:Sec)"],
+                         "ENST2.1": ["(pos:complement(500..502),aa:Sec)"]}
+
+    def test_an_ensembl_reference_lifts_its_selenoprotein_like_refseq(
+            self, tmp_path, hermetic_pipeline):
+        refseq = _workspace(tmp_path / "refseq")
+        ensembl = _workspace(tmp_path / "ensembl", with_exceptions=False)
+        (ensembl / "ref.gff3").write_text(
+            _gff("test", 0, 0, 0, 801, 1001, False) + _ensembl_rows("test"))
+        # Liftoff carries the Sec rows across; LiftOn must not emit them.
+        (ensembl / "liftoff.gff3").write_text(
+            _gff("Liftoff", 1000, 1000, 1050, 2001, 2201, False)
+            + "chr1\tLiftoff\tstop_codon_redefined_as_selenocysteine\t1107\t1109\t.\t+\t.\tID=secA;Parent=cdsA\n")
+        expected, _ = _run(refseq, "refseq")
+        text, manifest = _run(ensembl, "ensembl")
+        assert _rows(text, parent="txA") == _rows(expected, parent="txA")
+        assert _rows(text, feature_id="txA") == _rows(expected, feature_id="txA")
+        assert "transl_except=(pos:1107..1109%2Caa:Sec)" in text
+        assert "stop_codon_redefined_as_selenocysteine" not in text
+        assert manifest["counts"]["reference_selenocysteine_rows"] == 2
+
+
+@pytest.mark.skipif(not __import__("shutil").which("gffread"), reason="requires native gffread")
+def test_a_gtf_reference_lifts_its_selenoprotein_like_refseq(tmp_path, hermetic_pipeline):
+    """GTF input goes through gffread, which drops Selenocysteine rows; the
+    original GTF is scanned for them, keyed by the transcript_id the converted
+    transcripts carry."""
+    refseq = _workspace(tmp_path / "refseq")
+    gtf_ws = _workspace(tmp_path / "gtf", with_exceptions=False)
+    rows = []
+    for line in _gff("test", 0, 0, 0, 801, 1001, False).splitlines():
+        if line.startswith("#"):
+            continue
+        cols = line.split("\t")
+        attrs = dict(f.split("=", 1) for f in cols[8].split(";"))
+        if cols[2] not in ("exon", "CDS"):
+            continue
+        tx = attrs["Parent"]
+        gene = "gene" + tx[2:]
+        cols[8] = (f'gene_id "{gene}"; transcript_id "{tx}"; gene_biotype "protein_coding"; '
+                   f'transcript_biotype "protein_coding";')
+        rows.append("\t".join(cols))
+    rows.append('chr1\ttest\tSelenocysteine\t107\t109\t.\t+\t.\tgene_id "geneA"; transcript_id "txA";')
+    (gtf_ws / "ref.gtf").write_text("\n".join(rows) + "\n")
+    from lifton import lifton as lifton_main
+    out = gtf_ws / "gtf.gff3"
+    argv = [str(gtf_ws / "tgt.fa"), str(gtf_ws / "ref.fa"), "-g", str(gtf_ws / "ref.gtf"),
+            "-L", str(gtf_ws / "liftoff.gff3"), "-M", str(gtf_ws / "miniprot.gff3"),
+            "-o", str(out), "-ad", "RefSeq", "--force", "-dir", str(gtf_ws / "dir_gtf")]
+    lifton_main.run_all_lifton_steps(lifton_main.parse_args(argv))
+    text = out.read_text()
+    manifest = json.loads((gtf_ws / "dir_gtf" / "run_manifest.json").read_text())
+    expected, _ = _run(refseq, "refseq")
+    assert manifest["counts"]["reference_selenocysteine_rows"] == 1
+    got = [c for c, _ in _rows(text, parent="txA", ftype="CDS")]
+    want = [c for c, _ in _rows(expected, parent="txA", ftype="CDS")]
+    assert [c[3:5] for c in got] == [c[3:5] for c in want]
+    assert all("transl_except=(pos:1107..1109%2Caa:Sec)" in c[8] for c in got)
+    (mrna, attrs), = _rows(text, feature_id="txA")
+    assert attrs["protein_identity"] == "1.000"

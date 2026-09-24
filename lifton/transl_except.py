@@ -97,14 +97,81 @@ def counts():
                 "dropped": sum(dropped for _, dropped in _RENDERED.values())}
 
 
-def scan_reference(ref_db, ref_fai):
+#: How Ensembl/GENCODE write a selenocysteine codon: its own 3-bp row (GFF3
+#: under the CDS; GTF under the transcript), not a transl_except attribute.
+SELENOCYSTEINE_TYPES = ("stop_codon_redefined_as_selenocysteine", "Selenocysteine")
+
+
+def _selenocysteine_value(start, end, strand):
+    location = f"{start}..{end}"
+    if strand == "-":
+        location = f"complement({location})"
+    return f"(pos:{location},aa:Sec)"
+
+
+def selenocysteine_declarations(ref_db, gtf_source=None):
+    """``{transcript id: [transl_except value, ...]}`` for Ensembl/GENCODE
+    selenocysteine rows, so they are read through exactly like RefSeq's
+    ``transl_except``.
+
+    One featuretype query covers GFF3 input (a row under the CDS is attributed
+    to the CDS's transcript). GTF input is converted by gffread, which drops
+    ``Selenocysteine`` rows, so the original GTF is scanned for them -- keyed by
+    ``transcript_id``, the id the converted transcripts carry. Empty for a file
+    with no such rows, which leaves every transcript as it was.
+    """
+    found = {}
+
+    def add(transcript, value):
+        values = found.setdefault(transcript, [])
+        if value not in values:
+            values.append(value)
+
+    db = ref_db.db_connection
+    rows = []
+    for featuretype in SELENOCYSTEINE_TYPES:
+        try:
+            rows.extend(db.features_of_type(featuretype))
+        except Exception:
+            continue
+    for row in rows:
+        value = _selenocysteine_value(row.start, row.end, row.strand)
+        for parent in (row.attributes.get("Parent") or []):
+            transcript = parent
+            try:
+                parent_feature = db[parent]
+                if parent_feature.featuretype == "CDS":
+                    transcript = (parent_feature.attributes.get("Parent") or [parent])[0]
+            except Exception:
+                pass
+            add(transcript, value)
+    if gtf_source:
+        import gzip
+        import re
+        opener = gzip.open if str(gtf_source).endswith(".gz") else open
+        transcript_id = re.compile(r'transcript_id "([^"]+)"')
+        with opener(gtf_source, "rt") as handle:
+            for line in handle:
+                if "\tSelenocysteine\t" not in line:
+                    continue
+                columns = line.rstrip("\n").split("\t")
+                match = transcript_id.search(columns[8]) if len(columns) >= 9 else None
+                if match and columns[2] == "Selenocysteine":
+                    add(match.group(1), _selenocysteine_value(
+                        int(columns[3]), int(columns[4]), columns[6]))
+    return found
+
+
+def scan_reference(ref_db, ref_fai, extra=None):
     """Declarations for a run whose Step 3 was skipped (``-P`` and ``-T``).
 
     One materialised pass finds the CDS rows that carry the attribute; only
     then is each of their transcripts read, so nothing queries the handle while
-    its scan is open.
+    its scan is open. ``extra`` adds values by transcript
+    (:func:`selenocysteine_declarations`).
     """
     from lifton import extract_sequence
+    extra = extra or {}
     db = ref_db.db_connection
     carriers = [cds for cds in db.features_of_type("CDS")
                 if coding.TRANSL_EXCEPT_ATTRIBUTE in (cds.attributes or {})]
@@ -113,13 +180,17 @@ def scan_reference(ref_db, ref_fai):
         for parent in cds.attributes.get("Parent", []):
             if parent not in parents:
                 parents.append(parent)
+    for parent in extra:
+        if parent not in parents:
+            parents.append(parent)
     mapping = {}
     for parent_id in parents:
         try:
             feature = db[parent_id]
             children = [child for child in db.children(feature, level=1, order_by="start")
                         if child.featuretype in _CODING_CHILDREN]
-            entries = extract_sequence.transl_excepts_of(feature, ref_fai, children)
+            entries = extract_sequence.transl_excepts_of(
+                feature, ref_fai, children, extra_values=extra.get(parent_id))
         except Exception as error:
             logger.log_warning(f"{parent_id}: {coding.TRANSL_EXCEPT_ATTRIBUTE} "
                                f"could not be placed ({error}).")
