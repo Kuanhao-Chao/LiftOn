@@ -593,9 +593,15 @@ class Lifton_TRANS:
         coreutils.custom_bisect_insert(self.exons, Lifton_exon)
 
     def transl_table(self):
-        """The genetic code to translate and scan this model with."""
+        """The genetic code to translate and scan this model with.
+
+        The code its CDS rows declare; otherwise the one its reference
+        transcript declares. A miniprot-derived model's rows declare nothing, so
+        a mitochondrial protein rescued or chained from miniprot was translated
+        with the standard code -- TGA read as a stop.
+        """
         if self._transl_table is None:
-            return coding.DEFAULT_TRANSL_TABLE
+            return coding.transcript_table(getattr(self, "ref_tran_id", None))
         return self._transl_table
 
     def add_cds(self, gffutil_entry_cds):

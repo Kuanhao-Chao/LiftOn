@@ -100,6 +100,25 @@ def table_from_attributes(attributes, context=None):
     return parse_transl_table(value, context)
 
 
+#: The genetic code each reference transcript declares, from Step 3's
+#: sidecar: ``{reference transcript id: table}``, non-standard codes only.
+#: Installed once before any thread or fork, read-only afterwards.
+_TRANSCRIPT_TABLES = {}
+
+
+def install_transcript_tables(mapping):
+    """Replace the per-transcript declared codes (start of each run: ``{}``)."""
+    _TRANSCRIPT_TABLES.clear()
+    _TRANSCRIPT_TABLES.update(mapping or {})
+
+
+def transcript_table(ref_id, default=DEFAULT_TRANSL_TABLE):
+    """The code this reference transcript declares, or ``default``."""
+    if ref_id is None:
+        return default
+    return _TRANSCRIPT_TABLES.get(ref_id, default)
+
+
 def resolve_transl_table(features, context=None, default=DEFAULT_TRANSL_TABLE):
     """The genetic code this transcript's CDS rows declare.
 

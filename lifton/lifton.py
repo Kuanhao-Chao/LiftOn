@@ -1,4 +1,4 @@
-from lifton import drop_ledger, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
+from lifton import coding, drop_ledger, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
 from intervaltree import IntervalTree
 import argparse
 from pyfaidx import Fasta
@@ -1083,6 +1083,7 @@ def run_all_lifton_steps(args):
     # Same for the declared codon exceptions (transl_except) of the reference.
     from lifton import transl_except as _transl_except
     _transl_except.clear()
+    coding.install_transcript_tables({})
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -1344,6 +1345,10 @@ def run_all_lifton_steps(args):
                 f"declared recoded stops are not read through in this run.")
             _declared_exceptions = {}
     _n_declared = _transl_except.install(_declared_exceptions, ref_proteins, tgt_fai)
+    # The code each reference transcript declares, for the models whose own
+    # rows declare none (every miniprot-derived model). Before any fork.
+    coding.install_transcript_tables(
+        extract_sequence.read_transl_table_sidecar(ref_proteins_file))
     if _n_declared:
         logger.log(f"\t * reference transcripts declaring transl_except: {_n_declared}",
                    debug=True)
