@@ -4,12 +4,12 @@
 version of this note, which is kept as Appendix A (verbatim; headings demoted one level).*
 
 **Verdict: ready to release.** Every qualification gate below passed on the frozen
-commit; CI on the pushed head: ⟨CI⟩. Frozen commit **`e688ff5`** on `v1014-integration`.
+commit; CI on the pushed head is **green** on `51ebcf7` (tests 3.10/3.11/3.12 + optional-native; distribution qualification incl. compiler-free wheel and sdist on 3.10–3.14). Frozen commit **`e688ff5`** on `v1014-integration`.
 Nothing has been merged to `main`, tagged, released, uploaded to PyPI, changed
 on Bioconda, or published for CHM13. The runbook at the end lists every one of
 those steps; each is an outward action that needs sign-off.
 
-v1.0.14 is ⟨NCOMMITS⟩ commits on top of v1.0.13 (`b2fe59f`, which is `main` and
+v1.0.14 is 59 commits on top of v1.0.13 (`b2fe59f`, which is `main` and
 `devel`), a clean fast-forward. It was built across four Claude Code cycles
 (2026-09-14 → 09-21) and one Codex session (2026-09-22/23, "Improve LiftOn
 comprehensively"), then reconciled, reviewed and qualified here.
@@ -182,7 +182,7 @@ commits touch only `notes/` and the two changelogs, neither of which ships.
 | fatal flake8 (CI's `E9,F63,F7,F82` over `.`) | 0 |
 | Sphinx docs build (pinned Sphinx 9.1.0) | succeeds; 77 warnings, **0 new** vs v1.0.13 (which had 80) |
 | `make benchmark-gate` (isolated export of `e688ff5` with its own copy of `work/human_mane`, PYTHONPATH-pinned; the lift's manifest carries the new `transl_except` counters) | **GATE PASS**: 24-cell + integration pytest pass; human_mane protein identity 0.99425 → 0.99542 (the evaluator now reads Sec through for every tool — Liftoff's own score rose too), completeness 0.99764 unchanged, wall 11.7 s vs the baseline's 21.2 s (an old baseline; not a speed claim) |
-| CI on the pushed head | ⟨CI⟩ |
+| CI on the pushed head (`51ebcf7`; later commits are this note's own) | **green**: "Run tests" run 35951581433 — build 3.10 / 3.11 / 3.12 and optional-native 3.10 / 3.11 / 3.12; "Qualify distribution artifacts" run 35951581489 — build, native artifact, compiler-free wheel and sdist on 3.10 / 3.11 / 3.12 / 3.14 |
 
 ### The new validator rule, measured before shipping
 
@@ -410,8 +410,8 @@ Liftoff, fresh miniprot, `-t 16`), 1 h 09 m, peak RSS 30.2 GiB, status
 
 State at handoff: `v1014-integration` = the frozen code `e688ff5` plus
 commits touching only `notes/` and the two changelogs (neither ships in the
-sdist or wheel), pushed, CI ⟨CI⟩.
-`main` = `devel` = `b2fe59f` (v1.0.13); the branch is ⟨NCOMMITS⟩ commits
+sdist or wheel), pushed, CI green on `51ebcf7`.
+`main` = `devel` = `b2fe59f` (v1.0.13); the branch is 59 commits
 ahead and 0 behind, so both merges are fast-forwards.
 
 1. **Date the release.** Replace the provisional `2026-09-22` in all three
