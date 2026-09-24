@@ -96,3 +96,33 @@ class TestTheDocstringIsNoLongerStale:
     def test_the_claim_matches_the_implementation(self):
         assert hasattr(gff3_validator, "_check_sibling_overlap")
         assert "No overlapping exons" in gff3_validator.__doc__
+
+
+class TestOverlapScope:
+    def test_segments_on_different_sequences_never_overlap(self, tmp_path):
+        """A trans-spliced transcript's segments can sit on two sequences at
+        the same coordinates; sorting by position alone called them overlapping."""
+        path = _write(tmp_path, GENE + MRNA + (
+            "chr1\tLiftOn\texon\t100\t400\t.\t+\t.\tID=e1;Parent=tx1\n"
+            "chr2\tLiftOn\texon\t300\t900\t.\t+\t.\tID=e2;Parent=tx1\n"))
+        assert "exon_overlap" not in _codes(gff3_validator.validate_gff3_file(path))
+
+    def test_a_declared_ribosomal_slippage_overlap_is_a_warning(self, tmp_path):
+        """RefSeq writes a -1 frameshift (PEG10: 94663334-94664513 then
+        94664513-94665682) as two segments of one CDS sharing a base, declared
+        with exception=ribosomal slippage. That is the protein, not an error."""
+        path = _write(tmp_path, GENE + MRNA + (
+            "chr1\tLiftOn\texon\t100\t900\t.\t+\t.\tID=e1;Parent=tx1\n"
+            "chr1\tLiftOn\tCDS\t100\t400\t.\t+\t0\tID=c1;Parent=tx1;exception=ribosomal slippage\n"
+            "chr1\tLiftOn\tCDS\t400\t699\t.\t+\t2\tID=c1;Parent=tx1;exception=ribosomal slippage\n"))
+        result = gff3_validator.validate_gff3_file(path)
+        errors = {i.check for i in result.errors}
+        assert "cds_overlap" not in errors
+        assert "cds_overlap_ribosomal_slippage" in {i.check for i in result.warnings}
+
+    def test_the_same_overlap_undeclared_is_still_an_error(self, tmp_path):
+        path = _write(tmp_path, GENE + MRNA + (
+            "chr1\tLiftOn\texon\t100\t900\t.\t+\t.\tID=e1;Parent=tx1\n"
+            "chr1\tLiftOn\tCDS\t100\t400\t.\t+\t0\tID=c1;Parent=tx1\n"
+            "chr1\tLiftOn\tCDS\t400\t699\t.\t+\t2\tID=c1;Parent=tx1\n"))
+        assert "cds_overlap" in {i.check for i in gff3_validator.validate_gff3_file(path).errors}

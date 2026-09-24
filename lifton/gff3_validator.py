@@ -1824,7 +1824,12 @@ def _check_sibling_overlap(
     past a validator that reported the file clean.
 
     Segments of one discontinuous feature share an ID by design, and they still
-    must not overlap each other, so they are checked like any other pair.
+    must not overlap each other, so they are checked like any other pair --
+    with one exception the reference itself uses: a -1 ribosomal frameshift
+    (RefSeq PEG10: 94663334-94664513 then 94664513-94665682) is written as two
+    segments of one CDS sharing a base, declared ``exception=ribosomal
+    slippage``. That overlap is the protein, so it is a WARNING. Only rows on
+    the same sequence and strand can overlap.
     """
     issues: List[GFF3Issue] = []
     issue_counts: Dict[str, int] = (
@@ -1837,20 +1842,42 @@ def _check_sibling_overlap(
         for ftype, check in (("exon", "exon_overlap"), ("CDS", "cds_overlap")):
             rows = sorted(
                 (rec for rec in children if rec.ftype == ftype),
-                key=lambda rec: (rec.start, rec.end),
+                key=lambda rec: (rec.seqid, rec.strand, rec.start, rec.end),
             )
             for earlier, later in zip(rows, rows[1:]):
+                if (later.seqid, later.strand) != (earlier.seqid, earlier.strand):
+                    continue
                 if later.start > earlier.end:
                     continue
-                issue_counts[check] += 1
-                if issue_counts[check] <= max_issues:
+                severity, code = Severity.ERROR, check
+                if ftype == "CDS" and _declared_slippage(earlier, later):
+                    severity, code = Severity.WARNING, "cds_overlap_ribosomal_slippage"
+                issue_counts[code] += 1
+                if issue_counts[code] <= max_issues:
                     issues.append(GFF3Issue(
-                        Severity.ERROR, later.lineno, later.feat_id, check,
+                        severity, later.lineno, later.feat_id, code,
                         f"{ftype} [{later.start}, {later.end}] overlaps "
                         f"{ftype} [{earlier.start}, {earlier.end}] of the same "
                         f"transcript '{parent_id}'"
                     ))
     return issues
+
+
+#: Longest overlap a declared ribosomal frameshift explains (a -1 or -2 shift
+#: re-reads at most a codon).
+_SLIPPAGE_MAX_OVERLAP = 3
+
+
+def _declared_slippage(earlier, later) -> bool:
+    """Two segments of ONE CDS, declared as ribosomal slippage, sharing at
+    most a codon."""
+    if earlier.feat_id != later.feat_id or not earlier.feat_id:
+        return False
+    declared = [value.lower() for rec in (earlier, later)
+                for value in rec.attrs.get("exception", [])]
+    if not any("ribosomal slippage" in value for value in declared):
+        return False
+    return earlier.end - later.start + 1 <= _SLIPPAGE_MAX_OVERLAP
 
 
 # ─────────────────────────────────────────────────────────────────────────────
