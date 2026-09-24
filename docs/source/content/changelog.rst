@@ -41,9 +41,18 @@ v1.0.14 (2026-09-22)
   All 25 human selenoprotein genes were mis-scored or truncated before; on
   GRCh38 to CHM13 their 53 transcripts now average 0.998 identity. A distant
   lift can also place selenoprotein genes it used to miss (seven on human to
-  zebrafish).
+  zebrafish). Ensembl/GENCODE selenocysteine rows (``Selenocysteine``,
+  ``stop_codon_redefined_as_selenocysteine``) are read the same way: on
+  GENCODE v49 to CHM13 the 71 selenoprotein transcripts go from 0.66-0.68 to
+  0.995-0.997.
+- Miniprot-derived models use their reference transcript's declared genetic
+  code. An ambiguous sparse reference model (e.g. NCBI GenBank yeast Ty genes)
+  is lifted as written instead of aborting the run; ``--strict-gff`` keeps it
+  fatal.
 - Split a CDS spanning an intron into exonic segments with transcript-order
-  phases. Reject ambiguous overlaps, and validate CDS-within-exon containment.
+  phases. Reject ambiguous overlaps (the transcript, not its gene), keep a CDS
+  that lies inside one of two overlapping exons, and validate
+  CDS-within-exon containment.
 - Rebind a trans-spliced transcript in precomputed Liftoff annotations to its
   unique containing gene fragment, including on the same sequence
   (drosophila ``mod(mdg4)``); preserve that fragment's ``part``. An

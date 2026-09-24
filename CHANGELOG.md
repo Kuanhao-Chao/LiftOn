@@ -17,7 +17,9 @@ All notable changes to **LiftOn** are documented here. This project follows
   1,042; ND4 to 177 of 1,378; CYTB to 564 of 1,141; COX3 to 405 of 784) and
   left the other nine scored between 0.012 and 0.739 where the truth is 1.000.
   Table 1 output is unchanged; table 11, which covers plant plastid genes,
-  translates identically to table 1 and is unaffected.
+  translates identically to table 1 and is unaffected. Models built from
+  miniprot hits - Step 8, the rescue and its isoforms - declare no code of
+  their own and take their reference transcript's.
 - A reference gene can be placed at a second target locus when miniprot finds
   it there and no emitted model reaches it, which is what a whole-genome
   duplication produces. Measured against zebrafish's own GRCz11 annotation,
@@ -27,6 +29,8 @@ All notable changes to **LiftOn** are documented here. This project follows
   end of a run, and recorded in `run_manifest.json`. The warnings were always
   printed - 550 lines in one rice run - but nothing added them up, which is how
   a bug that dropped ~4,400 transcripts stayed unnoticed across three releases.
+  A feature is counted once however many passes revisit it, and what forked
+  workers drop is included, so the counts do not depend on `--threads`.
 - `--rescue-max-inflight` bounds how many isoform-rescue jobs are held at once
   (default 8192). The pass used to prefetch every job in the genome before
   scoring any, which accounted for 3.72 GiB of a 6.26 GiB peak on human to
@@ -57,12 +61,22 @@ All notable changes to **LiftOn** are documented here. This project follows
   low-quality dog-to-cat model (-0.007). The miniprot-only rescue scores
   with the same rule, so a distant lift can now place selenoprotein genes it
   used to miss: human to zebrafish gains seven (GPX4, DIO1-3, SEPHS2,
-  SELENOT, SELENOM), each on its zebrafish ortholog.
-  Reported by a user lifting MANE v1.5 to CHM13.
+  SELENOT, SELENOM), each on its zebrafish ortholog. Ensembl and GENCODE
+  mark a selenocysteine as its own row (`Selenocysteine` in GTF,
+  `stop_codon_redefined_as_selenocysteine` in GFF3) instead; those rows are
+  read the same way, and GTF input is scanned before conversion, which drops
+  them: on GENCODE v49 to CHM13 the 71 selenoprotein transcripts go from
+  0.66-0.68 to 0.995-0.997. The ORF search reads through declared codons too;
+  one malformed value no longer discards a transcript's others; and a
+  declaration that is neither a read-through nor a start is written only onto
+  an identical codon. Reported by a user lifting MANE v1.5 to CHM13.
 - A CDS crossing an intron is emitted as exonic segments with the correct
   transcript-order phase, rather than cloned whole onto multiple exons or
   attached whole to one exon and extended across the intron at write time.
-  Ambiguous overlapping-exon cases are counted and rejected. The validator now
+  Ambiguous overlapping-exon cases are counted and rejected - the transcript,
+  not its gene, and in `-E` evaluation not the run. A CDS lying inside one of
+  two exons that share a base (Liftoff writes such pairs) is not ambiguous and
+  stays on that exon. The validator now
   checks that each CDS segment lies within an exon when exons are present.
   The redundant miniprot `stop_codon` fix makes this path inert on the five
   measured whole-genome runs (CHM13 8,546 warnings to 0; rice 4,468 to 0;
@@ -140,7 +154,10 @@ All notable changes to **LiftOn** are documented here. This project follows
 - `gff3-validate` now checks that no two exons, and no two CDS, of one
   transcript overlap. The module docstring had claimed the CDS half since the
   file was written and neither check existed, which is why a published
-  annotation with 27 such transcripts validated clean.
+  annotation with 27 such transcripts validated clean. Rows are compared
+  within one sequence and strand, and a -1 ribosomal-frameshift overlap the
+  annotation declares (`exception=ribosomal slippage`, as RefSeq writes PEG10)
+  is a warning.
 - A worker pool that cannot fork no longer aborts the run. Under strict
   overcommit accounting the kernel charges each child the parent's whole
   address space, so a large parent can fail to start workers with hundreds of
@@ -176,7 +193,10 @@ All notable changes to **LiftOn** are documented here. This project follows
 
 - Sparse coding references (parentless CDS or gene-to-CDS) receive an explicit
   gene/transcript/exon hierarchy, with preserved CDS attributes and a versioned
-  ID map. Supplied protein/transcript aliases are checked for ambiguity.
+  ID map. Supplied protein/transcript aliases are checked for ambiguity. A
+  model that cannot be rebuilt unambiguously - NCBI GenBank writes each yeast
+  Ty gag-pol frameshift as two CDS rows under a gene that also has an mRNA -
+  is lifted as written and counted; `--strict-gff` makes it fatal.
 - GTF conversion retains gene hierarchy and exon/CDS attributes using gffread's
   gene-preserving options. Converted inputs and logs are private to each run;
   the manifest records input/output hashes, command and converter provenance.
