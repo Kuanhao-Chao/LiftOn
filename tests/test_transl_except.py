@@ -201,6 +201,38 @@ class _Proteins(dict):
     """The slice of the pyfaidx interface the registry uses."""
 
 
+class TestOrfSearch:
+    """The ORF search stopped every ORF at the Sec UGA and scored it without
+    read-through, so for a selenoprotein that also had a frameshift or lost
+    start, an ORF past the Sec could win. It now reads through the declared
+    codons of the model it is refining."""
+
+    # "ATG GCT TGA GCT*22 TAA": Sec at residue 2, codon at transcript offset 6.
+    SEQ = "ATG" + "GCT" + "TGA" + "GCT" * 22 + "TAA"
+    REF = "MA*" + "A" * 22
+
+    def _search(self, monkeypatch, **kwargs):
+        from lifton import lifton_class
+        chosen = []
+        monkeypatch.setattr(lifton_class.Lifton_TRANS, "_Lifton_TRANS__update_cds_boundary",
+                            lambda self, orf: chosen.append((orf.start, orf.end)))
+        trans = lifton_class.Lifton_TRANS.__new__(lifton_class.Lifton_TRANS)
+        trans._transl_table = None
+        status = lifton_class.Lifton_Status()
+        status.lifton_aa = 0.0          # a model bad enough that any ORF replaces it
+        trans._Lifton_TRANS__find_orfs(self.SEQ, self.REF, None, status, **kwargs)
+        return chosen, status.lifton_aa
+
+    def test_without_a_declaration_the_scan_still_stops_at_the_stop(self, monkeypatch):
+        chosen, identity = self._search(monkeypatch)
+        assert chosen == [(0, 9)] and identity == pytest.approx(3 / 25)
+
+    def test_a_declared_codon_is_read_through_and_scored(self, monkeypatch):
+        chosen, identity = self._search(monkeypatch, readthrough=frozenset({2}),
+                                        skip_stops=frozenset({6}))
+        assert chosen == [(0, len(self.SEQ))] and identity == pytest.approx(1.0)
+
+
 def _model(segments=((1, 15),), strand="+", ref="tx", model_id="tx-model"):
     """The slice of a Lifton_TRANS that ``cds_values`` reads."""
     entries = [SimpleNamespace(seqid="chr1", start=s, end=e, strand=strand, frame="0",

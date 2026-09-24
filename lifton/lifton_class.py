@@ -1048,6 +1048,14 @@ class Lifton_TRANS:
             if _cds_start >= 0:
                 cds_span = (_cds_start, _cds_start + len(coding_seq))
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps, is_non_coding, cds_span=cds_span)
+        # Codons of this model that read through a declared stop, as positions
+        # in the spliced transcript, so the ORF search reads through them too.
+        skip_stops = frozenset()
+        if readthrough and lifton_aa_aln is not None and cds_span is not None:
+            skip_stops = frozenset(
+                cds_span[0] + 3 * residue
+                for residue in get_id_fraction.readthrough_query_residues(
+                    lifton_aa_aln.query_aln, lifton_aa_aln.readthrough_cols))
         ORF_search = False
         for mutation in lifton_status.status:
             # identical # synonymous 
@@ -1065,10 +1073,12 @@ class Lifton_TRANS:
             if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
         if ORF_search and eval_only==False:
-            self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status)
+            self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status,
+                             readthrough=readthrough, skip_stops=skip_stops)
         return lifton_tran_aln, lifton_aa_aln
 
-    def __find_orfs(self, trans_seq, ref_protein_seq, lifton_aln, lifton_status):
+    def __find_orfs(self, trans_seq, ref_protein_seq, lifton_aln, lifton_status,
+                    readthrough=None, skip_stops=frozenset()):
         """
         Scan the full spliced transcript sequence in all 3 reading frames and
         keep the best ORF per frame (longest ORF that passes the length-growth
@@ -1106,7 +1116,9 @@ class Lifton_TRANS:
                     orf_idx_e = 0  # will be set when stop found
                     found_stop = False
                     for j in range(i, len(trans_seq), 3):
-                        if trans_seq[j:j + 3] in stop_codons:
+                        # A codon the reference declares to read through
+                        # (transl_except) is not where this ORF ends.
+                        if trans_seq[j:j + 3] in stop_codons and j not in skip_stops:
                             orf_idx_e = j + 3
                             found_stop = True
                             break
@@ -1139,7 +1151,10 @@ class Lifton_TRANS:
                 orf_protein_seq, ref_protein_seq)
             orf_matches, orf_length = get_id_fraction.get_AA_id_fraction(
                 orf_parasail_res.traceback.ref,
-                orf_parasail_res.traceback.query)
+                orf_parasail_res.traceback.query,
+                get_id_fraction.readthrough_columns(
+                    orf_parasail_res.traceback.ref,
+                    orf_parasail_res.traceback.query, readthrough))
             orf_identity = orf_matches / orf_length if orf_length > 0 else 0.0
             if orf_identity > max_identity:
                 max_identity = orf_identity
