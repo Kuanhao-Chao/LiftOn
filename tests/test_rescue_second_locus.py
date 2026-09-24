@@ -169,6 +169,15 @@ class TestSwitch:
         assert miniprot_rescue._second_locus_on(
             self._args("--no-rescue-second-locus"))
 
+    def test_cross_locus_enabled_by_environment_also_takes_precedence(self, monkeypatch):
+        """Both passes answer the same question with opposite policies, so the
+        explicitly requested cross-locus rescue wins -- whether it was asked for
+        by flag or, until now ignored here, by LIFTON_CROSS_LOCUS_RESCUE."""
+        monkeypatch.setenv("LIFTON_CROSS_LOCUS_RESCUE", "1")
+        assert not miniprot_rescue._second_locus_on(self._args())
+        monkeypatch.setenv("LIFTON_CROSS_LOCUS_RESCUE", "0")
+        assert miniprot_rescue._second_locus_on(self._args())
+
     def test_the_cap_gates_each_reference_gene_separately(self):
         args = self._args("--rescue-second-locus")
         counts = {}

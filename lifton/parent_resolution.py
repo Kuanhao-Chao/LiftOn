@@ -19,6 +19,8 @@ every other gene over one that earlier releases lifted.
 
 from collections import defaultdict
 
+from gffutils.exceptions import FeatureNotFoundError
+
 from lifton import logger
 
 
@@ -60,7 +62,7 @@ class SameSeqidParentOverlay:
             declared_id = _attribute_id(root)
             try:
                 canonical = database[declared_id]
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, FeatureNotFoundError):
                 continue
             if (canonical.featuretype != "gene"
                     or _attribute_id(canonical) != declared_id):
