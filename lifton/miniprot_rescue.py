@@ -559,7 +559,9 @@ def _second_locus_on(args):
     if env is not None:
         return env.strip().lower() not in ("", "0", "false", "no", "off")
     resolved = getattr(args, "rescue_second_locus", None)
-    if resolved is None and getattr(args, "cross_locus_rescue", False):
+    cross_locus_env = os.environ.get("LIFTON_CROSS_LOCUS_RESCUE", "0").strip().lower()
+    if resolved is None and (getattr(args, "cross_locus_rescue", False)
+                             or cross_locus_env not in ("", "0", "false", "no", "off")):
         return False
     return SECOND_LOCUS_DEFAULT if resolved is None else bool(resolved)
 

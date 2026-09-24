@@ -209,3 +209,23 @@ def test_a_transcript_its_bound_fragment_contains_never_moves(tmp_path):
     bound = bind_same_seqid_parents(database, ["gene"], counts)
     assert counts == {"repaired": 0, "ambiguous": 0}
     assert bound is database
+
+
+def test_a_declared_id_missing_from_the_database_is_skipped():
+    """gffutils raises FeatureNotFoundError -- not KeyError -- for a missing
+    key, so the overlay's guard let it escape and abort the lift."""
+    from types import SimpleNamespace
+    import gffutils
+    from lifton import parent_resolution
+
+    class Database:
+        def features_of_type(self, featuretype):
+            return iter([SimpleNamespace(id="gene-A_1", attributes={"ID": ["gene-A"]},
+                                         featuretype="gene", seqid="chr1", start=1,
+                                         end=10, strand="+")])
+
+        def __getitem__(self, key):
+            raise gffutils.exceptions.FeatureNotFoundError(key)
+
+    overlay = parent_resolution.SameSeqidParentOverlay(Database(), ["gene"])
+    assert overlay.ambiguous == []
