@@ -6,7 +6,7 @@ performance campaign against v1.0.13. Supersedes the cycle-3 version of this
 note, which is kept as Appendix A (verbatim; headings demoted one level).*
 
 **Verdict: ready to release** — every requalification gate below passed on
-the frozen commit; CI on the pushed head: pending (runs on push). Frozen commit **`3ab51cf`** on `v1014-integration` (it
+the frozen commit; CI on the pushed head (`72d1f6e`) is **green**. Frozen commit **`3ab51cf`** on `v1014-integration` (it
 was `e688ff5`; the section below says what changed and how it was
 requalified). Nothing has been merged to `main`, tagged, released, uploaded to
 PyPI, changed on Bioconda, or published for CHM13, and no reply has been sent.
@@ -86,7 +86,7 @@ byte-identical (13,766,858 bytes).
 | eight-cell second-locus ladder (`ac7e863`, lift output unchanged since) | SAFETY 8/8, identical line for line to `e688ff5`'s |
 | CHM13 regeneration (`ac7e863`) | byte-identical to the staged file; `3ab51cf`'s validator: 0 errors, 11,975 warnings (the 56 phase warnings were N2's false positive) |
 | `-t 1` = `-t 8` (rice, drosophila, dog → cat) and `-t 1` = `-t 4` (34 subsets) | byte-identical, all |
-| CI on the pushed head | pending (runs on push) |
+| CI on the pushed head (`72d1f6e`; later commits are this note's own) | **green**: "Run tests" run 36072357577 — build 3.10 / 3.11 / 3.12 and optional-native 3.10 / 3.11 / 3.12; "Qualify distribution artifacts" run 36072357559 — build, native artifact, compiler-free wheel and sdist on 3.10 / 3.11 / 3.12 / 3.14 |
 
 ### The reporter's case, re-checked
 
@@ -548,7 +548,7 @@ Liftoff, fresh miniprot, `-t 16`), 1 h 09 m, peak RSS 30.2 GiB, status
 State at handoff: `v1014-integration` = the frozen code `3ab51cf` plus
 commits touching only `notes/` and the two changelogs (neither ships in the
 wheel; the changelogs are checked by `test_packaging_metadata`),
-pushed, CI pending (runs on push).
+pushed, CI green on `72d1f6e`.
 `main` = `devel` = `b2fe59f` (v1.0.13); the branch is 77 commits
 ahead and 0 behind, so both merges are fast-forwards.
 
