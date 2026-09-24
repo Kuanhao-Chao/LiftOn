@@ -86,7 +86,9 @@ v1.0.14 (2026-09-22)
   Reference annotations have none of these; LiftOn emitted 27 on CHM13, 96 on
   human to zebrafish, 47 on drosophila, 30 on rice and 13 on bee.
 - Add the overlapping-exon and overlapping-CDS checks ``gff3-validate``'s
-  documentation has always claimed.
+  documentation has always claimed, within one sequence and strand; a
+  declared ribosomal-slippage overlap is a warning. The CDS phase check reads
+  a 5'-partial model's own first phase.
 - Index the windowed aligner's reference only over the query's k-mers: same
   anchors, same windows, 1.3-1.9x faster anchor construction.
 - Strengthen release evidence with candidate/reference roles, artifact receipts,
