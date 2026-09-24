@@ -68,6 +68,22 @@ class TestParse:
         assert coding.transl_excepts_for(
             ["(pos:bad,aa:Sec)"], [(1, 9)], "+", 0, "MA*", "tx") == ()
 
+    def test_a_space_before_the_amino_acid_is_accepted(self):
+        assert coding.parse_transl_except(["(pos:1..3, aa:Sec)"]) == [("1..3", "Sec")]
+
+    def test_one_malformed_value_does_not_discard_the_others(self):
+        # It used to raise from the parser and take every value with it.
+        placed = coding.transl_excepts_for(
+            ["(pos:1..3,aa:Met)", "(pos:5..7)", "(pos:10..12,aa:Sec)"],
+            [(1, 18)], "+", 0, "LAA*AA", "tx")
+        assert [(p.residue, p.aa) for p in placed] == [(0, "Met"), (3, "Sec")]
+
+    def test_an_absurd_range_is_refused_and_a_long_real_one_is_not(self):
+        with pytest.raises(ValueError):
+            coding.parse_location("1..2000000")
+        # dog RefSeq really declares a 6,910-bp aa:Other range.
+        assert len(coding.parse_location("1..6910")) == 6910
+
 
 # ---------------------------------------------------------------------------
 # Placement on the reference protein
@@ -183,6 +199,47 @@ class TestRegistry:
 
 class _Proteins(dict):
     """The slice of the pyfaidx interface the registry uses."""
+
+
+def _model(segments=((1, 15),), strand="+", ref="tx", model_id="tx-model"):
+    """The slice of a Lifton_TRANS that ``cds_values`` reads."""
+    entries = [SimpleNamespace(seqid="chr1", start=s, end=e, strand=strand, frame="0",
+                               attributes={}) for s, e in segments]
+    return SimpleNamespace(ref_tran_id=ref, entry=SimpleNamespace(id=model_id, strand=strand),
+                           exons=[SimpleNamespace(cds=SimpleNamespace(entry=e)) for e in entries])
+
+
+class TestRemap:
+    """A declaration that is not a read-through or a start -- an amino acid
+    over a sense codon, a full-codon TERM -- is a property of the reference
+    codon. It used to be written wherever it aligned, e.g. ``aa:TERM`` onto a
+    sense codon on dog -> cat."""
+
+    def teardown_method(self):
+        transl_except.clear()
+
+    def test_the_reference_codon_is_recorded_when_placed(self):
+        placed = coding.transl_excepts_for(
+            ["(pos:4..6,aa:Other)"], [(1, 15)], "+", 0, "MRAA*",
+            bases_at=lambda positions: "CGA")
+        assert placed[0].codon == "CGA"
+
+    @pytest.mark.parametrize("target,written", [
+        ("ATGCGAGCTGCTTAA", ("(pos:4..6,aa:Other)",)),   # same codon: carried over
+        ("ATGAGAGCTGCTTAA", ()),                          # a different codon: dropped
+    ])
+    def test_written_only_onto_an_identical_codon(self, target, written):
+        transl_except.install({"tx": (coding.TranslExcept(1, "Other", 3, False, "CGA"),)},
+                              _Proteins({"tx": "MRAA*"}), {"chr1": target})
+        assert transl_except.cds_values(_model()) == written
+        assert transl_except.counts() == {"emitted": len(written), "dropped": 1 - len(written)}
+
+    def test_a_model_rendered_again_is_counted_once(self):
+        transl_except.install({"tx": (coding.TranslExcept(1, "Other", 3, False, "CGA"),)},
+                              _Proteins({"tx": "MRAA*"}), {"chr1": "ATGCGAGCTGCTTAA"})
+        transl_except.cds_values(_model())
+        transl_except.cds_values(_model())     # a staged copy of the same transcript
+        assert transl_except.counts() == {"emitted": 1, "dropped": 0}
 
 
 # ---------------------------------------------------------------------------
@@ -381,6 +438,23 @@ class TestEndToEnd:
         transcripts = next(intermediate.rglob("transcripts.fa"))
         supplied, _ = _run(work, "supplied", "-P", str(proteins), "-T", str(transcripts))
         assert supplied == first
+
+    def test_an_unreadable_reference_scan_does_not_abort_the_lift(
+            self, tmp_path, hermetic_pipeline, monkeypatch):
+        """With -P/-T the declarations come from a scan of the reference; a
+        failure there used to escape and abort the whole run."""
+        work = _workspace(tmp_path / "w")
+        _run(work, "extracted")
+        intermediate = work / "dir_extracted"
+        proteins = next(intermediate.rglob("proteins.fa"))
+        transcripts = next(intermediate.rglob("transcripts.fa"))
+
+        def broken(*_args, **_kwargs):
+            raise RuntimeError("database gone")
+
+        monkeypatch.setattr(transl_except, "scan_reference", broken)
+        text, _ = _run(work, "supplied", "-P", str(proteins), "-T", str(transcripts))
+        assert "\tgene\t" in text and "transl_except=" not in text
 
     def test_an_ncbi_protein_fasta_with_u_gives_the_same_result(self, tmp_path, hermetic_pipeline):
         work = _workspace(tmp_path / "w")
