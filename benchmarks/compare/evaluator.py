@@ -27,9 +27,9 @@ from pathlib import Path
 import gffutils
 import pyfaidx
 
-from lifton import align, annotation as _lifton_annotation
+from lifton import align, annotation as _lifton_annotation, get_id_fraction
 from lifton.exceptions import LiftOnAlignmentError
-from lifton.extract_sequence import get_dna_sequence, get_protein_sequence
+from lifton.extract_sequence import get_dna_sequence, get_protein_sequence, transl_excepts_of
 
 from . import gene_level, id_mapping
 
@@ -221,13 +221,21 @@ def completeness_by_type(tool_db, ref_ids_by_type, ref_all_ids):
     return out
 
 
-def _safe_prot_identity(lifted_prot, ref_prot):
+def _safe_prot_alignment(lifted_prot, ref_prot, readthrough=None):
+    """The protein alignment, or None. ``readthrough``: reference residues the
+    reference declares to read through (transl_except), so a selenoprotein is
+    not scored as truncated at its selenocysteine -- for every tool alike."""
     if not lifted_prot or not ref_prot:
         return None
     try:
-        return align.protein_align(lifted_prot, ref_prot).identity
+        return align.protein_align(lifted_prot, ref_prot, readthrough)
     except (LiftOnAlignmentError, Exception):
         return None
+
+
+def _safe_prot_identity(lifted_prot, ref_prot, readthrough=None):
+    alignment = _safe_prot_alignment(lifted_prot, ref_prot, readthrough)
+    return None if alignment is None else alignment.identity
 
 
 def _safe_dna_identity(lifted_dna, ref_dna):
@@ -282,17 +290,18 @@ def _boundary_snsp(ref_bounds, lifted_bounds):
     return sn, sp, int(list(ref_bounds) == list(lifted_bounds))
 
 
-def _orf_validity(prot):
+def _orf_validity(prot, excused=frozenset()):
     """(start_ok, stop_ok, no_internal_stop, valid) for a translated protein.
     start_ok = begins with M; stop_ok = ends with a stop codon (trailing '*');
-    no_internal_stop = no '*' before the terminal; valid = all three. Empty
-    protein -> all 0."""
+    no_internal_stop = no '*' before the terminal, other than at the residues
+    in ``excused`` (a declared read-through such as selenocysteine); valid = all
+    three. Empty protein -> all 0."""
     if not prot:
         return (0, 0, 0, 0)
     start_ok = int(prot.startswith("M"))
     stop_ok = int(prot.endswith("*"))
     body = prot[:-1] if prot.endswith("*") else prot
-    no_internal = int("*" not in body)
+    no_internal = int(all(char != "*" or i in excused for i, char in enumerate(body)))
     return (start_ok, stop_ok, no_internal,
             int(bool(start_ok and stop_ok and no_internal)))
 
@@ -315,6 +324,11 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
         dna_exon = get_dna_sequence(mrna, fa, exons) if exons else ""
         dna_cds = get_dna_sequence(mrna, fa, cds_only) if cds_only else ""
         prot = get_protein_sequence(mrna, fa, cds_only) if cds_only else ""
+        # Read-through codons the reference declares (transl_except), placed
+        # on this protein from the reference's own CDS rows -- never taken from
+        # a tool's output -- so every tool is scored by the same rule.
+        declared = (transl_excepts_of(mrna, fa, cds_only, protein=(prot or "").upper())
+                    if cds_only else ())
         ref[mrna.id] = {
             "dna_exon": dna_exon or "",
             "dna_cds": dna_cds or "",
@@ -325,6 +339,7 @@ def build_reference(ref_gff: str, ref_fa: str, log=print) -> tuple:
             "exon_bounds": _internal_boundaries(exons, mrna.strand) if exons else [],
             "cds_bounds": _internal_boundaries(cds_only, mrna.strand) if cds_only else [],
             "n_exons": len(exons), "n_cds": len(annotated_cds),
+            "readthrough": frozenset(e.residue for e in declared if e.readthrough),
         }
     n_coding = sum(1 for v in ref.values() if v["is_coding"])
     ref_ids_by_type, ref_all_ids, ref_census = feature_index(db)
@@ -364,7 +379,10 @@ def _eval_one_mrna(mrna, exons, cds, ref_id, ref, fa, is_miniprot):
             get_dna_sequence(mrna, fa, cds) if cds else "")
         ref_dna = r["dna_exon"] or r["dna_cds"]
         dna_basis = "transcript" if exons else "cds"
-    prot_id = _safe_prot_identity(lifted_prot, r["prot"]) if r["is_coding"] else None
+    readthrough = r.get("readthrough") or None
+    prot_aln = (_safe_prot_alignment(lifted_prot, r["prot"], readthrough)
+                if r["is_coding"] else None)
+    prot_id = None if prot_aln is None else prot_aln.identity
     dna_id = _safe_dna_identity(lifted_dna, ref_dna)
     # Phase 3 structural metrics (coordinate-independent). For coding transcripts
     # the intron chain is compared on CDS boundaries (the protein-relevant
@@ -376,7 +394,9 @@ def _eval_one_mrna(mrna, exons, cds, ref_id, ref, fa, is_miniprot):
     ref_bounds = r["cds_bounds"] if use_cds else r["exon_bounds"]
     sn, sp, exact = _boundary_snsp(ref_bounds, lifted_bounds)
     start_ok, stop_ok, no_internal, orf_valid = (
-        _orf_validity(lifted_prot) if use_cds else (0, 0, 0, 0))
+        _orf_validity(lifted_prot, get_id_fraction.readthrough_query_residues(
+            prot_aln.query_aln, prot_aln.readthrough_cols) if prot_aln is not None
+            else frozenset()) if use_cds else (0, 0, 0, 0))
     return {
         "ref_mrna_id": ref_id,
         "tool_feature_id": mrna.id,

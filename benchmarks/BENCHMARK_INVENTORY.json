@@ -140,8 +140,8 @@
       "superseded_by": null
     },
     {
-      "aggregate_sha256": "dd2ca5168cc5a67f94a616e357be58c33b4e159360c8c428a0dcdd95514f4d18",
-      "bytes": 1093158,
+      "aggregate_sha256": "5c5a93c1ca0534e862271c5b323932b0bfd9acc7e250b01b7e368fd2b63a0c7a",
+      "bytes": 1094559,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
@@ -1428,14 +1428,14 @@
       "sha256": "f0f601487b2eb0d0b5ffc4e76bc3cbb1c59247f594e5eeda04401ca08704b0cf"
     },
     {
-      "bytes": 30668,
+      "bytes": 32069,
       "claim_eligible": false,
       "classification": "canonical",
       "completion_state": "supporting",
       "family": "canonical_release_tooling",
       "json_schema": null,
       "path": "benchmarks/compare/evaluator.py",
-      "sha256": "8e7c53ef522dc83571e6a5e770231b43b2988cf5e89c05af73644d8dd0142c56"
+      "sha256": "29838444efe2a6c113439ff4d48055292e1067ead4121c85687097a2fa6c35bc"
     },
     {
       "bytes": 4224,
@@ -3641,7 +3641,7 @@
     "benchmarks/logs/**",
     "benchmarks/results_rerun/**"
   ],
-  "inventory_sha256": "7ccea7924630b54938305020046c3297dc4002afc0554087be14c9ddb2a96767",
+  "inventory_sha256": "a17f653e047c5bcc0c34ae36a7e7bc08a4de7ee5196c9b1bc8d819181539f320",
   "registry_summary": {
     "duplicate_ids": [],
     "entry_count": 35,
@@ -3689,8 +3689,8 @@
   "schema_version": 1,
   "scope": "git-tracked benchmark artifacts plus declared managed paths",
   "source_summary": {
-    "aggregate_sha256": "af8d04b0e5d9492c5c60fba1f384280568ec7ec6aba505e00fc53ee7125cb34c",
-    "bytes": 13557423,
+    "aggregate_sha256": "e6a95121cb2dc8b3afe3b6a264f089aa12688c587f4c56f84c81c5c8e802e2a2",
+    "bytes": 13558824,
     "classification_counts": {
       "canonical": 79,
       "diagnostic": 44,
