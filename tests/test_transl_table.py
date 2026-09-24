@@ -315,3 +315,35 @@ class TestMiniprotSpeaksOneCodePerInvocation:
         # A stale sidecar from an earlier run must not steer a later one.
         extract_sequence.write_transl_table_sidecar(path, {})
         assert extract_sequence.read_transl_table_sidecar(path) == {}
+
+
+class TestMiniprotDerivedModels:
+    """A miniprot row carries no transl_table, so every model built from one --
+    Step 8, the candidate scaffold, the rescue and its isoforms, cross-locus --
+    was translated, ORF-scanned and stop-completed with the standard code even
+    when its reference transcript declares 2 or 5: TGA read as a stop."""
+
+    def teardown_method(self):
+        from lifton import coding
+        coding.install_transcript_tables({})
+
+    def _miniprot_model(self, ref_id):
+        from lifton import lifton_class
+        trans = lifton_class.Lifton_TRANS.__new__(lifton_class.Lifton_TRANS)
+        trans.ref_tran_id = ref_id
+        return trans
+
+    def test_the_reference_transcript_code_is_used(self):
+        from lifton import coding, orf_completion
+        coding.install_transcript_tables({"rna-ND4": 2})
+        trans = self._miniprot_model("rna-ND4")
+        assert trans.transl_table() == 2
+        assert trans.translate_coding_seq("ATGTGAAGA") == "MW*"
+        assert "AGA" in orf_completion._stop_codons(trans)
+
+    def test_a_transcript_that_declares_nothing_keeps_the_standard_code(self):
+        from lifton import coding
+        coding.install_transcript_tables({"rna-ND4": 2})
+        trans = self._miniprot_model("rna-OTHER")
+        assert trans.transl_table() == coding.DEFAULT_TRANSL_TABLE
+        assert trans.translate_coding_seq("ATGTGAAGA") == "M*R"
