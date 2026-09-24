@@ -82,12 +82,37 @@ def test_ambiguous_sparse_models_fail_clearly(tmp_path, damage):
     ann = reference(tmp_path, lines)
     with pytest.raises(LiftOnInputError):
         normalize_sparse_coding(ann, tmp_path / 'normalized', strict=True)
+    # Without --strict-gff an ambiguous model is left exactly as written --
+    # what v1.0.13, which had no normalization, did with it -- and reported,
+    # instead of aborting a lift of every other gene in the file.
+    skipped = []
+    assert normalize_sparse_coding(ann, tmp_path / 'normalized', skipped=skipped) is None
+    assert not (tmp_path / 'normalized').exists()
     if damage != 'dangling':
-        # Only a dangling Parent is a spec violation the run can survive; every
-        # other damage here makes the model itself ambiguous, so it is refused
-        # whatever the mode.
-        with pytest.raises(LiftOnInputError):
-            normalize_sparse_coding(ann, tmp_path / 'normalized')
+        assert len(skipped) == 1 and skipped[0][0] in ('c', 'g')
+
+
+def test_ambiguous_model_is_left_as_written_and_others_are_normalized(tmp_path):
+    """The shape of NCBI GenBank yeast Ty genes (GCA_000146045.2 R64, e.g.
+    YBL100W-B): a gag-pol frameshift written as two CDS rows directly under the
+    gene, next to an mRNA child. v1.0.14 aborted the whole run on it."""
+    from lifton.reference_models import normalize_sparse_coding
+    ty = [row('gene', 29935, 35248, 'ID=gene-YBL100W-B;gene_biotype=protein_coding'),
+          row('CDS', 29935, 31227, 'ID=cds-DAA07024.1;Parent=gene-YBL100W-B', phase='0'),
+          row('CDS', 31229, 35248, 'ID=cds-DAA07024.1;Parent=gene-YBL100W-B', phase='0'),
+          row('mRNA', 29935, 35248, 'ID=rna-YBL100W-B;Parent=gene-YBL100W-B'),
+          row('exon', 29935, 35248, 'ID=exon-YBL100W-B-1;Parent=rna-YBL100W-B')]
+    sparse = [row('CDS', 40010, 40021, 'ID=c;protein_id=p', phase='0')]
+    ann = reference(tmp_path, ty + sparse)
+    skipped = []
+    result = normalize_sparse_coding(ann, tmp_path / 'normalized', skipped=skipped)
+    assert [item[0] for item in skipped] == ['gene-YBL100W-B']
+    mapping = json.loads(Path(result['mapping']).read_text())
+    assert [model['source_id'] for model in mapping['models']] == ['c']
+    written = Path(result['annotation']).read_text()
+    # The Ty gene's own rows pass through untouched: both CDS still under the gene.
+    assert written.count('Parent=gene-YBL100W-B') == 3
+    assert 'ID=rna-YBL100W-B' in written and 'ID=exon-YBL100W-B-1' in written
 
 
 def test_generated_ids_avoid_real_ids_and_are_deterministic(tmp_path):
