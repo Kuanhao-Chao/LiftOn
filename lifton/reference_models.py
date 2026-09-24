@@ -80,12 +80,51 @@ def _dangling_cds_parents(db):
                   if parent not in declared)
 
 
-def normalize_sparse_coding(ref_db, out_dir, strict=False):
+def _ambiguity(kind, logical, anchor, children, cds):
+    """Why a sparse model cannot be normalized unambiguously, or None.
+
+    Checked before any id is allocated, so refusing one model never shifts the
+    generated ids of the others.
+    """
+    if any(len(c.attributes.get('Parent', [])) > 1 for c in children):
+        return f'Sparse CDS {logical!r} has multiple parents; provide an explicit hierarchy'
+    for key in ('protein_id', 'transcript_id', 'transl_table'):
+        values = {value for c in cds for value in c.attributes.get(key, [])}
+        if len(values) > 1:
+            return f'Sparse CDS {logical!r} has conflicting {key} values'
+    ordered_cds = sorted(cds, key=lambda c: (c.start, c.end, c.id))
+    if any(a.end >= b.start for a, b in zip(ordered_cds, ordered_cds[1:])):
+        return f'Sparse CDS {logical!r} has overlapping segments; provide an explicit hierarchy'
+    if len({(c.seqid, c.strand) for c in children}) != 1 or any(c.strand not in ('+', '-') for c in cds):
+        return f'Sparse CDS {logical!r} has ambiguous sequence/strand; provide an explicit hierarchy'
+    start, end = min(c.start for c in children), max(c.end for c in children)
+    if kind == 'gene' and (anchor.seqid != cds[0].seqid or anchor.strand != cds[0].strand
+                           or anchor.start > start or anchor.end < end):
+        return f'Sparse gene {logical!r} does not contain its children on the same strand/sequence'
+    exons = [c for c in children if c.featuretype == 'exon']
+    if exons and any(not any(e.start <= c.start and e.end >= c.end for e in exons) for c in cds):
+        return f'Sparse CDS {logical!r} is not contained in its declared exons'
+    return None
+
+
+def normalize_sparse_coding(ref_db, out_dir, strict=False, skipped=None):
     """Return normalization metadata, or None when no sparse model is selected.
 
     ``strict`` mirrors ``--strict-gff``: a reference whose hierarchy does not
-    parse is refused rather than reported.
+    parse is refused rather than reported. Otherwise a model that cannot be
+    normalized unambiguously is left exactly as written -- what v1.0.13, which
+    had no normalization, did with it -- and appended to ``skipped`` as
+    ``(anchor_id, reason)``. Refusing it aborted the lift of every other gene
+    in the file: stock NCBI GenBank yeast annotation writes each Ty gag-pol
+    frameshift as two CDS rows under the gene next to an mRNA child.
     """
+    left_as_written = []
+
+    def refuse(anchor_id, message):
+        if strict:
+            raise LiftOnInputError(message)
+        left_as_written.append((anchor_id, message))
+
     db = ref_db.db_connection
     anchors = sorted(_anchors(db), key=_feature_key)
     dangling = _dangling_cds_parents(db)
@@ -140,7 +179,8 @@ def normalize_sparse_coding(ref_db, out_dir, strict=False):
         if anchor.featuretype == 'CDS':
             if anchor.attributes.get('Parent'):
                 # A missing parent is malformed input, not a flat annotation.
-                raise LiftOnInputError(f'CDS {anchor.id!r} names a missing Parent; repair the hierarchy first')
+                refuse(anchor.id, f'CDS {anchor.id!r} names a missing Parent; repair the hierarchy first')
+                continue
             logical = anchor.attributes.get('ID', [anchor.id])[0]
             key = ('CDS', logical)
             groups.setdefault(key, (anchor, []))[1].append(anchor)
@@ -148,9 +188,10 @@ def normalize_sparse_coding(ref_db, out_dir, strict=False):
             children = sorted(db.children(anchor, level=1), key=_feature_key)
             unsupported = {c.featuretype for c in children} - {'CDS', 'start_codon', 'stop_codon', 'exon'}
             if unsupported:
-                raise LiftOnInputError(
-                    f'Gene {anchor.id!r} mixes direct CDS with {sorted(unsupported)} children; '
-                    'attach each CDS to its transcript explicitly')
+                refuse(anchor.id,
+                       f'Gene {anchor.id!r} mixes direct CDS with {sorted(unsupported)} children; '
+                       'attach each CDS to its transcript explicitly')
+                continue
             groups[('gene', anchor.id)] = (anchor, children)
 
     replacements, consumed, mappings = {}, set(), []
@@ -158,21 +199,11 @@ def normalize_sparse_coding(ref_db, out_dir, strict=False):
         cds = [c for c in children if c.featuretype == 'CDS']
         if not cds:
             continue
-        if any(len(c.attributes.get('Parent', [])) > 1 for c in children):
-            raise LiftOnInputError(f'Sparse CDS {logical!r} has multiple parents; provide an explicit hierarchy')
-        for key in ('protein_id', 'transcript_id', 'transl_table'):
-            values = {value for c in cds for value in c.attributes.get(key, [])}
-            if len(values) > 1:
-                raise LiftOnInputError(f'Sparse CDS {logical!r} has conflicting {key} values')
-        ordered_cds = sorted(cds, key=lambda c: (c.start, c.end, c.id))
-        if any(a.end >= b.start for a, b in zip(ordered_cds, ordered_cds[1:])):
-            raise LiftOnInputError(f'Sparse CDS {logical!r} has overlapping segments; provide an explicit hierarchy')
-        if len({(c.seqid, c.strand) for c in children}) != 1 or any(c.strand not in ('+', '-') for c in cds):
-            raise LiftOnInputError(f'Sparse CDS {logical!r} has ambiguous sequence/strand; provide an explicit hierarchy')
+        problem = _ambiguity(kind, logical, anchor, children, cds)
+        if problem:
+            refuse(anchor.id, problem)
+            continue
         start, end = min(c.start for c in children), max(c.end for c in children)
-        if kind == 'gene' and (anchor.seqid != cds[0].seqid or anchor.strand != cds[0].strand
-                               or anchor.start > start or anchor.end < end):
-            raise LiftOnInputError(f'Sparse gene {logical!r} does not contain its children on the same strand/sequence')
         gene = coreutils.clone_feature(anchor)
         gene.featuretype = 'gene'
         gene.start, gene.end, gene.frame = start, end, '.'
@@ -189,8 +220,6 @@ def normalize_sparse_coding(ref_db, out_dir, strict=False):
         trans.attributes['Parent'] = [gene.id]
         block = [gene, trans]
         exons = [c for c in children if c.featuretype == 'exon']
-        if exons and any(not any(e.start <= c.start and e.end >= c.end for e in exons) for c in cds):
-            raise LiftOnInputError(f'Sparse CDS {logical!r} is not contained in its declared exons')
         if not exons:
             # CDS-only models have no inferred UTR; retain their exact segments.
             for index, child in enumerate(sorted(cds, key=lambda c: (c.start, c.end, c.id)), 1):
@@ -215,6 +244,15 @@ def normalize_sparse_coding(ref_db, out_dir, strict=False):
                          'transcript_id': trans.id, 'aliases': sorted(aliases),
                          'cds_ids': [c.attributes.get('ID', [c.id])[0] for c in cds]})
 
+    if left_as_written:
+        if skipped is not None:
+            skipped.extend(left_as_written)
+        from lifton import logger
+        anchor_id, message = left_as_written[0]
+        logger.log_warning(
+            f'{len(left_as_written)} coding model(s) could not be normalized '
+            f'unambiguously and are lifted as written (e.g. {message}). Pass '
+            f'--strict-gff to make this fatal.')
     if not replacements:
         return None
     out_dir = Path(out_dir)

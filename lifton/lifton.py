@@ -1191,10 +1191,14 @@ def run_all_lifton_steps(args):
         converted_scan = annotation.scan_annotation(ref_db.file_name, target_seqids=reference_seqids)
         _check_reference_findings(args, list(converted_scan.ncbi_findings), stats_dir)
     from lifton import reference_models
+    left_as_written = []
     normalization = reference_models.normalize_sparse_coding(
         ref_db, os.path.join(intermediate_dir, "reference_models"),
         strict=bool(getattr(args, "strict_gff", False)),
+        skipped=left_as_written,
     )
+    if left_as_written:
+        manifest.record_count("reference_models_left_as_written", len(left_as_written))
     if normalization:
         requested_features = lifton_utils.get_parent_features_to_lift(args.features)
         if requested_features == ["CDS"]:
