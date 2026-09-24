@@ -254,6 +254,9 @@ def read_transl_table_sidecar(proteins_path):
     return resolved
 
 
+_COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
+
+
 def transl_excepts_of(feature, fasta, cds_children, protein=None, table=None):
     """``transl_except`` declarations of one transcript, placed on its protein.
 
@@ -261,22 +264,32 @@ def transl_excepts_of(feature, fasta, cds_children, protein=None, table=None):
     :func:`get_protein_sequence` translates, so residue ``r`` is the protein's
     ``r``-th residue. Empty when no CDS row declares anything.
     """
+    # Every CDS row: an annotation may write each segment's declaration on its
+    # own segment. Reading only the first row that had any dropped the rest.
     values = []
     for child in cds_children:
         if getattr(child, "featuretype", "CDS") == "CDS":
-            values = coding.transl_except_values(getattr(child, "attributes", None))
-            if values:
-                break
+            for value in coding.transl_except_values(getattr(child, "attributes", None)):
+                if value not in values:
+                    values.append(value)
     if not values:
         return ()
     strand = getattr(feature, "strand", "+")
     if protein is None:
         protein = (get_protein_sequence(feature, fasta, cds_children, table=table)
                    or "").upper()
+    seqid = getattr(feature, "seqid", None)
+
+    def bases_at(positions):
+        # Transcript orientation: parse_location already lists a complement's
+        # positions 3'-to-5' on the forward strand.
+        bases = "".join(str(fasta[seqid][p - 1:p]) for p in positions).upper()
+        return bases.translate(_COMPLEMENT) if strand == "-" else bases
+
     return coding.transl_excepts_for(
         values, merge_children_intervals(cds_children), strand,
         coding.initial_phase(cds_children, strand), protein,
-        context=getattr(feature, "id", None))
+        context=getattr(feature, "id", None), bases_at=bases_at)
 
 
 def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None,

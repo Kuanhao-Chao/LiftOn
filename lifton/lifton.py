@@ -1322,7 +1322,13 @@ def run_all_lifton_steps(args):
     # and the attribute is rewritten into target coordinates on output.
     # Installed before evaluation, Step 4 and any thread or fork.
     if _declared_exceptions is None:
-        _declared_exceptions = _transl_except.scan_reference(ref_db, ref_fai)
+        try:
+            _declared_exceptions = _transl_except.scan_reference(ref_db, ref_fai)
+        except Exception as error:  # an optional refinement must not cost the lift
+            logger.log_warning(
+                f"transl_except declarations could not be read ({error}); "
+                f"declared recoded stops are not read through in this run.")
+            _declared_exceptions = {}
     _n_declared = _transl_except.install(_declared_exceptions, ref_proteins, tgt_fai)
     if _n_declared:
         logger.log(f"\t * reference transcripts declaring transl_except: {_n_declared}",

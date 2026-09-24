@@ -30,7 +30,10 @@ from lifton import coding, logger
 _REGISTRY = {}
 _READTHROUGH = {}
 _HANDLES = {}
-_TALLY = {"emitted": 0, "dropped": 0}
+#: What each output transcript's rows carry: ``{model id: (written, dropped)}``.
+#: Keyed by model so a model rendered twice (staged, then written) or again
+#: after its CDS moved is counted once, as it was last rendered.
+_RENDERED = {}
 _LOCK = threading.Lock()
 
 _CODING_CHILDREN = ("start_codon", "CDS", "stop_codon")
@@ -41,7 +44,7 @@ def clear():
     _REGISTRY.clear()
     _READTHROUGH.clear()
     _HANDLES.clear()
-    _TALLY.update(emitted=0, dropped=0)
+    _RENDERED.clear()
 
 
 def install(mapping, ref_proteins=None, target_fasta=None):
@@ -90,7 +93,8 @@ def readthrough(ref_id):
 def counts():
     """``{"emitted": n, "dropped": n}`` for the values written so far."""
     with _LOCK:
-        return dict(_TALLY)
+        return {"emitted": sum(written for written, _ in _RENDERED.values()),
+                "dropped": sum(dropped for _, dropped in _RENDERED.values())}
 
 
 def scan_reference(ref_db, ref_fai):
@@ -199,7 +203,6 @@ def _remap(trans, cds_entries, entries):
             else:
                 target = target_of.get(entry.residue)
                 if target is not None:
-                    keep = True
                     if entry.readthrough:
                         # Only where the model has the recoded stop inside it:
                         # Sec -> Cys needs no exception, and a model ending
@@ -207,6 +210,14 @@ def _remap(trans, cds_entries, entries):
                         keep = protein[target] == "*" and target < last
                     elif entry.aa == "Met" and entry.residue == 0:
                         keep = target == 0
+                    else:
+                        # Any other declaration (an amino acid over a sense
+                        # codon, a full-codon TERM) belongs to the reference
+                        # codon: it holds on the target only where the codon is
+                        # the same. It used to be written wherever it aligned
+                        # -- aa:TERM onto a sense codon on dog -> cat.
+                        keep = bool(entry.codon) and (
+                            coding_seq[3 * target:3 * target + 3] == entry.codon)
                     if keep:
                         codon = positions[3 * target:3 * target + 3]
                         if len(codon) != 3:
@@ -248,7 +259,6 @@ def cds_values(trans):
                            f"{coding.TRANSL_EXCEPT_ATTRIBUTE} not rewritten ({error}).")
         values, dropped = (), len(entries)
     with _LOCK:
-        _TALLY["emitted"] += len(values)
-        _TALLY["dropped"] += dropped
+        _RENDERED[getattr(trans.entry, "id", None) or id(trans)] = (len(values), dropped)
     trans._transl_except_rendered = (key, values)
     return values

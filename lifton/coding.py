@@ -1,5 +1,6 @@
 """Coding semantics shared by extraction, scoring and model completion."""
 import os
+import re
 from typing import NamedTuple, Optional
 
 from lifton.exceptions import LiftOnInputError
@@ -221,6 +222,11 @@ TRANSL_EXCEPT_ATTRIBUTE = 'transl_except'
 TRANSL_EXCEPT_TERM = 'TERM'
 
 
+#: Longest location a transl_except may name (a codon is 3 bp; dog RefSeq has
+#: a real 6,910-bp aa:Other range).
+MAX_LOCATION_SPAN = 1_000_000
+
+
 class TranslExcept(NamedTuple):
     """One declared exception, placed on the reference protein."""
     #: 0-based residue index into the reference protein, or None when the
@@ -233,6 +239,10 @@ class TranslExcept(NamedTuple):
     #: True when the reference codon is a stop the protein continues through
     #: (Sec, Pyl, stop readthrough, an amino acid declared over a stop).
     readthrough: bool
+    #: The reference codon's bases in transcript orientation, when known. A
+    #: declaration that is neither a read-through nor a start belongs to this
+    #: codon, and is carried to a target model only where its codon is the same.
+    codon: str = ''
 
 
 def transl_except_values(attributes):
@@ -263,18 +273,32 @@ def _split_top_level(text):
     return [part.strip() for part in parts if part.strip()]
 
 
-def parse_transl_except(values):
+_AA_SEPARATOR = re.compile(r',\s*aa\s*:')
+
+
+def parse_transl_except(values, errors=None):
     """``[(location, aa), ...]`` for every ``(pos:LOCATION,aa:AA)`` in values.
 
     gffutils hands back one decoded value per exception
     (``['(pos:25802093..25802095,aa:Sec)', ...]``); a raw GFF3 value keeps
     them in one string with ``%2C`` for the commas. Both are accepted: the
     values are rejoined, decoded, and scanned by parenthesis depth, which also
-    keeps the commas inside ``join(...)`` where they belong.
+    keeps the commas inside ``join(...)`` where they belong. Space around
+    ``aa:`` is accepted.
+
+    A malformed declaration raises ``ValueError``, unless ``errors`` is a
+    list: then it is appended there and the scan carries on with the next one,
+    so one bad value no longer costs a transcript all of its others.
     """
     text = ','.join(values).replace('%2C', ',').replace('%2c', ',')
     found = []
     index = 0
+
+    def bad(message):
+        if errors is None:
+            raise ValueError(message)
+        errors.append(message)
+
     while True:
         start = text.find('(pos:', index)
         if start < 0:
@@ -289,12 +313,15 @@ def parse_transl_except(values):
                     break
             end += 1
         if depth:
-            raise ValueError(f'unbalanced parentheses in {text!r}')
+            bad(f'unbalanced parentheses in {text[start:]!r}')
+            return found
         body = text[start + len('(pos:'):end]
-        separator = body.rfind(',aa:')
-        if separator < 0:
-            raise ValueError(f'no amino acid in {body!r}')
-        found.append((body[:separator].strip(), body[separator + len(',aa:'):].strip()))
+        separators = list(_AA_SEPARATOR.finditer(body))
+        if not separators:
+            bad(f'no amino acid in {body!r}')
+        else:
+            last = separators[-1]
+            found.append((body[:last.start()].strip(), body[last.end():].strip()))
         index = end + 1
 
 
@@ -318,6 +345,11 @@ def parse_location(text):
         first, last = (int(value) for value in text.split('..', 1))
         if last < first:
             raise ValueError(f'reversed range {text!r}')
+        if last - first + 1 > MAX_LOCATION_SPAN:
+            # A declaration names a codon; the longest real one seen (dog
+            # RefSeq, aa:Other) spans 6,910 bp. Materialising a malformed
+            # chromosome-length range would exhaust memory.
+            raise ValueError(f'range {text!r} is longer than {MAX_LOCATION_SPAN:,} bp')
         return list(range(first, last + 1))
     return [int(text)]
 
@@ -340,7 +372,8 @@ def _spliced_offsets(positions, merged_intervals, strand):
     return sorted(offsets)
 
 
-def transl_excepts_for(values, merged_intervals, strand, phase, protein, context=None):
+def transl_excepts_for(values, merged_intervals, strand, phase, protein, context=None,
+                       bases_at=None):
     """Place a transcript's declared exceptions on its reference protein.
 
     ``merged_intervals``, ``strand`` and ``phase`` must be exactly what built
@@ -350,16 +383,18 @@ def transl_excepts_for(values, merged_intervals, strand, phase, protein, context
     placed only when its bases are consecutive in the spliced CDS -- a codon
     split across an exon junction is -- and start in frame; otherwise its
     residue is None and it changes nothing. A malformed value is reported and
-    skipped.
+    skipped; the others are kept. ``bases_at(positions)``, when given, returns
+    the reference bases at those positions in transcript orientation; it
+    records each placed codon (:attr:`TranslExcept.codon`).
     """
     placed = []
-    try:
-        declared = parse_transl_except(values)
-    except ValueError as error:
+    errors = []
+    declared = parse_transl_except(values, errors)
+    if errors:
         from lifton import logger
-        logger.log_warning(f'{context or "transcript"}: unreadable '
-                           f'{TRANSL_EXCEPT_ATTRIBUTE} ignored ({error}).')
-        return ()
+        for error in errors:
+            logger.log_warning(f'{context or "transcript"}: unreadable '
+                               f'{TRANSL_EXCEPT_ATTRIBUTE} ignored ({error}).')
     for location, aa in declared:
         try:
             positions = parse_location(location)
@@ -379,5 +414,11 @@ def transl_excepts_for(values, merged_intervals, strand, phase, protein, context
         readthrough = (aa != TRANSL_EXCEPT_TERM and len(positions) == 3
                        and residue is not None and residue < len(protein) - 1
                        and protein[residue] == '*')
-        placed.append(TranslExcept(residue, aa, len(positions), readthrough))
+        codon = ''
+        if bases_at is not None and residue is not None and len(positions) == 3:
+            try:
+                codon = bases_at(positions).upper()
+            except Exception:
+                codon = ''
+        placed.append(TranslExcept(residue, aa, len(positions), readthrough, codon))
     return tuple(placed)
