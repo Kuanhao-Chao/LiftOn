@@ -2113,13 +2113,6 @@ def run_all_lifton_steps(args):
     # but nothing surfaced it: `gff3-validate` reports it as a WARNING and the
     # release gates count errors. Report the number here so a user sees it
     # without running the validator.
-    # Everything this run dropped, in one place. The per-event warnings were
-    # always printed; what was missing was the number.
-    drop_ledger.report(manifest)
-    if _n_declared:
-        _written = _transl_except.counts()
-        manifest.record_count("transl_except_written", _written["emitted"])
-        manifest.record_count("transl_except_not_applicable", _written["dropped"])
     # Two different numbers. `genes_emitted_without_children` is the one to act
     # on: the reference gave the gene children and we emitted none. The raw
     # tally of bare gene lines is kept beside it because most of them are
@@ -2179,6 +2172,15 @@ def run_all_lifton_steps(args):
             tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict,
             m_id_2_ref_id_trans_dict, ref_features_len_dict,
             ref_trans_exon_num_dict, ref_features_reverse_dict, args)
+
+    # Everything this run dropped, in one place. The per-event warnings were
+    # always printed; what was missing was the number. Reported after the
+    # cross-locus pass, which records drops of its own.
+    drop_ledger.report(manifest)
+    if _n_declared:
+        _written = _transl_except.counts()
+        manifest.record_count("transl_except_written", _written["emitted"])
+        manifest.record_count("transl_except_not_applicable", _written["dropped"])
 
     ################################
     # Step 10: Validate output GFF3

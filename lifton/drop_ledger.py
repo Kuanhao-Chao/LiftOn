@@ -26,9 +26,14 @@ called once at the start of every run, which matters because the test suite
 runs many pipelines in a single process.
 
 Step 7 dispatches to a *thread* pool, so several of these sites are reached
-concurrently and the tally is taken under a lock. The forked pools (the isoform
-scorer, the parallel lift) have their own memory and do not report here; what
-they drop surfaces through their own error paths.
+concurrently and the tally is taken under a lock. A forked worker has its own
+copy of this module, so the isoform scorer's workers keep a journal
+(:func:`start_journal`) that returns with their results and is merged here
+(:func:`merge`): the same scoring runs in-process at ``-t 1``, and the counts
+must not depend on the thread count.
+
+A feature is counted once per class, however many passes revisit it; a record
+without an id is counted every time.
 """
 from __future__ import annotations
 
@@ -84,6 +89,9 @@ CLASSES: dict[str, str] = {
 _lock = threading.Lock()
 _counts: dict[str, int] = {}
 _examples: dict[str, list[str]] = {}
+_seen: dict[str, set] = {}
+#: Records kept by a forked worker for its parent to merge; None elsewhere.
+_journal: list | None = None
 
 
 def reset() -> None:
@@ -91,6 +99,7 @@ def reset() -> None:
     with _lock:
         _counts.clear()
         _examples.clear()
+        _seen.clear()
 
 
 def record(kind: str, feature_id=None) -> None:
@@ -100,11 +109,41 @@ def record(kind: str, feature_id=None) -> None:
             f"unknown drop class {kind!r}; declare it in drop_ledger.CLASSES "
             f"so the summary can explain it")
     with _lock:
+        if _journal is not None:
+            _journal.append((kind, feature_id))
+        if feature_id is not None:
+            seen = _seen.setdefault(kind, set())
+            if str(feature_id) in seen:
+                return
+            seen.add(str(feature_id))
         _counts[kind] = _counts.get(kind, 0) + 1
         if feature_id is not None:
             kept = _examples.setdefault(kind, [])
             if len(kept) < EXAMPLE_CAP:
                 kept.append(str(feature_id))
+
+
+def start_journal() -> None:
+    """Keep every record for a parent process to :func:`merge` (forked worker)."""
+    global _journal
+    with _lock:
+        _journal = []
+
+
+def take_journal() -> list:
+    """The records kept since the last call, as ``[(kind, feature_id), ...]``."""
+    global _journal
+    with _lock:
+        if _journal is None:
+            return []
+        taken, _journal = _journal, []
+        return taken
+
+
+def merge(entries) -> None:
+    """Record what a forked worker recorded (duplicates count once)."""
+    for kind, feature_id in entries or ():
+        record(kind, feature_id)
 
 
 def counts() -> dict[str, int]:
