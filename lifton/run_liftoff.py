@@ -206,8 +206,15 @@ def lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_tran
         lifton_gene.add_exon(lifton_trans.entry.id, exon)
     cdss = l_feature_db.children(locus, featuretype=('CDS', 'stop_codon'), order_by='start') 
     cdss_list = list(cdss)
-    for cds in cdss_list:
-        lifton_gene.add_cds(lifton_trans.entry.id, cds)
+    try:
+        for cds in cdss_list:
+            lifton_gene.add_cds(lifton_trans.entry.id, cds)
+    except ValueError:
+        # `add_cds` refuses a CDS it cannot split at exon boundaries (counted
+        # as cds_spanning_exons). That rejects this transcript, not its gene:
+        # take the half-built model back out and let the caller skip it.
+        lifton_gene.discard_transcript(lifton_trans.entry.id)
+        raise
     return lifton_trans, len(cdss_list)
 
 
@@ -602,7 +609,13 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
             drop_ledger.record("unresolvable_transcript", locus.id)
             return None
         ref_trans_id = _resolved_trans_id
-        lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
+        try:
+            lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
+        except ValueError as error:
+            # Before, this escaped to the per-locus handler and the whole gene
+            # -- its good transcripts included -- was left out of the output.
+            logger.log_warning(f"Skipping {locus.id}: {error}.")
+            return None
         orf_done = False
         if cds_num > 0:
             orf_done = process_liftoff_with_protein(locus, lifton_gene, lifton_trans,

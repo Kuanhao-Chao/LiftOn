@@ -14,7 +14,7 @@ from typing import Any, Iterable, Iterator
 
 import gffutils
 
-from lifton import lifton_class, lifton_utils
+from lifton import coreutils, lifton_class, lifton_utils, logger
 
 
 _MISSING_FEATURE_ERRORS = (KeyError, gffutils.exceptions.FeatureNotFoundError)
@@ -393,9 +393,12 @@ def lifton_add_trans_exon_cds_eval(lifton_gene, locus, ref_db, tgt_db,
     )
 
     exons = _children(tgt_db, locus, featuretype="exon")
-    cds_features = _children(
+    # A stop_codon row a sibling CDS already covers (miniprot writes one; older
+    # LiftOn outputs carry them) replaced that CDS on its exon, so the model
+    # was scored as a 3-bp fragment. The lift path drops them the same way.
+    cds_features = coreutils.drop_redundant_stop_codons(_children(
         tgt_db, locus, featuretype=("CDS", "stop_codon"),
-    )
+    ))
     if not exons:
         # GFF3 permits CDS children without separate exon records.  LiftOn's
         # sequence extraction operates on exon objects, so create transient
@@ -409,8 +412,15 @@ def lifton_add_trans_exon_cds_eval(lifton_gene, locus, ref_db, tgt_db,
         for exon in exons:
             lifton_gene.add_exon(lifton_trans.entry.id, copy.deepcopy(exon))
 
-    for cds in cds_features:
-        lifton_gene.add_cds(lifton_trans.entry.id, copy.deepcopy(cds))
+    try:
+        for cds in cds_features:
+            lifton_gene.add_cds(lifton_trans.entry.id, copy.deepcopy(cds))
+    except ValueError as error:
+        # A CDS that cannot be split at exon boundaries makes this model
+        # unscorable; the rest of the annotation is still evaluated.
+        lifton_gene.discard_transcript(lifton_trans.entry.id)
+        logger.log_warning(f"Not evaluating {locus.id}: {error}.")
+        return None, 0
     return lifton_trans, len(cds_features)
 
 
