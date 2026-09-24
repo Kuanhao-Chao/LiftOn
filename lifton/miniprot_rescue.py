@@ -1180,6 +1180,8 @@ def _reset_inherited_signal_handlers():
 def _isoform_worker_init():
     from pyfaidx import Fasta
     _reset_inherited_signal_handlers()
+    # What this worker drops goes back to the parent with its results.
+    drop_ledger.start_journal()
     # A forked child shares the parent's file offsets, so reopen every FASTA
     # (LiftOn opens them all as plain ``Fasta(path)``).
     _ISOFORM_SHARED["fastas"] = tuple(
@@ -1196,7 +1198,7 @@ def _score_isoform_range(bounds):
         except Exception as error:
             # Any exception must survive pickling back to the parent.
             out.append(RuntimeError(f"{type(error).__name__}: {error}"))
-    return out
+    return out, drop_ledger.take_journal()
 
 
 #: How many prefetched isoform jobs may be held at once. Output is identical at
@@ -1277,4 +1279,8 @@ def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
                                               ref_trans)
     finally:
         _ISOFORM_SHARED.clear()
-    return [result for part in parts for result in part]
+    results = []
+    for part, journal in parts:
+        drop_ledger.merge(journal)
+        results.extend(part)
+    return results

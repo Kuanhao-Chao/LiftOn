@@ -160,3 +160,69 @@ class TestEndToEnd:
         counts = manifest.get("counts") or {}
         assert counts["dropped_features_total"] >= 1
         assert counts["dropped_unresolvable_transcript"] >= 1
+
+
+class TestCountedOncePerFeature:
+    """Several rescue passes revisit the same miniprot hit, and each recorded
+    the same unresolvable hit again: the count was the number of passes times
+    the number of features."""
+
+    def setup_method(self):
+        drop_ledger.reset()
+
+    def test_the_same_feature_is_counted_once(self):
+        for _ in range(3):
+            drop_ledger.record("reference_protein_sequence", "rna-X")
+        drop_ledger.record("reference_protein_sequence", "rna-Y")
+        assert drop_ledger.counts() == {"reference_protein_sequence": 2}
+
+    def test_records_without_an_id_are_each_counted(self):
+        drop_ledger.record("unresolvable_transcript")
+        drop_ledger.record("unresolvable_transcript")
+        assert drop_ledger.counts() == {"unresolvable_transcript": 2}
+
+
+class TestForkedWorkers:
+    """A forked isoform worker has its own copy of the ledger, so everything
+    it recorded was lost -- while at -t 1 the same scoring runs in-process and
+    is counted. The run manifest differed between -t 1 and -t N."""
+
+    def setup_method(self):
+        drop_ledger.reset()
+
+    def test_a_journal_carries_records_back(self):
+        drop_ledger.start_journal()
+        drop_ledger.record("cds_spanning_exons", "cds1")
+        drop_ledger.record("cds_spanning_exons", "cds1")
+        journal = drop_ledger.take_journal()
+        drop_ledger.reset()
+        drop_ledger.merge(journal)
+        assert drop_ledger.counts() == {"cds_spanning_exons": 1}
+
+    @pytest.mark.parametrize("workers", ["0", "2"])
+    def test_the_isoform_pool_reports_what_its_workers_drop(self, tmp_path, monkeypatch, workers):
+        from pyfaidx import Fasta
+        from lifton import miniprot_rescue
+
+        def score(index, *_fastas):
+            drop_ledger.record("rescue_candidate_error", f"job{index}")
+            return index
+
+        monkeypatch.setattr(miniprot_rescue, "_score_isoform", score)
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", workers)
+        fasta = tmp_path / "x.fa"
+        fasta.write_text(">a\nACGT\n")
+        handles = [Fasta(str(fasta)) for _ in range(3)]
+        results = miniprot_rescue._score_isoform_jobs(
+            [(i,) for i in range(6)], *handles, object())
+        assert results == list(range(6))
+        assert drop_ledger.counts() == {"rescue_candidate_error": 6}
+
+
+def test_the_ledger_is_reported_after_cross_locus_rescue():
+    """cross_locus_rescue records its own drops (cross_locus_candidate); the
+    report used to be written before that pass ran, so they never showed."""
+    import inspect
+    from lifton import lifton as lifton_main
+    source = inspect.getsource(lifton_main.run_all_lifton_steps)
+    assert source.index("drop_ledger.report(manifest)") > source.index("cross_locus_rescue_pass(")
