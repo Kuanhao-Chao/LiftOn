@@ -345,6 +345,10 @@ class Lifton_GENE:
         self.transcripts[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans
 
+    def discard_transcript(self, trans_id):
+        """Undo ``add_transcript`` for a model that turned out unbuildable."""
+        self.transcripts.pop(trans_id, None)
+
     def add_feature(self, gffutil_entry_trans):
         Lifton_feature = LiftOn_FEATURE(self.entry.id, gffutil_entry_trans, self.copy_num)
         self.transcripts[Lifton_feature.entry.id] = Lifton_feature
@@ -471,6 +475,10 @@ class LiftOn_FEATURE:
         )
         self.features[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans
+
+    def discard_transcript(self, trans_id):
+        """Undo ``add_transcript`` for a model that turned out unbuildable."""
+        self.features.pop(trans_id, None)
 
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.features[trans_id].add_exon(gffutil_entry_exon)
