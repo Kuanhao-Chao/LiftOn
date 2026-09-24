@@ -38,7 +38,10 @@ v1.0.14 (2026-09-22)
 - Honour ``transl_except``: read declared selenocysteine and other recoded
   stops through when scoring, calling variants and chaining, and rewrite the
   attribute into the lifted model's coordinates (it kept the reference's).
-  All 25 human selenoprotein genes were mis-scored or truncated before.
+  All 25 human selenoprotein genes were mis-scored or truncated before; on
+  GRCh38 to CHM13 their 53 transcripts now average 0.998 identity. A distant
+  lift can also place selenoprotein genes it used to miss (seven on human to
+  zebrafish).
 - Split a CDS spanning an intron into exonic segments with transcript-order
   phases. Reject ambiguous overlaps, and validate CDS-within-exon containment.
 - Rebind a trans-spliced transcript in precomputed Liftoff annotations to its

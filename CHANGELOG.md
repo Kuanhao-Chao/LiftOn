@@ -50,8 +50,15 @@ All notable changes to **LiftOn** are documented here. This project follows
   benchmark evaluator applies the same rule to every tool. The `transl_except`
   written to the output is rewritten into the lifted model's own coordinates
   - it used to keep the reference's - and is left off where the target codon
-  no longer needs it (a selenocysteine replaced by cysteine). Reported by a
-  user lifting MANE v1.5 to CHM13.
+  no longer needs it (a selenocysteine replaced by cysteine). On GRCh38 to
+  CHM13 the 53 selenoprotein transcripts now average 0.998 (none below 0.98)
+  and SEPHS2 is the full lifted model at 1.000; across five whole-genome
+  qualification lifts no model declaring an exception got worse except one
+  low-quality dog-to-cat model (-0.007). The miniprot-only rescue scores
+  with the same rule, so a distant lift can now place selenoprotein genes it
+  used to miss: human to zebrafish gains seven (GPX4, DIO1-3, SEPHS2,
+  SELENOT, SELENOM), each on its zebrafish ortholog.
+  Reported by a user lifting MANE v1.5 to CHM13.
 - A CDS crossing an intron is emitted as exonic segments with the correct
   transcript-order phase, rather than cloned whole onto multiple exons or
   attached whole to one exon and extended across the intron at write time.
