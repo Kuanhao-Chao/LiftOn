@@ -234,3 +234,33 @@ class TestOccupiedLocusIsStillRefused:
         assert set(on) == set(off)
         assert [(g[1], g[2]) for g in on if g[0].startswith("gene2")] \
             == [(601, 699)]
+
+
+def test_a_hit_on_an_occupied_locus_is_refused_before_its_cds_query(monkeypatch):
+    """The sub-pass queried every candidate's CDS rows before checking whether
+    its locus was already taken -- most of its 40-55 s per whole genome. The
+    placement loop only ever adds intervals, so a hit overlapping an emitted
+    model when the sub-pass starts is refused either way; it is now refused
+    before the query."""
+    from types import SimpleNamespace
+    from intervaltree import Interval, IntervalTree
+    from lifton import miniprot_rescue
+
+    queried = []
+
+    class FeatureDB:
+        def children(self, feature, featuretype=None):
+            queried.append(feature.attributes["ID"][0])
+            return iter(())
+
+    hit = SimpleNamespace(seqid="chr1", start=100, end=400, strand="+", id="MP1",
+                          attributes={"ID": ["MP1"]})
+    tree = {"chr1": IntervalTree([Interval(90, 410, "gene-emitted")])}
+    args = SimpleNamespace(overlap=0.1, miniprot_rescue_len=(0.5, 2.0),
+                           rescue_second_locus=True, rescue_second_locus_max=1)
+    added = miniprot_rescue._second_locus_subpass(
+        [hit], 0.5, FeatureDB(), None, tree, None, {"tx1": "M"}, {"tx1": "A"},
+        {}, {"MP1": "tx1"}, {"gene1": 300}, {"tx1": 1}, {"tx1": "gene1"},
+        {"gene1"}, None, args)
+    assert added == 0
+    assert queried == []

@@ -804,10 +804,16 @@ def _second_locus_subpass(mtranscripts, floor, m_feature_db, ref_db,
             ratio = (mtrans.end - mtrans.start + 1) / ref_len
             if not run_miniprot._miniprot_rescue_band_ok(ratio, args):
                 continue
-            cds_children = list(m_feature_db.children(mtrans, featuretype='CDS'))
+            # The placement loop below only ever ADDS intervals to the tree, so
+            # a hit that already overlaps an emitted model is refused there
+            # whatever happens first. Refusing it here saves its CDS query,
+            # which was most of this sub-pass's 40-55 s per whole genome.
+            if lifton_utils.check_ovps_ratio(
+                    mtrans, Interval(mtrans.start, mtrans.end, mtrans_id),
+                    args.overlap, tree_dict):
+                continue
             candidates.append((_candidate_quality_key(mtrans, None), mtrans,
-                               ref_gene_id, ref_trans_id, ratio,
-                               len(cds_children)))
+                               ref_gene_id, ref_trans_id, ratio))
         except Exception as e:
             logger.log_error(
                 f"miniprot-only rescue (second locus) error ({mtrans.id}): {e}")
@@ -817,7 +823,7 @@ def _second_locus_subpass(mtranscripts, floor, m_feature_db, ref_db,
 
     added = 0
     counts = {}
-    for _, mtrans, ref_gene_id, ref_trans_id, ratio, n_cds in candidates:
+    for _, mtrans, ref_gene_id, ref_trans_id, ratio in candidates:
         try:
             if counts.get(ref_gene_id, 0) >= maximum:
                 continue
@@ -826,6 +832,7 @@ def _second_locus_subpass(mtranscripts, floor, m_feature_db, ref_db,
             if lifton_utils.check_ovps_ratio(mtrans, mtrans_interval,
                                              args.overlap, tree_dict):
                 continue
+            n_cds = len(list(m_feature_db.children(mtrans, featuretype='CDS')))
             if n_cds == 1 and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1:
                 continue
             if _build_and_accept(
