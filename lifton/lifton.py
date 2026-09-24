@@ -1278,6 +1278,19 @@ def run_all_lifton_steps(args):
     ref_proteins_file = args.proteins
     _extract_stats = {}
     _declared_exceptions = None
+    # Ensembl/GENCODE write a selenocysteine as its own row rather than
+    # transl_except; read them as declarations too (one query; for GTF input a
+    # scan of the original file, since conversion drops those rows).
+    try:
+        _gtf_source = ((getattr(ref_db, "conversion_provenance", None) or {})
+                       .get("input") or {}).get("path")
+        _selenocysteines = _transl_except.selenocysteine_declarations(ref_db, _gtf_source)
+    except Exception as error:  # an optional refinement must not cost the lift
+        logger.log_warning(f"selenocysteine rows could not be read ({error}).")
+        _selenocysteines = {}
+    if _selenocysteines:
+        manifest.record_count("reference_selenocysteine_rows",
+                              sum(len(values) for values in _selenocysteines.values()))
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
         logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
         logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
@@ -1289,7 +1302,7 @@ def run_all_lifton_steps(args):
         _declared_exceptions = {}
         generated_trans, generated_proteins = extract_sequence.extract_features_to_fasta(
             ref_db, features, ref_fai, intermediate_dir, stats=_extract_stats,
-            transl_except=_declared_exceptions,
+            transl_except=_declared_exceptions, extra_declarations=_selenocysteines,
         )
         # Preserve individually supplied sequences for normalized references.
         # Their IDs were checked against the explicit alias map above.
@@ -1323,7 +1336,8 @@ def run_all_lifton_steps(args):
     # Installed before evaluation, Step 4 and any thread or fork.
     if _declared_exceptions is None:
         try:
-            _declared_exceptions = _transl_except.scan_reference(ref_db, ref_fai)
+            _declared_exceptions = _transl_except.scan_reference(
+                ref_db, ref_fai, extra=_selenocysteines)
         except Exception as error:  # an optional refinement must not cost the lift
             logger.log_warning(
                 f"transl_except declarations could not be read ({error}); "
