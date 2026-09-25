@@ -1893,11 +1893,15 @@ def _check_cds_phase(
     """
     Validate GFF3 CDS phase values.
 
-    GFF3 phase rule: phase = (3 - (cumulative_cds_length_so_far % 3)) % 3
+    GFF3 phase rule: phase = (3 - ((cumulative_cds_length_so_far - phase_0) % 3)) % 3
     where cumulative_cds_length_so_far is the total length of all preceding
-    CDS rows *before* the current one (sorted by coord, 5'→3').
+    CDS rows *before* the current one (sorted by coord, 5'→3') and phase_0 is
+    the first row's own phase.
 
-    The first CDS should always have phase 0 for a complete CDS.
+    The first CDS has phase 0 for a complete CDS; a 5'-partial one (start
+    lost) legitimately starts mid-codon, and its first phase_0 bases precede
+    the first complete codon. Assuming 0 there flagged every later segment of
+    every such model.
     """
     issues: List[GFF3Issue] = []
     # A caller driving these checks block by block passes its own counter so
@@ -1921,9 +1925,13 @@ def _check_cds_phase(
         else:
             cds_sorted = sorted(cds_list, key=lambda r: r.start)
 
+        try:
+            first_phase = int(cds_sorted[0].phase)
+        except ValueError:
+            first_phase = 0
         accum_len = 0
         for i, cds in enumerate(cds_sorted):
-            expected_phase = (3 - accum_len % 3) % 3
+            expected_phase = (3 - (accum_len - first_phase) % 3) % 3
             try:
                 actual_phase = int(cds.phase)
             except ValueError:
