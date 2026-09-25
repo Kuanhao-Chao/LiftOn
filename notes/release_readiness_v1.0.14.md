@@ -13,7 +13,7 @@ PyPI, changed on Bioconda, or published for CHM13, and no reply has been sent.
 The runbook at the end lists every one of those steps; each is an outward
 action that needs sign-off.
 
-v1.0.14 is 75 commits on top of v1.0.13 (`b2fe59f`, which is `main` and
+v1.0.14 is 77 commits on top of v1.0.13 (`b2fe59f`, which is `main` and
 `devel`), a clean fast-forward. It was built across four Claude Code cycles
 (2026-09-14 → 09-21) and one Codex session (2026-09-22/23, "Improve LiftOn
 comprehensively"), then reconciled, reviewed, scanned twice and qualified here.
@@ -546,9 +546,10 @@ Liftoff, fresh miniprot, `-t 16`), 1 h 09 m, peak RSS 30.2 GiB, status
 ## Release runbook (not executed — each step is an outward action needing sign-off)
 
 State at handoff: `v1014-integration` = the frozen code `3ab51cf` plus
-commits touching only `notes/` (which does not ship in the sdist or wheel),
+commits touching only `notes/` and the two changelogs (neither ships in the
+wheel; the changelogs are checked by `test_packaging_metadata`),
 pushed, CI pending (runs on push).
-`main` = `devel` = `b2fe59f` (v1.0.13); the branch is 75 commits
+`main` = `devel` = `b2fe59f` (v1.0.13); the branch is 77 commits
 ahead and 0 behind, so both merges are fast-forwards.
 
 1. **Date the release.** Replace the provisional `2026-09-22` in all three
