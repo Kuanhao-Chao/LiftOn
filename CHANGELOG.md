@@ -155,7 +155,8 @@ All notable changes to **LiftOn** are documented here. This project follows
   annotation with 27 such transcripts validated clean. Rows are compared
   within one sequence and strand, and a -1 ribosomal-frameshift overlap the
   annotation declares (`exception=ribosomal slippage`, as RefSeq writes PEG10)
-  is a warning.
+  is a warning. The CDS phase check reads a 5'-partial model's own first
+  phase; it assumed phase 0 and flagged every later segment of such a model.
 - A worker pool that cannot fork no longer aborts the run. Under strict
   overcommit accounting the kernel charges each child the parent's whole
   address space, so a large parent can fail to start workers with hundreds of
