@@ -632,20 +632,6 @@ class Lifton_TRANS:
                     (gffutil_entry_cds.start, gffutil_entry_cds.end))[1])
         ]
         if len(overlapping) > 1:
-            # Two exons that overlap each other -- Liftoff writes pairs sharing
-            # a base -- make a CDS lying wholly inside one of them overlap the
-            # other as well. That CDS crosses no intron: it belongs to the one
-            # exon that contains it, exactly as if it overlapped only that one.
-            # Refusing it cost the transcript (C. elegans -> C. briggsae
-            # W07G4.3), which v1.0.13 emitted.
-            containing = [
-                exon for exon in overlapping
-                if (exon.entry.start <= gffutil_entry_cds.start
-                    and gffutil_entry_cds.end <= exon.entry.end)
-            ]
-            if len(containing) == 1:
-                overlapping = containing
-        if len(overlapping) > 1:
             # A reference CDS row crossing an intron must be emitted as
             # discontinuous exonic segments. Attaching the full row to one exon
             # makes containment normalization bridge the intron; attaching it
