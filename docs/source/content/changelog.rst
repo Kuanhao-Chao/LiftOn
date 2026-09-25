@@ -50,9 +50,8 @@ v1.0.14 (2026-09-22)
   is lifted as written instead of aborting the run; ``--strict-gff`` keeps it
   fatal.
 - Split a CDS spanning an intron into exonic segments with transcript-order
-  phases. Reject ambiguous overlaps (the transcript, not its gene), keep a CDS
-  that lies inside one of two overlapping exons, and validate
-  CDS-within-exon containment.
+  phases. Reject ambiguous overlaps (the transcript, not its gene), and
+  validate CDS-within-exon containment.
 - Rebind a trans-spliced transcript in precomputed Liftoff annotations to its
   unique containing gene fragment, including on the same sequence
   (drosophila ``mod(mdg4)``); preserve that fragment's ``part``. An

@@ -74,9 +74,7 @@ All notable changes to **LiftOn** are documented here. This project follows
   transcript-order phase, rather than cloned whole onto multiple exons or
   attached whole to one exon and extended across the intron at write time.
   Ambiguous overlapping-exon cases are counted and rejected - the transcript,
-  not its gene, and in `-E` evaluation not the run. A CDS lying inside one of
-  two exons that share a base (Liftoff writes such pairs) is not ambiguous and
-  stays on that exon. The validator now
+  not its gene, and in `-E` evaluation not the run. The validator now
   checks that each CDS segment lies within an exon when exons are present.
   The redundant miniprot `stop_codon` fix makes this path inert on the five
   measured whole-genome runs (CHM13 8,546 warnings to 0; rice 4,468 to 0;
