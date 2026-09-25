@@ -20,14 +20,13 @@ v1.0.14 evaluator, v1.0.12 → v1.0.14 on CHM13: selenoprotein transcripts
 0.906 → 0.998 (11 → 0 below 0.9), mitochondrial proteins at reference length
 8 → 13 of 13, validator errors 42 → 0. The 0.666 quoted below is the identity
 the older files *report* for their selenoproteins, which the bug itself deflated. Issue #16
-answered. The reply to the `transl_except` reporter is final and kept outside
-the repository, for Kuan-Hao to send.
+answered.
 
 **Verdict: ready to release** — every requalification gate below passed on
 the frozen commit; CI on the pushed head (`72d1f6e`) is **green**. Frozen commit **`3ab51cf`** on `v1014-integration` (it
 was `e688ff5`; the section below says what changed and how it was
 requalified). Nothing has been merged to `main`, tagged, released, uploaded to
-PyPI, changed on Bioconda, or published for CHM13, and no reply has been sent.
+PyPI, changed on Bioconda, or published for CHM13.
 The runbook at the end lists every one of those steps; each is an outward
 action that needs sign-off.
 
@@ -130,8 +129,7 @@ aligner output (cached):
   now succeed), TMEM52 (an overlapping exon removed), SIRPB1 and STOX1 (the
   CDS score column only), and adds one TEX28 copy at 0.990.
 - `lifton_output/liftoff/liftoff.gff3` is Liftoff's intermediate and keeps
-  GRCh38 coordinates; the draft reply says so
-  (kept outside the repository, as the v1.0.12 reply was; not sent).
+  GRCh38 coordinates; only the LiftOn output is rewritten.
 
 ### Performance against v1.0.13
 
@@ -624,10 +622,6 @@ ahead and 0 behind, so both merges are fast-forwards.
    the NOC2L check (19 exons, 19 distinct IDs; 0 duplicate exon IDs in the
    file) and the #26 check (0 overlapping exons or CDS). Use `gh api repos/Kuanhao-Chao/LiftOn/issues/16/comments -f body=...`
    (`gh issue comment` is broken by the Projects-classic deprecation).
-10. **Reply to the `transl_except` reporter** (email, not a GitHub issue):
-    the draft kept outside the repository. Fill its availability line once the
-    release exists (steps 5–6), then send it yourself. It is about their own
-    MANE → CHM13 lift, so it does not depend on step 8.
 
 ## Appendix A — Release readiness — v1.0.14 (cycle 3), as committed in `4d532b2`
 
@@ -830,5 +824,5 @@ clean. The cycle-1 genetic-code fix still holds: all 13 mitochondrial CDS match
 reference length exactly.
 
 This is what lets issue #26 be answered as fixed on both halves rather than
-half-fixed — with the caveat, stated in every draft reply, that the **posted**
+half-fixed — with the caveat, stated in the issue replies, that the **posted**
 annotation has not been replaced.
