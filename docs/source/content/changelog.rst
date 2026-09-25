@@ -4,7 +4,7 @@
 Changelog
 ===========
 
-v1.0.14 (2026-09-22)
+v1.0.14 (2026-09-25)
 --------------------
 
 - Honour the genetic code an annotation declares (``transl_table``) in protein

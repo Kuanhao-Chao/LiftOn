@@ -113,7 +113,7 @@ aligner output (cached):
   CDS score column only), and adds one TEX28 copy at 0.990.
 - `lifton_output/liftoff/liftoff.gff3` is Liftoff's intermediate and keeps
   GRCh38 coordinates; the draft reply says so
-  (`notes/reply_simon_transl_except.md`, not sent).
+  (kept outside the repository, as the v1.0.12 reply was; not sent).
 
 ### Performance against v1.0.13
 
@@ -607,7 +607,7 @@ ahead and 0 behind, so both merges are fast-forwards.
    file) and the #26 check (0 overlapping exons or CDS). Use `gh api repos/Kuanhao-Chao/LiftOn/issues/16/comments -f body=...`
    (`gh issue comment` is broken by the Projects-classic deprecation).
 10. **Reply to the `transl_except` reporter** (email, not a GitHub issue):
-    `notes/reply_simon_transl_except.md`. Fill its availability line once the
+    the draft kept outside the repository. Fill its availability line once the
     release exists (steps 5–6), then send it yourself. It is about their own
     MANE → CHM13 lift, so it does not depend on step 8.
 
