@@ -122,8 +122,9 @@ What's new in v1.0.14
 Selenoproteins and other declared recoded codons (RefSeq ``transl_except``;
 Ensembl/GENCODE selenocysteine rows) are now read through instead of treated
 as premature stops, and ``transl_except`` is written in the lifted model's own
-coordinates: on GRCh38 to T2T-CHM13 all 25 human selenoprotein genes rise from
-a mean protein identity of 0.666 to 0.998.
+coordinates: on GRCh38 to T2T-CHM13 the 53 transcripts of all 25 human
+selenoprotein genes now reach a mean protein identity of 0.998, none below 0.9
+(v1.0.12: 0.906, 11 below 0.9, scored the same way).
 
 LiftOn now uses declared genetic codes, normalizes sparse coding references,
 handles GTF input more reliably, and places a gene at a second unoccupied

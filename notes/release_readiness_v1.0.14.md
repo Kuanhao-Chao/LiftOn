@@ -5,6 +5,24 @@ second pre-release scan, a re-check on the reporter's own command, and a
 performance campaign against v1.0.13. Supersedes the cycle-3 version of this
 note, which is kept as Appendix A (verbatim; headings demoted one level).*
 
+**Released 2026-09-25.** Tag `v1.0.14` = `8378f8e` = `main` = `devel`;
+[GitHub Release](https://github.com/Kuanhao-Chao/LiftOn/releases/tag/v1.0.14);
+PyPI `lifton 1.0.14` (sdist sha256 `dc5e48e4…abffe`) — a clean
+`pip install --no-cache-dir lifton==1.0.14` lifts the chr22 example
+byte-identically to qualification (md5 `4d98f5c8…`), `gff3-validate` clean.
+CI green on `8378f8e` (tests, distribution, docs). Bioconda PR #66594 bumped to
+1.0.14 (awaiting Bioconda review). T2T-CHM13: `JHU_LiftOn_v1.0.14_chm13v2.0.gff3`
+(md5 `603506dd…`) with README, statistics sheet and a rebuilt UCSC BigBed on
+the CCB FTP; `human_refseq/lifton.gff3` replaced; the v1.0.12 files backed up
+to `/ccb/salz3/kh.chao/lifton_chm13_v1014_final/ftp_backup_20260925/` and
+retired. Docs live on khchao.com/LiftOn and ccb.jhu.edu/lifton. Scored by the
+v1.0.14 evaluator, v1.0.12 → v1.0.14 on CHM13: selenoprotein transcripts
+0.906 → 0.998 (11 → 0 below 0.9), mitochondrial proteins at reference length
+8 → 13 of 13, validator errors 42 → 0. The 0.666 quoted below is the identity
+the older files *report* for their selenoproteins, which the bug itself deflated. Issue #16
+answered. The reply to the `transl_except` reporter is final and kept outside
+the repository, for Kuan-Hao to send.
+
 **Verdict: ready to release** — every requalification gate below passed on
 the frozen commit; CI on the pushed head (`72d1f6e`) is **green**. Frozen commit **`3ab51cf`** on `v1014-integration` (it
 was `e688ff5`; the section below says what changed and how it was
