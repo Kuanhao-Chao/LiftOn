@@ -1,18 +1,135 @@
 # Release readiness — v1.0.14
 
-*Rewritten 2026-09-23 from the final qualification. Supersedes the cycle-3
-version of this note, which is kept as Appendix A (verbatim; headings demoted one level).*
+*Rewritten 2026-09-23 from the final qualification; updated 2026-09-24 after a
+second pre-release scan, a re-check on the reporter's own command, and a
+performance campaign against v1.0.13. Supersedes the cycle-3 version of this
+note, which is kept as Appendix A (verbatim; headings demoted one level).*
 
-**Verdict: ready to release.** Every qualification gate below passed on the frozen
-commit; CI on the pushed head is **green** on `51ebcf7` (tests 3.10/3.11/3.12 + optional-native; distribution qualification incl. compiler-free wheel and sdist on 3.10–3.14). Frozen commit **`e688ff5`** on `v1014-integration`.
-Nothing has been merged to `main`, tagged, released, uploaded to PyPI, changed
-on Bioconda, or published for CHM13. The runbook at the end lists every one of
-those steps; each is an outward action that needs sign-off.
+**Verdict: ready to release** — every requalification gate below passed on
+the frozen commit; CI on the pushed head: pending (runs on push). Frozen commit **`3ab51cf`** on `v1014-integration` (it
+was `e688ff5`; the section below says what changed and how it was
+requalified). Nothing has been merged to `main`, tagged, released, uploaded to
+PyPI, changed on Bioconda, or published for CHM13, and no reply has been sent.
+The runbook at the end lists every one of those steps; each is an outward
+action that needs sign-off.
 
-v1.0.14 is 59 commits on top of v1.0.13 (`b2fe59f`, which is `main` and
+v1.0.14 is 75 commits on top of v1.0.13 (`b2fe59f`, which is `main` and
 `devel`), a clean fast-forward. It was built across four Claude Code cycles
 (2026-09-14 → 09-21) and one Codex session (2026-09-22/23, "Improve LiftOn
-comprehensively"), then reconciled, reviewed and qualified here.
+comprehensively"), then reconciled, reviewed, scanned twice and qualified here.
+
+## Second pre-release scan, requalification and performance (2026-09-24)
+
+### What the scan changed
+
+Full findings, with the reproduction for each:
+`notes/lifton_v1.0.14_scan_2026-09-24.md`. Every fix has a test that fails
+before it and passes after; each is inert where its defect is absent (24-cell
+matrix green, no golden edit).
+
+- **A crash on stock NCBI input** (C1): the new reference normalization
+  aborted the whole run on a sparse coding model it could not rebuild
+  unambiguously — the repo's own GenBank yeast R64 annotation (47 Ty
+  gag-pol frameshifts) exited 2 with no output. Such a model is now lifted as
+  written (v1.0.13's treatment), warned once and counted; `--strict-gff`
+  keeps it fatal.
+- **An unsplittable CDS cost its whole gene** in Step 7 and aborted `-E`
+  (H1); it now costs the transcript, still counted.
+- **Selenocysteine for GENCODE/Ensembl users** (M2): the `transl_except` fix
+  read only RefSeq's qualifier. `Selenocysteine` GTF rows (which gffread
+  drops) and `stop_codon_redefined_as_selenocysteine` GFF3 rows are now read
+  the same way. GENCODE v49 → CHM13: 71 selenoprotein transcripts 0.66–0.68 →
+  0.995–0.997, every written codon a TGA, every non-Sec gene unchanged.
+- **`transl_except` robustness** (M3, M4, L1, L3, L10, L11): the ORF search
+  reads through declared codons; one malformed value no longer discards a
+  transcript's others; a value that is neither a read-through nor a start is
+  written only onto an identical codon; absurd ranges are refused.
+- **Declared genetic code for miniprot-derived models** (M1): mitochondrial
+  genes placed from miniprot hits translated with the standard code. dog →
+  cat COX2 0.259 → 0.965, CYTB 0.063 → 0.889; human → zebrafish COX1 0.053 →
+  0.848.
+- **Accounting and speed** (L4, L5, M5): drop counts no longer depend on
+  `--threads`; the second-locus sub-pass fell from 24–46 s to under 1 s per
+  genome at `-t 1`.
+- **Validator** (L7, N2): overlap checked within one sequence and strand, a
+  declared ribosomal-slippage overlap is a warning, and the phase check reads
+  a 5′-partial CDS's own first phase — without that, v1.0.14's correct output
+  drew 5,648 spurious warnings on dog → cat.
+
+On the qualification corpus, `e688ff5` → `3ab51cf` changes only transcripts
+that declare a `transl_except` or a genetic code — rice 1, bee 4, dog → cat
+13, human → zebrafish 9, drosophila 0 (at `-t 1` and `-t 8`), none worse,
+nothing added or removed. CHM13 (1,237,341,536 bytes) and MANE v1.5 → CHM13
+are byte-identical to the `e688ff5` outputs.
+
+One fix was written and withdrawn: `1403433` kept a transcript whose two
+Liftoff CDS rows share a base, the full suite failed it (the rule it broke —
+never count coding bases twice — is pinned by a test), and `1081a2f` reverted
+it. It was committed after running only the targeted test file.
+
+### Requalification (`3ab51cf`)
+
+`3ab51cf` differs from the fully requalified `ac7e863` only in the validator's
+phase check, which cannot change lift output: a subset lifted with each is
+byte-identical (13,766,858 bytes).
+
+| gate | result |
+|---|---|
+| full suite, Python 3.10 | **2,522 passed**, 14 skipped, 0 failed (49:04) — `ac7e863`'s 2,518 plus the 4 new phase tests |
+| full suite, Python 3.11 | **2,522 passed**, 14 skipped, 0 failed (48:56) |
+| full suite, Python 3.12 (environment rebuilt under `/ccb/salz3`; the `/tmp` one lost files to tmp cleanup mid-qualification) | **2,522 passed**, 14 skipped, 0 failed (46:33) |
+| `make test-fast` (24-cell byte-identity + integration) | 30 passed, no golden edit |
+| fatal flake8 | 0 |
+| Sphinx docs | succeeds; 77 warnings, the identical set to `ac7e863`'s |
+| packaging (wheel/sdist, compiler-free installs, installed chr22 lifts) | `twine check --strict` pass; wheel `lifton/` = tree (95 files, 0 differ; 12 not shipped are vendored Liftoff's tests); compiler-free wheel installs on 3.10/3.11/3.12 and sdist on 3.11; 4 of 4 installed chr22 lifts exit 0, `gff3-validate` exit 0, **byte-identical to each other and to `ac7e863`'s and `e688ff5`'s** (md5 `4d98f5c8…`). wheel sha256 `2ea59cc6…110f`, sdist `36e38ea1…6365` |
+| `make benchmark-gate` (isolated export, own `work/human_mane`) | **GATE PASS**: human_mane protein identity 0.99425 → 0.99542, completeness 0.99764 unchanged (the same numbers as `e688ff5`) |
+| eight-cell second-locus ladder (`ac7e863`, lift output unchanged since) | SAFETY 8/8, identical line for line to `e688ff5`'s |
+| CHM13 regeneration (`ac7e863`) | byte-identical to the staged file; `3ab51cf`'s validator: 0 errors, 11,975 warnings (the 56 phase warnings were N2's false positive) |
+| `-t 1` = `-t 8` (rice, drosophila, dog → cat) and `-t 1` = `-t 4` (34 subsets) | byte-identical, all |
+| CI on the pushed head | pending (runs on push) |
+
+### The reporter's case, re-checked
+
+The user who reported the selenoprotein problem lifted MANE v1.5 to CHM13 with
+`lifton -g MANEv1.5.gff -chroms chrom_mapping.txt -copies -sc 0.9
+chm13v2.0.fa hg38.p14.fa`. Re-run exactly that way (fresh) and on the shared
+aligner output (cached):
+
+- SEPHS2 is the correct model: CDS chr16:30,830,620–30,831,966, mRNA
+  30,829,870–30,832,113 with both UTRs, identity 1.000,
+  `transl_except=(pos:complement(30831787..30831789),aa:Sec)` — a TGA in
+  CHM13.
+- All 25 selenoprotein transcripts: 0.654 → 0.999 (18 below 0.9 → 0; lowest
+  GPX1 0.990, whose alanine repeat is shorter in CHM13). 9 non-AUG starts keep
+  their scores and gain CHM13 coordinates.
+- Independent check, no LiftOn code: each lifted CDS spliced from CHM13 and
+  translated with the written `transl_except` applied, against NCBI's own
+  GenPept records: 27 of 33 identical; 5 differ where CHM13 and GRCh38
+  genuinely differ, 1 where NCBI's protein differs from the GRCh38 genome.
+  v1.0.13: 0 of 33.
+- v1.0.13 → v1.0.14 on that input changes 40 of 19,898 transcripts: the 34
+  declaring ones, DDTL 0.193 → 0.296 and TMEM255B 0.829 → 0.997 (merges that
+  now succeed), TMEM52 (an overlapping exon removed), SIRPB1 and STOX1 (the
+  CDS score column only), and adds one TEX28 copy at 0.990.
+- `lifton_output/liftoff/liftoff.gff3` is Liftoff's intermediate and keeps
+  GRCh38 coordinates; the draft reply says so
+  (`notes/reply_simon_transl_except.md`, not sent).
+
+### Performance against v1.0.13
+
+`notes/v1.0.14_performance_evaluation.md` (8 whole genomes, 34 subsets, every
+tool scored by one evaluator, same aligner input). In short:
+
+- mean protein identity up on all 8 genomes and 32 of 34 subsets (none down);
+  paired, 3,484 transcripts better and 607 worse on the genomes;
+- +1,068 transcripts on the genomes against 15 given up, every one of the 15
+  traced (mostly genes nested in the intron of a neighbour whose model is now
+  complete); 962 of the gains are second-locus placements;
+- `gff3-validate` errors 21–1,693 per v1.0.13 output → 0 on every v1.0.14
+  output; v1.0.13 finished `partial_success` on 4 genomes, v1.0.14 `success`
+  on all 8;
+- 1.055× faster by geometric mean (0.97–1.20×), peak RSS −1.1 to −1.4 GiB on
+  the two largest distant lifts.
 
 ## What v1.0.14 changes
 
@@ -161,10 +278,12 @@ breaking the dispatcher's lazy, window-bounded root scan; the targeted tests I
 ran passed and the full suite failed it on all three Pythons (1,004 roots read
 where the window allows 4). `3265d87` tracks yielded ids instead.
 
-## Qualification evidence
+## Qualification evidence (`e688ff5`, 2026-09-23)
 
-Every run below imported LiftOn from a detached worktree at the frozen commit
-and asserted so on load (`build: …/wt_e688ff5_*/lifton/__init__.py e688ff5
+*The 2026-09-24 requalification of `3ab51cf` is in the section above.*
+
+Every run below imported LiftOn from a detached worktree at the then-frozen
+commit and asserted so on load (`build: …/wt_e688ff5_*/lifton/__init__.py e688ff5
 dirty=0`); lifts shared cached `-L`/`-M` from the v1.0.12 release validation
 so the build is the only difference; long jobs ran in an isolated tmux server.
 The shipped code (`lifton/`, `setup.py`, `pyproject.toml`, `MANIFEST.in`,
@@ -379,10 +498,8 @@ Liftoff, fresh miniprot, `-t 16`), 1 h 09 m, peak RSS 30.2 GiB, status
     a placed `transl_except` — but nothing forces it to; a miniprot model that
     stopped there would be scored correctly and stay short. Writing `U` into
     `proteins.fa` is untested with miniprot (next version).
-  - The ORF scan still cannot read through a declared codon. With the 1 %
-    ORF-rescue threshold this cost one model 0.007 identity on dog → cat
-    (LCE6A, evidence note 2); the threshold governs every transcript and was
-    left alone.
+  - ~~The ORF scan cannot read through a declared codon~~ — fixed in the
+    second scan (M3): dog → cat LCE6A is 0.467, above both earlier values.
   - A model LiftOn cannot align to a reference protein (`no_protein`) gets its
     `transl_except` removed, not rewritten (rice chloroplast `rpl2`): a value
     is written only where it can be placed on the model.
@@ -400,18 +517,38 @@ Liftoff, fresh miniprot, `-t 16`), 1 h 09 m, peak RSS 30.2 GiB, status
 - **77 pre-existing Sphinx warnings** (theme options, heading underlines,
   duplicate section labels in the tutorials). None new; three fewer than
   v1.0.13.
-- **The Python 3.10–3.12 qualification environments live in `/tmp`**
-  (created by the Codex session). They are what the suites ran on; for the
-  next release, recreate them under `/ccb/salz3`. Dependency evidence for a
-  legacy egg-info install (interlap on 3.10) is recorded as weaker
+- **Qualification environments.** The Python 3.10 and 3.11 environments
+  still live in `/tmp` (created by the Codex session); the 3.12 one lost files
+  to tmp cleanup on 2026-09-24 and was rebuilt as
+  `/ccb/salz3/kh.chao/lifton_improve/qual_envs/py312` with the 3.11 package
+  set. Move the other two there before the next release. Dependency evidence
+  for a legacy egg-info install (interlap on 3.10) is recorded as weaker
   (`inventory: egg-info SOURCES.txt`) rather than failing.
+- **A gene nested in a neighbour's intron can be suppressed** once that
+  neighbour's model is complete. Step 8 and the rescue refuse a miniprot model
+  whose span overlaps an emitted gene's span, not its exons — a rule older
+  than v1.0.14. v1.0.14 completes more models (`1963d5b`), so it reaches a few
+  more nested genes: 12 of the 13 transcripts the 34 subsets give up, 2 of the
+  15 on the 8 genomes. Suppressing by exon overlap is a recall feature with its
+  own duplicate risk (Iterations 13 and 15); next version.
+- **Two CDS rows sharing a base are refused**, counted as
+  `cds_spanning_exons`: 1 transcript in the 34 subsets (C. elegans →
+  C. briggsae W07G4.3), 0 on the genomes, CHM13 and MANE. Keeping it needs
+  the double-counted base resolved, which changes the protein.
+- **Six arabidopsis mitochondrial cosRNAs** (15–46 bp `ncRNA` children of
+  coding genes) are absent from both v1.0.13's and v1.0.14's arabidopsis →
+  rice output, uncounted; v1.0.13 also logged them as failures.
+- **Rescue isoform scoring trades time for memory.** `--rescue-max-inflight`
+  (default 8,192) restarts the worker pool per batch: human → chicken scores
+  its 46,241 isoform jobs 55 s slower than v1.0.13 but peaks 1.1 GiB lower;
+  `--rescue-max-inflight 0` restores one batch.
 
 ## Release runbook (not executed — each step is an outward action needing sign-off)
 
-State at handoff: `v1014-integration` = the frozen code `e688ff5` plus
-commits touching only `notes/` and the two changelogs (neither ships in the
-sdist or wheel), pushed, CI green on `51ebcf7`.
-`main` = `devel` = `b2fe59f` (v1.0.13); the branch is 59 commits
+State at handoff: `v1014-integration` = the frozen code `3ab51cf` plus
+commits touching only `notes/` (which does not ship in the sdist or wheel),
+pushed, CI pending (runs on push).
+`main` = `devel` = `b2fe59f` (v1.0.13); the branch is 75 commits
 ahead and 0 behind, so both merges are fast-forwards.
 
 1. **Date the release.** Replace the provisional `2026-09-22` in all three
