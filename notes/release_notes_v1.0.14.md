@@ -119,8 +119,9 @@ the same aligner output and scored by one evaluator:
 
 The posted GRCh38 → T2T-CHM13 annotation is regenerated with v1.0.14:
 [`JHU_LiftOn_v1.0.14_chm13v2.0.gff3`](ftp://ftp.ccb.jhu.edu/pub/data/LiftOn/JHU_LiftOn_v1.0.14_chm13v2.0.gff3)
-(all 25 selenoprotein genes 0.666 → 0.998; 13 of 13 mitochondrial genes at
-reference length; `gff3-validate` 0 errors).
+(selenoprotein transcripts 0.906 → 0.998 mean identity with 11 → 0 below 0.9,
+scored by one evaluator; mitochondrial proteins at reference length 8 → 13 of
+13; `gff3-validate` errors 42 → 0). A statistics sheet sits beside the file.
 
 ## Installation
 
