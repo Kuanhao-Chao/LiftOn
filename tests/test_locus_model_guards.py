@@ -1,9 +1,8 @@
 """Guards for two assumptions the locus model made but never checked.
 
 * Lifton_TRANS.add_cds assumed "a CDS lies in exactly one exon". On a
-  malformed reference the CDS was attached to every exon it overlapped -- and
-  every one of them received the SAME Feature object, so a later edit to one
-  copy silently rewrote the others.
+  spanning record, the emitted pieces must now be independent and confined
+  to their respective exons.
 * _MFeatureDbProxy.children ignored order_by and always served the one
   ordering its cache was built with, so a caller asking for file order (which
   is what the real backends return) would have been handed start-sorted rows
@@ -50,19 +49,21 @@ class TestCdsSpanningSeveralExons:
         # Unchanged for the single-exon case: the caller's object is used.
         assert trans.exons[0].cds.entry is cds
 
-    def test_a_spanning_cds_gives_each_exon_its_own_object(self, make_gffutils_feature):
+    def test_a_spanning_cds_is_split_into_independent_exonic_pieces(self, make_gffutils_feature):
+        """Each coding base is emitted once, while intronic bases are omitted."""
         trans = self._trans(make_gffutils_feature, [(100, 200), (300, 400)])
         cds = make_gffutils_feature(featuretype="CDS", start=150, end=350,
                                     feature_id="cds-1",
                                     attributes={"ID": ["cds-1"]})
         trans.add_cds(cds)
 
-        first, second = trans.exons[0].cds, trans.exons[1].cds
-        assert first is not None and second is not None
-        assert first.entry is not second.entry
-
-        first.entry.attributes["ID"] = ["rewritten"]
-        assert second.entry.attributes["ID"] == ["cds-1"]
+        carried = [exon for exon in trans.exons if exon.cds is not None]
+        assert len(carried) == 2
+        assert [(exon.cds.entry.start, exon.cds.entry.end) for exon in carried] == [
+            (150, 200), (300, 350)]
+        assert carried[0].cds.entry is not carried[1].cds.entry
+        carried[0].cds.entry.start = 151
+        assert carried[1].cds.entry.start == 300
 
     def test_a_spanning_cds_is_reported(self, make_gffutils_feature, monkeypatch):
         from lifton import lifton_class

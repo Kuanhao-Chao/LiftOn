@@ -21,7 +21,7 @@ import os as _os
 import threading as _threading
 import traceback as _traceback
 
-from lifton import coreutils
+from lifton import coreutils, drop_ledger
 from collections import OrderedDict as _OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
@@ -524,7 +524,10 @@ class _FeaturePreFetch:
 
     - ``children_l1``         — ``children(level=1)``
     - ``exon_children_l1``    — ``children(featuretype='exon', level=1, order_by='start')``
-    - ``exon_children_full``  — ``children(featuretype='exon', order_by='start')`` (no level)
+    - ``exon_children_full``  — ``children(featuretype='exon', level=1, order_by='start')``
+      the second, post-classification exon read. Named "full" for historical
+      reasons: it once answered a recursive query, which is what made a serial
+      run disagree with a threaded one on a nested-exon hierarchy.
     - ``cds_stop_children``   — ``children(featuretype=('CDS','stop_codon'), order_by='start')``
     """
     feature: Any
@@ -822,6 +825,27 @@ class HierarchyBatchLoader:
         return result
 
 
+def _record_depth_truncation(frontier, max_depth: int) -> None:
+    """Count (and name) every feature whose subtree the depth guard dropped."""
+    if not frontier:
+        return
+    from lifton import logger
+    seen = set()
+    for current in frontier:
+        feature_id = getattr(current, "id", None)
+        if feature_id is None or feature_id in seen:
+            continue
+        seen.add(feature_id)
+        drop_ledger.record("hierarchy_depth_exceeded", feature_id)
+    if seen:
+        logger.log_warning(
+            f"_walk_and_cache_features_batched: exceeded max depth "
+            f"{max_depth} at {len(seen)} feature(s); their descendants were "
+            f"NOT pre-fetched and will be read as absent, so they are dropped "
+            f"from this locus (e.g. {', '.join(sorted(seen)[:3])})."
+        )
+
+
 def _walk_and_cache_features_batched(
     feature, ctx: StepContext, payload: MaterialisedLocus,
     loader: HierarchyBatchLoader, *, max_depth: int = 8,
@@ -894,6 +918,11 @@ def _walk_and_cache_features_batched(
         frontier = next_frontier
         depth += 1
 
+    # Falling out of the loop with work still queued is the same silent
+    # truncation the scalar walker guards against -- and here it was not even
+    # logged, because the loop condition just stops being true.
+    _record_depth_truncation(frontier, max_depth)
+
 
 def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLocus,
                              *, depth: int = 0, max_depth: int = 8) -> None:
@@ -919,10 +948,16 @@ def _walk_and_cache_features(feature, ctx: StepContext, payload: MaterialisedLoc
     if feature_id is None or feature_id in payload.feature_cache:
         return
     if depth > max_depth:
+        # NOT a KeyError, which is what this warning used to promise:
+        # `_LFeatureDbProxy.children` answers an un-cached id with an empty
+        # iterator, so the runtime reads this feature as childless. Its row is
+        # still emitted; its whole subtree disappears without an error or a
+        # failure record. Count it, or nobody will ever know it happened.
+        drop_ledger.record("hierarchy_depth_exceeded", feature_id)
         logger.log_warning(
             f"_walk_and_cache_features({feature_id}): exceeded max depth "
-            f"{max_depth}; deeper hierarchy not pre-fetched (recursion "
-            f"will surface as KeyError on the proxy)."
+            f"{max_depth}; its descendants were NOT pre-fetched and will be "
+            f"read as absent, so they are dropped from this locus."
         )
         return
 
@@ -1356,6 +1391,17 @@ class _ThreadLocalCtxFactory:
                 "materialisation database is not reopenable; refusing to "
                 "share its parent connection with a worker"
             )
+        # A corrected Liftoff hierarchy must be rebuilt around each worker's
+        # own connection. Calling its wrapper class with only dbfn would fail,
+        # and unwrapping without rebinding would restore the wrong parent.
+        reopen = getattr(parent_db, "reopen_for_thread", None)
+        if callable(reopen):
+            try:
+                return reopen(dbfn)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"could not reopen materialisation database {dbfn!r}"
+                ) from exc
         # Match the parent's class (gffutils vs gffbase).
         cls = type(parent_db)
         try:
@@ -1386,7 +1432,8 @@ class _ThreadLocalCtxFactory:
                 raise
             return self._parent_ctx.l_feature_db
         conn = getattr(db, "conn", None)
-        if conn is not None and type(db).__module__.startswith("gffutils"):
+        base_db = getattr(db, "database", db)
+        if conn is not None and type(base_db).__module__.startswith("gffutils"):
             try:
                 conn.execute("PRAGMA query_only=ON")
             except Exception:
@@ -1585,8 +1632,37 @@ def process_locus_native(payload: MaterialisedLocus,
 _CHILDLESS_EXAMPLE_CAP = 10
 
 
+def _reference_gave_it_children(ctx, lifton_gene) -> Optional[bool]:
+    """Did the reference declare any child for this gene?
+
+    ``Lifton_feature.children`` is the reference child index built during
+    Step 2 (``lifton_utils.get_ref_liffover_features``), so this costs a dict
+    lookup rather than a database query.
+
+    Returns None when the reference gene cannot be found at all, which is
+    itself worth reporting -- an id that failed to resolve is exactly the
+    ``-copies`` shape this counter exists for.
+    """
+    ref_features_dict = getattr(ctx, "ref_features_dict", None)
+    if not ref_features_dict:
+        return None
+    ref_gene_id = getattr(lifton_gene, "ref_gene_id", None)
+    entry_id = getattr(getattr(lifton_gene, "entry", None), "id", None)
+    for candidate in (ref_gene_id, entry_id):
+        if candidate is None:
+            continue
+        feature = ref_features_dict.get(candidate)
+        if feature is None:
+            # `-copies` emits `gene-X_1` where the reference declares `gene-X`.
+            feature = ref_features_dict.get(
+                coreutils.get_ID_base(str(candidate), ref_features_dict))
+        if feature is not None:
+            return bool(getattr(feature, "children", ()))
+    return None
+
+
 def _record_childless_gene(ctx, lifton_gene) -> None:
-    """Tally a gene published with no child features.
+    """Tally a gene published with no child features, when that is a LOSS.
 
     A bare gene line is useless downstream -- no transcript, no exon, no CDS --
     and `feature_serializer.write_gene` cannot reject it, because "no children"
@@ -1594,8 +1670,18 @@ def _record_childless_gene(ctx, lifton_gene) -> None:
     also invisible in practice: `gff3-validate` reports it, but only as a
     WARNING, and the release gates count errors. The Liftoff `-copies` transcript
     resolution bug produced ~4,400 of these across the benchmark corpus without
-    ever showing up in a summary. Counting them here puts the number in front of
-    the user at the end of every run.
+    ever showing up in a summary.
+
+    Counting every bare gene line, though, drowns that signal. RefSeq declares
+    10,626 single-row pseudogenes in the CHM13 reference, and emitting those
+    with no children is faithful. Measured on cycle-3 output: 11,130 bare gene
+    lines across CHM13, dog -> cat, human -> zebrafish and rice, of which **2**
+    were real losses. A counter that is 99.98 % false positives cannot show a
+    recurrence of the bug it was built for.
+
+    So the reported number is now the one a user can act on -- the reference
+    gave this gene children and we emitted none -- while the raw tally of bare
+    gene lines is kept separately for anyone who wants it.
     """
     if ctx is None:
         return
@@ -1604,6 +1690,10 @@ def _record_childless_gene(ctx, lifton_gene) -> None:
         return
     args = getattr(ctx, "args", None)
     if args is None:
+        return
+    args._bare_gene_line_count = getattr(args, "_bare_gene_line_count", 0) + 1
+    if _reference_gave_it_children(ctx, lifton_gene) is False:
+        # The reference has no children for it either: a faithful pass-through.
         return
     count = getattr(args, "_childless_gene_count", 0) + 1
     args._childless_gene_count = count

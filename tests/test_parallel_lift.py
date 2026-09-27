@@ -9,6 +9,7 @@ parents returned as the original objects, and the serial fallbacks.
 """
 from __future__ import annotations
 
+import errno
 import types
 
 import pytest
@@ -139,3 +140,47 @@ def test_switch_resolution(monkeypatch):
         parallel_lift.PARALLEL_LIFT_DEFAULT
     monkeypatch.setenv("LIFTON_PARALLEL_LIFT", "1")
     assert parallel_lift.enabled(types.SimpleNamespace(parallel_lift=False))
+
+
+def _enomem_context(monkeypatch):
+    """Make pool construction fail the way a strict-overcommit host does."""
+    def _pool(*_args, **_kwargs):
+        raise OSError(errno.ENOMEM, "Cannot allocate memory")
+    monkeypatch.setattr(parallel_lift.multiprocessing, "get_context",
+                        lambda *_: types.SimpleNamespace(Pool=_pool))
+
+
+def test_enomem_at_pool_construction_falls_back_to_serial(patched, monkeypatch):
+    # fork() can fail with memory free: under strict overcommit the kernel
+    # reserves the parent's whole address space per child. Losing the pool must
+    # not lose the genome.
+    serial, serial_unmapped, _ = _run(False)
+    _enomem_context(monkeypatch)
+    fallback, fallback_unmapped, hierarchy = _run(True)
+    assert list(fallback.items()) == list(serial.items())
+    assert [f.id for f in fallback_unmapped] == [f.id for f in serial_unmapped] == ["g4"]
+    assert fallback_unmapped[0] is hierarchy.parents["g4"]
+
+
+def test_enomem_fallback_reports_false_and_clears_shared_state(patched, monkeypatch):
+    _enomem_context(monkeypatch)
+    assert parallel_lift.lift_all_features_parallel(
+        _alignments(), 0.5, _FeatureDb(),
+        types.SimpleNamespace(parents=dict(PARENTS)), [], {}, 0.5,
+        None, types.SimpleNamespace(threads=4), None) is False
+    # The caller runs the serial loop next; a stale payload would keep the
+    # whole reference hierarchy alive for the rest of the run.
+    assert parallel_lift._SHARED == {}
+
+
+def test_enomem_fallback_does_not_double_count(patched, monkeypatch):
+    # The parallel path copies lifted_feature_list into the workers' payload;
+    # falling back must leave the caller's own lists untouched.
+    _enomem_context(monkeypatch)
+    earlier = {"g1_0": ["from-primary-pass"]}
+    lifted, unmapped = dict(earlier), []
+    assert parallel_lift.lift_all_features_parallel(
+        _alignments(), 0.5, _FeatureDb(),
+        types.SimpleNamespace(parents=dict(PARENTS)), unmapped, lifted, 0.5,
+        None, types.SimpleNamespace(threads=4), None) is False
+    assert lifted == earlier and unmapped == []

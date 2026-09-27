@@ -4,9 +4,218 @@ All notable changes to **LiftOn** are documented here. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) conventions and
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.14] - 2026-09-25
 
-Nothing yet.
+### Added
+
+- The genetic code an annotation declares (`transl_table`) is honoured when
+  extracting the reference protein, translating a lifted model, searching for a
+  rescue ORF and completing a terminal stop, and miniprot is run once per
+  declared code. Translating a vertebrate mitochondrial CDS with the standard
+  code reads its TGA tryptophans as stops: on the published CHM13 annotation
+  that truncated four of the 13 human mitochondrial genes (ND2 to 144 bp of
+  1,042; ND4 to 177 of 1,378; CYTB to 564 of 1,141; COX3 to 405 of 784) and
+  left the other nine scored between 0.012 and 0.739 where the truth is 1.000.
+  Table 1 output is unchanged; table 11, which covers plant plastid genes,
+  translates identically to table 1 and is unaffected. Models built from
+  miniprot hits - Step 8, the rescue and its isoforms - declare no code of
+  their own and take their reference transcript's.
+- A reference gene can be placed at a second target locus when miniprot finds
+  it there and no emitted model reaches it, which is what a whole-genome
+  duplication produces. Measured against zebrafish's own GRCz11 annotation,
+  refusing it hid 690 real target genes on human to zebrafish. Default on;
+  `--no-rescue-second-locus` opts out.
+- Every class of dropped reference feature is counted and reported once at the
+  end of a run, and recorded in `run_manifest.json`. The warnings were always
+  printed - 550 lines in one rice run - but nothing added them up, which is how
+  a bug that dropped ~4,400 transcripts stayed unnoticed across three releases.
+  A feature is counted once however many passes revisit it, and what forked
+  workers drop is included, so the counts do not depend on `--threads`.
+- `--rescue-max-inflight` bounds how many isoform-rescue jobs are held at once
+  (default 8192). The pass used to prefetch every job in the genome before
+  scoring any, which accounted for 3.72 GiB of a 6.26 GiB peak on human to
+  zebrafish; bounding it costs 4.4 % wall for 24.7 % less peak memory.
+- A reference carrying alternate-locus or patch contigs is reported at startup
+  and in the manifest. They are copies of primary-assembly genes and compete
+  for the same target locus.
+
+### Fixed
+
+- Codons an annotation declares to translate differently (`transl_except`)
+  are honoured. RefSeq declares every selenocysteine this way, and LiftOn read
+  the UGA as a premature stop: an identical selenoprotein scored
+  residue/length, the variant call became `stop_codon_gain`, and the correct
+  lifted model lost to a truncated one. On GRCh38 to CHM13 all 25 human
+  selenoprotein genes were affected - 53 transcripts at a mean protein
+  identity of 0.666, SEPHS2 losing its first 118 residues to a miniprot
+  fragment. A declared read-through (selenocysteine, pyrrolysine, stop
+  readthrough, an amino acid declared over a stop) is now read through by the
+  identity score, the variant call, chaining and stop completion, and the
+  benchmark evaluator applies the same rule to every tool. The `transl_except`
+  written to the output is rewritten into the lifted model's own coordinates
+  - it used to keep the reference's - and is left off where the target codon
+  no longer needs it (a selenocysteine replaced by cysteine). On GRCh38 to
+  CHM13 the 53 selenoprotein transcripts now average 0.998 (none below 0.98)
+  and SEPHS2 is the full lifted model at 1.000; across five whole-genome
+  qualification lifts no model declaring an exception got worse except one
+  low-quality dog-to-cat model (-0.007). The miniprot-only rescue scores
+  with the same rule, so a distant lift can now place selenoprotein genes it
+  used to miss: human to zebrafish gains seven (GPX4, DIO1-3, SEPHS2,
+  SELENOT, SELENOM), each on its zebrafish ortholog. Ensembl and GENCODE
+  mark a selenocysteine as its own row (`Selenocysteine` in GTF,
+  `stop_codon_redefined_as_selenocysteine` in GFF3) instead; those rows are
+  read the same way, and GTF input is scanned before conversion, which drops
+  them: on GENCODE v49 to CHM13 the 71 selenoprotein transcripts go from
+  0.66-0.68 to 0.995-0.997. The ORF search reads through declared codons too;
+  one malformed value no longer discards a transcript's others; and a
+  declaration that is neither a read-through nor a start is written only onto
+  an identical codon. Reported by a user lifting MANE v1.5 to CHM13.
+- A CDS crossing an intron is emitted as exonic segments with the correct
+  transcript-order phase, rather than cloned whole onto multiple exons or
+  attached whole to one exon and extended across the intron at write time.
+  Ambiguous overlapping-exon cases are counted and rejected - the transcript,
+  not its gene, and in `-E` evaluation not the run. The validator now
+  checks that each CDS segment lies within an exon when exons are present.
+  The redundant miniprot `stop_codon` fix makes this path inert on the five
+  measured whole-genome runs (CHM13 8,546 warnings to 0; rice 4,468 to 0;
+  bee 3,614 to 0; drosophila 2,632 to 0).
+- A trans-spliced gene family with duplicate IDs in a precomputed Liftoff GFF3
+  binds a transcript to its unique containing fragment on the same sequence.
+  Rice `nad5` previously acquired a cross-sequence parent and wrong `part`
+  attribute after gffutils import; the correction preserves its source part.
+  The same misbinding on one sequence - drosophila `mod(mdg4)`, five
+  fragments whose 31 transcripts all bound to the fragment containing none of
+  them - wrote that fragment at another's coordinates and left its own locus
+  with no gene row; each fragment is now written at its own span.
+  When two fragments could hold the transcript the input cannot say which, so
+  it is left as bound, warned once and counted
+  (`liftoff_same_seqid_parent_ambiguous`) rather than aborting the run.
+- A miniprot candidate whose CDS cannot be split at exon boundaries is skipped
+  as a candidate. The error would otherwise have reached the per-locus handler
+  and dropped the Liftoff gene the candidate was competing with. Never
+  observed on the corpus; guarded because the cost of being wrong is a gene.
+- A transcript whose lifted CDS encodes no protein - Liftoff can lift a CDS
+  down to less than one codon after its phase - no longer costs its gene. The
+  empty protein reached the aligner's guard, whose error no caller catches, so
+  the whole gene was left out and the run reported only `partial_success`: on
+  dog to cat a 37-transcript gene was lost over one 3-bp CDS. In every release
+  since the guard arrived in v1.0.9. The transcript is now kept as lifted, like
+  any other that has no protein to score.
+- A tRNA or rRNA that is a lifted gene's child is no longer visited a second
+  time as a locus of its own. The gene-like lift detects those types from
+  their top-level instances, and Step 7 then visited every instance: each
+  child failed to resolve a reference gene and was recorded as a pipeline
+  failure. On dog to cat that was 395 of 396 failures and a `partial_success`
+  status for rows already in the output, which hid the one real loss. The
+  annotation is unchanged; the run now reports what actually failed.
+- Setting `LIFTON_RESCUE_ISOFORM_WORKERS` - the remedy LiftOn's own
+  fork-failure warning recommends - no longer aborts a run in which the
+  rescued genes have no other isoform to try. The empty batch was cut into
+  steps of zero and `range()` raised after all the lifting had finished.
+  Shipped in v1.0.12 and v1.0.13; without the variable the run was unaffected.
+- GTF conversion no longer leaves `gtf-conversion-*` directories in the system
+  temp directory: evaluation mode (`-E`) now converts a GTF target into the
+  run's intermediate directory, and no directory is created when no converter
+  is installed.
+- The miniprot-only rescue counts what it abandons. It is on by default,
+  abandons candidates in roughly forty places, and recorded none of them, so
+  five whole genomes reported a drop total of 0 that meant "nothing was
+  counted". The ~25 deliberate filters stay uncounted; the ~15 failed lookups
+  now have classes. On this corpus the total is still 0 - 151,967 miniprot
+  candidates on human to zebrafish, none abandoned for a failed lookup - but
+  the 0 is now evidence rather than silence.
+- A reference gene that declares its own exons AND a transcript child now has
+  that transcript indexed. RefSeq's organellar convention writes a plastid
+  gene's exons twice, once under the gene and once under its mRNA, and such a
+  gene took a branch that built no reverse index - so a miniprot hit on it
+  could not be mapped back to a gene and every rescue candidate for it was
+  abandoned in silence (12 genes in the rice reference, 0 in human RefSeq).
+- `--threads 1` and `--threads N` produce the same annotation again. The
+  per-locus runtime asked for a transcript's exons recursively while the
+  Step-7 proxy has always cached the direct children, so the two paths read
+  different exon sets wherever a lifted feature has both. RefSeq's organellar
+  convention is exactly that shape - a chloroplast gene lists its exons once
+  directly and once under its mRNA - and the recursive query returned each
+  coordinate pair twice, so a default single-threaded rice lift emitted 17
+  genes with duplicated exons and a doubled CDS where a `-t 8` run emitted them
+  correctly. The default was the wrong arm.
+- No transcript is emitted with overlapping exons (the open half of #26).
+  miniprot writes a hit's terminal CDS including its stop codon and then
+  repeats those three bases as a nested `stop_codon`; all 3,963 such rows in a
+  whole-genome human run are already covered by a sibling CDS, and ingesting
+  them added a 3 bp exon inside the terminal exon while overwriting the real
+  terminal CDS. Separately, a rebuilt exon could take its end from a chained
+  CDS reaching into the next Liftoff exon, which was then appended untouched.
+  Across CHM13, human to zebrafish, drosophila, rice and bee the reference
+  annotations have none of these and LiftOn emitted 27, 96, 47, 30 and 13.
+  `LIFTON_NO_EXON_OVERLAP_RECONCILE=1` restores the old behaviour.
+- `gff3-validate` now checks that no two exons, and no two CDS, of one
+  transcript overlap. The module docstring had claimed the CDS half since the
+  file was written and neither check existed, which is why a published
+  annotation with 27 such transcripts validated clean. Rows are compared
+  within one sequence and strand, and a -1 ribosomal-frameshift overlap the
+  annotation declares (`exception=ribosomal slippage`, as RefSeq writes PEG10)
+  is a warning. The CDS phase check reads a 5'-partial model's own first
+  phase; it assumed phase 0 and flagged every later segment of such a model.
+- A worker pool that cannot fork no longer aborts the run. Under strict
+  overcommit accounting the kernel charges each child the parent's whole
+  address space, so a large parent can fail to start workers with hundreds of
+  gigabytes free; both fork sites now fall back to doing the work in process.
+- A CDS naming a `Parent` no row declares no longer aborts a lift that
+  previously worked. `NCBI_RefSeq_no_rRNA.gff` has 111 such rows left behind by
+  its rRNA filtering, in a file with 144,415 mRNA and no flat model in it at
+  all. The validation is kept and becomes fatal under `--strict-gff`.
+
+### Changed
+
+- `genes_emitted_without_children` reports only losses. It counted every gene
+  emitted with no children, including the 10,626 single-row pseudogenes RefSeq
+  itself declares in the CHM13 reference: 11,130 reported across four genomes,
+  of which 2 were real. It now counts only where the reference gave the gene
+  children and none were emitted, with the raw tally kept as
+  `bare_gene_lines_emitted`.
+
+- The windowed aligner indexes the reference only over k-mers the query
+  contributes. An anchor must be unique in both sequences, so the restriction
+  yields the same anchors and the same windows; `_unique_anchors`, the largest
+  single component of the aligner's self time on a mammalian lift, runs
+  1.3-1.9x faster, the wider margin at higher divergence.
+
+- Step 7 is faster by roughly a tenth on the same-species and mammalian runs
+  where it dominates: translation answers from a flat codon map rather than
+  Biopython's table (2.11x), attribute encoding returns the string untouched
+  when nothing needs encoding (3.21x), and attribute cloning copies the backing
+  mapping rather than going through two Python-level methods per key (1.70x).
+  All byte-identical, each verified exhaustively rather than by sampling.
+- Reference ingest no longer walks the whole annotation to discard the result,
+  and issues one recursive CDS query per locus instead of two.
+
+- Sparse coding references (parentless CDS or gene-to-CDS) receive an explicit
+  gene/transcript/exon hierarchy, with preserved CDS attributes and a versioned
+  ID map. Supplied protein/transcript aliases are checked for ambiguity. A
+  model that cannot be rebuilt unambiguously - NCBI GenBank writes each yeast
+  Ty gag-pol frameshift as two CDS rows under a gene that also has an mRNA -
+  is lifted as written and counted; `--strict-gff` makes it fatal.
+- GTF conversion retains gene hierarchy and exon/CDS attributes using gffread's
+  gene-preserving options. Converted inputs and logs are private to each run;
+  the manifest records input/output hashes, command and converter provenance.
+- Direct GTF intake removes parser-generated self-parent relations, supplies
+  explicit hierarchy attributes and preserves transcript IDs during inference.
+- Strict GFF3 validation checks the converted GFF3 instead of rejecting valid
+  GTF attribute syntax. Ensembl `gene_biotype` is recognized for classification.
+
+### Development
+
+- Release qualification uses candidate/reference roles and verifies portable
+  input, tool, dependency, evaluator and artifact evidence. Incomplete, stale,
+  malformed and unsuccessful retry records cannot pass qualification.
+- Qualification requires pinned campaign and attempt-history evidence, prevents
+  imported LiftOn modules from falling through to another checkout, and retains
+  CDS-bearing references with failed protein extraction as unresolved coding
+  evaluation instead of counting them as noncoding.
+- Independent second-locus truth qualification uses assembly-matched RefSeq
+  coding models, reciprocal CDS overlap, and seeded shifted-locus controls.
+
 
 ## [1.0.13] - 2026-09-18
 

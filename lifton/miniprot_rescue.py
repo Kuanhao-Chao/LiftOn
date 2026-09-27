@@ -30,8 +30,9 @@ from collections import defaultdict
 
 from intervaltree import Interval
 
-from lifton import (align, coreutils, lifton_class, orf_completion,
-                    run_miniprot, lifton_utils, logger)
+from lifton import (align, coreutils, drop_ledger, lifton_class,
+                    orf_completion, run_miniprot, lifton_utils, logger,
+                    transl_except)
 from lifton.intervals import _make_interval
 from lifton.locus_pipeline import DeferredStateJournal, commit_locus_delta
 
@@ -202,9 +203,16 @@ def miniprot_protein_coverage(mtrans, ref_proteins, ref_trans_id):
 
 
 def _candidate_quality_key(mtrans, coverage):
-    """Order sub-pass B candidates best first: miniprot's per-protein ``Rank``,
-    then its alignment ``Identity``, then coverage, then position and ID so
-    the order is total and run-to-run deterministic."""
+    """Order candidates best first: miniprot's per-protein ``Rank``, then its
+    alignment ``Identity``, then coverage, then position and ID so the order is
+    total and run-to-run deterministic.
+
+    ``coverage`` is None for a sub-pass that has no coverage signal, which
+    orders on the rest. It has to be tolerated rather than assumed: negating
+    None raises, and the caller's ``except Exception`` turned that into a
+    silently dropped candidate -- a whole sub-pass doing nothing, reported as
+    per-candidate errors nobody reads.
+    """
     try:
         rank = int(_first_attribute(mtrans, "Rank"))
     except (TypeError, ValueError):
@@ -213,8 +221,8 @@ def _candidate_quality_key(mtrans, coverage):
         identity = float(_first_attribute(mtrans, "Identity"))
     except (TypeError, ValueError):
         identity = 0.0
-    return (rank, -identity, -coverage, mtrans.seqid, int(mtrans.start),
-            int(mtrans.end), mtrans.attributes["ID"][0])
+    return (rank, -identity, -(coverage or 0.0), mtrans.seqid,
+            int(mtrans.start), int(mtrans.end), mtrans.attributes["ID"][0])
 
 
 def _adaptive_floor_on(args):
@@ -343,7 +351,15 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             key=lambda m: (m.seqid, m.start, m.end, m.attributes["ID"][0]),
         )
     except Exception as e:
-        logger.log_error(f"miniprot-only rescue: failed to enumerate mRNAs: {e}")
+        # Returning 0 here is indistinguishable, in every report, from "there
+        # was nothing to rescue". On a distant transfer the rescue supplies
+        # most of the recovered genes, so a silent no-op is a large, invisible
+        # loss. Count it and say so.
+        logger.log_error(
+            f"miniprot-only rescue: failed to enumerate mRNAs: {e}. The whole "
+            f"rescue pass was abandoned -- no gene was rescued, and this run's "
+            f"recall is NOT what a successful rescue would have produced.")
+        drop_ledger.record("rescue_candidate_error", "<whole rescue pass>")
         return 0
 
     # Divergence-adaptive PI floor (default ON): the DNA-lift gene recall is the
@@ -359,7 +375,15 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
                 _gid, _tid = lifton_utils.get_ref_ids_miniprot(
                     ref_features_reverse_dict, _m.attributes["ID"][0],
                     m_id_2_ref_id_trans_dict)
-            except Exception:
+            except Exception as exc:
+                # This set is the denominator of the adaptive floor, so losing
+                # entries here silently makes the rescue STRICTER genome-wide.
+                # It used to be swallowed without a log or a count.
+                logger.log_warning(
+                    f"miniprot-only rescue: could not resolve {_m.id!r} while "
+                    f"measuring DNA-lift recall ({exc}); the adaptive floor is "
+                    f"computed without it.")
+                drop_ledger.record("rescue_candidate_error", getattr(_m, "id", None))
                 _gid = None
             if _gid is not None:
                 universe.add(_gid)
@@ -381,17 +405,27 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             #     get_ref_ids_liftoff harvest -> dedup is comparable).
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-            if ref_gene_id is None or ref_trans_id is None:
+            if lifton_utils.record_unresolved_miniprot_hit(
+                    ref_gene_id, ref_trans_id, mtrans_id):
                 continue
 
             # (2) DEDUP: skip a ref gene already emitted by Step 7 (DNA lift),
             #     Step 8 (default miniprot), or an earlier rescue in this pass.
             #     This is what makes the pass 0-redundant + off ⊆ on.
+            #
+            #     A reference gene that belongs at a SECOND target locus is
+            #     handled by its own sub-pass after this one, not here: letting
+            #     it through mid-walk occupies a locus a later default
+            #     candidate would have taken. See _second_locus_subpass.
             if ref_gene_id in emitted_ref_gene_ids:
                 continue
 
             # (3) protein availability (mirror process_miniprot:381)
             if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                # miniprot found this protein in the target, but the reference
+                # protein or transcript it names was never extracted, so the
+                # candidate cannot be scored against anything.
+                drop_ledger.record("reference_protein_sequence", ref_trans_id)
                 continue
 
             # (4) overlap suppression vs the FINAL tree_dict: a gene already
@@ -411,7 +445,8 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             # (6) length-ratio sanity band (the WIDE rescue band; the PI floor
             #     at step 8 is the real quality gate). Guards against a
             #     catastrophically mis-scaled miniprot hit.
-            ref_len = ref_features_len_dict.get(ref_gene_id)
+            ref_len = lifton_utils.reference_length_or_none(
+                ref_features_len_dict, ref_gene_id)
             if not ref_len:
                 continue
             ratio = (mtrans.end - mtrans.start + 1) / ref_len
@@ -461,10 +496,92 @@ def rescue_miniprot_only_pass(m_feature_db, ref_db, tree_dict, tgt_fai,
             m_id_2_ref_id_trans_dict, ref_features_len_dict,
             ref_features_reverse_dict, args)
         started = _mark("isoform_pass", started)
-        publisher.flush()
+
+    # Sub-pass C runs LAST, after the isoform pass, and that ordering is the
+    # whole point. Placed before it, a second-locus gene occupies ground a
+    # default gene needed to widen into, and `_extension_collides` then refuses
+    # the isoform: on human to zebrafish that silently dropped 21 transcripts
+    # of mean identity 0.662 -- `gene-CCND3` lost four isoforms scoring
+    # 0.584-0.628 to make room for a second-locus model scoring 0.356. The
+    # gene-level gate did not see it, because the gene survived and only its
+    # transcripts vanished.
+    #
+    # Running last costs some second-locus genes, since a widened default gene
+    # now holds ground they wanted. That is the right trade: it makes the
+    # default output -- every gene, every isoform, every span -- provably
+    # untouched, which is what "additive" has to mean.
+    second_locus_added = 0
+    if _second_locus_on(args):
+        second_locus_added = _second_locus_subpass(
+            mtranscripts, floor, m_feature_db, ref_db, tree_dict, tgt_fai,
+            ref_proteins, ref_trans, ref_features_dict,
+            m_id_2_ref_id_trans_dict, ref_features_len_dict,
+            ref_trans_exon_num_dict, ref_features_reverse_dict,
+            emitted_ref_gene_ids, publisher, args)
+        started = _mark("subpass_c_second_locus", started)
+    args._rescue_second_locus_added = second_locus_added
+    publisher.flush()
     _mark("publish", started)
     args._rescue_isoforms_added = isoforms_added
     return added + coverage_added
+
+
+#: PROMOTED to default-on. The gate was re-scored against the target's own
+#: annotation, because source-annotation recall structurally cannot see what
+#: this recovers: on human to zebrafish it covers 690 more real GRCz11
+#: protein-coding genes, with 0 genes and 0 transcripts lost, 0 default genes
+#: moved and 0 regressions, and the off arm byte-identical to the default.
+#: The divergence ladder passes its safety gate on 8 of 8 cells, the rate
+#: tracks known duplication history (rice to sorghum highest, at 9.06 genes per
+#: 1,000 reference proteins), and the same-species control places exactly
+#: nothing. See notes/second_locus_rescue_gate.md.
+SECOND_LOCUS_DEFAULT = True
+
+#: How many EXTRA loci one reference gene may be given. A duplicated genome
+#: wants one; a repeat family must not be allowed to spray copies.
+SECOND_LOCUS_MAX_DEFAULT = 1
+
+
+def _second_locus_on(args):
+    """Is the second-locus rescue on? ``LIFTON_RESCUE_SECOND_LOCUS`` wins over
+    the resolved flag, as every other rescue switch does.
+
+    It defers to the cross-locus rescue when that is explicitly requested.
+    Both answer the same question -- this gene's DNA lift is weak and miniprot
+    found it somewhere else -- with opposite policies: cross-locus MOVES the
+    gene, this ADDS a second one. Running both means the move cannot happen,
+    because the locus it wanted is already taken; on the cross-locus fixture
+    the gene stayed at protein identity 0.061 instead of being replaced at
+    1.000. They only collide where the lift is weak, which is cross-locus's
+    whole domain, so the explicitly-requested feature wins.
+    """
+    env = os.environ.get("LIFTON_RESCUE_SECOND_LOCUS")
+    if env is not None:
+        return env.strip().lower() not in ("", "0", "false", "no", "off")
+    resolved = getattr(args, "rescue_second_locus", None)
+    cross_locus_env = os.environ.get("LIFTON_CROSS_LOCUS_RESCUE", "0").strip().lower()
+    if resolved is None and (getattr(args, "cross_locus_rescue", False)
+                             or cross_locus_env not in ("", "0", "false", "no", "off")):
+        return False
+    return SECOND_LOCUS_DEFAULT if resolved is None else bool(resolved)
+
+
+def _second_locus_max(args):
+    env = os.environ.get("LIFTON_RESCUE_SECOND_LOCUS_MAX")
+    if env is not None:
+        try:
+            return max(0, int(env))
+        except ValueError:
+            pass
+    value = getattr(args, "rescue_second_locus_max", None)
+    return SECOND_LOCUS_MAX_DEFAULT if value is None else max(0, int(value))
+
+
+def _second_locus_allowed(ref_gene_id, counts, args):
+    """May this already-emitted reference gene be placed at one more locus?"""
+    if not _second_locus_on(args):
+        return False
+    return counts.get(ref_gene_id, 0) < _second_locus_max(args)
 
 
 def _build_and_accept(mtrans, ref_gene_id, ref_trans_id, ratio, floor,
@@ -558,13 +675,19 @@ def _coverage_gate_subpass(mtranscripts, floor, m_feature_db, ref_db,
             mtrans_id = mtrans.attributes["ID"][0]
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
-            if ref_gene_id is None or ref_trans_id is None:
+            if lifton_utils.record_unresolved_miniprot_hit(
+                    ref_gene_id, ref_trans_id, mtrans_id):
                 continue
             if ref_gene_id in emitted_ref_gene_ids:
                 continue
             if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                # miniprot found this protein in the target, but the reference
+                # protein or transcript it names was never extracted, so the
+                # candidate cannot be scored against anything.
+                drop_ledger.record("reference_protein_sequence", ref_trans_id)
                 continue
-            ref_len = ref_features_len_dict.get(ref_gene_id)
+            ref_len = lifton_utils.reference_length_or_none(
+                ref_features_len_dict, ref_gene_id)
             if not ref_len:
                 continue
             ratio = (mtrans.end - mtrans.start + 1) / ref_len
@@ -626,6 +749,116 @@ def _coverage_gate_subpass(mtranscripts, floor, m_feature_db, ref_db,
     return added
 
 
+def _second_locus_subpass(mtranscripts, floor, m_feature_db, ref_db,
+                          tree_dict, tgt_fai, ref_proteins, ref_trans,
+                          ref_features_dict, m_id_2_ref_id_trans_dict,
+                          ref_features_len_dict, ref_trans_exon_num_dict,
+                          ref_features_reverse_dict, emitted_ref_gene_ids,
+                          publisher, args):
+    """Sub-pass C: place a reference gene at a SECOND target locus.
+
+    A whole-genome duplication gives the target two genes where the reference
+    has one, and the rescue's reference-gene dedup refuses the second. Measured
+    against zebrafish's own GRCz11 annotation, that refusal hides 2,051 real
+    target genes on human to zebrafish
+    (notes/coortholog_recall_measurement_2026-09.md).
+
+    This runs AFTER sub-passes A and B, for the reason sub-pass B runs after A.
+    A first cut relaxed the dedup inside sub-pass A instead, reasoning that the
+    overlap gate would keep it additive. It does not: an acceptance commits its
+    interval into the shared tree, so an extra gene placed early in the walk
+    suppresses a later default candidate that wanted the same free locus. The
+    A/B measured the cost -- 119 genes lost, 165 models overlapping one already
+    emitted, 33 transcripts regressed against 7 improved -- which is the
+    Iteration-22 swap in a new place. Deferring the whole sub-pass restores the
+    property the design claimed: every default decision is already committed,
+    so nothing here can change one.
+
+    ``emitted_ref_gene_ids`` is therefore inverted relative to its use above:
+    here a gene must ALREADY be in it. The per-gene cap bounds how many extra
+    loci one reference gene may take, so a repeat family cannot spray copies.
+    """
+    maximum = _second_locus_max(args)
+    if maximum <= 0:
+        return 0
+    candidates = []
+    for mtrans in mtranscripts:
+        try:
+            mtrans_id = mtrans.attributes["ID"][0]
+            ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
+                ref_features_reverse_dict, mtrans_id, m_id_2_ref_id_trans_dict)
+            if lifton_utils.record_unresolved_miniprot_hit(
+                    ref_gene_id, ref_trans_id, mtrans_id):
+                continue
+            # The inversion: only a gene already placed is a candidate here.
+            if ref_gene_id not in emitted_ref_gene_ids:
+                continue
+            if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+                # miniprot found this protein in the target, but the reference
+                # protein or transcript it names was never extracted, so the
+                # candidate cannot be scored against anything.
+                drop_ledger.record("reference_protein_sequence", ref_trans_id)
+                continue
+            ref_len = lifton_utils.reference_length_or_none(
+                ref_features_len_dict, ref_gene_id)
+            if not ref_len:
+                continue
+            ratio = (mtrans.end - mtrans.start + 1) / ref_len
+            if not run_miniprot._miniprot_rescue_band_ok(ratio, args):
+                continue
+            # The placement loop below only ever ADDS intervals to the tree, so
+            # a hit that already overlaps an emitted model is refused there
+            # whatever happens first. Refusing it here saves its CDS query,
+            # which was most of this sub-pass's 40-55 s per whole genome.
+            if lifton_utils.check_ovps_ratio(
+                    mtrans, Interval(mtrans.start, mtrans.end, mtrans_id),
+                    args.overlap, tree_dict):
+                continue
+            candidates.append((_candidate_quality_key(mtrans, None), mtrans,
+                               ref_gene_id, ref_trans_id, ratio))
+        except Exception as e:
+            logger.log_error(
+                f"miniprot-only rescue (second locus) error ({mtrans.id}): {e}")
+            _record_failure(args, mtrans, e)
+    # Best first, so when two hits compete for one free locus the better wins.
+    candidates.sort(key=lambda candidate: candidate[0])
+
+    added = 0
+    counts = {}
+    for _, mtrans, ref_gene_id, ref_trans_id, ratio in candidates:
+        try:
+            if counts.get(ref_gene_id, 0) >= maximum:
+                continue
+            mtrans_interval = Interval(mtrans.start, mtrans.end,
+                                       mtrans.attributes["ID"][0])
+            if lifton_utils.check_ovps_ratio(mtrans, mtrans_interval,
+                                             args.overlap, tree_dict):
+                continue
+            n_cds = len(list(m_feature_db.children(mtrans, featuretype='CDS')))
+            if n_cds == 1 and ref_trans_exon_num_dict.get(ref_trans_id, 0) > 1:
+                continue
+            if _build_and_accept(
+                    mtrans, ref_gene_id, ref_trans_id, ratio, floor,
+                    m_feature_db, ref_db, tree_dict, tgt_fai, ref_proteins,
+                    ref_trans, ref_features_dict, emitted_ref_gene_ids,
+                    publisher, args,
+                    extra_attrs=(("lifton_rescue_second_locus", "true"),)):
+                added += 1
+                counts[ref_gene_id] = counts.get(ref_gene_id, 0) + 1
+        except Exception as e:
+            logger.log_error(
+                f"miniprot-only rescue (second locus) error ({mtrans.id}): {e}")
+            _record_failure(args, mtrans, e)
+
+    if added:
+        sys.stderr.write(
+            f"[LiftOn] miniprot-only rescue, second locus: {added} gene(s) "
+            f"placed at a locus no emitted model reaches (at most {maximum} "
+            f"per reference gene).\n")
+        sys.stderr.flush()
+    return added
+
+
 def _extension_collides(tree_dict, seqid, gene_id, old_start, old_end,
                         new_start, new_end):
     """True if widening [old_start, old_end] to [new_start, new_end] would
@@ -671,6 +904,9 @@ def _isoform_candidates(accepted, hits, ref_proteins, ref_trans):
         if mtrans.end < primary.start or mtrans.start > primary.end:
             continue
         if ref_trans_id not in ref_proteins or ref_trans_id not in ref_trans:
+            # An isoform of a gene we DID rescue, dropped because its own
+            # reference protein was never extracted.
+            drop_ledger.record("reference_protein_sequence", ref_trans_id)
             continue
         key = _candidate_quality_key(mtrans, 0.0)
         if ref_trans_id not in best or key < best[ref_trans_id][0]:
@@ -716,7 +952,8 @@ def _score_isoform(view, mtrans, m_entry, cds_children, ref_trans_attrs,
                      if ref_trans_id in ref_trans.keys() else None)
     transcript.orf_search_protein(tgt_fai, ref_protein_seq, ref_trans_seq,
                                   status, is_non_coding=view.is_non_coding,
-                                  eval_only=False)
+                                  eval_only=False,
+                                  readthrough=transl_except.readthrough(ref_trans_id))
     orf_completion.complete_and_rescore(
         transcript, m_entry, tgt_fai, ref_proteins, ref_trans_id, status,
         enabled_override=view.stop_completion)
@@ -812,10 +1049,61 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             ref_gene_id, ref_trans_id = lifton_utils.get_ref_ids_miniprot(
                 ref_features_reverse_dict, mtrans.attributes["ID"][0],
                 m_id_2_ref_id_trans_dict)
-        except Exception:
+        except Exception as exc:
+            # The quietest site in the module: a hit dropped out of the index
+            # with no log, no count and no trace, so the gene simply never saw
+            # that isoform.
+            logger.log_warning(
+                f"miniprot-only rescue: could not resolve {mtrans.id!r} while "
+                f"indexing isoform hits ({exc}); its gene will not be offered "
+                f"this isoform.")
+            drop_ledger.record("rescue_candidate_error",
+                               getattr(mtrans, "id", None))
             continue
-        if ref_gene_id is not None and ref_trans_id is not None:
-            hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
+        if lifton_utils.record_unresolved_miniprot_hit(
+                ref_gene_id, ref_trans_id, mtrans.attributes["ID"][0]):
+            continue
+        hits_by_gene[ref_gene_id].append((mtrans, ref_trans_id))
+
+    max_inflight = _rescue_max_inflight(args)
+    timings = getattr(args, "_rescue_timings", None)
+    elapsed = {"prefetch": 0.0, "score": 0.0, "attach": 0.0}
+    counters = {"jobs": 0, "high_water": 0}
+    added = 0
+
+    def _drain(plans, jobs):
+        """Score and attach one bounded batch, then let it go.
+
+        Scoring reads nothing that attachment writes -- ``tree_dict`` is
+        touched only by ``_attach_scored_isoforms`` -- and records are attached
+        in acceptance order either way, so draining in batches gives the same
+        output as draining once at the end. That is what makes the bound free.
+        """
+        nonlocal added
+        if not plans:
+            return
+        counters["jobs"] += len(jobs)
+        counters["high_water"] = max(counters["high_water"], len(jobs))
+        started = time.perf_counter()
+        results = _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans,
+                                      args)
+        elapsed["score"] += time.perf_counter() - started
+        started = time.perf_counter()
+        for record, slots in plans:
+            if not slots:
+                continue
+            scored = [(mtrans,
+                       value if isinstance(value, BaseException)
+                       else results[value])
+                      for mtrans, value in slots]
+            try:
+                added += _attach_scored_isoforms(record, scored, tree_dict, args)
+            except Exception as e:
+                logger.log_error(
+                    f"miniprot-only rescue (isoforms) error "
+                    f"({record.mtrans.id}): {e}")
+                _record_failure(args, record.mtrans, e)
+        elapsed["attach"] += time.perf_counter() - started
 
     plans, jobs = [], []
     phase_started = time.perf_counter()
@@ -846,31 +1134,25 @@ def _isoform_pass(accepted, mtranscripts, floor, m_feature_db, ref_db,
             slots.append((mtrans, len(jobs)))
             jobs.append(prefetched)
         plans.append((record, slots))
+        # Hold at most `max_inflight` prefetched jobs at once. Unbounded, this
+        # list held every isoform job in the genome: 55,852 of them on human to
+        # zebrafish, each keeping an mRNA row, its CDS rows and an attribute
+        # map alive, and the pass accounted for 3.72 GiB of a 6.26 GiB peak.
+        if max_inflight and len(jobs) >= max_inflight:
+            elapsed["prefetch"] += time.perf_counter() - phase_started
+            _drain(plans, jobs)
+            plans, jobs = [], []
+            phase_started = time.perf_counter()
 
-    timings = getattr(args, "_rescue_timings", None)
+    elapsed["prefetch"] += time.perf_counter() - phase_started
+    _drain(plans, jobs)
+    plans, jobs = [], []
     if timings is not None:
-        timings["isoform_prefetch"] = round(time.perf_counter() - phase_started, 3)
-    scoring_started = time.perf_counter()
-    results = _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args)
-    if timings is not None:
-        timings["isoform_score"] = round(time.perf_counter() - scoring_started, 3)
-        timings["isoform_jobs"] = len(jobs)
-    attach_started = time.perf_counter()
-
-    added = 0
-    for record, slots in plans:
-        if not slots:
-            continue
-        scored = [(mtrans, value if isinstance(value, BaseException) else results[value])
-                  for mtrans, value in slots]
-        try:
-            added += _attach_scored_isoforms(record, scored, tree_dict, args)
-        except Exception as e:
-            logger.log_error(
-                f"miniprot-only rescue (isoforms) error ({record.mtrans.id}): {e}")
-            _record_failure(args, record.mtrans, e)
-    if timings is not None:
-        timings["isoform_attach"] = round(time.perf_counter() - attach_started, 3)
+        timings["isoform_prefetch"] = round(elapsed["prefetch"], 3)
+        timings["isoform_score"] = round(elapsed["score"], 3)
+        timings["isoform_attach"] = round(elapsed["attach"], 3)
+        timings["isoform_jobs"] = counters["jobs"]
+        timings["isoform_jobs_high_water"] = counters["high_water"]
     if added:
         sys.stderr.write(
             f"[LiftOn] miniprot-only rescue: {added} additional isoform(s) "
@@ -900,6 +1182,8 @@ def _reset_inherited_signal_handlers():
 def _isoform_worker_init():
     from pyfaidx import Fasta
     _reset_inherited_signal_handlers()
+    # What this worker drops goes back to the parent with its results.
+    drop_ledger.start_journal()
     # A forked child shares the parent's file offsets, so reopen every FASTA
     # (LiftOn opens them all as plain ``Fasta(path)``).
     _ISOFORM_SHARED["fastas"] = tuple(
@@ -916,7 +1200,24 @@ def _score_isoform_range(bounds):
         except Exception as error:
             # Any exception must survive pickling back to the parent.
             out.append(RuntimeError(f"{type(error).__name__}: {error}"))
-    return out
+    return out, drop_ledger.take_journal()
+
+
+#: How many prefetched isoform jobs may be held at once. Output is identical at
+#: any value -- scoring reads nothing attachment writes -- so this trades peak
+#: memory against pool restarts. 0 restores the unbounded single batch.
+RESCUE_MAX_INFLIGHT_DEFAULT = 8192
+
+
+def _rescue_max_inflight(args):
+    env = os.environ.get("LIFTON_RESCUE_MAX_INFLIGHT")
+    if env is not None:
+        try:
+            return max(0, int(env))
+        except ValueError:
+            pass
+    value = getattr(args, "rescue_max_inflight", None)
+    return RESCUE_MAX_INFLIGHT_DEFAULT if value is None else max(0, int(value))
 
 
 def _isoform_workers(args, n_jobs):
@@ -928,21 +1229,32 @@ def _isoform_workers(args, n_jobs):
     return max(1, int(getattr(args, "threads", 1) or 1))
 
 
+def _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins, ref_trans):
+    """The in-process scoring loop the forked pool parallelises."""
+    results = []
+    for job in jobs:
+        try:
+            results.append(_score_isoform(*job, tgt_fai, ref_proteins,
+                                          ref_trans))
+        except Exception as error:
+            results.append(error)
+    return results
+
+
 def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
     """Score every prefetched isoform job, in order; an exception is returned
     in place of its result. Output is identical whichever way it runs."""
+    if not jobs:
+        # Rescued genes with no other isoform to try leave an empty batch.
+        # A forced worker count (LIFTON_RESCUE_ISOFORM_WORKERS) used to reach
+        # the chunking below with it, cut it into steps of 0 and abort the run.
+        return []
     workers = _isoform_workers(args, len(jobs))
     paths = tuple(getattr(fasta, "filename", None)
                   for fasta in (tgt_fai, ref_proteins, ref_trans))
     if workers <= 1 or None in paths:
-        results = []
-        for job in jobs:
-            try:
-                results.append(_score_isoform(*job, tgt_fai, ref_proteins,
-                                              ref_trans))
-            except Exception as error:
-                results.append(error)
-        return results
+        return _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins,
+                                          ref_trans)
     import multiprocessing
     chunks = max(1, min(len(jobs), workers * 4))
     step = -(-len(jobs) // chunks)
@@ -950,9 +1262,27 @@ def _score_isoform_jobs(jobs, tgt_fai, ref_proteins, ref_trans, args):
               for start in range(0, len(jobs), step)]
     _ISOFORM_SHARED.update(jobs=jobs, paths=paths)
     try:
-        with multiprocessing.get_context("fork").Pool(
-                workers, initializer=_isoform_worker_init) as pool:
-            parts = pool.map(_score_isoform_range, ranges, chunksize=1)
+        try:
+            with multiprocessing.get_context("fork").Pool(
+                    workers, initializer=_isoform_worker_init) as pool:
+                parts = pool.map(_score_isoform_range, ranges, chunksize=1)
+        except OSError as error:
+            # Same hazard as the parallel lift: under strict overcommit the
+            # kernel charges each fork the parent's whole address space, so a
+            # large parent can fail to start workers with hundreds of GB free.
+            # Scoring is identical in-process, so degrade instead of aborting.
+            logger.log_warning(
+                f"Isoform rescue could not start {workers} worker(s) ({error}); "
+                f"scoring {len(jobs)} isoform job(s) in-process. Set "
+                f"LIFTON_RESCUE_ISOFORM_WORKERS to a smaller value to keep the "
+                f"parallel path."
+            )
+            return _score_isoform_jobs_serial(jobs, tgt_fai, ref_proteins,
+                                              ref_trans)
     finally:
         _ISOFORM_SHARED.clear()
-    return [result for part in parts for result in part]
+    results = []
+    for part, journal in parts:
+        drop_ledger.merge(journal)
+        results.extend(part)
+    return results

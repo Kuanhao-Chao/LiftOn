@@ -1,7 +1,7 @@
 import subprocess
 import os, copy, sys
 import gffutils  # noqa: F401  (kept: part of this module's public surface)
-from lifton import align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
+from lifton import drop_ledger, align, coreutils, lifton_class, logger, lifton_utils, protein_maximization, run_miniprot
 from lifton.exceptions import LiftOnAlignmentError, LiftOnInputError
 from lifton.liftoff import liftoff_main
 from lifton.tool_execution import collect_execution_events
@@ -183,13 +183,38 @@ def lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_tran
         len(cdss_list): number of CDSs
     """
     lifton_trans = lifton_gene.add_transcript(ref_trans_id, coreutils.clone_feature(locus), coreutils.clone_attributes(ref_db[ref_trans_id].attributes))
-    exons = l_feature_db.children(locus, featuretype='exon', order_by='start')
+    # level=1, not recursive, because level-1 is what the Step-7 proxy caches.
+    # A recursive query here made `--threads 1` disagree with `--threads N` on
+    # real input -- and since `-t 1` is the default, the DEFAULT path was the
+    # wrong one.
+    #
+    # `l_feature_db` is Liftoff's OUTPUT, not the reference. RefSeq's organellar
+    # convention lists a chloroplast gene's exons twice, once directly under the
+    # gene and once under its mRNA, and Liftoff carries both across. Such a gene
+    # has level-1 exons -- so `process_liftoff` treats it as transcript-shaped
+    # and lands here -- and deeper ones too, so the recursive query returned
+    # each coordinate pair twice: duplicated exons and a doubled CDS, which is a
+    # wrong protein. Rice's lifted annotation has 17 of these genes and
+    # arabidopsis 7; the human, bee, zebrafish and cat lifts have none, which is
+    # why a human -> CHM13 A/B shows no change at all.
+    #
+    # The CDS query below stays recursive on purpose: for exactly these genes
+    # the coding rows sit under the mRNA, one level down.
+    exons = l_feature_db.children(locus, featuretype='exon', level=1,
+                                  order_by='start')
     for exon in list(exons):
         lifton_gene.add_exon(lifton_trans.entry.id, exon)
     cdss = l_feature_db.children(locus, featuretype=('CDS', 'stop_codon'), order_by='start') 
     cdss_list = list(cdss)
-    for cds in cdss_list:
-        lifton_gene.add_cds(lifton_trans.entry.id, cds)
+    try:
+        for cds in cdss_list:
+            lifton_gene.add_cds(lifton_trans.entry.id, cds)
+    except ValueError:
+        # `add_cds` refuses a CDS it cannot split at exon boundaries (counted
+        # as cds_spanning_exons). That rejects this transcript, not its gene:
+        # take the half-built model back out and let the caller skip it.
+        lifton_gene.discard_transcript(lifton_trans.entry.id)
+        raise
     return lifton_trans, len(cdss_list)
 
 
@@ -524,7 +549,10 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
             with_exons=len(exon_children) > 0,
             state_journal=state_journal,
         )
-        if lifton_gene.ref_gene_id is None: return None
+        if lifton_gene.ref_gene_id is None:
+            # Dropping the whole gene, silently, until now.
+            drop_ledger.record("unresolvable_gene", getattr(locus, "id", None))
+            return None
     if len(exon_children) == 0:
         parent_feature = None
         if ENTRY_FEATURE: # Gene (1st) features without direct exons
@@ -576,9 +604,18 @@ def process_liftoff(lifton_gene, locus, ref_db, l_feature_db,
                 f"Skipping {locus.id}: reference transcript "
                 f"{ref_trans_id!r} was not found in the reference annotation."
             )
+            # The line above was printed ~4,400 times across the benchmark
+            # corpus without anyone noticing. Count it too.
+            drop_ledger.record("unresolvable_transcript", locus.id)
             return None
         ref_trans_id = _resolved_trans_id
-        lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
+        try:
+            lifton_trans, cds_num = lifton_add_trans_exon_cds(lifton_gene, locus, ref_db, l_feature_db, ref_trans_id)
+        except ValueError as error:
+            # Before, this escaped to the per-locus handler and the whole gene
+            # -- its good transcripts included -- was left out of the output.
+            logger.log_warning(f"Skipping {locus.id}: {error}.")
+            return None
         orf_done = False
         if cds_num > 0:
             orf_done = process_liftoff_with_protein(locus, lifton_gene, lifton_trans,

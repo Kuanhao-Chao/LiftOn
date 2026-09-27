@@ -4,6 +4,100 @@
 Changelog
 ===========
 
+v1.0.14 (2026-09-25)
+--------------------
+
+- Honour the genetic code an annotation declares (``transl_table``) in protein
+  extraction, model translation, the ORF search and stop completion, and run
+  miniprot once per declared code. Four of the 13 human mitochondrial genes in
+  the published CHM13 annotation were truncated by translating table-2 CDS with
+  the standard code. Table 1 output is unchanged.
+- Place a reference gene at a second target locus when miniprot finds it there
+  and nothing else reaches it, which is what a whole-genome duplication
+  produces (+690 verified genes on human to zebrafish).
+  ``--no-rescue-second-locus`` opts out.
+- Count every class of dropped reference feature and report it once at the end
+  of the run, and in ``run_manifest.json``.
+- Bound the isoform rescue's in-flight prefetch with ``--rescue-max-inflight``
+  (default 8192): 24.7 % less peak memory for 4.4 % wall.
+- Fall back to in-process work when a worker pool cannot fork, instead of
+  aborting the run.
+- Do not abort a lift because a CDS names a ``Parent`` the annotation does not
+  declare; the check becomes fatal under ``--strict-gff``.
+- Report alternate-locus and patch contigs in the reference.
+- Speed up Step 7 by roughly a tenth, and stop re-deriving reference-side work.
+
+- Normalize sparse coding references into explicit hierarchies, preserve CDS
+  attributes, record generated IDs and check supplied FASTA aliases.
+- Preserve genes and exon/CDS attributes when converting GTF with gffread.
+  Conversion files are private to each run, with hashes, command and tool
+  provenance recorded in the run manifest.
+- Repair direct-GTF self-parent relations and preserve transcript IDs during
+  inference. Recognize Ensembl ``gene_biotype`` and apply strict GFF3 grammar
+  checks after conversion.
+- Honour ``transl_except``: read declared selenocysteine and other recoded
+  stops through when scoring, calling variants and chaining, and rewrite the
+  attribute into the lifted model's coordinates (it kept the reference's).
+  All 25 human selenoprotein genes were mis-scored or truncated before; on
+  GRCh38 to CHM13 their 53 transcripts now average 0.998 identity. A distant
+  lift can also place selenoprotein genes it used to miss (seven on human to
+  zebrafish). Ensembl/GENCODE selenocysteine rows (``Selenocysteine``,
+  ``stop_codon_redefined_as_selenocysteine``) are read the same way: on
+  GENCODE v49 to CHM13 the 71 selenoprotein transcripts go from 0.66-0.68 to
+  0.995-0.997.
+- Miniprot-derived models use their reference transcript's declared genetic
+  code. An ambiguous sparse reference model (e.g. NCBI GenBank yeast Ty genes)
+  is lifted as written instead of aborting the run; ``--strict-gff`` keeps it
+  fatal.
+- Split a CDS spanning an intron into exonic segments with transcript-order
+  phases. Reject ambiguous overlaps (the transcript, not its gene), and
+  validate CDS-within-exon containment.
+- Rebind a trans-spliced transcript in precomputed Liftoff annotations to its
+  unique containing gene fragment, including on the same sequence
+  (drosophila ``mod(mdg4)``); preserve that fragment's ``part``. An
+  ambiguous family is left as bound and counted instead of aborting the run.
+- Skip a miniprot candidate whose CDS cannot be split at exon boundaries
+  instead of letting the error drop the competing Liftoff gene.
+- Keep a gene when one of its lifted transcripts encodes no protein; it was
+  dropped whole in every release since v1.0.9.
+- Stop revisiting a gene's tRNA/rRNA children as loci of their own, which
+  recorded hundreds of false pipeline failures on mammalian RefSeq lifts.
+- Do not abort the isoform rescue on an empty batch when
+  ``LIFTON_RESCUE_ISOFORM_WORKERS`` is set (affected v1.0.12 and v1.0.13).
+- Keep GTF conversions out of the system temp directory in evaluation mode and
+  when no converter is installed.
+- Count what the miniprot-only rescue abandons: it is on by default, abandons
+  candidates in ~40 places and recorded none, so a drop total of 0 meant
+  "nothing was counted". Deliberate filters stay uncounted; failed lookups do
+  not.
+- Index the transcript of a reference gene that also declares its own exons
+  (RefSeq's organellar convention), so a miniprot hit on it can be resolved.
+- Report ``genes_emitted_without_children`` only where the reference gave the
+  gene children; the raw tally is now ``bare_gene_lines_emitted``. It was
+  11,130 reported across four genomes against 2 real.
+- Make ``--threads 1`` and ``--threads N`` agree again: the per-locus runtime
+  asked for a transcript's exons recursively while the Step-7 proxy cached the
+  direct children. On RefSeq's organellar convention that returned each exon
+  twice, so a default single-threaded rice lift emitted 17 genes with
+  duplicated exons and a doubled CDS.
+- Stop emitting overlapping exons within one transcript (the open half of
+  GH #26): miniprot's redundant ``stop_codon`` is no longer ingested as a
+  second exon, and a rebuilt exon is reconciled against the one it ran into.
+  Reference annotations have none of these; LiftOn emitted 27 on CHM13, 96 on
+  human to zebrafish, 47 on drosophila, 30 on rice and 13 on bee.
+- Add the overlapping-exon and overlapping-CDS checks ``gff3-validate``'s
+  documentation has always claimed, within one sequence and strand; a
+  declared ribosomal-slippage overlap is a warning. The CDS phase check reads
+  a 5'-partial model's own first phase.
+- Index the windowed aligner's reference only over the query's k-mers: same
+  anchors, same windows, 1.3-1.9x faster anchor construction.
+- Strengthen release evidence with candidate/reference roles, artifact receipts,
+  explicit expected cells and rejection of incomplete or stale results.
+- Require campaign and attempt history, isolate imported source modules, and
+  keep failed reference protein extraction in unresolved coding accounting.
+- Check second-locus rescue against assembly-matched target RefSeq coding
+  models and seeded shifted-locus controls, retaining every baseline feature.
+
 v1.0.13
 --------
 

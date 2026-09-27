@@ -86,12 +86,16 @@ def process_m_l_children(
     l_aa_start, l_aa_end = get_protein_boundary(
         l_lifton_aln.cdss_protein_aln_boundaries, l_c_idx_last, l_c_idx, DEBUG)
 
+    # A codon the reference declares to read through (transl_except) is not a
+    # premature stop in either candidate's chunk.
     m_matches, m_length = get_id_fraction.get_partial_id_fraction(
         m_lifton_aln.ref_aln, m_lifton_aln.query_aln,
-        math.floor(m_aa_start), math.ceil(m_aa_end))
+        math.floor(m_aa_start), math.ceil(m_aa_end),
+        getattr(m_lifton_aln, "readthrough_cols", None))
     l_matches, l_length = get_id_fraction.get_partial_id_fraction(
         l_lifton_aln.ref_aln, l_lifton_aln.query_aln,
-        math.floor(l_aa_start), math.ceil(l_aa_end))
+        math.floor(l_aa_start), math.ceil(l_aa_end),
+        getattr(l_lifton_aln, "readthrough_cols", None))
 
     # Guard against zero-length windows
     m_identity = m_matches / m_length if m_length > 0 else 0.0

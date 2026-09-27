@@ -2,10 +2,10 @@
 
 This inventory is generated deterministically from Git-tracked benchmark files and explicitly managed provenance files. Local run trees are excluded from release evidence.
 
-- Curated files: **290** (13,480,755 bytes)
+- Curated files: **295** (13,558,824 bytes)
 - Registered benchmark IDs: **35**
 - Frozen artifacts verified: **1**
-- Inventory digest: `a59d8cf524e1b342505fcb25be8807b836ca391683148c4d4671aa4c3b205ebf`
+- Inventory digest: `a17f653e047c5bcc0c34ae36a7e7bc08a4de7ee5196c9b1bc8d819181539f320`
 
 ## Classifications
 
@@ -13,15 +13,16 @@ This inventory is generated deterministically from Git-tracked benchmark files a
 | --- | --- | --- | --- | ---: | --- |
 | `canonical_release_baseline` | canonical | complete | yes | 12 | — |
 | `canonical_registries` | canonical | supporting | no | 5 | — |
-| `canonical_release_tooling` | canonical | supporting | no | 34 | — |
+| `canonical_release_tooling` | canonical | supporting | no | 35 | — |
 | `canonical_v2_provenance` | canonical | supporting | no | 16 | — |
 | `canonical_tier_full_results` | canonical | complete | yes | 11 | — |
 | `diagnostic_headroom` | diagnostic | complete | no | 33 | — |
-| `historical_ab_experiments` | historical | superseded | no | 73 | canonical_release_baseline |
+| `historical_ab_experiments` | historical | superseded | no | 75 | canonical_release_baseline |
 | `historical_v1_review` | historical | superseded | no | 79 | canonical_release_baseline |
 | `obsolete_legacy_runners` | obsolete | retired | no | 17 | canonical_release_tooling |
 | `ineligible_incomplete_soybean` | ineligible | incomplete | no | 1 | — |
 | `promotion_ab_v1012` | diagnostic | complete | no | 9 | — |
+| `promotion_ab_v1014` | diagnostic | complete | no | 2 | — |
 
 ## Canonical-v2 Expansion
 

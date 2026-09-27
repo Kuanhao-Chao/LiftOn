@@ -41,12 +41,14 @@ so no measurement depends on the attribute.
 """
 import os
 
-from lifton import align, coreutils
+from lifton import align, coreutils, transl_except
 
 #: Default for the terminal-stop completion, in one place so a promotion or a
 #: revert is a one-line change (the pattern the other rescue switches follow).
 STOP_COMPLETION_DEFAULT = True
 
+#: Standard-code stop codons. A model whose annotation declares another code
+#: is completed against that code's stops instead -- see `_stop_codons`.
 STOP_CODONS = frozenset(("TAA", "TAG", "TGA"))
 
 #: Bases added when the downstream codon is a stop.
@@ -72,6 +74,15 @@ def _codon(entry, fai, start, end):
         return str(probe.sequence(fai)).upper()
     except (KeyError, ValueError, IndexError):
         return ""
+
+
+def _stop_codons(lifton_trans):
+    """The stop codons of the code this model declares."""
+    resolve = getattr(lifton_trans, "transl_table", None)
+    if resolve is None:
+        return STOP_CODONS
+    from lifton import coding
+    return coding.stop_codons(resolve())
 
 
 def _terminal_exon(lifton_trans):
@@ -124,6 +135,9 @@ def apply_terminal_stop(lifton_trans, fai):
         return None
     coding_length = sum(e.cds.entry.end - e.cds.entry.start + 1
                         for e in lifton_trans.exons if e.cds is not None)
+    from lifton.coding import initial_phase
+    coding_length -= initial_phase([e.cds.entry for e in lifton_trans.exons if e.cds is not None],
+                                    lifton_trans.entry.strand)
     if coding_length < STOP_CODON_LENGTH or coding_length % 3:
         return None
     minus = lifton_trans.entry.strand == "-"
@@ -141,9 +155,10 @@ def apply_terminal_stop(lifton_trans, fai):
         nxt = (cds.entry.end + 1, cds.entry.end + STOP_CODON_LENGTH)
         if nxt[1] > sequence_length:
             return None
-    if _codon(cds.entry, fai, *last) in STOP_CODONS:
+    stops = _stop_codons(lifton_trans)
+    if _codon(cds.entry, fai, *last) in stops:
         return None
-    if _codon(cds.entry, fai, *nxt) not in STOP_CODONS:
+    if _codon(cds.entry, fai, *nxt) not in stops:
         return None
     before = (exon.entry.start, exon.entry.end, cds.entry.start, cds.entry.end)
     if minus:
@@ -160,6 +175,18 @@ def undo_terminal_stop(applied):
     exon, cds, (exon_start, exon_end, cds_start, cds_end) = applied
     exon.entry.start, exon.entry.end = exon_start, exon_end
     cds.entry.start, cds.entry.end = cds_start, cds_end
+
+
+def _ends_on_readthrough(alignment, residues):
+    """True when the model's final residue is a stop aligned to a reference
+    residue declared to read through."""
+    if not residues or alignment is None:
+        return False
+    query, ref = alignment.query_aln, alignment.ref_aln
+    last = max((i for i, char in enumerate(query) if char != "-"), default=-1)
+    if last < 0 or query[last] != "*" or ref[last] == "-":
+        return False
+    return len(ref[:last].replace("-", "")) in residues
 
 
 def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
@@ -187,6 +214,12 @@ def complete_and_rescore(lifton_trans, m_entry, fai, ref_proteins, ref_trans_id,
                                             ref_proteins, ref_trans_id)
     identity = getattr(alignment, "identity", None)
     if identity is None or (before is not None and identity < before):
+        undo_terminal_stop(applied)
+        return False
+    if _ends_on_readthrough(alignment, transl_except.readthrough(ref_trans_id)):
+        # The codon just appended is one the reference declares to read
+        # through (transl_except: a selenocysteine UGA). Completing there
+        # would declare the protein truncated at it.
         undo_terminal_stop(applied)
         return False
     lifton_status.lifton_aa = identity

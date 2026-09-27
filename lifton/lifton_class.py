@@ -1,9 +1,94 @@
-from lifton import align, coreutils, get_id_fraction, variants, logger
+from lifton import align, coding, coreutils, drop_ledger, get_id_fraction, transl_except, variants, logger
 from lifton.cds_id_allocator import CdsIdAllocator
 from lifton.io import feature_serializer
 import copy, os, re
 from Bio.Seq import Seq
 from intervaltree import Interval, IntervalTree
+
+
+def _exon_overlap_reconcile_enabled():
+    """Overlapping-exon reconciliation in ``update_cds_list`` (default ON).
+
+    Set ``LIFTON_NO_EXON_OVERLAP_RECONCILE=1`` to reproduce the pre-fix bytes.
+    """
+    return os.environ.get("LIFTON_NO_EXON_OVERLAP_RECONCILE", "") not in ("1", "true", "True")
+
+
+def reconcile_overlapping_exons(exons):
+    """Collapse exons of one transcript that overlap each other.
+
+    Two exons of a transcript cannot overlap: an overlap says there is no
+    intron between them, so they are one exon. The reference annotations have
+    none; LiftOn introduces them when a rebuilt exon takes its end from a
+    chained CDS that reaches into the next Liftoff exon, which is then appended
+    verbatim.
+
+    Returns the ORIGINAL list object, unmodified, when nothing overlaps -- so
+    a valid transcript keeps its exact bytes, including its exon order, and
+    ``LIFTON_NO_CONTAINMENT_NORMALIZE=1`` still reproduces the old output.
+
+    An exon carries at most one CDS. When both sides of an overlap carry one,
+    the two coding blocks are merged if they overlap or abut (they describe one
+    contiguous block, and the overlap means the protein was double-counting
+    those bases). If they are genuinely disjoint, merging would have to invent
+    coding sequence, so the pair is left intact for the validator to report
+    rather than silently mangled. A pair that disagrees on strand is refused
+    for the same reason: that is a trans-spliced model, where an overlap does
+    not mean the two are one exon.
+    """
+    if len(exons) < 2:
+        return exons
+    ordered = sorted(exons, key=lambda e: (e.entry.start, e.entry.end))
+    if all(ordered[i + 1].entry.start > ordered[i].entry.end
+           for i in range(len(ordered) - 1)):
+        return exons
+
+    # Copy-on-write. Case 1 appends elements of `self.exons` itself rather than
+    # clones, so mutating one in place would reach back into the caller's exon
+    # list; an exon is only copied once it is actually about to be widened.
+    kept = [ordered[0]]
+    owned = [False]
+    for exon in ordered[1:]:
+        prev = kept[-1]
+        if exon.entry.start > prev.entry.end:
+            kept.append(exon)
+            owned.append(False)
+            continue
+        if (exon.entry.strand != prev.entry.strand
+                or exon.entry.seqid != prev.entry.seqid):
+            # Exons of one transcript share a strand and a sequence; a pair that
+            # does not is a trans-spliced model, where an overlap is not
+            # evidence that the two are one exon -- and merging coordinates
+            # across two sequences would be meaningless. Rice really does carry
+            # such models (`nad5`, `exception=trans-splicing`, whose rows land
+            # on a different seqid from their gene). Across five whole genomes
+            # not one OVERLAPPING pair crossed either, so this never fires on
+            # the corpus; it is here so that the one place it could be wrong is
+            # refused rather than merged silently.
+            kept.append(exon)
+            owned.append(False)
+            continue
+        if not owned[-1]:
+            prev = copy.deepcopy(prev)
+            kept[-1] = prev
+            owned[-1] = True
+        if exon.cds is not None:
+            if prev.cds is None:
+                prev.cds = exon.cds
+            else:
+                a, b = prev.cds.entry, exon.cds.entry
+                # Mergeable only if the coding blocks touch; `+ 1` because the
+                # coordinates are inclusive, so 100-150 abuts 151-200.
+                if b.start <= a.end + 1 and a.start <= b.end + 1:
+                    a.start = min(a.start, b.start)
+                    a.end = max(a.end, b.end)
+                else:
+                    kept.append(exon)
+                    owned.append(False)
+                    continue
+        prev.entry.start = min(prev.entry.start, exon.entry.start)
+        prev.entry.end = max(prev.entry.end, exon.entry.end)
+    return kept
 
 
 def _containment_normalize_enabled():
@@ -98,6 +183,10 @@ class Lifton_Status:
 
 
 class Lifton_Alignment:
+    # Alignment columns where the model reads through a stop its reference
+    # declares (transl_except). Empty for every other alignment.
+    readthrough_cols = frozenset()
+
     def __init__(self, extracted_identity, cds_children, alignment_query, alignment_comp, alignment_ref, cdss_protein_boundary, cdss_protein_aln_boundary, extracted_seq, reference_seq, db_entry):
         self.identity = extracted_identity
         self.cds_children = cds_children
@@ -158,7 +247,14 @@ class Lifton_GENE:
                 ref_gene_id, self.entry, ref_features_dict,
             )
         self.tmp = tmp
+        source_part = self.entry.attributes.get("part", [])
+        source_exception = self.entry.attributes.get("exception", [])
         self.entry.attributes = ref_gene_attrs
+        if source_part and any("trans-splicing" in value for value in source_exception):
+            # Distinct RefSeq fragments of one trans-spliced gene share an ID.
+            # A database lookup by that ID returns the first reference row,
+            # whose `part` is wrong for every other lifted fragment.
+            self.entry.attributes["part"] = list(source_part)
         # Bug fix #1 (Phase 5): build the ID as a list-of-str per the
         # gffutils attribute contract. Previously a bare string was
         # assigned, and the subsequent `[0]` reduced it to one character.
@@ -249,6 +345,10 @@ class Lifton_GENE:
         self.transcripts[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans
 
+    def discard_transcript(self, trans_id):
+        """Undo ``add_transcript`` for a model that turned out unbuildable."""
+        self.transcripts.pop(trans_id, None)
+
     def add_feature(self, gffutil_entry_trans):
         Lifton_feature = LiftOn_FEATURE(self.entry.id, gffutil_entry_trans, self.copy_num)
         self.transcripts[Lifton_feature.entry.id] = Lifton_feature
@@ -264,12 +364,12 @@ class Lifton_GENE:
         if trans_id not in self.transcripts.keys():
             return None, False
         if not eval_liftoff_chm13:
-            ref_protein_seq = str(ref_proteins[ref_trans_id]) if ref_trans_id in ref_proteins.keys() else None
-            ref_trans_seq = str(fai_trans[ref_trans_id]) if ref_trans_id in fai_trans.keys() else None
+            ref_key = ref_trans_id
         else:
-            ref_protein_seq = str(ref_proteins["rna-"+ref_trans_id]) if "rna-"+ref_trans_id in ref_proteins.keys() else None
-            ref_trans_seq = str(fai_trans["rna-"+ref_trans_id]) if "rna-"+ref_trans_id in fai_trans.keys() else None
-        lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only)
+            ref_key = "rna-" + ref_trans_id
+        ref_protein_seq = str(ref_proteins[ref_key]) if ref_key in ref_proteins.keys() else None
+        ref_trans_seq = str(fai_trans[ref_key]) if ref_key in fai_trans.keys() else None
+        lifton_aln, good_trans = self.transcripts[trans_id].orf_search_protein(fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding=self.is_non_coding, eval_only=eval_only, readthrough=transl_except.readthrough(ref_key))
         return lifton_aln, good_trans
 
     def update_cds_list(self, trans_id, cds_list, optimize=False):
@@ -376,6 +476,10 @@ class LiftOn_FEATURE:
         self.features[Lifton_trans.entry.id] = Lifton_trans
         return Lifton_trans
 
+    def discard_transcript(self, trans_id):
+        """Undo ``add_transcript`` for a model that turned out unbuildable."""
+        self.features.pop(trans_id, None)
+
     def add_exon(self, trans_id, gffutil_entry_exon):
         self.features[trans_id].add_exon(gffutil_entry_exon)
 
@@ -395,6 +499,7 @@ class LiftOn_FEATURE:
         return child.orf_search_protein(
             fai, ref_protein_seq, ref_trans_seq, lifton_status,
             is_non_coding=False, eval_only=eval_only,
+            readthrough=transl_except.readthrough(ref_trans_id),
         )
 
     def add_lifton_gene_status_attrs(self, source):
@@ -450,6 +555,12 @@ class Lifton_TRANS:
     # See `_cds_attr_carry_enabled`.
     _cds_attr_template = None
 
+    # The NCBI genetic code this transcript's reference CDS declares, captured
+    # alongside the attribute template. None until a CDS carrying one is added;
+    # a model with no declared code translates with the standard table, exactly
+    # as every LiftOn release before the attribute was read.
+    _transl_table = None
+
     def __init__(self, ref_trans_id, ref_gene_id, gene_id, copy_num, gffutil_entry_trans, ref_trans_attrs):
         # Assigning the reference transcripts & attributes
         if int(copy_num) > 0:
@@ -481,7 +592,26 @@ class Lifton_TRANS:
         Lifton_exon = Lifton_EXON(gffutil_entry_exon)
         coreutils.custom_bisect_insert(self.exons, Lifton_exon)
 
+    def transl_table(self):
+        """The genetic code to translate and scan this model with.
+
+        The code its CDS rows declare; otherwise the one its reference
+        transcript declares. A miniprot-derived model's rows declare nothing, so
+        a mitochondrial protein rescued or chained from miniprot was translated
+        with the standard code -- TGA read as a stop.
+        """
+        if self._transl_table is None:
+            return coding.transcript_table(getattr(self, "ref_tran_id", None))
+        return self._transl_table
+
     def add_cds(self, gffutil_entry_cds):
+        if self._transl_table is None:
+            # Same "first reference CDS wins" rule as the attribute template:
+            # the CDS rows of one transcript are segments of a single
+            # discontinuous feature and declare one code between them.
+            self._transl_table = coding.table_from_attributes(
+                getattr(gffutil_entry_cds, "attributes", None),
+                getattr(self.entry, "id", None))
         if self._cds_attr_template is None:
             # First reference CDS wins: every segment of one discontinuous CDS
             # carries the same descriptive attributes, so this is the whole
@@ -493,27 +623,59 @@ class Lifton_TRANS:
                 self._cds_attr_template = template
         overlapping = [
             exon for exon in self.exons
-            if coreutils.segments_overlap_length(
-                (exon.entry.start, exon.entry.end),
-                (gffutil_entry_cds.start, gffutil_entry_cds.end))[1]
+            if (exon.entry.seqid == gffutil_entry_cds.seqid
+                and (exon.entry.strand == gffutil_entry_cds.strand
+                     or exon.entry.strand in (".", "?")
+                     or gffutil_entry_cds.strand in (".", "?"))
+                and coreutils.segments_overlap_length(
+                    (exon.entry.start, exon.entry.end),
+                    (gffutil_entry_cds.start, gffutil_entry_cds.end))[1])
         ]
         if len(overlapping) > 1:
-            # "A CDS lies in exactly one exon" is assumed throughout the model
-            # but was never checked, so a CDS spanning an intron was attached to
-            # every exon it touched -- emitting the same CDS several times, and
-            # (because they shared ONE Feature object) letting a later edit to
-            # any copy silently rewrite the others.
+            # A reference CDS row crossing an intron must be emitted as
+            # discontinuous exonic segments. Attaching the full row to one exon
+            # makes containment normalization bridge the intron; attaching it
+            # to every exon duplicates coding bases. Refuse ambiguous exon
+            # structures instead of making either change silently.
+            ordered = sorted(overlapping, key=lambda exon: exon.entry.start)
+            spans = [(max(exon.entry.start, gffutil_entry_cds.start),
+                      min(exon.entry.end, gffutil_entry_cds.end))
+                     for exon in ordered]
+            unambiguous = (
+                ordered[0].entry.start <= gffutil_entry_cds.start <= ordered[0].entry.end
+                and ordered[-1].entry.start <= gffutil_entry_cds.end <= ordered[-1].entry.end
+                and all(left[1] < right[0] for left, right in zip(spans, spans[1:]))
+                and all(exon.cds is None for exon in ordered)
+                and gffutil_entry_cds.frame in ("0", "1", "2", ".")
+            )
+            if not unambiguous:
+                drop_ledger.record("cds_spanning_exons", getattr(gffutil_entry_cds, "id", None))
+                raise ValueError(
+                    f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
+                    f"cannot be split unambiguously across exons of {self.entry.id}"
+                )
+            phase = int(gffutil_entry_cds.frame) if gffutil_entry_cds.frame != "." else 0
+            coding_length = 0
+            if gffutil_entry_cds.strand == "-":
+                ordered.reverse()
+                spans.reverse()
+            for exon, (start, end) in zip(ordered, spans):
+                segment = coreutils.clone_feature(gffutil_entry_cds)
+                segment.start, segment.end = start, end
+                segment.frame = str((phase - coding_length) % 3)
+                segment.attributes["Parent"] = [self.entry.id]
+                exon.add_cds(segment)
+                coding_length += end - start + 1
             logger.log_warning(
                 f"CDS {getattr(gffutil_entry_cds, 'id', '<unnamed>')!r} "
                 f"({gffutil_entry_cds.start}-{gffutil_entry_cds.end}) spans "
-                f"{len(overlapping)} exons of {self.entry.id}; each will carry "
-                "its own copy. The reference model is malformed here."
+                f"{len(overlapping)} exons of {self.entry.id}; emitted "
+                "discontinuous exonic CDS segments."
             )
+            return
         for exon in overlapping:
-            entry = (gffutil_entry_cds if len(overlapping) == 1
-                     else coreutils.clone_feature(gffutil_entry_cds))
-            entry.attributes['Parent'] = [self.entry.id]
-            exon.add_cds(entry)
+            gffutil_entry_cds.attributes['Parent'] = [self.entry.id]
+            exon.add_cds(gffutil_entry_cds)
 
     def update_gffutil_entry_trans(self, gffutil_entry_trans):
         for key, atr in gffutil_entry_trans.attributes.items():
@@ -763,6 +925,12 @@ class Lifton_TRANS:
                 new_exon.update_exon_info(cds.entry.start, cds.entry.end)
                 new_exon.add_lifton_cds(cds, attr_template=self._cds_attr_template)
                 new_exons.append(new_exon)
+        if _exon_overlap_reconcile_enabled():
+            # Reconcile BEFORE installing, not at the write funnel: the
+            # best-of-outcome compare and the ORF rescue both read `self.exons`
+            # straight out of here, so an overlapping pair fixed only at write
+            # time would still have been scored and searched.
+            new_exons = reconcile_overlapping_exons(new_exons)
         self.exons = new_exons
         if self.exons:  # guard against empty exon list
             if _containment_normalize_enabled():
@@ -804,12 +972,15 @@ class Lifton_TRANS:
                 elif exon.cds.entry.strand == '+':
                     coding_seq = coding_seq + p_seq
                     cdss_lens.append(exon.cds.entry.end - exon.cds.entry.start + 1)
-        return coding_seq, cds_children, cdss_lens
+        phase = coding.initial_phase(cds_children, self.entry.strand)
+        return coding_seq[phase:], cds_children, coding.phase_adjusted_lengths(cdss_lens, phase)
 
     def get_coding_trans_seq(self, fai):
         trans_seq = ""
         coding_seq = ""
-        accum_cds_length = 0
+        initial_phase = coding.initial_phase([e.cds.entry for e in self.exons if e.cds is not None],
+                                             self.entry.strand)
+        accum_cds_length = -initial_phase
         lcl_exons = []
         lcl_exons = self.exons
         if len(self.exons) > 0 and self.exons[0].entry.strand == '-':
@@ -830,19 +1001,15 @@ class Lifton_TRANS:
             trans_seq = str(trans_seq).upper()
         if coding_seq != None:
             coding_seq = str(coding_seq).upper()
-        return coding_seq, trans_seq
+        return coding_seq[initial_phase:], trans_seq
 
     def translate_coding_seq(self, coding_seq):
         protein_seq = None
         if coding_seq != "":
-            # Biopython has historically truncated a terminal partial codon
-            # while warning that it may become an error. Preserve that result
-            # explicitly so frameshift evaluation remains warning-free.
-            complete_length = len(coding_seq) - (len(coding_seq) % 3)
-            protein_seq = str(Seq(coding_seq[:complete_length]).translate())
+            protein_seq = coding.translate(coding_seq, self.transl_table())
         return protein_seq
 
-    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status):
+    def align_coding_seq(self, protein_seq, ref_protein_seq, lifton_status, readthrough=None):
         if ref_protein_seq == "" or ref_protein_seq == None:
             lifton_aa_aln = None
             peps = None
@@ -850,8 +1017,14 @@ class Lifton_TRANS:
             lifton_aa_aln = None
             peps = None
         else:
-            peps = protein_seq.split("*")
-            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq)
+            lifton_aa_aln = align.protein_align(protein_seq, ref_protein_seq, readthrough)
+            # A declared read-through (transl_except: Sec, Pyl, stop
+            # readthrough) is not a gained stop: split only on the stops that
+            # end translation, so find_variants does not call stop_codon_gain
+            # -- and trigger the ORF search -- on a selenocysteine.
+            peps = get_id_fraction.mask_readthrough(
+                protein_seq, lifton_aa_aln.query_aln,
+                lifton_aa_aln.readthrough_cols).split("*")
             # Update lifton sequence identity
             lifton_status.lifton_aa = max(lifton_status.lifton_aa, lifton_aa_aln.identity)
         return lifton_aa_aln, peps
@@ -866,11 +1039,11 @@ class Lifton_TRANS:
             lifton_status.lifton_dna = lifton_tran_aln.identity
         return lifton_tran_aln
 
-    def orf_search_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding, eval_only=False):
+    def orf_search_protein(self, fai, ref_protein_seq, ref_trans_seq, lifton_status, is_non_coding, eval_only=False, readthrough=None):
         coding_seq, trans_seq = self.get_coding_trans_seq(fai)
         protein_seq = self.translate_coding_seq(coding_seq)
         # Aligning the LiftOn protein & DNA sequences
-        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status)
+        lifton_aa_aln, peps = self.align_coding_seq(protein_seq, ref_protein_seq, lifton_status, readthrough)
         lifton_tran_aln = self.align_trans_seq(trans_seq, ref_trans_seq, lifton_status)
         # GH #46: the CDS is a contiguous block in the spliced transcript
         # (5'UTR + CDS + 3'UTR), so locate it to scope frameshift detection to the
@@ -881,6 +1054,14 @@ class Lifton_TRANS:
             if _cds_start >= 0:
                 cds_span = (_cds_start, _cds_start + len(coding_seq))
         variants.find_variants(lifton_tran_aln, lifton_aa_aln, lifton_status, peps, is_non_coding, cds_span=cds_span)
+        # Codons of this model that read through a declared stop, as positions
+        # in the spliced transcript, so the ORF search reads through them too.
+        skip_stops = frozenset()
+        if readthrough and lifton_aa_aln is not None and cds_span is not None:
+            skip_stops = frozenset(
+                cds_span[0] + 3 * residue
+                for residue in get_id_fraction.readthrough_query_residues(
+                    lifton_aa_aln.query_aln, lifton_aa_aln.readthrough_cols))
         ORF_search = False
         for mutation in lifton_status.status:
             # identical # synonymous 
@@ -898,10 +1079,12 @@ class Lifton_TRANS:
             if mutation == "stop_missing" or mutation == "stop_codon_gain" or mutation == "frameshift"  or mutation == "start_lost":
                 ORF_search = True
         if ORF_search and eval_only==False:
-            self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status)
+            self.__find_orfs(trans_seq, ref_protein_seq, lifton_aa_aln, lifton_status,
+                             readthrough=readthrough, skip_stops=skip_stops)
         return lifton_tran_aln, lifton_aa_aln
 
-    def __find_orfs(self, trans_seq, ref_protein_seq, lifton_aln, lifton_status):
+    def __find_orfs(self, trans_seq, ref_protein_seq, lifton_aln, lifton_status,
+                    readthrough=None, skip_stops=frozenset()):
         """
         Scan the full spliced transcript sequence in all 3 reading frames and
         keep the best ORF per frame (longest ORF that passes the length-growth
@@ -920,8 +1103,12 @@ class Lifton_TRANS:
         # to tolerate a Bio.Seq; doing it here keeps that safety while letting
         # the inner loop compare plain string slices.
         trans_seq = str(trans_seq).upper()
-        start_codon = "ATG"
-        stop_codons = {"TAA", "TAG", "TGA"}
+        table = self.transl_table()
+        start_codon = coding.ORF_START_CODON
+        # Under the standard code a vertebrate mitochondrial transcript is full
+        # of TGA tryptophans, so this scan used to stop at the first one and
+        # replace a correct CDS with the short spurious ORF in front of it.
+        stop_codons = coding.stop_codons(table)
         # One best ORF per frame (longest)
         best_orf_per_frame = [None, None, None]  # index = frame (0,1,2)
         max_orf_len = [0, 0, 0]
@@ -935,7 +1122,9 @@ class Lifton_TRANS:
                     orf_idx_e = 0  # will be set when stop found
                     found_stop = False
                     for j in range(i, len(trans_seq), 3):
-                        if trans_seq[j:j + 3] in stop_codons:
+                        # A codon the reference declares to read through
+                        # (transl_except) is not where this ORF ends.
+                        if trans_seq[j:j + 3] in stop_codons and j not in skip_stops:
                             orf_idx_e = j + 3
                             found_stop = True
                             break
@@ -963,12 +1152,15 @@ class Lifton_TRANS:
         max_identity = 0.0
         for orf in orf_list:
             orf_DNA_seq = trans_seq[orf.start:orf.end]
-            orf_protein_seq = str(Seq(orf_DNA_seq).translate())
+            orf_protein_seq = coding.translate(orf_DNA_seq, table)
             orf_parasail_res = align.parasail_align_protein_base(
                 orf_protein_seq, ref_protein_seq)
             orf_matches, orf_length = get_id_fraction.get_AA_id_fraction(
                 orf_parasail_res.traceback.ref,
-                orf_parasail_res.traceback.query)
+                orf_parasail_res.traceback.query,
+                get_id_fraction.readthrough_columns(
+                    orf_parasail_res.traceback.ref,
+                    orf_parasail_res.traceback.query, readthrough))
             orf_identity = orf_matches / orf_length if orf_length > 0 else 0.0
             if orf_identity > max_identity:
                 max_identity = orf_identity

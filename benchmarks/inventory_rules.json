@@ -87,6 +87,7 @@
         "benchmarks/compare/release_report_figures.py",
         "benchmarks/compare/release_rescore.py",
         "benchmarks/compare/release_provenance.py",
+        "benchmarks/compare/release_qualification.py",
         "benchmarks/compare/release_validation.py",
         "benchmarks/compare/released_annotation_sensitivity.py",
         "benchmarks/compare/report_tables.py",
@@ -199,6 +200,7 @@
         "benchmarks/compare/native_liftoff_ab.*",
         "benchmarks/compare/orf_best_match_ab.*",
         "benchmarks/compare/parallel_aligners_ab.*",
+        "benchmarks/compare/second_locus_ab.*",
         "benchmarks/compare/speed_ab.*",
         "benchmarks/compare/step8_rescue_ab.*",
         "benchmarks/compare/structural_rescore*"
@@ -281,6 +283,18 @@
       "patterns": [
         "benchmarks/compare/cross_locus_rescue_ab.*",
         "benchmarks/compare/rescue_extension_ab.*"
+      ]
+    },
+    {
+      "id": "promotion_ab_v1014",
+      "classification": "diagnostic",
+      "claim_eligible": false,
+      "completion_state": "complete",
+      "description": "v1.0.14 promotion measurements: the windowed aligner's anchor construction, asserted to return the same anchors before either arm is timed; and the independent second-locus truth gate, which scores rescued models against the target assembly's own RefSeq annotation with shifted-locus controls.",
+      "superseded_by": null,
+      "patterns": [
+        "benchmarks/compare/second_locus_truth.*",
+        "benchmarks/compare/windowed_anchor_ab.*"
       ]
     }
   ]

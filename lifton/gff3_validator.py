@@ -12,7 +12,7 @@ conventions:
   • Exon / CDS containment within parent transcript
   • Transcript containment within parent gene
   • CDS coordinates contained within corresponding exon
-  • No overlapping CDS within one transcript
+  • No overlapping exons, and no overlapping CDS, within one transcript
   • No duplicate gene/transcript IDs in the file
   • LiftOn-specific attribute checks (protein_identity, dna_identity, annotation_source)
 
@@ -983,7 +983,11 @@ def _validate_streaming(
                 max_issues_per_check, shared_counts=hierarchy_counts))
         if check_containment:
             containment_issues.extend(_check_containment(
-                records, id_to_record, max_issues_per_check,
+                records, id_to_record, parent_to_children,
+                max_issues_per_check,
+                shared_counts=containment_counts))
+            containment_issues.extend(_check_sibling_overlap(
+                parent_to_children, id_to_record, max_issues_per_check,
                 shared_counts=containment_counts))
         if check_cds_phase:
             phase_issues.extend(_check_cds_phase(
@@ -1193,7 +1197,12 @@ def validate_gff3_file(
     # ── Containment validation ───────────────────────────────────────────────
     if check_containment:
         result.issues.extend(
-            _check_containment(records, id_to_record, max_issues_per_check)
+            _check_containment(records, id_to_record, parent_to_children,
+                               max_issues_per_check)
+        )
+        result.issues.extend(
+            _check_sibling_overlap(parent_to_children, id_to_record,
+                                   max_issues_per_check)
         )
 
     # ── CDS phase validation ─────────────────────────────────────────────────
@@ -1719,12 +1728,13 @@ def _check_hierarchy(
 def _check_containment(
     records: List[GFF3Record],
     id_to_record: Dict[str, GFF3Record],
+    parent_to_children: Dict[str, List[GFF3Record]],
     max_issues: int,
     shared_counts: Optional[Dict[str, int]] = None,
 ) -> List[GFF3Issue]:
     """
-    Validate that every child feature is contained within its parent coordinates.
-    Also validates that all features on the same seqid share the parent's seqid.
+    Validate parent bounds and require every CDS segment to lie in an exon of
+    the same parent when that parent has exon records.
     """
     issues: List[GFF3Issue] = []
     # A caller driving these checks block by block passes its own counter so
@@ -1772,7 +1782,102 @@ def _check_containment(
                     f"parent '{parent.feat_id}' [{parent.start}, {parent.end}]"
                 ))
 
+    for parent_id, children in parent_to_children.items():
+        exons = [child for child in children if child.ftype in EXON_TYPES]
+        if not exons:
+            # Valid sparse GFF3 can have CDS children without explicit exons.
+            continue
+        for cds in (child for child in children if child.ftype in CDS_TYPES):
+            if any(
+                exon.seqid == cds.seqid
+                and (exon.strand == cds.strand
+                     or exon.strand in (".", "?") or cds.strand in (".", "?"))
+                and exon.start <= cds.start and cds.end <= exon.end
+                for exon in exons
+            ):
+                continue
+            issue_counts["cds_outside_exon"] += 1
+            if issue_counts["cds_outside_exon"] <= max_issues:
+                issues.append(GFF3Issue(
+                    Severity.ERROR, cds.lineno, cds.feat_id or parent_id,
+                    "cds_exon_containment",
+                    f"CDS [{cds.start}, {cds.end}] is not contained in an "
+                    f"exon of parent '{parent_id}' on {cds.seqid}"
+                ))
+
     return issues
+
+
+def _check_sibling_overlap(
+    parent_to_children: Dict[str, List[GFF3Record]],
+    id_to_record: Dict[str, GFF3Record],
+    max_issues: int,
+    shared_counts: Optional[Dict[str, int]] = None,
+) -> List[GFF3Issue]:
+    """Two exons -- or two CDS -- of one transcript must not overlap.
+
+    An overlap between two exons of the same transcript says there is no intron
+    between them, so they are one exon; an overlap between two CDS makes the
+    translated protein count those bases twice. Reference annotations have
+    neither. The module docstring has claimed this check since the file was
+    written, and until now it did not exist -- so LiftOn shipped both classes
+    past a validator that reported the file clean.
+
+    Segments of one discontinuous feature share an ID by design, and they still
+    must not overlap each other, so they are checked like any other pair --
+    with one exception the reference itself uses: a -1 ribosomal frameshift
+    (RefSeq PEG10: 94663334-94664513 then 94664513-94665682) is written as two
+    segments of one CDS sharing a base, declared ``exception=ribosomal
+    slippage``. That overlap is the protein, so it is a WARNING. Only rows on
+    the same sequence and strand can overlap.
+    """
+    issues: List[GFF3Issue] = []
+    issue_counts: Dict[str, int] = (
+        defaultdict(int) if shared_counts is None else shared_counts)
+
+    for parent_id, children in parent_to_children.items():
+        parent = id_to_record.get(parent_id)
+        if parent is None or not is_transcript_type(parent.ftype):
+            continue
+        for ftype, check in (("exon", "exon_overlap"), ("CDS", "cds_overlap")):
+            rows = sorted(
+                (rec for rec in children if rec.ftype == ftype),
+                key=lambda rec: (rec.seqid, rec.strand, rec.start, rec.end),
+            )
+            for earlier, later in zip(rows, rows[1:]):
+                if (later.seqid, later.strand) != (earlier.seqid, earlier.strand):
+                    continue
+                if later.start > earlier.end:
+                    continue
+                severity, code = Severity.ERROR, check
+                if ftype == "CDS" and _declared_slippage(earlier, later):
+                    severity, code = Severity.WARNING, "cds_overlap_ribosomal_slippage"
+                issue_counts[code] += 1
+                if issue_counts[code] <= max_issues:
+                    issues.append(GFF3Issue(
+                        severity, later.lineno, later.feat_id, code,
+                        f"{ftype} [{later.start}, {later.end}] overlaps "
+                        f"{ftype} [{earlier.start}, {earlier.end}] of the same "
+                        f"transcript '{parent_id}'"
+                    ))
+    return issues
+
+
+#: Longest overlap a declared ribosomal frameshift explains (a -1 or -2 shift
+#: re-reads at most a codon).
+_SLIPPAGE_MAX_OVERLAP = 3
+
+
+def _declared_slippage(earlier, later) -> bool:
+    """Two segments of ONE CDS, declared as ribosomal slippage, sharing at
+    most a codon."""
+    if earlier.feat_id != later.feat_id or not earlier.feat_id:
+        return False
+    declared = [value.lower() for rec in (earlier, later)
+                for value in rec.attrs.get("exception", [])]
+    if not any("ribosomal slippage" in value for value in declared):
+        return False
+    return earlier.end - later.start + 1 <= _SLIPPAGE_MAX_OVERLAP
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1788,11 +1893,15 @@ def _check_cds_phase(
     """
     Validate GFF3 CDS phase values.
 
-    GFF3 phase rule: phase = (3 - (cumulative_cds_length_so_far % 3)) % 3
+    GFF3 phase rule: phase = (3 - ((cumulative_cds_length_so_far - phase_0) % 3)) % 3
     where cumulative_cds_length_so_far is the total length of all preceding
-    CDS rows *before* the current one (sorted by coord, 5'→3').
+    CDS rows *before* the current one (sorted by coord, 5'→3') and phase_0 is
+    the first row's own phase.
 
-    The first CDS should always have phase 0 for a complete CDS.
+    The first CDS has phase 0 for a complete CDS; a 5'-partial one (start
+    lost) legitimately starts mid-codon, and its first phase_0 bases precede
+    the first complete codon. Assuming 0 there flagged every later segment of
+    every such model.
     """
     issues: List[GFF3Issue] = []
     # A caller driving these checks block by block passes its own counter so
@@ -1816,9 +1925,13 @@ def _check_cds_phase(
         else:
             cds_sorted = sorted(cds_list, key=lambda r: r.start)
 
+        try:
+            first_phase = int(cds_sorted[0].phase)
+        except ValueError:
+            first_phase = 0
         accum_len = 0
         for i, cds in enumerate(cds_sorted):
-            expected_phase = (3 - accum_len % 3) % 3
+            expected_phase = (3 - (accum_len - first_phase) % 3) % 3
             try:
                 actual_phase = int(cds.phase)
             except ValueError:

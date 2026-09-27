@@ -10,6 +10,7 @@ applies to isoforms too.
 """
 from __future__ import annotations
 
+import errno
 import textwrap
 import types
 
@@ -239,6 +240,32 @@ class TestIsoformWorkers:
         assert "rescue_isoform=true" in inline
         assert pooled == inline
 
+    def test_enomem_starting_the_pool_falls_back_to_inline_scoring(
+            self, tmp_path, hermetic_pipeline, monkeypatch):
+        # fork() can fail with memory free: under strict overcommit the kernel
+        # charges each child the parent's whole address space. Losing the pool
+        # must cost speed, not the rescue.
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "0")
+        inline = _run(_build_workspace(tmp_path / "inline"), "--rescue-isoforms")
+        assert "rescue_isoform=true" in inline
+
+        import multiprocessing
+
+        def _enomem_pool(*_args, **_kwargs):
+            raise OSError(errno.ENOMEM, "Cannot allocate memory")
+
+        real_get_context = multiprocessing.get_context
+
+        def _fake_get_context(*args, **kwargs):
+            context = real_get_context(*args, **kwargs)
+            return types.SimpleNamespace(Pool=_enomem_pool, _real=context)
+
+        monkeypatch.setattr(multiprocessing, "get_context", _fake_get_context)
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "2")
+        fallback = _run(_build_workspace(tmp_path / "fallback"), "--rescue-isoforms")
+        assert fallback == inline
+        assert miniprot_rescue._ISOFORM_SHARED == {}
+
     def test_worker_count(self, monkeypatch):
         monkeypatch.delenv("LIFTON_RESCUE_ISOFORM_WORKERS", raising=False)
         args = types.SimpleNamespace(threads=8)
@@ -247,3 +274,83 @@ class TestIsoformWorkers:
         assert miniprot_rescue._isoform_workers(types.SimpleNamespace(), 500) == 1
         monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "3")
         assert miniprot_rescue._isoform_workers(args, 10) == 3
+
+    def test_an_empty_batch_with_the_worker_count_forced_is_not_an_error(
+            self, monkeypatch):
+        """A rescued gene with no other isoform to try leaves the batch empty.
+        With the worker count forced -- the remedy LiftOn's own fork-failure
+        warning recommends -- the chunking cut an empty batch into steps of 0
+        and `range()` raised, aborting a run whose lifting had finished.
+        Shipped in v1.0.12 and v1.0.13; found by the v1.0.14 ladder on the
+        drosophila subset at `-t 1`."""
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "4")
+        fasta = types.SimpleNamespace(filename="on-disk.fa")
+        assert miniprot_rescue._score_isoform_jobs(
+            [], fasta, fasta, fasta, types.SimpleNamespace(threads=1)) == []
+
+
+class TestBoundedInFlight:
+    """The isoform pass holds at most ``--rescue-max-inflight`` jobs at once.
+
+    It used to prefetch every job in the genome before scoring any: 55,852 on
+    human to zebrafish, each keeping an mRNA row, its CDS rows and an attribute
+    map alive. Running the same cell with ``--no-rescue-isoforms`` put the
+    pass's share of peak memory at 3.72 GiB of 6.26 GiB.
+
+    Draining in batches is free because scoring reads nothing that attachment
+    writes -- ``tree_dict`` is touched only by ``_attach_scored_isoforms`` --
+    and records are attached in acceptance order either way.
+    """
+
+    def test_the_bound_does_not_change_the_output(self, tmp_path,
+                                                  hermetic_pipeline, monkeypatch):
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "0")
+        monkeypatch.setenv("LIFTON_RESCUE_MAX_INFLIGHT", "0")      # unbounded
+        unbounded = _run(_build_workspace(tmp_path / "unbounded"),
+                         "--rescue-isoforms")
+        assert "rescue_isoform=true" in unbounded
+        for bound in ("1", "2", "3", "8192"):
+            monkeypatch.setenv("LIFTON_RESCUE_MAX_INFLIGHT", bound)
+            batched = _run(_build_workspace(tmp_path / f"bound{bound}"),
+                           "--rescue-isoforms")
+            assert batched == unbounded, f"bound={bound} changed the output"
+
+    def test_a_bound_of_one_still_attaches_every_isoform(self, tmp_path,
+                                                         hermetic_pipeline,
+                                                         monkeypatch):
+        # The pathological bound: one job per batch, a pool restart each time.
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "0")
+        monkeypatch.setenv("LIFTON_RESCUE_MAX_INFLIGHT", "1")
+        text = _run(_build_workspace(tmp_path / "one"), "--rescue-isoforms")
+        assert text.count("rescue_isoform=true") >= 1
+
+    def test_the_switch_resolves(self, monkeypatch):
+        monkeypatch.delenv("LIFTON_RESCUE_MAX_INFLIGHT", raising=False)
+        args = lifton.parse_args(["t.fa", "r.fa", "-g", "r.gff3"])
+        assert miniprot_rescue._rescue_max_inflight(args) == \
+            miniprot_rescue.RESCUE_MAX_INFLIGHT_DEFAULT
+        args = lifton.parse_args(["t.fa", "r.fa", "-g", "r.gff3",
+                                  "--rescue-max-inflight", "16"])
+        assert miniprot_rescue._rescue_max_inflight(args) == 16
+        monkeypatch.setenv("LIFTON_RESCUE_MAX_INFLIGHT", "0")
+        assert miniprot_rescue._rescue_max_inflight(args) == 0
+
+    def test_the_high_water_mark_is_recorded_as_a_count(self, tmp_path,
+                                                        hermetic_pipeline,
+                                                        monkeypatch):
+        # Counts share a dict with timings in the manifest writer, which scales
+        # anything it does not recognise by a thousand. The first version of
+        # this counter was reported as "miniprot_rescue_ms_isoform_jobs_high_
+        # water = 8218000" for a high-water mark of 8,218.
+        import json
+        monkeypatch.setenv("LIFTON_RESCUE_ISOFORM_WORKERS", "0")
+        work = _build_workspace(tmp_path / "manifest")
+        _run(work, "--rescue-isoforms")
+        manifest = json.loads(
+            (work / "out" / "lifton_output" / "run_manifest.json").read_text())
+        counts = manifest.get("counts") or {}
+        assert "miniprot_rescue_isoform_jobs_high_water" in counts
+        assert not any(key.startswith("miniprot_rescue_ms_isoform_jobs")
+                       for key in counts)
+        assert counts["miniprot_rescue_isoform_jobs_high_water"] <= \
+            counts["miniprot_rescue_isoform_jobs"]

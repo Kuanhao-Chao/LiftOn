@@ -1,4 +1,4 @@
-from lifton import intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
+from lifton import coding, drop_ledger, intervals, lifton_utils, annotation, extract_sequence, stats, logger, run_liftoff, run_miniprot, run_evaluation, gff3_validator, __version__
 from intervaltree import IntervalTree
 import argparse
 from pyfaidx import Fasta
@@ -729,6 +729,43 @@ def args_optional(parser):
              "Env LIFTON_ORF_STOP_COMPLETION=1/0 overrides."
     )
     parser.add_argument(
+        '--rescue-max-inflight', dest='rescue_max_inflight',
+        type=int, default=None, metavar='N',
+        help='How many prefetched isoform-rescue jobs to hold at once '
+             '(default 8192; 0 for unbounded, the pre-v1.0.14 behaviour). The '
+             'isoform pass used to prefetch every job in the genome before '
+             'scoring any -- 55,852 of them on human to zebrafish, 3.7 GiB of '
+             'a 6.3 GiB peak. Output is identical at any value. Env '
+             'LIFTON_RESCUE_MAX_INFLIGHT overrides.'
+    )
+    parser.add_argument(
+        '--rescue-second-locus', dest='rescue_second_locus',
+        action='store_true', default=None,
+        help='No-op alias: placing a reference gene at a second target locus '
+             'is the default. Pass --no-rescue-second-locus to opt out.'
+    )
+    parser.add_argument(
+        '--no-rescue-second-locus', dest='rescue_second_locus',
+        action='store_false', default=None,
+        help='Never place a reference gene at a second target locus (the '
+             'pre-v1.0.14 behaviour). By default, when miniprot finds a '
+             'reference gene at a locus no emitted model reaches, LiftOn '
+             'places it there as well: a whole-genome duplication gives the '
+             'target two genes where the reference has one, and the rescue '
+             'used to refuse the second because the reference gene had '
+             'already been emitted. Measured against zebrafish own GRCz11 '
+             'annotation, that refusal hid 690 real target genes on human to '
+             'zebrafish. Env LIFTON_RESCUE_SECOND_LOCUS=1/0 overrides.'
+    )
+    parser.add_argument(
+        '--rescue-second-locus-max', dest='rescue_second_locus_max',
+        type=int, default=None, metavar='N',
+        help='How many EXTRA loci one reference gene may be given by '
+             '--rescue-second-locus (default 1). A duplicated genome wants '
+             'one; the cap keeps a repeat family from spraying copies. Env '
+             'LIFTON_RESCUE_SECOND_LOCUS_MAX overrides.'
+    )
+    parser.add_argument(
         '--rescue-isoforms', dest='rescue_isoforms',
         action='store_true', default=None,
         help='No-op alias: isoform-aware rescue is the default (v1.0.12). Pass '
@@ -933,6 +970,101 @@ def resolve_miniprot_candidate_args(args):
     return args
 
 
+def _check_reference_findings(args, findings, stats_dir):
+    """Report input findings and enforce the requested strict policy."""
+    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
+    # thousands of `unencoded_reserved_char` findings on Dbxref values
+    # (DBTAG:ID is technically reserved-char-bearing). The previous
+    # unconditional per-finding stderr dump produced 100+ MB stderr
+    # logs that buried real errors. Strict mode keeps per-row stderr
+    # output (users opted in); the default path now writes findings to
+    # a side-car file under stats/ and prints one summary line.
+    _strict_gff = getattr(args, "strict_gff", False)
+    if _strict_gff:
+        for f in findings:
+            logger.log(str(f), debug=True)
+    elif findings:
+        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
+        try:
+            with open(findings_path, "w") as fw:
+                for f in findings:
+                    fw.write(str(f) + "\n")
+            n_err = sum(1 for f in findings if f.severity == "error")
+            n_warn = len(findings) - n_err
+            logger.log_info(
+                f">> GFF3 input validator: {len(findings)} finding(s) "
+                f"({n_err} error, {n_warn} warning) written to "
+                f"{findings_path}; pass --strict-gff to also dump "
+                f"per-row to stderr."
+            )
+        except OSError as exc:
+            logger.log_warning(
+                f"GFF3 input validator: could not write findings to "
+                f"{findings_path}: {exc}; falling back to stderr dump."
+            )
+            for f in findings:
+                logger.log(str(f), debug=True)
+    if _strict_gff and any(f.severity == "error" for f in findings):
+        _record_pipeline_failure(
+            args, "validate_reference_annotation",
+            "reference annotation failed strict GFF3 validation",
+            details={"errors": sum(
+                1 for finding in findings if finding.severity == "error"
+            )},
+            fatal=True,
+        )
+        _finish_run_manifest(args, "failed")
+        sys.exit(2)
+
+
+def _report_non_primary_sequences(ref_db, args):
+    """Say when the reference carries alternate-locus or patch sequences.
+
+    14.6 % of GRCh38 RefSeq coding genes sit on ``_alt``/``_fix`` contigs as
+    copies of a gene on the primary assembly. They compete for the same target
+    locus, and the copy frequently wins -- on a full-GRCh38 lift to CHM13,
+    1,058 of the 1,611 contested GeneID groups end up represented only by the
+    copy. Nothing is mis-named (RefSeq gives the copy the same gene symbol,
+    Dbxrefs and unsuffixed accessions), so LiftOn does not override that
+    choice; see notes/primary_assembly_id_preference_nogo.md.
+
+    What it should not do is leave the user to discover the situation by
+    measuring it, which is what a reference restricted to the primary assembly
+    had to be built from by hand. So: count them, say so once, and record it.
+    """
+    from lifton import coreutils as _coreutils
+
+    manifest = getattr(args, "_run_manifest", None)
+    counts = {}
+    try:
+        rows = ref_db.db_connection.execute(
+            "SELECT seqid, COUNT(*) FROM features WHERE featuretype = 'gene' "
+            "GROUP BY seqid"
+        )
+        for seqid, count in rows:
+            label = _coreutils.non_primary_seqid_class(seqid)
+            if label is not None:
+                counts[label] = counts.get(label, 0) + int(count)
+                counts["sequences"] = counts.get("sequences", 0) + 1
+    except Exception:
+        # A backend without this table tells us nothing; that is not a failure.
+        return
+    genes = counts.get("alt", 0) + counts.get("fix", 0)
+    if not genes:
+        return
+    if manifest is not None:
+        manifest.record_count("reference_non_primary_sequences",
+                              counts.get("sequences", 0))
+        manifest.record_count("reference_genes_on_non_primary_sequences", genes)
+    logger.log_info(
+        f">> Reference carries {counts.get('sequences', 0)} alternate-locus / "
+        f"patch sequence(s) holding {genes} gene(s). These are copies of genes "
+        f"on the primary assembly and compete for the same target locus, so "
+        f"the annotation may represent a gene by its copy. Restrict the "
+        f"reference to the primary assembly if you want only primary genes."
+    )
+
+
 def run_all_lifton_steps(args):
     t1 = time.process_time()
     # Iteration-3 "band everything" alignment is the DEFAULT (set at align-module
@@ -945,6 +1077,13 @@ def run_all_lifton_steps(args):
     _align.configure_alignment(band=not getattr(args, "full_dp_align", False))
     resolve_miniprot_rescue_args(args)
     resolve_miniprot_candidate_args(args)
+    # The tally is module-level, so a process that runs several pipelines --
+    # every test in the suite does -- must start each one from zero.
+    drop_ledger.reset()
+    # Same for the declared codon exceptions (transl_except) of the reference.
+    from lifton import transl_except as _transl_except
+    _transl_except.clear()
+    coding.install_transcript_tables({})
     ################################
     # Step 0: Reading target & reference genomes
     ################################
@@ -1018,49 +1157,11 @@ def run_all_lifton_steps(args):
             target_seqids=reference_seqids,
         )
         findings = list(reference_annotation_scan.ncbi_findings)
-    # Phase 16 Tier 4: real-world NCBI/RefSeq inputs trigger hundreds of
-    # thousands of `unencoded_reserved_char` findings on Dbxref values
-    # (DBTAG:ID is technically reserved-char-bearing). The previous
-    # unconditional per-finding stderr dump produced 100+ MB stderr
-    # logs that buried real errors. Strict mode keeps per-row stderr
-    # output (users opted in); the default path now writes findings to
-    # a side-car file under stats/ and prints one summary line.
-    _strict_gff = getattr(args, "strict_gff", False)
-    if _strict_gff:
-        for f in findings:
-            logger.log(str(f), debug=True)
-    elif findings:
-        findings_path = os.path.join(stats_dir, "gff3_input_validation.txt")
-        try:
-            with open(findings_path, "w") as fw:
-                for f in findings:
-                    fw.write(str(f) + "\n")
-            n_err = sum(1 for f in findings if f.severity == "error")
-            n_warn = len(findings) - n_err
-            logger.log_info(
-                f">> GFF3 input validator: {len(findings)} finding(s) "
-                f"({n_err} error, {n_warn} warning) written to "
-                f"{findings_path}; pass --strict-gff to also dump "
-                f"per-row to stderr."
-            )
-        except OSError as exc:
-            logger.log_warning(
-                f"GFF3 input validator: could not write findings to "
-                f"{findings_path}: {exc}; falling back to stderr dump."
-            )
-            for f in findings:
-                logger.log(str(f), debug=True)
-    if _strict_gff and any(f.severity == "error" for f in findings):
-        _record_pipeline_failure(
-            args, "validate_reference_annotation",
-            "reference annotation failed strict GFF3 validation",
-            details={"errors": sum(
-                1 for finding in findings if finding.severity == "error"
-            )},
-            fatal=True,
-        )
-        _finish_run_manifest(args, "failed")
-        sys.exit(2)
+        if reference_annotation_scan.file_format == "GTF":
+            # GTF has no GFF3 version directive and uses quoted attributes.
+            # Keep coordinate/column checks; check GFF3 grammar after conversion.
+            findings = [f for f in findings if f.rule not in {"missing_gff_version", "bad_attribute"}]
+    _check_reference_findings(args, findings, stats_dir)
     ################################
     # Step 1: Building database from the reference annotation
     ################################
@@ -1077,11 +1178,59 @@ def run_all_lifton_steps(args):
         args.verbose,
         auto_convert_gtf,
         scan_result=reference_annotation_scan,
+        conversion_dir=intermediate_dir,
     )
+    manifest.set_backend_choice(
+        "reference_annotation_requested", ref_db.requested_backend,
+    )
+    if ref_db.backend_fallback_reason:
+        manifest.set_backend_choice(
+            "reference_annotation_fallback", ref_db.backend_fallback_reason,
+        )
+    if getattr(ref_db, "conversion_provenance", None):
+        manifest.set_input_statistics("reference_annotation_conversion", ref_db.conversion_provenance)
+        converted_scan = annotation.scan_annotation(ref_db.file_name, target_seqids=reference_seqids)
+        _check_reference_findings(args, list(converted_scan.ncbi_findings), stats_dir)
+    from lifton import reference_models
+    left_as_written = []
+    normalization = reference_models.normalize_sparse_coding(
+        ref_db, os.path.join(intermediate_dir, "reference_models"),
+        strict=bool(getattr(args, "strict_gff", False)),
+        skipped=left_as_written,
+    )
+    if left_as_written:
+        manifest.record_count("reference_models_left_as_written", len(left_as_written))
+    if normalization:
+        requested_features = lifton_utils.get_parent_features_to_lift(args.features)
+        if requested_features == ["CDS"]:
+            normalized_features = os.path.join(
+                intermediate_dir, "reference_models", "normalized_feature_types.txt")
+            with open(normalized_features, "w") as feature_handle:
+                feature_handle.write("gene\n")
+            args.features = normalized_features
+            normalization["feature_selection"] = {
+                "requested": ["CDS"], "effective": ["gene"],
+            }
+        manifest.set_input_statistics("reference_model_normalization", normalization)
+        backend = ref_db.backend
+        connection = ref_db.db_connection
+        if hasattr(connection, "conn"):
+            connection.conn.close()
+        args.reference_annotation = normalization["annotation"]
+        ref_db = annotation.Annotation(args.reference_annotation, False, False, backend=backend)
+        reference_annotation_scan = ref_db.scan_result
+        for argument, filename in (("proteins", "supplied_proteins.fa"), ("transcripts", "supplied_transcripts.fa")):
+            supplied = getattr(args, argument, None)
+            if supplied and os.path.exists(supplied):
+                aliased = reference_models.alias_fasta(
+                    supplied, normalization["mapping"], os.path.join(intermediate_dir, "reference_models", filename))
+                setattr(args, argument, aliased)
     manifest.set_backend_choice("reference_annotation", ref_db.backend)
     manifest.set_cache_choice(
         "reference_annotation", getattr(ref_db, "cache_status", "unknown")
     )
+
+    _report_non_primary_sequences(ref_db, args)
 
     t3 = time.process_time()
     ################################
@@ -1127,7 +1276,22 @@ def run_all_lifton_steps(args):
     ################################
     _switch_manifest_phase(args, "load_reference_sequences")
     ref_trans_file = args.transcripts    
-    ref_proteins_file = args.proteins    
+    ref_proteins_file = args.proteins
+    _extract_stats = {}
+    _declared_exceptions = None
+    # Ensembl/GENCODE write a selenocysteine as its own row rather than
+    # transl_except; read them as declarations too (one query; for GTF input a
+    # scan of the original file, since conversion drops those rows).
+    try:
+        _gtf_source = ((getattr(ref_db, "conversion_provenance", None) or {})
+                       .get("input") or {}).get("path")
+        _selenocysteines = _transl_except.selenocysteine_declarations(ref_db, _gtf_source)
+    except Exception as error:  # an optional refinement must not cost the lift
+        logger.log_warning(f"selenocysteine rows could not be read ({error}).")
+        _selenocysteines = {}
+    if _selenocysteines:
+        manifest.record_count("reference_selenocysteine_rows",
+                              sum(len(values) for values in _selenocysteines.values()))
     if (ref_proteins_file is None) or (not os.path.exists(ref_proteins_file)) or (ref_trans_file is None) or (not os.path.exists(ref_trans_file)):
         logger.log(">> Creating transcript DNA dictionary from the reference annotation ...", debug=True)
         logger.log(">> Creating transcript protein dictionary from the reference annotation ...", debug=True)
@@ -1135,10 +1299,18 @@ def run_all_lifton_steps(args):
         # no in-memory dict materialisation. Then re-open via pyfaidx
         # so downstream consumers see the same lazy mmap-backed
         # interface as the user-supplied -P / -T branch below.
-        ref_trans_file, ref_proteins_file = \
-            extract_sequence.extract_features_to_fasta(
-                ref_db, features, ref_fai, intermediate_dir,
-            )
+        _extract_stats = {}
+        _declared_exceptions = {}
+        generated_trans, generated_proteins = extract_sequence.extract_features_to_fasta(
+            ref_db, features, ref_fai, intermediate_dir, stats=_extract_stats,
+            transl_except=_declared_exceptions, extra_declarations=_selenocysteines,
+        )
+        # Preserve individually supplied sequences for normalized references.
+        # Their IDs were checked against the explicit alias map above.
+        ref_trans_file = (ref_trans_file if normalization and ref_trans_file and os.path.exists(ref_trans_file)
+                          else generated_trans)
+        ref_proteins_file = (ref_proteins_file if normalization and ref_proteins_file and os.path.exists(ref_proteins_file)
+                             else generated_proteins)
         ref_trans = Fasta(ref_trans_file)
         ref_proteins = Fasta(ref_proteins_file)
     else:
@@ -1148,13 +1320,39 @@ def run_all_lifton_steps(args):
         ref_proteins = Fasta(ref_proteins_file)
     logger.log("\t * number of transcripts: ", len(ref_trans.keys()), debug=True)
     logger.log("\t * number of proteins: ", len(ref_proteins.keys()), debug=True)
-    # Count, don't collect: the dict was built only to be measured, then held
-    # for the rest of the run.
-    trunc_ref_protein_count = lifton_utils.count_truncated_proteins(ref_proteins)
+    # Counted during the streaming write, where the protein string is already
+    # in hand. Falling back to the sweep keeps the user-supplied -P branch --
+    # which does no extraction -- reporting the same number.
+    if "truncated_proteins" in _extract_stats:
+        trunc_ref_protein_count = _extract_stats["truncated_proteins"]
+    else:
+        trunc_ref_protein_count = lifton_utils.count_truncated_proteins(ref_proteins)
     logger.log("\t\t * number of truncated proteins: ", trunc_ref_protein_count, debug=True)
     manifest.record_count("reference_transcripts", len(ref_trans.keys()))
     manifest.record_count("reference_proteins", len(ref_proteins.keys()))
     manifest.record_count("truncated_reference_proteins", trunc_ref_protein_count)
+    # Codons the reference declares to translate differently (transl_except):
+    # selenocysteines and other read-through stops are scored as read through,
+    # and the attribute is rewritten into target coordinates on output.
+    # Installed before evaluation, Step 4 and any thread or fork.
+    if _declared_exceptions is None:
+        try:
+            _declared_exceptions = _transl_except.scan_reference(
+                ref_db, ref_fai, extra=_selenocysteines)
+        except Exception as error:  # an optional refinement must not cost the lift
+            logger.log_warning(
+                f"transl_except declarations could not be read ({error}); "
+                f"declared recoded stops are not read through in this run.")
+            _declared_exceptions = {}
+    _n_declared = _transl_except.install(_declared_exceptions, ref_proteins, tgt_fai)
+    # The code each reference transcript declares, for the models whose own
+    # rows declare none (every miniprot-derived model). Before any fork.
+    coding.install_transcript_tables(
+        extract_sequence.read_transl_table_sidecar(ref_proteins_file))
+    if _n_declared:
+        logger.log(f"\t * reference transcripts declaring transl_except: {_n_declared}",
+                   debug=True)
+        manifest.record_count("reference_transl_except_transcripts", _n_declared)
 
     ################################
     # optional Step: Evaluation mode
@@ -1174,7 +1372,7 @@ def run_all_lifton_steps(args):
         logger.log(">> Creating target database : ", tgt_annotation, debug=True)
         os.makedirs(lifton_outdir, exist_ok=True)
         auto_convert_gtf = not args.no_auto_convert_gtf
-        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf).db_connection
+        tgt_feature_db = annotation.Annotation(tgt_annotation, args.infer_genes, args.infer_transcripts, args.merge_strategy, args.id_spec, args.force, args.verbose, auto_convert_gtf, conversion_dir=intermediate_dir).db_connection
         from lifton.output_transaction import OutputTransaction
         evaluation_transaction = OutputTransaction(
             os.path.join(lifton_outdir, "eval.txt")
@@ -1427,6 +1625,18 @@ def run_all_lifton_steps(args):
         getattr(l_feature_db, "cache_status", "unknown"),
     )
     l_feature_db = l_feature_db.db_connection
+    # A precomputed Liftoff GFF3 may contain multiple trans-spliced gene
+    # fragments with one declared ID. The database keeps every root but binds
+    # each transcript to the first fragment, which need not contain it. Give
+    # Step 7 a read-only corrected hierarchy when a unique containing fragment
+    # exists; the common no-duplicate case retains the original DB object.
+    from lifton.parent_resolution import bind_same_seqid_parents
+    parent_counts = {}
+    l_feature_db = bind_same_seqid_parents(l_feature_db, features, parent_counts)
+    manifest.record_count("liftoff_same_seqid_parent_repairs",
+                          parent_counts["repaired"])
+    manifest.record_count("liftoff_same_seqid_parent_ambiguous",
+                          parent_counts["ambiguous"])
     t8 = time.process_time()
     logger.log(f">> Creating miniprot annotation database : {_describe_annotation_source(miniprot_annotation)}", debug=True)
     if miniprot_annotation is not None:
@@ -1862,9 +2072,14 @@ def run_all_lifton_steps(args):
         # Which rescue pass the time went to. On a distant transfer this is the
         # largest phase of the run, and the split is not otherwise visible.
         # Milliseconds, because record_count stores integers.
+        # Counts share the dict with timings, so they are named rather than
+        # assumed: anything not listed here is a duration and is scaled. A new
+        # counter that forgets to register lands in the manifest as
+        # "..._ms_<name>" with its value multiplied by a thousand.
+        rescue_counts = {"isoform_jobs", "isoform_jobs_high_water"}
         for name, value in getattr(args, "_rescue_timings", {}).items():
-            if name == "isoform_jobs":
-                manifest.record_count("miniprot_rescue_isoform_jobs", value)
+            if name in rescue_counts:
+                manifest.record_count(f"miniprot_rescue_{name}", int(value))
             else:
                 manifest.record_count(f"miniprot_rescue_ms_{name}",
                                       int(value * 1000))
@@ -1898,14 +2113,23 @@ def run_all_lifton_steps(args):
     # but nothing surfaced it: `gff3-validate` reports it as a WARNING and the
     # release gates count errors. Report the number here so a user sees it
     # without running the validator.
+    # Two different numbers. `genes_emitted_without_children` is the one to act
+    # on: the reference gave the gene children and we emitted none. The raw
+    # tally of bare gene lines is kept beside it because most of them are
+    # faithful -- RefSeq declares 10,626 single-row pseudogenes in the CHM13
+    # reference alone -- and reporting those as losses buried the real ones
+    # 11,130 to 2 across the benchmark corpus.
     _childless_genes = getattr(args, "_childless_gene_count", 0)
     manifest.record_count("genes_emitted_without_children", _childless_genes)
+    manifest.record_count("bare_gene_lines_emitted",
+                          getattr(args, "_bare_gene_line_count", 0))
     if _childless_genes:
         _childless_examples = getattr(args, "_childless_gene_ids", []) or []
         _shown = ", ".join(_childless_examples[:5])
         logger.log_warning(
             f"{_childless_genes} gene(s) were emitted with no child features "
-            f"(no transcript, exon or CDS)"
+            f"although the reference gives them children (no transcript, exon "
+            f"or CDS was written)"
             + (f"; e.g. {_shown}" if _shown else "")
         )
     try:
@@ -1948,6 +2172,15 @@ def run_all_lifton_steps(args):
             tree_dict, tgt_fai, ref_proteins, ref_trans, ref_features_dict,
             m_id_2_ref_id_trans_dict, ref_features_len_dict,
             ref_trans_exon_num_dict, ref_features_reverse_dict, args)
+
+    # Everything this run dropped, in one place. The per-event warnings were
+    # always printed; what was missing was the number. Reported after the
+    # cross-locus pass, which records drops of its own.
+    drop_ledger.report(manifest)
+    if _n_declared:
+        _written = _transl_except.counts()
+        manifest.record_count("transl_except_written", _written["emitted"])
+        manifest.record_count("transl_except_not_applicable", _written["dropped"])
 
     ################################
     # Step 10: Validate output GFF3

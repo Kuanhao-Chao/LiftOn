@@ -2,7 +2,7 @@ import sys
 
 from Bio.Seq import Seq
 
-from lifton import logger
+from lifton import coding, drop_ledger, logger
 from lifton.exceptions import LiftOnInputError
 
 def determine_file_format(file_path):
@@ -126,16 +126,29 @@ def extract_features(ref_db, features, ref_fai):
 # RAM ceiling: ~one feature at a time (mid-100s of bytes).
 # ---------------------------------------------------------------------------
 
+import json
 import os as _os
 
+#: Suffix of the sidecar recording which reference proteins use a non-standard
+#: genetic code. Kept next to the FASTA so a user-supplied ``-P`` file, which
+#: has no sidecar, simply runs the single standard-code invocation.
+TRANSL_TABLE_SIDECAR_SUFFIX = ".transl_tables.json"
 
-def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
+
+def extract_features_to_fasta(ref_db, features, ref_fai, out_dir, stats=None,
+                              transl_except=None, extra_declarations=None):
     """Streaming alternative to :func:`extract_features`.
 
     Writes ``transcripts.fa`` and ``proteins.fa`` under ``out_dir`` as
     each reference feature's sequence is computed; nothing is held in
     Python dict form. Returns the two file paths so callers can hand
     them straight to ``pyfaidx.Fasta(path)``.
+
+    ``transl_except``, when a dict, receives ``{transcript id:
+    (coding.TranslExcept, ...)}`` for every transcript whose CDS declares a
+    codon exception, placed on the protein just written. It never changes
+    what is written. ``extra_declarations`` adds values by transcript id
+    (Ensembl/GENCODE selenocysteine rows).
 
     The byte content of each FASTA record is identical to the legacy
     path's ``write_seq_2_file`` output (same record header, same
@@ -148,6 +161,11 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
     counter = 0
     feature_set = set(features)
     warned = set()
+    tables = {}
+    # Counted here because the protein string is in hand. The caller used to
+    # re-open the finished FASTA and materialise every record through pyfaidx
+    # to produce this one integer.
+    tally = {"proteins": 0, "truncated_proteins": 0}
     with open(trans_path, "w") as ft, open(prot_path, "w") as fp:
         for feature in features:
             for locus in ref_db.db_connection.features_of_type(feature):
@@ -161,7 +179,10 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
                 if parent_is_listed_type(ref_db, locus, feature_set):
                     continue
                 counter += 1
-                _stream_inner(ref_db, locus, ref_fai, ft, fp, warned=warned)
+                _stream_inner(ref_db, locus, ref_fai, ft, fp, warned=warned,
+                              tables=tables, tally=tally,
+                              transl_except=transl_except,
+                              extra_declarations=extra_declarations)
     print(
         f"Extracted features (streaming) for {counter} features",
         file=sys.stderr,
@@ -186,10 +207,99 @@ def extract_features_to_fasta(ref_db, features, ref_fai, out_dir):
             f"or the .fai index is stale — rebuild the index (or align the "
             f"seqids) and re-run."
         )
+    write_transl_table_sidecar(prot_path, tables)
+    if stats is not None:
+        stats.update(tally)
     return trans_path, prot_path
 
 
-def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None):
+def transl_table_sidecar_path(proteins_path):
+    """Where the per-protein genetic codes for ``proteins_path`` are recorded."""
+    return proteins_path + TRANSL_TABLE_SIDECAR_SUFFIX
+
+
+def write_transl_table_sidecar(proteins_path, tables):
+    """Record the proteins that do NOT use the standard code, so Step 4 can
+    give miniprot the right ``-T``. Nothing is written when every protein uses
+    the standard code, which is what keeps ordinary runs untouched."""
+    path = transl_table_sidecar_path(proteins_path)
+    if not tables:
+        # A stale sidecar from an earlier run must not steer this one.
+        if _os.path.exists(path):
+            _os.remove(path)
+        return None
+    with open(path, "w") as handle:
+        json.dump({"schema_version": 1,
+                   "proteins": {key: tables[key] for key in sorted(tables)}},
+                  handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    return path
+
+
+def read_transl_table_sidecar(proteins_path):
+    """``{protein id: NCBI table}`` for the non-standard proteins, or ``{}``."""
+    path = transl_table_sidecar_path(proteins_path)
+    try:
+        with open(path) as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    proteins = payload.get("proteins") if isinstance(payload, dict) else None
+    if not isinstance(proteins, dict):
+        return {}
+    resolved = {}
+    for key, value in proteins.items():
+        try:
+            resolved[key] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return resolved
+
+
+_COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
+
+
+def transl_excepts_of(feature, fasta, cds_children, protein=None, table=None,
+                      extra_values=None):
+    """``transl_except`` declarations of one transcript, placed on its protein.
+
+    Uses the same children, merged intervals and initial phase that
+    :func:`get_protein_sequence` translates, so residue ``r`` is the protein's
+    ``r``-th residue. Empty when no CDS row declares anything.
+    """
+    # Every CDS row: an annotation may write each segment's declaration on its
+    # own segment. Reading only the first row that had any dropped the rest.
+    values = []
+    for child in cds_children:
+        if getattr(child, "featuretype", "CDS") == "CDS":
+            for value in coding.transl_except_values(getattr(child, "attributes", None)):
+                if value not in values:
+                    values.append(value)
+    for value in extra_values or ():
+        if value not in values:
+            values.append(value)
+    if not values:
+        return ()
+    strand = getattr(feature, "strand", "+")
+    if protein is None:
+        protein = (get_protein_sequence(feature, fasta, cds_children, table=table)
+                   or "").upper()
+    seqid = getattr(feature, "seqid", None)
+
+    def bases_at(positions):
+        # Transcript orientation: parse_location already lists a complement's
+        # positions 3'-to-5' on the forward strand.
+        bases = "".join(str(fasta[seqid][p - 1:p]) for p in positions).upper()
+        return bases.translate(_COMPLEMENT) if strand == "-" else bases
+
+    return coding.transl_excepts_for(
+        values, merge_children_intervals(cds_children), strand,
+        coding.initial_phase(cds_children, strand), protein,
+        context=getattr(feature, "id", None), bases_at=bases_at)
+
+
+def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None, tables=None,
+                  tally=None, transl_except=None, extra_declarations=None):
     # Phase 18: one ordered children() query + an in-Python featuretype
     # partition replaces the prior three per-feature queries (2x fewer
     # SQLite round-trips on the common exon/CDS-bearing path, 3x on a bare
@@ -214,20 +324,49 @@ def _stream_inner(ref_db, feature, ref_fai, ft, fp, warned=None):
                 logger.log_warning(
                     f"extract_features_to_fasta: transcript {feature.id}: {e}"
                 )
+                drop_ledger.record("reference_transcript_sequence", feature.id)
         if len(children_CDSs) > 0:
             try:
+                table = coding.resolve_transl_table(
+                    children_CDSs, context=feature.id)
                 protein_seq = get_protein_sequence(
-                    feature, ref_fai, children_CDSs, warned=warned)
+                    feature, ref_fai, children_CDSs, warned=warned, table=table)
                 if protein_seq:
                     protein_seq = protein_seq.upper()
                     fp.write(f">{feature.id}\n{protein_seq}\n")
+                    if tally is not None:
+                        from lifton import lifton_utils as _lifton_utils
+                        tally["proteins"] += 1
+                        if not _lifton_utils.check_protein_valid(protein_seq):
+                            tally["truncated_proteins"] += 1
+                    if tables is not None and table != coding.DEFAULT_TRANSL_TABLE:
+                        # Recorded only for a non-standard code, so the sidecar
+                        # is absent on every ordinary annotation and Step 4's
+                        # command is unchanged there.
+                        tables[feature.id] = table
+                    if transl_except is not None:
+                        try:
+                            placed = transl_excepts_of(
+                                feature, ref_fai, children_CDSs, protein=protein_seq,
+                                extra_values=(extra_declarations or {}).get(feature.id))
+                        except Exception as error:
+                            logger.log_warning(
+                                f"extract_features_to_fasta: {feature.id}: "
+                                f"transl_except not placed ({error})")
+                            placed = ()
+                        if placed:
+                            transl_except[feature.id] = placed
             except Exception as e:
                 logger.log_warning(
                     f"extract_features_to_fasta: protein {feature.id}: {e}"
                 )
+                drop_ledger.record("reference_protein_sequence", feature.id)
     else:
         for child in all_children:
-            _stream_inner(ref_db, child, ref_fai, ft, fp, warned=warned)
+            _stream_inner(ref_db, child, ref_fai, ft, fp, warned=warned,
+                          tables=tables, tally=tally,
+                          transl_except=transl_except,
+                          extra_declarations=extra_declarations)
 
 
 def __inner_extract_feature(ref_db, feature, ref_fai, ref_trans, ref_proteins,
@@ -291,7 +430,7 @@ def merge_children_intervals(children):
     return merged
 
 
-def get_dna_sequence(parent_feature, fasta, features, warned=None):
+def get_dna_sequence(parent_feature, fasta, features, warned=None, *, pad=True):
     chrom = parent_feature.seqid
     strand = parent_feature.strand
     merged_features = merge_children_intervals(features)
@@ -325,7 +464,8 @@ def get_dna_sequence(parent_feature, fasta, features, warned=None):
         sequence += str(fasta[chrom][start -1: end])
     if strand == "-":
         sequence = str(Seq(sequence).reverse_complement())
-    sequence += 'N' * get_padding_length(len(sequence))
+    if pad:
+        sequence += 'N' * get_padding_length(len(sequence))
     return sequence
 
 
@@ -333,10 +473,18 @@ def get_padding_length(sequence_length):
     return (3-sequence_length%3)%3
 
 
-def get_protein_sequence(parent_feature, fasta, features, warned=None):
-    dna = get_dna_sequence(parent_feature, fasta, features, warned=warned)
-    # Biopython has historically truncated an incomplete terminal codon while
-    # warning that this behavior may change. Make that established LiftOn
-    # result explicit and warning-free.
-    complete_length = len(dna) - (len(dna) % 3)
-    return str(Seq(dna[:complete_length]).translate())
+def get_protein_sequence(parent_feature, fasta, features, warned=None,
+                         table=None):
+    features = list(features)
+    phase = coding.initial_phase(features, getattr(parent_feature, 'strand', '+'))
+    # Keep the legacy complete-model padding contract. Initial partial codons
+    # use raw sequence so padding cannot invent an amino acid after the trim.
+    dna = get_dna_sequence(parent_feature, fasta, features, warned=warned, pad=not phase)[phase:]
+    # The genetic code the annotation declares for this transcript. Translating
+    # a vertebrate mitochondrial CDS with the standard code reads its TGA
+    # tryptophans as stops, so the reference protein LiftOn compares everything
+    # against is itself wrong.
+    if table is None:
+        table = coding.resolve_transl_table(
+            features, context=getattr(parent_feature, 'id', None))
+    return coding.translate(dna, table)

@@ -159,6 +159,19 @@ def clone_attributes(attributes):
     if attributes is None:
         return None
     clone = attributes.__class__()
+    backing = getattr(attributes, "_d", None)
+    if backing is not None and getattr(clone, "_d", None) is not None:
+        # A gffutils Attributes stores its values in ``_d``, already as lists,
+        # and reaches them through two Python-level methods: ``items()`` builds
+        # a list and calls ``__getitem__`` per key, then ``__setitem__``
+        # re-wraps each value. Profiling Step 7 on dog to cat counted 85.5
+        # million ``__setitem__`` calls (33.7 s) behind 8.85 million clones
+        # (notes/step7_profile_2026-09.md). Copying ``_d`` reaches the same
+        # mapping without either.
+        clone._d = {key: (list(value) if isinstance(value, (list, tuple))
+                          else value)
+                    for key, value in backing.items()}
+        return clone
     for key, value in attributes.items():
         clone[key] = list(value) if isinstance(value, (list, tuple)) else value
     return clone
@@ -217,3 +230,56 @@ def clone_feature(feature):
     if isinstance(extra, (list, tuple)):
         clone.extra = list(extra)
     return clone
+
+
+#: UCSC-style GRCh38 marks an alternate locus with ``_alt`` and a patch with
+#: ``_fix``. Unlocalized (``_random``) and unplaced (``chrUn_``) scaffolds are
+#: part of the primary assembly and are NOT duplicates of anything, so they are
+#: deliberately absent. Accession-style names cannot be classified from the
+#: name alone and are reported as primary.
+_NON_PRIMARY_SUFFIXES = (("_alt", "alt"), ("_fix", "fix"))
+
+
+def non_primary_seqid_class(seqid):
+    """``'alt'``, ``'fix'``, or None for a sequence on the primary assembly."""
+    name = str(seqid)
+    for suffix, label in _NON_PRIMARY_SUFFIXES:
+        if name.endswith(suffix):
+            return label
+    return None
+
+
+def drop_redundant_stop_codons(children):
+    """Drop a ``stop_codon`` row that a sibling ``CDS`` already covers.
+
+    miniprot emits the terminal ``CDS`` of a hit *including* its stop codon and
+    then repeats those same three bases as a nested ``stop_codon`` row. Every
+    one of the 3,963 ``stop_codon`` rows in a whole-genome human miniprot run
+    is fully contained in a sibling CDS -- not one carries a base the CDS list
+    does not already have.
+
+    The consumers of ``children(featuretype=('CDS','stop_codon'))`` add every
+    row as an exon *and* as a CDS, so each redundant row became a 3 bp exon
+    nested inside the terminal exon (an overlapping-exon pair the reference
+    does not have, and an overlapping -- sometimes exactly duplicated -- CDS),
+    while ``add_cds`` overwrote the real terminal CDS. It also fired the
+    "spans 2 exons ... each will carry its own copy" warning 8,537 times in one
+    CHM13 run.
+
+    Only *covered* rows are dropped. A ``stop_codon`` that sits outside every
+    sibling CDS -- the GTF convention, where the CDS stops short of it -- still
+    carries sequence, so it is kept and this function is a no-op for it.
+    """
+    rows = list(children)
+    cds_spans = [(int(row.start), int(row.end)) for row in rows
+                 if row.featuretype == "CDS"]
+    if not cds_spans:
+        return rows
+    kept = []
+    for row in rows:
+        if row.featuretype == "stop_codon":
+            start, end = int(row.start), int(row.end)
+            if any(lo <= start and end <= hi for lo, hi in cds_spans):
+                continue
+        kept.append(row)
+    return kept
